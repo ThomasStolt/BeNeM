@@ -1,0 +1,457 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		8C6281232E64CF2300522D09 /* NetreoIncident.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6281222E64CF2300522D09 /* NetreoIncident.swift */; };
+		AABB0001000000000000001A /* IncidentDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0001000000000000001B /* IncidentDetail.swift */; };
+		AABB0001000000000000002A /* IncidentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0001000000000000002B /* IncidentDetailView.swift */; };
+		8C6281282E64CF6D00522D09 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6281262E64CF6D00522D09 /* DashboardView.swift */; };
+		8C6281292E64CF6D00522D09 /* IncidentListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6281272E64CF6D00522D09 /* IncidentListView.swift */; };
+		8C62812B2E64D3C700522D09 /* IncidentListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C62812A2E64D3C700522D09 /* IncidentListViewModel.swift */; };
+		8C62812C2E64D59000522D09 /* NetreoAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11234567890006B /* NetreoAPIService.swift */; };
+		8C62812D2E64D5A100522D09 /* NetreoAPIConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11234567890007B /* NetreoAPIConfiguration.swift */; };
+		8C62812E2E64D5B200522D09 /* NetreoDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11234567890005B /* NetreoDevice.swift */; };
+		8C62812F2E64D5C900522D09 /* DeviceListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11234567890008B /* DeviceListViewModel.swift */; };
+		8C6281302E64D67D00522D09 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11234567890002B /* ContentView.swift */; };
+		8C6281312E64D68E00522D09 /* DeviceListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11234567890009B /* DeviceListView.swift */; };
+		8C6281322E64D6A900522D09 /* AddDeviceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1123456789000AB /* AddDeviceView.swift */; };
+		8C6281332E64D6B600522D09 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1123456789000BB /* SettingsView.swift */; };
+		8C6281342E64D6BE00522D09 /* QuickConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1123456789000CB /* QuickConfigView.swift */; };
+		A11234567890001A /* BeNeMApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11234567890001B /* BeNeMApp.swift */; };
+		A11234567890003A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A11234567890003B /* Assets.xcassets */; };
+		A11234567890004A /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A11234567890004B /* Preview Assets.xcassets */; };
+		A1123456789000DA /* SimpleNetreoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1123456789000DB /* SimpleNetreoService.swift */; };
+		A1123456789000EA /* SimpleQuickConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1123456789000EB /* SimpleQuickConfigView.swift */; };
+		A1123456789000FA /* SimpleContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1123456789000FB /* SimpleContentView.swift */; };
+		A112345678900100 /* SimpleDeviceListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A112345678900101 /* SimpleDeviceListView.swift */; };
+		A112345678900110 /* DeviceInterfacesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A112345678900111 /* DeviceInterfacesView.swift */; };
+		A112345678900120 /* InterfacePerformanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A112345678900121 /* InterfacePerformanceView.swift */; };
+		A112345678900130 /* DeviceLatencyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A112345678900131 /* DeviceLatencyView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		8C6281222E64CF2300522D09 /* NetreoIncident.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetreoIncident.swift; sourceTree = "<group>"; };
+		AABB0001000000000000001B /* IncidentDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentDetail.swift; sourceTree = "<group>"; };
+		AABB0001000000000000002B /* IncidentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentDetailView.swift; sourceTree = "<group>"; };
+		8C6281262E64CF6D00522D09 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		8C6281272E64CF6D00522D09 /* IncidentListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentListView.swift; sourceTree = "<group>"; };
+		8C62812A2E64D3C700522D09 /* IncidentListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentListViewModel.swift; sourceTree = "<group>"; };
+		A11234567890000A /* BeNeM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BeNeM.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A11234567890001B /* BeNeMApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeNeMApp.swift; sourceTree = "<group>"; };
+		A11234567890002B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A11234567890003B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A11234567890004B /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		A11234567890005B /* NetreoDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetreoDevice.swift; sourceTree = "<group>"; };
+		A11234567890006B /* NetreoAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetreoAPIService.swift; sourceTree = "<group>"; };
+		A11234567890007B /* NetreoAPIConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetreoAPIConfiguration.swift; sourceTree = "<group>"; };
+		A11234567890008B /* DeviceListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceListViewModel.swift; sourceTree = "<group>"; };
+		A11234567890009B /* DeviceListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceListView.swift; sourceTree = "<group>"; };
+		A1123456789000AB /* AddDeviceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddDeviceView.swift; sourceTree = "<group>"; };
+		A1123456789000BB /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A1123456789000CB /* QuickConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickConfigView.swift; sourceTree = "<group>"; };
+		A1123456789000DB /* SimpleNetreoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleNetreoService.swift; sourceTree = "<group>"; };
+		A1123456789000EB /* SimpleQuickConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleQuickConfigView.swift; sourceTree = "<group>"; };
+		A1123456789000FB /* SimpleContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleContentView.swift; sourceTree = "<group>"; };
+		A112345678900101 /* SimpleDeviceListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleDeviceListView.swift; sourceTree = "<group>"; };
+		A112345678900111 /* DeviceInterfacesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceInterfacesView.swift; sourceTree = "<group>"; };
+		A112345678900121 /* InterfacePerformanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterfacePerformanceView.swift; sourceTree = "<group>"; };
+		A112345678900131 /* DeviceLatencyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceLatencyView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A11234567890000B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A11234567890000C = {
+			isa = PBXGroup;
+			children = (
+				A11234567890000D /* BeNeM */,
+				A11234567890000E /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A11234567890000D /* BeNeM */ = {
+			isa = PBXGroup;
+			children = (
+				A11234567890001B /* BeNeMApp.swift */,
+				A11234567890002B /* ContentView.swift */,
+				A1123456789000FB /* SimpleContentView.swift */,
+				A11234567890000F /* Models */,
+				A11234567890000G /* Services */,
+				A11234567890000H /* ViewModels */,
+				A11234567890000I /* Views */,
+				A11234567890003B /* Assets.xcassets */,
+				A11234567890000J /* Preview Content */,
+			);
+			path = BeNeM;
+			sourceTree = "<group>";
+		};
+		A11234567890000E /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A11234567890000A /* BeNeM.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A11234567890000F /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				8C6281222E64CF2300522D09 /* NetreoIncident.swift */,
+				AABB0001000000000000001B /* IncidentDetail.swift */,
+				A11234567890005B /* NetreoDevice.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A11234567890000G /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A11234567890006B /* NetreoAPIService.swift */,
+				A11234567890007B /* NetreoAPIConfiguration.swift */,
+				A1123456789000DB /* SimpleNetreoService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		A11234567890000H /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				8C62812A2E64D3C700522D09 /* IncidentListViewModel.swift */,
+				A11234567890008B /* DeviceListViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		A11234567890000I /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				8C6281262E64CF6D00522D09 /* DashboardView.swift */,
+				8C6281272E64CF6D00522D09 /* IncidentListView.swift */,
+				AABB0001000000000000002B /* IncidentDetailView.swift */,
+				A11234567890009B /* DeviceListView.swift */,
+				A1123456789000AB /* AddDeviceView.swift */,
+				A1123456789000BB /* SettingsView.swift */,
+				A1123456789000CB /* QuickConfigView.swift */,
+				A1123456789000EB /* SimpleQuickConfigView.swift */,
+				A112345678900101 /* SimpleDeviceListView.swift */,
+				A112345678900111 /* DeviceInterfacesView.swift */,
+				A112345678900121 /* InterfacePerformanceView.swift */,
+				A112345678900131 /* DeviceLatencyView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A11234567890000J /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				A11234567890004B /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A11234567890000K /* BeNeM */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A11234567890000L /* Build configuration list for PBXNativeTarget "BeNeM" */;
+			buildPhases = (
+				A11234567890000M /* Sources */,
+				A11234567890000B /* Frameworks */,
+				A11234567890000N /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BeNeM;
+			productName = BeNeM;
+			productReference = A11234567890000A /* BeNeM.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A11234567890000O /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					A11234567890000K = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = A11234567890000P /* Build configuration list for PBXProject "BeNeM" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A11234567890000C;
+			productRefGroup = A11234567890000E /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A11234567890000K /* BeNeM */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A11234567890000N /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A11234567890004A /* Preview Assets.xcassets in Resources */,
+				A11234567890003A /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A11234567890000M /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A11234567890001A /* BeNeMApp.swift in Sources */,
+				8C6281342E64D6BE00522D09 /* QuickConfigView.swift in Sources */,
+				8C6281322E64D6A900522D09 /* AddDeviceView.swift in Sources */,
+				A1123456789000DA /* SimpleNetreoService.swift in Sources */,
+				8C62812C2E64D59000522D09 /* NetreoAPIService.swift in Sources */,
+				A1123456789000EA /* SimpleQuickConfigView.swift in Sources */,
+				8C6281332E64D6B600522D09 /* SettingsView.swift in Sources */,
+				A1123456789000FA /* SimpleContentView.swift in Sources */,
+				8C62812B2E64D3C700522D09 /* IncidentListViewModel.swift in Sources */,
+				8C6281312E64D68E00522D09 /* DeviceListView.swift in Sources */,
+				A112345678900100 /* SimpleDeviceListView.swift in Sources */,
+				8C6281302E64D67D00522D09 /* ContentView.swift in Sources */,
+				A112345678900110 /* DeviceInterfacesView.swift in Sources */,
+				8C6281282E64CF6D00522D09 /* DashboardView.swift in Sources */,
+				8C6281292E64CF6D00522D09 /* IncidentListView.swift in Sources */,
+				8C62812D2E64D5A100522D09 /* NetreoAPIConfiguration.swift in Sources */,
+				A112345678900120 /* InterfacePerformanceView.swift in Sources */,
+				8C62812F2E64D5C900522D09 /* DeviceListViewModel.swift in Sources */,
+				A112345678900130 /* DeviceLatencyView.swift in Sources */,
+				8C62812E2E64D5B200522D09 /* NetreoDevice.swift in Sources */,
+				8C6281232E64CF2300522D09 /* NetreoIncident.swift in Sources */,
+				AABB0001000000000000001A /* IncidentDetail.swift in Sources */,
+				AABB0001000000000000002A /* IncidentDetailView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A11234567890000Q /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A11234567890000R /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A11234567890000S /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"BeNeM/Preview Content\"";
+				DEVELOPMENT_TEAM = 8L27BJGYXP;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BeNeM/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tstolt.benem;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A11234567890000T /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"BeNeM/Preview Content\"";
+				DEVELOPMENT_TEAM = 8L27BJGYXP;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BeNeM/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tstolt.benem;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A11234567890000L /* Build configuration list for PBXNativeTarget "BeNeM" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A11234567890000S /* Debug */,
+				A11234567890000T /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A11234567890000P /* Build configuration list for PBXProject "BeNeM" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A11234567890000Q /* Debug */,
+				A11234567890000R /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A11234567890000O /* Project object */;
+}

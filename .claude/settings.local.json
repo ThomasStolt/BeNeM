@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xcodebuild:*)",
+      "WebFetch(domain:app.swaggerhub.com)",
+      "WebFetch(domain:solutions.netreo.com)",
+      "Bash(cp:*)",
+      "Bash(sips:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(swift:*)",
+      "Bash(rm:*)",
+      "Bash(find:*)",
+      "Read(/Users/tstolt/Library/CloudStorage/OneDrive-Persönlich/Documents/Github/BeNeM/BeNeM/**)",
+      "Read(/Users/tstolt/Library/CloudStorage/OneDrive-Persönlich/Documents/Github/BeNeM/BeNeM/**)",
+      "Read(/Users/tstolt/Library/CloudStorage/OneDrive-Persönlich/Documents/Github/BeNeM/BeNeM/Models/**)",
+      "Read(/Users/tstolt/Library/CloudStorage/OneDrive-Persönlich/Documents/Github/BeNeM/BeNeM/Services/**)",
+      "Bash(sudo xcode-select:*)",
+      "Bash(xcrun devicectl:*)",
+      "Bash(xcrun xctrace:*)",
+      "Bash(chmod +x \"/Users/thomasstolt/Library/CloudStorage/OneDrive-Persönlich/Documents/Github/BeNeM/build_and_deploy.sh\")",
+      "Bash(\"/Users/thomasstolt/Library/CloudStorage/OneDrive-Persönlich/Documents/Github/BeNeM/build_and_deploy.sh\")",
+      "Bash(wait)",
+      "Bash(bash build_and_deploy.sh)"
+    ],
+    "deny": []
+  }
+}
