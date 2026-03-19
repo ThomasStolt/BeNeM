@@ -39,3 +39,12 @@ Podfile.lock
 # Credentials / Secrets
 *.env
 secrets.plist
+
+# Local build configuration (contains device UDID and personal paths — never commit)
+build.local.sh
+
+# Personal screenshots accidentally committed — stop tracking future changes
+M1BJKI1M3C52.png
+
+# Claude Code
+.claude/

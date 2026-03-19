@@ -7,8 +7,8 @@ class IncidentListViewModel: ObservableObject {
     enum FilterBadge: CaseIterable {
         case critical       // rot:    severity == .critical
         case major          // orange: severity == .major
-        case warning        // gelb:   severity == .warning / .minor
-        case ok             // grün:   status == .resolved / .closed
+        case warning        // yellow: severity == .warning / .minor
+        case ok             // green:  status == .resolved / .closed
         case acknowledged   // blau:   status == .acknowledged
 
         var color: Color {

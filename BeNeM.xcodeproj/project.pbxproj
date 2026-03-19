@@ -32,6 +32,12 @@
 		A112345678900110 /* DeviceInterfacesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A112345678900111 /* DeviceInterfacesView.swift */; };
 		A112345678900120 /* InterfacePerformanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A112345678900121 /* InterfacePerformanceView.swift */; };
 		A112345678900130 /* DeviceLatencyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A112345678900131 /* DeviceLatencyView.swift */; };
+		BB0001000000000000000001 /* GroupSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001000000000000000002 /* GroupSummary.swift */; };
+		BB0001000000000000000003 /* TacticalViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001000000000000000004 /* TacticalViewModel.swift */; };
+		BB0001000000000000000005 /* GroupListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001000000000000000006 /* GroupListView.swift */; };
+		BB0001000000000000000007 /* AutoRefreshButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001000000000000000008 /* AutoRefreshButton.swift */; };
+		BB0001000000000000000009 /* NetworkDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000100000000000000000A /* NetworkDiscovery.swift */; };
+		BB000100000000000000000B /* AutoDiscoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000100000000000000000C /* AutoDiscoveryView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -61,6 +67,12 @@
 		A112345678900111 /* DeviceInterfacesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceInterfacesView.swift; sourceTree = "<group>"; };
 		A112345678900121 /* InterfacePerformanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterfacePerformanceView.swift; sourceTree = "<group>"; };
 		A112345678900131 /* DeviceLatencyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceLatencyView.swift; sourceTree = "<group>"; };
+		BB0001000000000000000002 /* GroupSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupSummary.swift; sourceTree = "<group>"; };
+		BB0001000000000000000004 /* TacticalViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TacticalViewModel.swift; sourceTree = "<group>"; };
+		BB0001000000000000000006 /* GroupListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupListView.swift; sourceTree = "<group>"; };
+		BB0001000000000000000008 /* AutoRefreshButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoRefreshButton.swift; sourceTree = "<group>"; };
+		BB000100000000000000000A /* NetworkDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkDiscovery.swift; sourceTree = "<group>"; };
+		BB000100000000000000000C /* AutoDiscoveryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoDiscoveryView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -112,6 +124,7 @@
 				8C6281222E64CF2300522D09 /* NetreoIncident.swift */,
 				AABB0001000000000000001B /* IncidentDetail.swift */,
 				A11234567890005B /* NetreoDevice.swift */,
+				BB0001000000000000000002 /* GroupSummary.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -122,6 +135,7 @@
 				A11234567890006B /* NetreoAPIService.swift */,
 				A11234567890007B /* NetreoAPIConfiguration.swift */,
 				A1123456789000DB /* SimpleNetreoService.swift */,
+				BB000100000000000000000A /* NetworkDiscovery.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -131,6 +145,7 @@
 			children = (
 				8C62812A2E64D3C700522D09 /* IncidentListViewModel.swift */,
 				A11234567890008B /* DeviceListViewModel.swift */,
+				BB0001000000000000000004 /* TacticalViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -150,6 +165,9 @@
 				A112345678900111 /* DeviceInterfacesView.swift */,
 				A112345678900121 /* InterfacePerformanceView.swift */,
 				A112345678900131 /* DeviceLatencyView.swift */,
+				BB0001000000000000000006 /* GroupListView.swift */,
+				BB0001000000000000000008 /* AutoRefreshButton.swift */,
+				BB000100000000000000000C /* AutoDiscoveryView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -255,6 +273,12 @@
 				8C6281232E64CF2300522D09 /* NetreoIncident.swift in Sources */,
 				AABB0001000000000000001A /* IncidentDetail.swift in Sources */,
 				AABB0001000000000000002A /* IncidentDetailView.swift in Sources */,
+				BB0001000000000000000001 /* GroupSummary.swift in Sources */,
+				BB0001000000000000000003 /* TacticalViewModel.swift in Sources */,
+				BB0001000000000000000005 /* GroupListView.swift in Sources */,
+				BB0001000000000000000007 /* AutoRefreshButton.swift in Sources */,
+				BB0001000000000000000009 /* NetworkDiscovery.swift in Sources */,
+				BB000100000000000000000B /* AutoDiscoveryView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -396,7 +420,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tstolt.benem;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -421,7 +445,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tstolt.benem;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

@@ -9,27 +9,31 @@ struct ContentView: View {
     @AppStorage("netreo_retry_count") private var retryCount: Double = 3.0
     
     @State private var apiService: NetreoAPIService?
-    
+    @State private var selectedTab = 0
+
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             if !baseURL.isEmpty && !apiKey.isEmpty, let service = apiService {
-                DashboardView(apiService: service)
+                DashboardView(apiService: service, selectedTab: $selectedTab)
                     .tabItem {
                         Image(systemName: "house.fill")
                         Text("Dashboard")
                     }
-                
+                    .tag(0)
+
                 IncidentListView(apiService: service)
                     .tabItem {
                         Image(systemName: "exclamationmark.triangle.fill")
                         Text("Incidents")
                     }
-                
+                    .tag(1)
+
                 DeviceListView(apiService: service)
                     .tabItem {
                         Image(systemName: "network")
                         Text("Devices")
                     }
+                    .tag(2)
             } else {
                 WelcomeView()
                     .tabItem {

@@ -14,11 +14,19 @@ struct SettingsView: View {
     @State private var alertMessage = ""
     @State private var showingAlert = false
     @State private var debugFields: String? = UserDefaults.standard.string(forKey: "debug_incident_fields")
+    @State private var debugDeviceFields: String? = UserDefaults.standard.string(forKey: "debug_device_fields")
+    @State private var debugUnmatched: String? = UserDefaults.standard.string(forKey: "debug_unmatched_incidents")
 
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("Netreo Server")) {
+                Section(header: Text("Discovery")) {
+                    NavigationLink(destination: AutoDiscoveryView()) {
+                        Label("Auto Discovery", systemImage: "magnifyingglass.circle.fill")
+                    }
+                }
+
+                Section(header: Text("BHNM Server")) {
                     TextField("Base URL", text: $baseURL)
                         .autocapitalization(.none)
                         .keyboardType(.URL)
@@ -70,22 +78,52 @@ struct SettingsView: View {
                     .disabled(baseURL.isEmpty || apiKey.isEmpty || isTesting)
                 }
 
-                Section(header: Text("Debug: Incident API Felder")) {
+                Section(header: Text("Debug: Unmatched Incidents")) {
+                    if let fields = debugUnmatched {
+                        Text(fields)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                    } else {
+                        Text("None — all incident device names matched.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Button("Refresh") {
+                        debugUnmatched = UserDefaults.standard.string(forKey: "debug_unmatched_incidents")
+                    }
+                }
+
+                Section(header: Text("Debug: Device API Fields")) {
+                    if let fields = debugDeviceFields {
+                        Text(fields)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                    } else {
+                        Text("No data yet — open the Dashboard first.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Button("Refresh") {
+                        debugDeviceFields = UserDefaults.standard.string(forKey: "debug_device_fields")
+                    }
+                }
+
+                Section(header: Text("Debug: Incident API Fields")) {
                     if let fields = debugFields {
                         Text(fields)
                             .font(.system(.caption, design: .monospaced))
                             .textSelection(.enabled)
                     } else {
-                        Text("Noch keine Daten — bitte zuerst den Incidents-Tab öffnen.")
+                        Text("No data yet — open the Incidents tab first.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                    Button("Aktualisieren") {
+                    Button("Refresh") {
                         debugFields = UserDefaults.standard.string(forKey: "debug_incident_fields")
                     }
                 }
 
-                Section(footer: Text("Enter your Netreo server details to connect to your network monitoring system. Choose the appropriate API version based on your Netreo deployment.")) {
+                Section(footer: Text("Enter your BHNM server details to connect to BMC Helix Network Management. Choose the appropriate API version based on your deployment.")) {
                     EmptyView()
                 }
             }
@@ -103,16 +141,16 @@ struct SettingsView: View {
         isTesting = true
         defer { isTesting = false }
 
-        // URL validieren
+        // Validate URL
         let trimmedURL = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: trimmedURL), url.scheme != nil, url.host != nil else {
-            alertTitle = "Ungültige URL"
-            alertMessage = "Die eingegebene URL \"\(trimmedURL)\" ist kein gültiges Format.\n\nBeispiel: https://netreo.example.com"
+            alertTitle = "Invalid URL"
+            alertMessage = "The URL \"\(trimmedURL)\" is not a valid format.\n\nExample: https://netreo.example.com"
             showingAlert = true
             return
         }
 
-        // Tatsächlichen HTTP-Request absetzen
+        // Send actual HTTP request
         let config = NetreoAPIConfiguration(
             baseURL: trimmedURL,
             apiKey: apiKey,
@@ -159,39 +197,39 @@ struct SettingsView: View {
 
             switch statusCode {
             case 200...299:
-                alertTitle = "Verbindung erfolgreich"
-                alertMessage = "Der Server hat mit HTTP \(statusCode) geantwortet.\n\nURL: \(testURL.absoluteString)"
+                alertTitle = "Connection successful"
+                alertMessage = "The server responded with HTTP \(statusCode).\n\nURL: \(testURL.absoluteString)"
             case 401, 403:
-                alertTitle = "Authentifizierung fehlgeschlagen"
-                alertMessage = "HTTP \(statusCode): Der Server hat die Anfrage abgelehnt.\n\nMögliche Ursachen:\n• API Key ungültig oder abgelaufen\n• PIN fehlt oder falsch (SaaS)\n• Falscher API-Version-Typ\n\nAntwort: \(bodyPreview)"
+                alertTitle = "Authentication failed"
+                alertMessage = "HTTP \(statusCode): The server rejected the request.\n\nPossible causes:\n• API key invalid or expired\n• PIN missing or incorrect (SaaS)\n• Wrong API version selected\n\nResponse: \(bodyPreview)"
             case 404:
-                alertTitle = "Endpunkt nicht gefunden"
-                alertMessage = "HTTP 404: Der API-Endpunkt wurde nicht gefunden.\n\nURL: \(testURL.absoluteString)\n\nMögliche Ursachen:\n• Falsche API-Version ausgewählt\n• Base URL enthält einen falschen Pfad"
+                alertTitle = "Endpoint not found"
+                alertMessage = "HTTP 404: The API endpoint was not found.\n\nURL: \(testURL.absoluteString)\n\nPossible causes:\n• Wrong API version selected\n• Base URL contains an incorrect path"
             case 500...599:
-                alertTitle = "Serverfehler"
-                alertMessage = "HTTP \(statusCode): Der Server hat einen internen Fehler gemeldet.\n\nAntwort: \(bodyPreview)"
+                alertTitle = "Server error"
+                alertMessage = "HTTP \(statusCode): The server reported an internal error.\n\nResponse: \(bodyPreview)"
             default:
-                alertTitle = "Unerwartete Antwort"
-                alertMessage = "HTTP \(statusCode)\n\nURL: \(testURL.absoluteString)\nAntwort: \(bodyPreview)"
+                alertTitle = "Unexpected response"
+                alertMessage = "HTTP \(statusCode)\n\nURL: \(testURL.absoluteString)\nResponse: \(bodyPreview)"
             }
         } catch let urlError as URLError {
-            alertTitle = "Verbindung fehlgeschlagen"
+            alertTitle = "Connection failed"
             switch urlError.code {
             case .notConnectedToInternet:
-                alertMessage = "Kein Internet: Das Gerät ist nicht mit dem Netzwerk verbunden."
+                alertMessage = "No internet: The device is not connected to a network."
             case .cannotFindHost:
-                alertMessage = "Host nicht gefunden: Der Server \"\(url.host ?? trimmedURL)\" konnte nicht aufgelöst werden.\n\nMögliche Ursachen:\n• VPN nicht verbunden (falls interner Server)\n• Hostname falsch geschrieben\n• DNS nicht erreichbar"
+                alertMessage = "Host not found: The server \"\(url.host ?? trimmedURL)\" could not be resolved.\n\nPossible causes:\n• VPN not connected (if internal server)\n• Hostname misspelled\n• DNS unreachable"
             case .cannotConnectToHost:
-                alertMessage = "Keine Verbindung zum Host: \"\(url.host ?? trimmedURL)\" Port \(url.port.map(String.init) ?? "Standard") ist nicht erreichbar.\n\nMögliche Ursachen:\n• VPN nicht verbunden (falls interner Server)\n• Server läuft nicht\n• Falscher Port\n• Firewall blockiert die Verbindung"
+                alertMessage = "Cannot connect to host: \"\(url.host ?? trimmedURL)\" port \(url.port.map(String.init) ?? "default") is not reachable.\n\nPossible causes:\n• VPN not connected (if internal server)\n• Server not running\n• Wrong port\n• Firewall blocking the connection"
             case .timedOut:
-                alertMessage = "Timeout: Der Server hat innerhalb von \(Int(min(timeout, 15))) Sekunden nicht geantwortet.\n\nURL: \(testURL.absoluteString)"
+                alertMessage = "Timeout: The server did not respond within \(Int(min(timeout, 15))) seconds.\n\nURL: \(testURL.absoluteString)"
             case .secureConnectionFailed, .serverCertificateUntrusted:
-                alertMessage = "SSL/TLS-Fehler: Das Zertifikat des Servers ist ungültig oder nicht vertrauenswürdig.\n\nDetails: \(urlError.localizedDescription)"
+                alertMessage = "SSL/TLS error: The server certificate is invalid or not trusted.\n\nDetails: \(urlError.localizedDescription)"
             default:
                 alertMessage = "\(urlError.localizedDescription)\n\n(Code: \(urlError.code.rawValue))"
             }
         } catch {
-            alertTitle = "Fehler"
+            alertTitle = "Error"
             alertMessage = error.localizedDescription
         }
 

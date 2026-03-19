@@ -24,14 +24,107 @@ class NetreoAPIService: ObservableObject {
     }
     
     func fetchDevices() async throws -> [NetreoDevice] {
-        let endpoint = NetreoEndpoint.deviceList
-        
-        switch configuration.version {
-        case .legacy:
-            return try await performLegacyDeviceRequest(endpoint: endpoint, parameters: baseParameters())
-        case .v1, .v2, .openapi:
-            return try await performModernDeviceRequest(endpoint: endpoint)
+        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/list") else { return [] }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var bodyParts = ["password=\(configuration.apiKey)"]
+        if let pin = configuration.pin { bodyParts.append("pin=\(pin)") }
+        request.httpBody = bodyParts.joined(separator: "&").data(using: .utf8)
+        let (data, _) = try await urlSession.data(for: request)
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
+        // API returns either {"devices":[...]} or {"data":{"devices":[...]}}
+        let devicesArray: [[String: Any]]
+        if let arr = json["devices"] as? [[String: Any]] {
+            devicesArray = arr
+        } else if let nested = json["data"] as? [String: Any],
+                  let arr = nested["devices"] as? [[String: Any]] {
+            devicesArray = arr
+        } else {
+            return []
         }
+        // Debug: log fields from first device to identify alarm status field
+        if let first = devicesArray.first {
+            let debugLines = first.map { "\($0.key) = \($0.value)" }.sorted()
+            UserDefaults.standard.set(debugLines.joined(separator: "\n"), forKey: "debug_device_fields")
+        }
+        return devicesArray.compactMap { parseRESTfulDevice(from: $0) }
+    }
+
+    private func parseRESTfulDevice(from dict: [String: Any]) -> NetreoDevice? {
+        guard let ip = dict["ip"] as? String else { return nil }
+        let isActive  = (dict["poll"]    as? String) == "1"
+        let isMonitor = (dict["monitor"] as? String) == "1"
+        let lastUpdated: Date = {
+            if let ts = dict["create_time"] as? String, let unix = Double(ts) {
+                return Date(timeIntervalSince1970: unix)
+            }
+            return Date()
+        }()
+
+        // Determine real alarm status from API fields.
+        // BHNM returns alarm color in "alarm_color" (string or int), "up_status", "status", etc.
+        let status: NetreoDevice.DeviceStatus = {
+            // Try "alarm_color" as string: "red", "orange", "yellow", "green"
+            if let color = (dict["alarm_color"] as? String)?.lowercased() {
+                switch color {
+                case "red":                  return .critical
+                case "orange":               return .warning
+                case "yellow":               return .warning
+                case "green":                return .up
+                default: break
+                }
+            }
+            // Try "alarm_color" as int: 0=green,1=yellow,2=orange,3=red (common BHNM convention)
+            if let colorInt = dict["alarm_color"] as? Int {
+                switch colorInt {
+                case 3:  return .critical
+                case 2:  return .warning
+                case 1:  return .warning
+                case 0:  return .up
+                default: break
+                }
+            }
+            // Try string that may contain the int
+            if let colorStr = dict["alarm_color"] as? String, let colorInt = Int(colorStr) {
+                switch colorInt {
+                case 3:  return .critical
+                case 2:  return .warning
+                case 1:  return .warning
+                case 0:  return .up
+                default: break
+                }
+            }
+            // Try "status" field
+            if let s = (dict["status"] as? String)?.lowercased() {
+                switch s {
+                case "critical", "down": return .critical
+                case "warning":          return .warning
+                case "up", "ok":         return .up
+                default: break
+                }
+            }
+            // Try "up_status" / "up" (1 = up, 0 = down)
+            if let upStatus = dict["up_status"] as? Int {
+                return upStatus == 1 ? .up : .down
+            }
+            // Fallback: if monitored and polling → up, else unknown
+            return (isActive && isMonitor) ? .up : .unknown
+        }()
+
+        return NetreoDevice(
+            ip: ip,
+            name: dict["name"] as? String,
+            hostname: dict["description"] as? String,
+            status: status,
+            deviceType: dict["model"] as? String,
+            lastUpdated: lastUpdated,
+            siteID: dict["site"] as? String,
+            categoryID: dict["category"] as? String,
+            snmpCommunity: nil,
+            isActive: isActive,
+            additionalProperties: [:]
+        )
     }
     
     func addDevice(ip: String, snmpPublic: String, name: String? = nil) async throws -> Bool {
@@ -85,23 +178,261 @@ class NetreoAPIService: ObservableObject {
     }
     
     func fetchDevicePerformance(identifier: String) async throws -> [DevicePerformance] {
-        // Return empty array for now - can be implemented later
         return []
     }
+
+    // MARK: - Tactical Group Summaries
+
+    func fetchCategorySummaries() async throws -> [GroupSummary] {
+        async let devicesFetch  = fetchDevices()
+        async let incidentsFetch = fetchIncidents()
+        async let namesFetch    = fetchGroupNames(endpoint: "restful/category/list")
+        let (devices, incidents, names) = try await (devicesFetch, incidentsFetch, namesFetch)
+        let statusByIP = await deviceStatusMap(devices: devices, incidents: incidents)
+        return buildSummaries(devices: devices, statusByIP: statusByIP, keyPath: \.categoryID, names: names)
+    }
+
+    func fetchSiteSummaries() async throws -> [GroupSummary] {
+        async let devicesFetch   = fetchDevices()
+        async let incidentsFetch = fetchIncidents()
+        async let namesFetch     = fetchGroupNames(endpoint: "restful/site/list")
+        let (devices, incidents, names) = try await (devicesFetch, incidentsFetch, namesFetch)
+        let statusByIP = await deviceStatusMap(devices: devices, incidents: incidents)
+        return buildSummaries(devices: devices, statusByIP: statusByIP, keyPath: \.siteID, names: names)
+    }
+
+    func fetchBusinessWorkflowSummaries() async throws -> [GroupSummary] {
+        let groups = try await fetchStrategicGroupList()
+        async let devicesFetch   = fetchDevices()
+        async let incidentsFetch = fetchIncidents()
+        let (devices, incidents) = try await (devicesFetch, incidentsFetch)
+        let statusByIP = await deviceStatusMap(devices: devices, incidents: incidents)
+        let activeIPs = Set(devices.filter(\.isActive).map(\.ip))
+
+        return try await withThrowingTaskGroup(of: GroupSummary?.self) { taskGroup in
+            for sg in groups {
+                taskGroup.addTask {
+                    let memberIPs = (try? await self.fetchStrategicGroupMemberIPs(groupID: sg.id)) ?? []
+                    var green = 0, blue = 0, yellow = 0, orange = 0, red = 0
+                    for ip in memberIPs where activeIPs.contains(ip) {
+                        switch statusByIP[ip] ?? .green {
+                        case .green:  green += 1
+                        case .blue:   blue += 1
+                        case .yellow: yellow += 1
+                        case .orange: orange += 1
+                        case .red:    red += 1
+                        }
+                    }
+                    let total = green + blue + yellow + orange + red
+                    guard total > 0 else { return nil }
+                    return GroupSummary(id: sg.id, name: sg.name,
+                                       hostsGreen: green, hostsBlue: blue,
+                                       hostsYellow: yellow, hostsOrange: orange,
+                                       hostsRed: red)
+                }
+            }
+            var result: [GroupSummary] = []
+            for try await summary in taskGroup {
+                if let s = summary { result.append(s) }
+            }
+            return result.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        }
+    }
+
+    /// Derives a per-device-IP alarm color by fetching actual alarm counts for each incident.
+    /// This avoids the faulty severity-default (.critical) and instead uses the real alarm
+    /// colors from primary_alarm_log + relatedalarms in the incident detail API.
+    private func deviceStatusMap(devices: [NetreoDevice], incidents: [NetreoIncident]) async -> [String: HostAlarmStatus] {
+        // Build a name → IP lookup (full name + base hostname for each device)
+        var nameToIP: [String: String] = [:]
+        for device in devices {
+            let ip = device.ip
+            for raw in [device.name, device.hostname].compactMap({ $0 }) {
+                let lower = raw.lowercased()
+                nameToIP[lower] = ip
+                if let base = lower.components(separatedBy: ".").first, !base.isEmpty {
+                    nameToIP[base] = ip
+                }
+            }
+        }
+
+        // Match active/acknowledged incidents to device IPs
+        var incidentsByIP: [String: [NetreoIncident]] = [:]
+        var unmatched: [String] = []
+        for incident in incidents {
+            guard incident.status == .active || incident.status == .acknowledged,
+                  let rawName = incident.deviceName else { continue }
+            let lower = rawName.lowercased()
+            let base  = lower.components(separatedBy: ".").first ?? lower
+            guard let ip = nameToIP[lower] ?? nameToIP[base] else {
+                unmatched.append(rawName)
+                continue
+            }
+            incidentsByIP[ip, default: []].append(incident)
+        }
+        if unmatched.isEmpty {
+            UserDefaults.standard.removeObject(forKey: "debug_unmatched_incidents")
+        } else {
+            UserDefaults.standard.set(unmatched.joined(separator: "\n"), forKey: "debug_unmatched_incidents")
+        }
+
+        // Fetch real alarm counts per incident in parallel, derive worst color per IP
+        var worstColorByIP: [String: AlarmColor] = [:]
+        await withTaskGroup(of: (String, AlarmColor).self) { group in
+            for (ip, ipIncidents) in incidentsByIP {
+                for incident in ipIncidents {
+                    group.addTask {
+                        let counts = (try? await self.fetchIncidentAlarmCounts(incidentID: incident.incidentID)) ?? [:]
+                        let worst = AlarmColor.worst(from: counts)
+                        return (ip, worst)
+                    }
+                }
+            }
+            for await (ip, color) in group {
+                let current = worstColorByIP[ip]
+                if current == nil || color.priority > current!.priority {
+                    worstColorByIP[ip] = color
+                }
+            }
+        }
+
+        // Map AlarmColor → HostAlarmStatus for every device
+        var result: [String: HostAlarmStatus] = [:]
+        for device in devices {
+            switch worstColorByIP[device.ip] {
+            case .red:               result[device.ip] = .red
+            case .orange:            result[device.ip] = .orange
+            case .yellow:            result[device.ip] = .yellow
+            case .blue:              result[device.ip] = .blue
+            case .green, .grey, nil: result[device.ip] = .green
+            }
+        }
+        return result
+    }
+
+    private struct SGInfo { let id: String; let name: String }
+
+    // POST /fw/index.php?r=restful/strategic-group/list → direct JSON array
+    private func fetchStrategicGroupList() async throws -> [SGInfo] {
+        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/strategic-group/list") else { return [] }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var body = "password=\(configuration.apiKey)"
+        if let pin = configuration.pin { body += "&pin=\(pin)" }
+        request.httpBody = body.data(using: .utf8)
+        let (data, _) = try await urlSession.data(for: request)
+        guard let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+        return arr.compactMap { item -> SGInfo? in
+            // Only include entries flagged as business workflows
+            guard (item["business_workflow"] as? String) == "1" else { return nil }
+            let id   = (item["id"]   as? String) ?? ""
+            let name = (item["name"] as? String) ?? ""
+            guard !id.isEmpty, !name.isEmpty else { return nil }
+            return SGInfo(id: id, name: name)
+        }
+    }
+
+    // POST /fw/index.php?r=restful/strategic-group/device-list with id=<groupID>
+    private func fetchStrategicGroupMemberIPs(groupID: String) async throws -> [String] {
+        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/strategic-group/device-list") else { return [] }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var body = "password=\(configuration.apiKey)&id=\(groupID)"
+        if let pin = configuration.pin { body += "&pin=\(pin)" }
+        request.httpBody = body.data(using: .utf8)
+        let (data, _) = try await urlSession.data(for: request)
+        guard let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+        return arr.compactMap { $0["ip"] as? String }
+    }
+
+    // Fetches id→name map — handles {"data":[…]}, {"data":{"items":[…]}}, or top-level [{…}]
+    private func fetchGroupNames(endpoint: String) async throws -> [String: String] {
+        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=\(endpoint)") else { return [:] }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var body = "password=\(configuration.apiKey)"
+        if let pin = configuration.pin { body += "&pin=\(pin)" }
+        request.httpBody = body.data(using: .utf8)
+        let (data, _) = try await urlSession.data(for: request)
+
+        // Collect items from whichever response shape the API uses
+        var items: [[String: Any]] = []
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let arr = json["data"] as? [[String: Any]] {
+                items = arr                                    // {"data":[…]}
+            } else if let nested = json["data"] as? [String: Any] {
+                for val in nested.values {
+                    if let arr = val as? [[String: Any]] { items = arr; break }
+                }
+            } else {
+                for key in ["categories", "sites", "groups", "items"] {
+                    if let arr = json[key] as? [[String: Any]] { items = arr; break }
+                }
+            }
+        } else if let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+            items = arr                                        // top-level array
+        }
+
+        var result: [String: String] = [:]
+        for item in items {
+            let id   = (item["id"]   as? String) ?? ""
+            let name = (item["name"] as? String) ?? id
+            if !id.isEmpty { result[id] = name }
+        }
+        return result
+    }
+
+
+    private func buildSummaries(devices: [NetreoDevice],
+                                statusByIP: [String: HostAlarmStatus],
+                                keyPath: KeyPath<NetreoDevice, String?>,
+                                names: [String: String]) -> [GroupSummary] {
+        struct Counts { var green = 0; var blue = 0; var yellow = 0; var orange = 0; var red = 0 }
+        var buckets: [String: (name: String, counts: Counts)] = [:]
+        for device in devices {
+            guard device.isActive else { continue }   // skip unmonitored (poll=0) devices
+            guard let key = device[keyPath: keyPath], !key.isEmpty else { continue }
+            let displayName = names[key] ?? key
+            var bucket = buckets[key] ?? (name: displayName, counts: Counts())
+            switch statusByIP[device.ip] ?? .green {
+            case .green:  bucket.counts.green += 1
+            case .blue:   bucket.counts.blue += 1
+            case .yellow: bucket.counts.yellow += 1
+            case .orange: bucket.counts.orange += 1
+            case .red:    bucket.counts.red += 1
+            }
+            buckets[key] = bucket
+        }
+        return buckets.compactMap { key, val -> GroupSummary? in
+            let c = val.counts
+            let total = c.green + c.blue + c.yellow + c.orange + c.red
+            guard total > 0 else { return nil }
+            return GroupSummary(id: key, name: val.name,
+                                hostsGreen: c.green, hostsBlue: c.blue,
+                                hostsYellow: c.yellow, hostsOrange: c.orange,
+                                hostsRed: c.red)
+        }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
     
-    func acknowledgeIncident(incidentID: String, user: String, comment: String = "From Mobile App") async throws -> Bool {
-        var components = URLComponents(string: "\(configuration.baseURL)/utils/incident_ack.php")!
-        components.queryItems = [
-            URLQueryItem(name: "pwd",         value: configuration.apiKey),
-            URLQueryItem(name: "ack_user",    value: user),
-            URLQueryItem(name: "ack_comment", value: comment),
-            URLQueryItem(name: "incident_id", value: incidentID)
+    func acknowledgeIncident(incidentID: String, user: String, comment: String = "Acked from Mobile App") async throws -> Bool {
+        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/incident/acknowledge") else { return false }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var bodyParts = [
+            "password=\(configuration.apiKey)",
+            "incident_id=\(incidentID)",
+            "user=\(user)",
+            "comment=\(comment)"
         ]
         if let pin = configuration.pin {
-            components.queryItems?.append(URLQueryItem(name: "pin", value: pin))
+            bodyParts.append("pin=\(pin)")
         }
-        guard let url = components.url else { return false }
-        let (_, response) = try await urlSession.data(from: url)
+        request.httpBody = bodyParts.joined(separator: "&").data(using: .utf8)
+        let (_, response) = try await urlSession.data(for: request)
         return (response as? HTTPURLResponse)?.statusCode ?? 0 < 400
     }
 
@@ -470,9 +801,9 @@ class NetreoAPIService: ObservableObject {
 
                 let status: NetreoIncident.IncidentStatus = stateString == "ACKNOWLEDGED" ? .acknowledged : .active
 
-                // Netreo liefert kein Severity-Feld in diesem Endpunkt.
-                // Severity aus bekannten Feldern lesen, sonst .critical als sinnvoller Default
-                // für aktive Service-Check-Failures.
+                // Netreo provides no severity field on this endpoint.
+                // Read from known fields; fall back to .critical as the safe default
+                // for active service-check failures.
                 let severityRaw = incidentData["severity"] as? String
                     ?? incidentData["alert_level"] as? String
                     ?? incidentData["level"] as? String
@@ -599,11 +930,11 @@ enum AlarmColor: String, CaseIterable, Hashable {
 
     var color: Color {
         switch self {
-        case .red:    return .red
-        case .orange: return .orange
-        case .yellow: return Color(red: 0.75, green: 0.55, blue: 0)
-        case .green:  return .green
-        case .blue:   return .blue
+        case .red:    return Color(red: 0.90, green: 0.15, blue: 0.10)
+        case .orange: return Color(red: 0.95, green: 0.45, blue: 0.05)
+        case .yellow: return Color(red: 0.97, green: 0.85, blue: 0.05)
+        case .green:  return Color(red: 0.13, green: 0.55, blue: 0.13)
+        case .blue:   return Color(red: 0.10, green: 0.40, blue: 0.85)
         case .grey:   return Color(.systemGray)
         }
     }
@@ -619,6 +950,26 @@ enum AlarmColor: String, CaseIterable, Hashable {
         case "ACKNOWLEDGED":                return .blue
         default:                            return .grey
         }
+    }
+
+    /// Severity rank: red (5) is worst, grey (0) is unknown/irrelevant
+    var priority: Int {
+        switch self {
+        case .red:    return 5
+        case .orange: return 4
+        case .yellow: return 3
+        case .blue:   return 2
+        case .green:  return 1
+        case .grey:   return 0
+        }
+    }
+
+    /// Returns the highest-priority color that has count > 0; falls back to .green
+    static func worst(from counts: [AlarmColor: Int]) -> AlarmColor {
+        return counts
+            .filter { $0.value > 0 }
+            .max { $0.key.priority < $1.key.priority }
+            .map { $0.key } ?? .green
     }
 }
 

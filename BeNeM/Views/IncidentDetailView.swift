@@ -1,6 +1,6 @@
 import SwiftUI
 
-private let alwaysShownAlarmColors: [AlarmColor] = [.red, .orange, .yellow, .green, .blue]
+private let alwaysShownAlarmColors: [AlarmColor] = [.green, .blue, .yellow, .orange, .red]
 
 struct IncidentDetailView: View {
     let incident: NetreoIncident
@@ -14,7 +14,7 @@ struct IncidentDetailView: View {
     var body: some View {
         Group {
             if isLoading {
-                ProgressView("Lade Details…")
+                ProgressView("Loading details…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let error = errorMessage {
                 VStack(spacing: 12) {
@@ -59,18 +59,18 @@ struct IncidentDetailView: View {
             // ── Incident Metadata ────────────────────────────────────────
             Section(header: Text("Incident Info")) {
                 InfoRow(label: "Incident ID",    value: d.incidentID)
-                InfoRow(label: "Titel",          value: d.title)
-                InfoRow(label: "Gerät",          value: d.deviceName)
+                InfoRow(label: "Title",          value: d.title)
+                InfoRow(label: "Device",         value: d.deviceName)
                 InfoRow(label: "Alert Type",     value: d.alertType ?? "—")
                 if let openTime = d.openTime {
-                    InfoRow(label: "Erstellt",   value: formatDate(openTime))
-                    InfoRow(label: "Dauer",      value: durationString(from: openTime))
+                    InfoRow(label: "Created",    value: formatDate(openTime))
+                    InfoRow(label: "Duration",   value: durationString(from: openTime))
                 }
-                InfoRow(label: "ACK",            value: d.acknowledged ? "Ja" : "Nein")
+                InfoRow(label: "ACK",            value: d.acknowledged ? "Yes" : "No")
                 if d.acknowledged {
-                    if let t = d.ackTime    { InfoRow(label: "ACK Zeit",     value: formatDate(t)) }
-                    if let u = d.ackUser,  !u.isEmpty  { InfoRow(label: "ACK User",     value: u) }
-                    if let c = d.ackComment, !c.isEmpty { InfoRow(label: "ACK Kommentar", value: c) }
+                    if let t = d.ackTime    { InfoRow(label: "ACK Time",    value: formatDate(t)) }
+                    if let u = d.ackUser,  !u.isEmpty  { InfoRow(label: "ACK User",    value: u) }
+                    if let c = d.ackComment, !c.isEmpty { InfoRow(label: "ACK Comment", value: c) }
                 }
             }
 

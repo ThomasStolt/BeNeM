@@ -1,22 +1,28 @@
-# BeNeM — Be Netreo Mobile
+# BeNeM — BMC Helix Network Management Mobile Client
 
-A native iOS app for [Netreo](https://www.netreo.com) network monitoring systems. Monitor your infrastructure, manage incidents and acknowledge alerts directly from your iPhone.
+A native iOS app for **BMC Helix Network Management** (BHNM). Monitor your infrastructure, manage incidents, and acknowledge alerts directly from your iPhone.
+
+> **Note:** BMC Helix Network Management (BHNM) was formerly known as **Netreo**. Internal code identifiers (class names, AppStorage keys) still use the legacy `Netreo` prefix for backwards compatibility and will be migrated in a future release.
 
 ## Features
 
-- **Incident List** — live view of all active incidents with color-coded alarm counts (red / orange / yellow / green / blue)
-- **Acknowledge / Unacknowledge** — swipe right to ACK, swipe left to Unack, with instant local status update (no full-page reload)
+- **Dashboard** — at-a-glance summary with active incident count, total device count, and a Tactical Overview linking to Category, Site, and Business Workflow screens
+- **Tactical Overview** — Category / Site / Business Workflow lists showing each group's device count and color-coded alarm status (Green / Blue / Yellow / Orange / Red)
+- **Incident List** — live view of all active incidents with severity badges and per-incident alarm counts
+- **Acknowledge / Unacknowledge** — swipe right to ACK, swipe left to UnACK, with instant local status update
 - **Incident Detail** — primary alarms, related alarms, and the full incident state log
-- **Filters** — filter incidents by severity and status
-- **Pull-to-refresh** — manual refresh at any time
-- **Connection Test** — built-in connectivity test with detailed diagnostics directly in Settings
-- **Multiple API versions** — supports Legacy (PHP), API v1, API v2 and OpenAPI 3.0 endpoints
+- **Filters** — filter incidents by severity and status; filter tactical groups to show only those with active alarms
+- **Auto-refresh** — data refreshes automatically every 120 seconds with a visible countdown ring; tap the ring to refresh immediately
+- **Pull-to-refresh** — manual refresh at any time by pulling down any list
+- **Auto Discovery** — scans your local Wi-Fi subnet for BHNM servers (Settings → Auto Discovery)
+- **Connection Test** — built-in connectivity test with detailed diagnostics
+- **Multiple API versions** — supports Legacy (PHP), API v1, API v2, and OpenAPI 3.0 endpoints
 
 ## Requirements
 
 - iOS 16.0 or later
 - Xcode 15 or later
-- A running Netreo instance (on-premise or SaaS)
+- A running BHNM instance (on-premise or SaaS)
 
 ## Installation
 
@@ -52,46 +58,80 @@ On first launch, open the **Settings** tab and enter:
 
 | Field | Description |
 |---|---|
-| Base URL | Your Netreo server URL, e.g. `https://netreo.example.com` |
-| API Key | Your Netreo API key |
+| Base URL | Your BHNM server URL, e.g. `https://bhnm.example.com` |
+| API Key | Your BHNM API key |
 | PIN | Only required for SaaS deployments |
 | ACK User | Username recorded when acknowledging incidents (defaults to `mobile`) |
-| API Version | Choose the version that matches your Netreo deployment |
-| Timeout | Request timeout in seconds (default: 30s) |
+| API Version | Choose the version that matches your BHNM deployment |
+| Timeout | Request timeout in seconds (default: 30 s) |
 | Retry Count | Number of retries on failure (default: 3) |
 
 Use the **Test Connection** button to verify your settings before using the app.
+
+### Auto Discovery
+
+If you are on the same Wi-Fi network as your BHNM server, tap **Settings → Auto Discovery** to automatically scan the local /24 subnet for BHNM instances. Discovered servers can be connected to directly from the results list.
 
 ## Project Structure
 
 ```
 BeNeM/
 ├── Models/
-│   ├── NetreoIncident.swift       # Incident data model
-│   ├── IncidentDetail.swift       # Incident detail / alarm log model
-│   └── NetreoDevice.swift         # Device data model
+│   ├── NetreoIncident.swift          # Incident data model
+│   ├── IncidentDetail.swift          # Incident detail / alarm log model
+│   ├── NetreoDevice.swift            # Device data model
+│   └── GroupSummary.swift            # Aggregated alarm status per group
 ├── Services/
-│   ├── NetreoAPIService.swift     # All API calls (incidents, ACK, detail)
-│   └── NetreoAPIConfiguration.swift  # URL building, endpoint routing
+│   ├── NetreoAPIService.swift        # All API calls (incidents, devices, tactical, ACK)
+│   ├── NetreoAPIConfiguration.swift  # URL building, endpoint routing
+│   └── NetworkDiscovery.swift        # Local Wi-Fi subnet scan for BHNM servers
 ├── ViewModels/
-│   └── IncidentListViewModel.swift   # Filtering, alarm count loading
+│   ├── IncidentListViewModel.swift   # Filtering, alarm count loading
+│   ├── DeviceListViewModel.swift     # Device list loading
+│   └── TacticalViewModel.swift       # Category / Site / Business Workflow loading
 ├── Views/
-│   ├── IncidentListView.swift     # Incident list + swipe actions
-│   ├── IncidentDetailView.swift   # Incident detail screen
-│   └── SettingsView.swift         # Configuration + connection test
-└── BeNeMApp.swift                 # App entry point
+│   ├── DashboardView.swift           # Home screen: status cards + tactical overview
+│   ├── GroupListView.swift           # Group list with alarm badges and device count
+│   ├── IncidentListView.swift        # Incident list + swipe actions
+│   ├── IncidentDetailView.swift      # Incident detail screen
+│   ├── AutoDiscoveryView.swift       # Wi-Fi server discovery UI
+│   ├── AutoRefreshButton.swift       # Reusable countdown ring + refresh button
+│   └── SettingsView.swift            # Configuration + connection test + debug info
+└── BeNeMApp.swift                    # App entry point
 ```
+
+> **Note on class names:** Swift types use the legacy `Netreo` prefix (e.g. `NetreoAPIService`, `NetreoIncident`) as they predate the product rebrand. AppStorage keys (`netreo_base_url`, `netreo_api_key`, etc.) are also kept unchanged to preserve existing user settings.
 
 ## API Compatibility
 
-The app primarily uses Netreo's legacy PHP endpoints for incident management:
+The app uses a mix of BHNM's legacy PHP endpoints and RESTful endpoints:
 
-| Action | Endpoint |
-|---|---|
-| List incidents | `POST /api/incident_api.php?method=getincidents` |
-| Incident detail | `GET /api/incident_api.php?method=getincidentdetail` |
-| Acknowledge | `GET /utils/incident_ack.php` |
-| Unacknowledge | `POST /fw/index.php?r=restful/incident/unacknowledge` |
+| Action | Method | Endpoint |
+|---|---|---|
+| List incidents | POST | `/api/incident_api.php` (`method=getincidents`) |
+| Incident detail | GET | `/api/incident_api.php` (`method=getincidentdetail`) |
+| Acknowledge | POST | `/fw/index.php?r=restful/incident/acknowledge` |
+| Unacknowledge | POST | `/fw/index.php?r=restful/incident/unacknowledge` |
+| List devices | POST | `/fw/index.php?r=restful/devices/list` |
+| List categories | POST | `/fw/index.php?r=restful/category/list` |
+| List sites | POST | `/fw/index.php?r=restful/site/list` |
+| List strategic groups | POST | `/fw/index.php?r=restful/strategic-group/list` |
+| Strategic group members | POST | `/fw/index.php?r=restful/strategic-group/device-list` |
+
+> **Note on alarm status:** The BHNM device list API does not expose a real-time alarm color or health state. BeNeM derives each device's current status from active incidents (matched by device name) using the incident detail API for accurate alarm colors, then aggregates them per group. Only actively monitored devices (`poll=1`) are counted, matching BHNM's own UI behavior.
+
+## Versioning
+
+Releases follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
+
+```bash
+# Bump version and build number (runs xcrun agvtool internally)
+./scripts/bump_version.sh patch   # 1.0.0 → 1.0.1
+./scripts/bump_version.sh minor   # 1.0.0 → 1.1.0
+./scripts/bump_version.sh major   # 1.0.0 → 2.0.0
+```
+
+See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
 ## License
 

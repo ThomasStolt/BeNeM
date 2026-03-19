@@ -14,7 +14,7 @@ struct IncidentListView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                if viewModel.isLoading {
+                if viewModel.isLoading && viewModel.incidents.isEmpty {
                     ProgressView("Loading incidents...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if viewModel.incidents.isEmpty {
@@ -52,10 +52,11 @@ struct IncidentListView: View {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                     }
 
-                    Button(action: { Task { await viewModel.refreshIncidents() } }) {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .disabled(viewModel.isLoading)
+                    AutoRefreshButton(
+                        interval: 120,
+                        isLoading: viewModel.isLoading,
+                        action: viewModel.refreshIncidents
+                    )
                 }
             }
             .sheet(isPresented: $showingFilters) {
@@ -132,8 +133,8 @@ struct IncidentListView: View {
     }
 }
 
-// Alarm-Farben die immer angezeigt werden (mit 0 wenn leer)
-private let alwaysShownAlarmColors: [AlarmColor] = [.red, .orange, .yellow, .green, .blue]
+// Alarm colors always shown (with 0 when empty) — order: Green, Blue, Yellow, Orange, Red
+private let alwaysShownAlarmColors: [AlarmColor] = [.green, .blue, .yellow, .orange, .red]
 
 struct IncidentRowView: View {
     let incident: NetreoIncident
@@ -179,7 +180,7 @@ struct IncidentRowView: View {
 
                     if let counts = alarmCounts {
                         ForEach(alwaysShownAlarmColors, id: \.self) { color in
-                            AlarmBadge(label: "\(counts[color] ?? 0)", color: color.color)
+                            AlarmBadge(label: "\(counts[color] ?? 0)", color: color.color, darkText: color == .yellow)
                         }
                     } else {
                         ProgressView().scaleEffect(0.6)
@@ -223,15 +224,19 @@ extension NetreoIncident.IncidentStatus {
 struct AlarmBadge: View {
     let label: String
     let color: Color
+    var darkText: Bool = false
+
+    /// True when the label is a numeric zero — show grey, no background
+    private var isZero: Bool { label == "0" }
 
     var body: some View {
         Text(label)
             .font(.caption2)
-            .fontWeight(.bold)
-            .foregroundColor(.white)
+            .fontWeight(isZero ? .regular : .bold)
+            .foregroundColor(isZero ? Color(.systemGray3) : (darkText ? .black : .white))
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
-            .background(color)
+            .background(isZero ? Color.clear : color)
             .cornerRadius(5)
     }
 }
@@ -290,7 +295,7 @@ struct IncidentListViewShared: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                if viewModel.isLoading {
+                if viewModel.isLoading && viewModel.incidents.isEmpty {
                     ProgressView("Loading incidents...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if viewModel.incidents.isEmpty {
@@ -328,10 +333,11 @@ struct IncidentListViewShared: View {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                     }
 
-                    Button(action: { Task { await viewModel.refreshIncidents() } }) {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .disabled(viewModel.isLoading)
+                    AutoRefreshButton(
+                        interval: 120,
+                        isLoading: viewModel.isLoading,
+                        action: viewModel.refreshIncidents
+                    )
                 }
             }
             .sheet(isPresented: $showingFilters) {

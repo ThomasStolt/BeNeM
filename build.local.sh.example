@@ -1,0 +1,11 @@
+# Local build configuration — copy this file to build.local.sh and fill in your values.
+# build.local.sh is gitignored and never committed to the repository.
+
+# Your device's UDID (from Xcode → Window → Devices and Simulators, or `xcrun devicectl list devices`)
+BENEM_DEVICE_ID="YOUR_DEVICE_UDID_HERE"
+
+# Simulator name to fall back to when the device is not connected (optional)
+BENEM_SIMULATOR="iPhone 16 Pro"
+
+# Xcode scheme (default: BeNeM)
+# BENEM_SCHEME="BeNeM"

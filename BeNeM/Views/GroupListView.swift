@@ -1,0 +1,206 @@
+import SwiftUI
+
+// Fixed widths shared between header and data rows for alignment
+private let kTotalWidth: CGFloat = 38    // "# of Hosts" count column (leftmost)
+private let kBadgesWidth: CGFloat = 128  // label + 5 status badges (rightmost)
+private let kGap: CGFloat = 8            // gap between count and name
+
+// MARK: - GroupListView
+
+struct GroupListView: View {
+    let title: String
+    @StateObject private var viewModel: TacticalViewModel
+
+    init(title: String, apiService: NetreoAPIService, type: TacticalViewModel.GroupType) {
+        self.title = title
+        _viewModel = StateObject(wrappedValue: TacticalViewModel(apiService: apiService, type: type))
+    }
+
+    var body: some View {
+        Group {
+            if viewModel.isLoading && viewModel.groups.isEmpty {
+                ProgressView("Loading…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let error = viewModel.errorMessage {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.largeTitle)
+                        .foregroundColor(.orange)
+                    Text(error)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("Retry") { Task { await viewModel.load() } }
+                }
+                .padding()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if viewModel.groups.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "tray")
+                        .font(.largeTitle)
+                        .foregroundColor(.secondary)
+                    Text("No entries found")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    columnHeader
+                    ForEach(viewModel.filteredGroups) { group in
+                        GroupRow(group: group)
+                            .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16))
+                    }
+                }
+                .listStyle(.plain)
+            }
+        }
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Button {
+                    viewModel.showAlarmsOnly.toggle()
+                } label: {
+                    Image(systemName: viewModel.showAlarmsOnly
+                          ? "line.3.horizontal.decrease.circle.fill"
+                          : "line.3.horizontal.decrease.circle")
+                    .foregroundColor(viewModel.showAlarmsOnly ? .accentColor : .primary)
+                }
+                .padding(.trailing, 6)
+
+                AutoRefreshButton(
+                    interval: 120,
+                    isLoading: viewModel.isLoading,
+                    action: viewModel.load
+                )
+            }
+        }
+        .task {
+            // Only load on first appearance; the auto-refresh timer handles subsequent updates.
+            if viewModel.groups.isEmpty && viewModel.errorMessage == nil {
+                await viewModel.load()
+            }
+        }
+        .refreshable { await viewModel.load() }
+    }
+
+    // MARK: Column header
+
+    private var columnHeader: some View {
+        HStack(spacing: 0) {
+            // "DEVICES" — leftmost, over the count column
+            Text("DEVICES")
+                .font(.caption2)
+                .fontWeight(.bold)
+                .foregroundColor(.secondary)
+                .fixedSize()
+                .frame(width: kTotalWidth, alignment: .center)
+
+            Spacer(minLength: kGap)
+
+            // Group name label — fills remaining space, centred in its column
+            Text(title.uppercased())
+                .font(.caption2)
+                .fontWeight(.bold)
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            // "ALARMS" centered over the 5 badges
+            Text("ALARMS")
+                .font(.caption2)
+                .fontWeight(.bold)
+                .foregroundColor(.secondary)
+                .frame(width: kBadgesWidth, alignment: .center)
+        }
+        .padding(.vertical, 4)
+        .listRowBackground(Color(.systemGroupedBackground))
+        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+    }
+}
+
+// MARK: - GroupRow
+
+private struct GroupRow: View {
+    let group: GroupSummary
+
+    private let green  = Color(red: 0.13, green: 0.55, blue: 0.13)
+    private let yellow = Color(red: 0.97, green: 0.85, blue: 0.05)
+    private let orange = Color(red: 0.95, green: 0.45, blue: 0.05)
+    private let red    = Color(red: 0.90, green: 0.15, blue: 0.10)
+    private let blue   = Color(red: 0.10, green: 0.40, blue: 0.85)
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 0) {
+            // Device count — far left, aligned with "Devices" header
+            Text("\(group.totalHosts)")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(.white)
+                .frame(minWidth: kTotalWidth)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 3)
+                .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.blue, lineWidth: 1.5))
+
+            Spacer(minLength: kGap)
+
+            // Name
+            Text(group.name)
+                .font(.subheadline)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Metric rows (Hosts / Services / Thresholds) — right side
+            VStack(alignment: .trailing, spacing: 2) {
+                metricRow(label: "H",
+                          green: group.hostsGreen, blue: group.hostsBlue,
+                          yellow: group.hostsYellow, orange: group.hostsOrange,
+                          red: group.hostsRed)
+                metricRow(label: "S", green: 0, blue: 0, yellow: 0, orange: 0, red: 0)
+                metricRow(label: "T", green: 0, blue: 0, yellow: 0, orange: 0, red: 0)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    // MARK: Metric row
+
+    private func metricRow(label: String,
+                           green: Int, blue: Int, yellow: Int,
+                           orange: Int, red: Int) -> some View {
+        HStack(spacing: 3) {
+            Text(label)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(.secondary)
+                .frame(width: 12, alignment: .leading)
+
+            statBadge(count: green,  color: self.green)
+            statBadge(count: blue,   color: self.blue)
+            statBadge(count: yellow, color: self.yellow, darkText: true)
+            statBadge(count: orange, color: self.orange)
+            statBadge(count: red,    color: self.red)
+        }
+        .frame(width: kBadgesWidth, alignment: .center)
+    }
+
+    private func statBadge(count: Int, color: Color, darkText: Bool = false) -> some View {
+        Group {
+            if count > 0 {
+                Text("\(count)")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(darkText ? .black : .white)
+                    .frame(minWidth: 18)
+                    .padding(.horizontal, 3)
+                    .padding(.vertical, 2)
+                    .background(color)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+            } else {
+                Text("0")
+                    .font(.system(size: 10, weight: .regular))
+                    .foregroundColor(Color(.systemGray3))
+                    .frame(minWidth: 18)
+                    .padding(.horizontal, 3)
+                    .padding(.vertical, 2)
+            }
+        }
+    }
+}
