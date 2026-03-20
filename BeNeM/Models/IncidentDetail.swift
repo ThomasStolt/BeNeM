@@ -1,9 +1,19 @@
 import Foundation
 
+private func stripHTML(_ string: String) -> String {
+    var result = string
+    result = result.replacingOccurrences(of: "<br />", with: "\n", options: .caseInsensitive)
+    result = result.replacingOccurrences(of: "<br/>", with: "\n", options: .caseInsensitive)
+    result = result.replacingOccurrences(of: "<br>", with: "\n", options: .caseInsensitive)
+    result = result.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+    return result.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
 struct IncidentDetail {
     let incidentID: String
     let title: String
     let deviceName: String
+    let deviceIP: String?
     let incidentState: String
     let primaryAlarmState: String
     let openTime: Date?
@@ -38,9 +48,17 @@ struct IncidentDetail {
 
         let fmt: (String?) -> Date? = { str in
             guard let s = str, !s.isEmpty else { return nil }
-            let iso = ISO8601DateFormatter()
-            iso.formatOptions = [.withFullDate, .withTime, .withDashSeparatorInDate, .withColonSeparatorInTime]
-            return iso.date(from: s)
+            // Try with explicit timezone first (e.g. "...+01:00" or "...Z")
+            let isoWithTZ = ISO8601DateFormatter()
+            isoWithTZ.formatOptions = [.withFullDate, .withTime, .withDashSeparatorInDate,
+                                       .withColonSeparatorInTime, .withTimeZone]
+            if let d = isoWithTZ.date(from: s) { return d }
+            // Fallback: no timezone in string — treat as server local time
+            let isoLocal = ISO8601DateFormatter()
+            isoLocal.formatOptions = [.withFullDate, .withTime, .withDashSeparatorInDate,
+                                      .withColonSeparatorInTime]
+            isoLocal.timeZone = TimeZone.current
+            return isoLocal.date(from: s)
         }
 
         let detail = incident["detail"] as? [String: Any]
@@ -50,7 +68,7 @@ struct IncidentDetail {
                 state:  $0["state"]  as? String ?? "",
                 type:   $0["type"]   as? String ?? "",
                 name:   $0["name"]   as? String ?? "",
-                output: $0["output"] as? String ?? "",
+                output: stripHTML($0["output"] as? String ?? ""),
                 time:   fmt($0["time"] as? String)
             )
         }
@@ -60,7 +78,7 @@ struct IncidentDetail {
                 state:  $0["state"]  as? String ?? "",
                 type:   $0["type"]   as? String ?? "",
                 name:   $0["name"]   as? String ?? "",
-                output: $0["output"] as? String ?? "",
+                output: stripHTML($0["output"] as? String ?? ""),
                 time:   fmt($0["time"] as? String)
             )
         }
@@ -77,10 +95,17 @@ struct IncidentDetail {
         let ackRaw = incident["acknowledged"]
         let isAcked = (ackRaw as? Int == 1) || (ackRaw as? String == "1") || (ackRaw as? Bool == true)
 
+        let deviceIP = incident["ip"] as? String
+            ?? incident["device_ip"] as? String
+            ?? incident["ip_address"] as? String
+            ?? incident["ipaddress"] as? String
+            ?? incident["host_ip"] as? String
+
         return IncidentDetail(
             incidentID:        incident["incident_id"]       as? String ?? "",
             title:             incident["title"]             as? String ?? "",
             deviceName:        incident["name"]              as? String ?? "",
+            deviceIP:          deviceIP,
             incidentState:     incident["incident_state"]    as? String ?? "",
             primaryAlarmState: incident["primary_alarm_state"] as? String ?? "",
             openTime:          fmt(incident["incident_open_time"] as? String),

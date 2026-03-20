@@ -12,6 +12,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.1.0] — 2026-03-20
+
+### Added
+
+- **Closed incidents** — resolved/closed incidents are now shown alongside active ones in the Incident List, labelled `CLRD`
+- **Incident Ticker** — animated news-flash banner on the Dashboard cycles through the latest 3 incidents (right-to-left slide, 4 s dwell); tapping an entry navigates directly to the Incident Detail screen
+- **HOSTS / SERVICES / THRESHOLDS summary boxes** — three equal-width cards below the ticker show aggregated alarm badge counts (Green / Blue / Yellow / Orange / Red); zero badges rendered as a grey `0` with a subtle border, matching the Tactical Overview style
+- **Auto-retry on disconnect** — all screens automatically retry the connection 15 seconds after a network failure, in addition to the existing manual tap-to-retry
+- **BMC Helix logo in toolbar** — the BMC Helix logo appears next to the connection indicator in every screen's navigation bar
+
+### Changed
+
+- **Dashboard title** moved inline into the navigation bar as "Tactical Overview"; the large scrolling header was removed for a cleaner look
+- **Custom tab bar** — replaced the native UIKit tab bar with a fully custom SwiftUI implementation; Dashboard, Incidents, and Devices icons are always shown in their brand colors (green / red / blue) regardless of selection state
+- **Toolbar button chrome removed** — connection indicator and refresh button no longer render iOS button backgrounds; plain `onTapGesture` is used instead of `Button` wrappers
+- **Incidents sorted descending** by Incident ID so the newest incidents always appear at the top
+- **Alarm color mapping** updated:
+  - `UNREACHABLE` and `MAJOR` states → orange
+  - `UP`, `NORMAL`, `RECOVERY`, `CLEARED`, `ALARMS CLEARED` states → green (shown everywhere alarm labels appear)
+- **Timestamps** — "just now" replaced with "now" (consistent English throughout)
+
+### Fixed
+
+- Auto-refresh button (`arrow.clockwise`) was invisible in the toolbar because `Group` has no intrinsic size inside a `ToolbarItem`; replaced with `ZStack` + explicit `.frame(width: 26, height: 26)`
+- Auto-refresh countdown ring restored with a circular progress overlay around the refresh button
+
+---
+
 ## [1.0.0] — 2026-03-19
 
 Initial release.
@@ -61,5 +89,6 @@ Initial release.
 
 ---
 
-[Unreleased]: https://github.com/thomasstolt/BeNeM/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/thomasstolt/BeNeM/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/thomasstolt/BeNeM/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/thomasstolt/BeNeM/releases/tag/v1.0.0

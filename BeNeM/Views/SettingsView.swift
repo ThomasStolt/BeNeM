@@ -8,6 +8,7 @@ struct SettingsView: View {
     @AppStorage("netreo_api_version") private var apiVersionString = "legacy"
     @AppStorage("netreo_timeout") private var timeout: Double = 30.0
     @AppStorage("netreo_retry_count") private var retryCount: Double = 3.0
+    @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
 
     @State private var isTesting = false
     @State private var alertTitle = ""
@@ -37,6 +38,13 @@ struct SettingsView: View {
 
                     TextField("ACK User", text: $ackUser)
                         .autocapitalization(.none)
+                }
+
+                Section(header: Text("Refresh")) {
+                    VStack(alignment: .leading) {
+                        Text("Auto-Refresh: \(Int(refreshInterval))s")
+                        Slider(value: $refreshInterval, in: 30...300, step: 10)
+                    }
                 }
 
                 Section(header: Text("API Configuration")) {

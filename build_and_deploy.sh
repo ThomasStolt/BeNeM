@@ -36,7 +36,7 @@ xcodebuild \
 
 if [ -n "$DEVICE_ID" ]; then
     APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "BeNeM.app" \
-        -path "*/Debug-iphoneos/*" 2>/dev/null | head -1)
+        -path "*/Debug-iphoneos/*" -not -path "*/Index.noindex/*" 2>/dev/null | head -1)
     if [ -z "$APP_PATH" ]; then
         echo "ERROR: Could not find BeNeM.app in DerivedData." >&2
         exit 1

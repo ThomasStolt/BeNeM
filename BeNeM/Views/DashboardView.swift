@@ -1,62 +1,35 @@
 import SwiftUI
 
-// MARK: - Connection Status
-
-enum ConnectionStatus {
-    case unknown, checking, connected, disconnected
-
-    var color: Color {
-        switch self {
-        case .unknown, .checking: return .gray
-        case .connected:          return .green
-        case .disconnected:       return .red
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .unknown:      return "circle"
-        case .checking:     return "circle.dotted"
-        case .connected:    return "checkmark.circle.fill"
-        case .disconnected: return "xmark.circle.fill"
-        }
-    }
-
-    var label: String {
-        switch self {
-        case .unknown:      return "Unknown"
-        case .checking:     return "Connecting…"
-        case .connected:    return "Connected"
-        case .disconnected: return "Disconnected"
-        }
-    }
-}
-
 // MARK: - DashboardView
+
+private let hmGreen  = Color(red: 0.13, green: 0.55, blue: 0.13)
+private let hmYellow = Color(red: 0.97, green: 0.85, blue: 0.05)
+private let hmOrange = Color(red: 0.95, green: 0.45, blue: 0.05)
+private let hmRed    = Color(red: 0.90, green: 0.15, blue: 0.10)
+private let hmBlue   = Color(red: 0.10, green: 0.40, blue: 0.85)
 
 struct DashboardView: View {
     @StateObject private var incidentViewModel: IncidentListViewModel
     @StateObject private var deviceViewModel: DeviceListViewModel
+    @StateObject private var categoryViewModel: TacticalViewModel
     @State private var connectionStatus: ConnectionStatus = .unknown
     @Binding var selectedTab: Int
+    @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
 
     private let apiService: NetreoAPIService
 
     init(apiService: NetreoAPIService, selectedTab: Binding<Int>) {
         self.apiService = apiService
         self._selectedTab = selectedTab
-        self._incidentViewModel = StateObject(wrappedValue: IncidentListViewModel(apiService: apiService))
-        self._deviceViewModel   = StateObject(wrappedValue: DeviceListViewModel(apiService: apiService))
+        self._incidentViewModel  = StateObject(wrappedValue: IncidentListViewModel(apiService: apiService))
+        self._deviceViewModel    = StateObject(wrappedValue: DeviceListViewModel(apiService: apiService))
+        self._categoryViewModel  = StateObject(wrappedValue: TacticalViewModel(apiService: apiService, type: .category))
     }
 
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
-                    brandHeader
-
-                    // Only block the UI on the very first load (no data yet).
-                    // Background refreshes keep showing existing data so navigation is preserved.
                     if (incidentViewModel.isLoading || deviceViewModel.isLoading)
                         && incidentViewModel.incidents.isEmpty
                         && deviceViewModel.devices.isEmpty {
@@ -65,9 +38,14 @@ struct DashboardView: View {
                             .padding(.vertical, 40)
                     } else {
                         statusCards
+                        IncidentTickerBanner(
+                            incidents: incidentViewModel.filteredIncidents,
+                            alarmCounts: incidentViewModel.alarmCounts,
+                            apiService: apiService
+                        )
+                        heatMapSection
                         tacticalSection
                     }
-
                     Spacer()
                 }
                 .padding(.horizontal)
@@ -76,61 +54,37 @@ struct DashboardView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    connectionBadge
+                    ConnectionBadgeButton(status: connectionStatus) {
+                        Task { await loadData() }
+                    }
+                }
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Image("BMCHelixLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                }
+                ToolbarItem(placement: .principal) {
+                    Text("Tactical Overview")
+                        .font(.system(size: 18, weight: .bold))
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     AutoRefreshButton(
-                        interval: 120,
-                        isLoading: incidentViewModel.isLoading || deviceViewModel.isLoading,
+                        interval: refreshInterval,
+                        isLoading: incidentViewModel.isLoading || deviceViewModel.isLoading || categoryViewModel.isLoading,
                         action: loadData
                     )
                 }
             }
             .refreshable { await loadData() }
             .task { await loadData() }
-        }
-    }
-
-    // MARK: Brand Header
-
-    private var brandHeader: some View {
-        HStack(spacing: 12) {
-            Spacer()
-            Image("BMCHelixLogo")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 40, height: 40)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("BMC Helix")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.secondary)
-                Text("Network Management")
-                    .font(.headline)
-                    .fontWeight(.bold)
+            .task(id: connectionStatus) {
+                guard connectionStatus == .disconnected else { return }
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                guard !Task.isCancelled, connectionStatus == .disconnected else { return }
+                await loadData()
             }
-            Spacer()
         }
-        .padding(.top, 0)
-    }
-
-    // MARK: Connection Badge (Toolbar)
-
-    private var connectionBadge: some View {
-        HStack(spacing: 5) {
-            if connectionStatus == .checking {
-                ProgressView()
-                    .scaleEffect(0.7)
-            } else {
-                Image(systemName: connectionStatus.icon)
-                    .foregroundColor(connectionStatus.color)
-            }
-            Text(connectionStatus.label)
-                .font(.caption)
-                .foregroundColor(connectionStatus.color)
-        }
-        .animation(.easeInOut(duration: 0.3), value: connectionStatus.label)
     }
 
     // MARK: Status Cards
@@ -156,11 +110,120 @@ struct DashboardView: View {
         }
     }
 
+    // MARK: Summary Boxes
+
+    private var hostTotals: (green: Int, blue: Int, yellow: Int, orange: Int, red: Int) {
+        let g = categoryViewModel.groups
+        return (
+            g.reduce(0) { $0 + $1.hostsGreen },
+            g.reduce(0) { $0 + $1.hostsBlue },
+            g.reduce(0) { $0 + $1.hostsYellow },
+            g.reduce(0) { $0 + $1.hostsOrange },
+            g.reduce(0) { $0 + $1.hostsRed }
+        )
+    }
+
+    private var heatMapSection: some View {
+        let h = hostTotals
+        let hostsTotal = h.green + h.blue + h.yellow + h.orange + h.red
+
+        return HStack(spacing: 10) {
+            // Box 1: HOSTS
+            statBox(
+                title: "HOSTS",
+                count: hostsTotal,
+                isLoading: categoryViewModel.isLoading,
+                badges: [
+                    (h.green,  hmGreen),
+                    (h.blue,   hmBlue),
+                    (h.yellow, hmYellow),
+                    (h.orange, hmOrange),
+                    (h.red,    hmRed),
+                ]
+            )
+
+            // Box 2: SERVICES (placeholder)
+            statBox(
+                title: "SERVICES",
+                count: 0,
+                isLoading: categoryViewModel.isLoading,
+                badges: [
+                    (0, hmGreen),
+                    (0, hmOrange),
+                    (0, hmBlue),
+                    (0, hmYellow),
+                    (0, hmRed),
+                ]
+            )
+
+            // Box 3: THRESHOLDS (placeholder)
+            statBox(
+                title: "THRESHOLDS",
+                count: 0,
+                isLoading: categoryViewModel.isLoading,
+                badges: [
+                    (0, hmGreen),
+                    (0, hmBlue),
+                    (0, hmYellow),
+                    (0, hmRed),
+                ]
+            )
+        }
+    }
+
+    private func statBox(title: String, count: Int, isLoading: Bool,
+                         badges: [(Int, Color)]) -> some View {
+        VStack(spacing: 4) {
+            Text(title)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.secondary)
+
+            if isLoading && count == 0 {
+                ProgressView().scaleEffect(0.7).frame(height: 22)
+            } else {
+                Text("\(count)")
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .foregroundColor(.primary)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+            }
+
+            // All badges in one row
+            HStack(spacing: 3) {
+                ForEach(0..<badges.count, id: \.self) { idx in
+                    let (n, color) = badges[idx]
+                    if n > 0 {
+                        Text("\(n)")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(color == hmYellow ? Color.black : Color.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 2)
+                            .background(color)
+                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                    } else {
+                        Text("0")
+                            .font(.system(size: 9, weight: .regular))
+                            .foregroundColor(Color(.systemGray3))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 2)
+                            .overlay(RoundedRectangle(cornerRadius: 3).stroke(Color(.systemGray4), lineWidth: 0.5))
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity)
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(.systemGray4), lineWidth: 0.5))
+    }
+
     // MARK: Tactical Section
 
     private var tacticalSection: some View {
         VStack(spacing: 16) {
-            Text("Tactical Overview")
+            Text("Drill Down")
                 .font(.headline)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -197,6 +260,7 @@ struct DashboardView: View {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await incidentViewModel.loadIncidents() }
             group.addTask { await deviceViewModel.loadDevices() }
+            group.addTask { await categoryViewModel.load() }
         }
         connectionStatus = deviceViewModel.errorMessage == nil ? .connected : .disconnected
     }
@@ -212,20 +276,21 @@ struct StatusCard: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            HStack {
+            HStack(spacing: 0) {
                 Image(systemName: icon)
                     .foregroundColor(color)
                     .font(.title2)
-                Spacer()
+                    .frame(maxWidth: .infinity)
                 Text("\(count)")
                     .font(.title)
                     .fontWeight(.bold)
                     .foregroundColor(color)
+                    .frame(maxWidth: .infinity)
             }
             Text(title)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
         }
         .padding()
         .frame(maxWidth: .infinity)
@@ -362,6 +427,151 @@ struct DeviceDetailCard: View {
         case .critical:    return .red
         case .maintenance: return .blue
         case .unknown:     return .gray
+        }
+    }
+}
+
+// MARK: - IncidentTickerBanner
+
+private let tickerAlarmColors: [AlarmColor] = [.green, .blue, .yellow, .orange, .red]
+
+struct IncidentTickerBanner: View {
+    let incidents: [NetreoIncident]
+    let alarmCounts: [String: [AlarmColor: Int]]
+    let apiService: NetreoAPIService
+
+    @State private var currentIndex = 0
+    @State private var slideOffset: CGFloat = 0
+    @State private var contentOpacity: Double = 1
+    @State private var containerWidth: CGFloat = 0
+
+    private var visible: [NetreoIncident] { Array(incidents.prefix(3)) }
+
+    var body: some View {
+        if visible.isEmpty { return AnyView(EmptyView()) }
+        return AnyView(content)
+    }
+
+    private var content: some View {
+        let incident = visible[currentIndex % visible.count]
+        let counts   = alarmCounts[incident.incidentID]
+        let isCleared = incident.incidentState.uppercased() == "ALARMS CLEARED"
+        let badgeLabel = isCleared ? "CLRD" : incident.status.displayLabel
+        let badgeColor = isCleared ? hmGreen : incident.status.displayColor
+
+        return NavigationLink(destination: IncidentDetailView(
+            incident: incident,
+            apiService: apiService,
+            preloadedAlarmCounts: counts
+        )) {
+        ZStack(alignment: .leading) {
+            // Card background
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(.systemGray6))
+                .overlay(RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color(.systemGray4), lineWidth: 0.5))
+
+            // Two-line content
+            VStack(alignment: .leading, spacing: 3) {
+                // Line 1: badge + ID + title
+                HStack(spacing: 5) {
+                    Text(badgeLabel)
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 4).padding(.vertical, 2)
+                        .background(badgeColor)
+                        .cornerRadius(3)
+
+                    Text("#\(incident.incidentID)")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .fixedSize()
+
+                    Text(incident.summary)
+                        .font(.system(size: 11, weight: .medium))
+                        .lineLimit(1)
+                        .foregroundColor(.primary)
+
+                    Spacer()
+
+                    // Page dots
+                    HStack(spacing: 4) {
+                        ForEach(0..<visible.count, id: \.self) { i in
+                            Circle()
+                                .fill(i == currentIndex % visible.count
+                                      ? Color.primary : Color(.systemGray3))
+                                .frame(width: 5, height: 5)
+                        }
+                    }
+                }
+
+                // Line 2: device name + alarm badges
+                HStack(spacing: 5) {
+                    Text(incident.deviceName ?? "—")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    if let c = counts {
+                        HStack(spacing: 3) {
+                            ForEach(tickerAlarmColors, id: \.self) { color in
+                                let n = c[color] ?? 0
+                                if n > 0 {
+                                    Text("\(n)")
+                                        .font(.system(size: 9, weight: .semibold))
+                                        .foregroundColor(color == .yellow ? .black : .white)
+                                        .frame(minWidth: 16)
+                                        .padding(.horizontal, 3).padding(.vertical, 1)
+                                        .background(color.color)
+                                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                                }
+                            }
+                        }
+                    } else {
+                        ProgressView().scaleEffect(0.5)
+                    }
+                }
+            }
+            .padding(.leading, 12)
+            .padding(.trailing, 10)
+            .offset(x: slideOffset)
+            .opacity(contentOpacity)
+        }
+        .frame(height: 52)
+        .clipped()
+        .background(GeometryReader { g in
+            Color.clear.onAppear { containerWidth = g.size.width }
+        })
+        } // NavigationLink
+        .buttonStyle(.plain)
+        .task(id: visible.count) { await cycle() }
+    }
+
+    private func cycle() async {
+        guard visible.count > 1 else { return }
+        while !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            guard !Task.isCancelled else { return }
+
+            // Slide out to the left
+            withAnimation(.easeIn(duration: 0.55)) {
+                slideOffset = -(containerWidth > 0 ? containerWidth : 300)
+                contentOpacity = 0
+            }
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard !Task.isCancelled else { return }
+
+            // Jump index + reset to right edge
+            currentIndex = (currentIndex + 1) % visible.count
+            slideOffset = containerWidth > 0 ? containerWidth : 300
+
+            // Slide in from the right
+            withAnimation(.easeOut(duration: 0.55)) {
+                slideOffset = 0
+                contentOpacity = 1
+            }
         }
     }
 }

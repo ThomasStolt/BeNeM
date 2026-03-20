@@ -705,8 +705,12 @@ class NetreoAPIService: ObservableObject {
             }
 
             // Try to parse incidents from response data
-            if let incidentsArray = jsonObject["active_incidents"] as? [[String: Any]] {
-                return try parseIncidentsFromNetreoFormat(from: incidentsArray)
+            if let activeArray = jsonObject["active_incidents"] as? [[String: Any]] {
+                var result = try parseIncidentsFromNetreoFormat(from: activeArray, defaultStatus: nil)
+                if let closedArray = jsonObject["closed_incidents"] as? [[String: Any]] {
+                    result += try parseIncidentsFromNetreoFormat(from: closedArray, defaultStatus: .resolved)
+                }
+                return result
             } else if let incidentsArray = jsonObject["incidents"] as? [[String: Any]] {
                 return try parseIncidents(from: incidentsArray)
             } else if let dataArray = jsonObject["data"] as? [[String: Any]] {
@@ -757,7 +761,7 @@ class NetreoAPIService: ObservableObject {
         }
     }
     
-    private func parseIncidentsFromNetreoFormat(from array: [[String: Any]]) throws -> [NetreoIncident] {
+    private func parseIncidentsFromNetreoFormat(from array: [[String: Any]], defaultStatus: NetreoIncident.IncidentStatus? = nil) throws -> [NetreoIncident] {
         var incidents: [NetreoIncident] = []
         print("Parsing \(array.count) incidents from Netreo format")
 
@@ -797,9 +801,21 @@ class NetreoAPIService: ObservableObject {
                 }
                 let title = incidentData["title"] as? String ?? "Unknown"
                 let deviceName = incidentData["name"] as? String
+                let deviceIP = incidentData["ip"] as? String
+                    ?? incidentData["device_ip"] as? String
+                    ?? incidentData["ip_address"] as? String
+                    ?? incidentData["ipaddress"] as? String
+                    ?? incidentData["host_ip"] as? String
                 let stateString = incidentData["incident_state"] as? String ?? "OPEN"
 
-                let status: NetreoIncident.IncidentStatus = stateString == "ACKNOWLEDGED" ? .acknowledged : .active
+                let status: NetreoIncident.IncidentStatus
+                if let forced = defaultStatus {
+                    status = forced
+                } else if stateString == "ACKNOWLEDGED" {
+                    status = .acknowledged
+                } else {
+                    status = .active
+                }
 
                 // Netreo provides no severity field on this endpoint.
                 // Read from known fields; fall back to .critical as the safe default
@@ -837,21 +853,29 @@ class NetreoAPIService: ObservableObject {
                 // Startzeit aus open_time parsen
                 let startTime: Date
                 if let openTimeStr = incidentData["open_time"] as? String {
-                    let iso = ISO8601DateFormatter()
-                    iso.formatOptions = [.withFullDate, .withTime, .withDashSeparatorInDate, .withColonSeparatorInTime]
-                    startTime = iso.date(from: openTimeStr) ?? Date()
+                    let isoWithTZ = ISO8601DateFormatter()
+                    isoWithTZ.formatOptions = [.withFullDate, .withTime, .withDashSeparatorInDate,
+                                               .withColonSeparatorInTime, .withTimeZone]
+                    let isoLocal = ISO8601DateFormatter()
+                    isoLocal.formatOptions = [.withFullDate, .withTime, .withDashSeparatorInDate,
+                                              .withColonSeparatorInTime]
+                    isoLocal.timeZone = TimeZone.current
+                    startTime = isoWithTZ.date(from: openTimeStr)
+                        ?? isoLocal.date(from: openTimeStr)
+                        ?? Date()
                 } else {
                     startTime = Date()
                 }
                 
                 let incident = NetreoIncident(
                     incidentID: incidentID,
-                    deviceIP: nil,
+                    deviceIP: deviceIP,
                     deviceName: deviceName,
                     summary: title,
                     description: nil,
                     severity: severity,
                     status: status,
+                    incidentState: stateString,
                     category: "Network",
                     startTime: startTime
                 )
@@ -943,12 +967,13 @@ enum AlarmColor: String, CaseIterable, Hashable {
     // Bekannte Werte: "WARNING", "CRITICAL", "MAJOR", "MINOR", "OK", "OPEN", "ACKNOWLEDGED"
     static func fromState(_ state: String?) -> AlarmColor {
         switch state?.uppercased() {
-        case "CRITICAL":                    return .red
-        case "MAJOR":                       return .orange
-        case "WARNING", "MINOR":            return .yellow
-        case "OK", "RESOLVED", "CLOSED":    return .green
-        case "ACKNOWLEDGED":                return .blue
-        default:                            return .grey
+        case "CRITICAL", "DOWN":                                    return .red
+        case "MAJOR", "UNREACHABLE":                                return .orange
+        case "WARNING", "MINOR":                                    return .yellow
+        case "OK", "RESOLVED", "CLOSED", "UP", "NORMAL",
+             "RECOVERY", "CLEARED", "ALARMS CLEARED":              return .green
+        case "ACKNOWLEDGED":                                        return .blue
+        default:                                                    return .grey
         }
     }
 

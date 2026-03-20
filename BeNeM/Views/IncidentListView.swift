@@ -3,14 +3,16 @@ import SwiftUI
 struct IncidentListView: View {
     @StateObject private var viewModel: IncidentListViewModel
     @State private var showingFilters = false
+    @State private var connectionStatus: ConnectionStatus = .unknown
     @AppStorage("netreo_ack_user") private var ackUser = ""
+    @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
     private let apiService: NetreoAPIService
 
     init(apiService: NetreoAPIService) {
         self._viewModel = StateObject(wrappedValue: IncidentListViewModel(apiService: apiService))
         self.apiService = apiService
     }
-    
+
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
@@ -25,11 +27,11 @@ struct IncidentListView: View {
                         Image(systemName: "checkmark.shield")
                             .font(.system(size: 60))
                             .foregroundColor(.green)
-                        
+
                         Text("No Active Incidents")
                             .font(.title2)
                             .fontWeight(.semibold)
-                        
+
                         Text("All systems are operating normally")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
@@ -43,17 +45,27 @@ struct IncidentListView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    ConnectionBadgeButton(status: connectionStatus) {
+                        Task { await viewModel.refreshIncidents() }
+                    }
+                }
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Image("BMCHelixLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                }
                 ToolbarItem(placement: .principal) {
-                    Text("Incidents")
-                        .font(.system(size: 26, weight: .bold, design: .default))
+                    Text("Active Incidents")
+                        .font(.system(size: 18, weight: .bold, design: .default))
                 }
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Button(action: { showingFilters.toggle() }) {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                     }
-
                     AutoRefreshButton(
-                        interval: 120,
+                        interval: refreshInterval,
                         isLoading: viewModel.isLoading,
                         action: viewModel.refreshIncidents
                     )
@@ -62,71 +74,93 @@ struct IncidentListView: View {
             .sheet(isPresented: $showingFilters) {
                 FiltersView(viewModel: viewModel)
             }
-            .onAppear {
-                Task {
-                    await viewModel.loadIncidents()
+            .onChange(of: viewModel.isLoading) { loading in
+                if loading {
+                    connectionStatus = .checking
+                } else {
+                    connectionStatus = viewModel.errorMessage == nil ? .connected : .disconnected
                 }
+            }
+            .task(id: connectionStatus) {
+                guard connectionStatus == .disconnected else { return }
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                guard !Task.isCancelled, connectionStatus == .disconnected else { return }
+                await viewModel.refreshIncidents()
+            }
+            .onAppear {
+                connectionStatus = .checking
+                Task { await viewModel.loadIncidents() }
             }
         }
     }
     
     private var incidentsList: some View {
         List {
-            Section {
-                ForEach(viewModel.filteredIncidents) { incident in
-                    NavigationLink {
-                        IncidentDetailView(
-                            incident: incident,
-                            apiService: apiService,
-                            preloadedAlarmCounts: viewModel.alarmCounts[incident.incidentID]
-                        )
-                    } label: {
-                        IncidentRowView(
-                            incident: incident,
-                            alarmCounts: viewModel.alarmCounts[incident.incidentID]
-                        )
-                    }
-                    // Swipe rechts → Acknowledge
-                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                        if incident.status != .acknowledged {
-                            Button {
-                                Task {
-                                    let ok = try? await apiService.acknowledgeIncident(
-                                        incidentID: incident.incidentID,
-                                        user: ackUser.isEmpty ? "mobile" : ackUser
-                                    )
-                                    if ok == true {
-                                        viewModel.updateIncidentStatus(incidentID: incident.incidentID, status: .acknowledged)
-                                    }
-                                }
-                            } label: {
-                                Label("ACK", systemImage: "checkmark.circle")
-                            }
-                            .tint(.blue)
+            ForEach(viewModel.filteredIncidents) { incident in
+                NavigationLink {
+                    IncidentDetailView(
+                        incident: incident,
+                        apiService: apiService,
+                        preloadedAlarmCounts: viewModel.alarmCounts[incident.incidentID]
+                    )
+                } label: {
+                    IncidentRowView(
+                        incident: incident,
+                        alarmCounts: viewModel.alarmCounts[incident.incidentID]
+                    )
+                    .frame(maxHeight: .infinity, alignment: .center)
+                }
+                .listRowBackground(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(.secondarySystemGroupedBackground))
+                        .padding(.vertical, 2)
+                )
+                .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 12))
+                .listRowSeparator(.hidden)
+                // Swipe rechts → ACK oder UnACK
+                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                    let isAlarmsCleared = incident.incidentState.uppercased() == "ALARMS CLEARED"
+                    if isAlarmsCleared {
+                        Button { } label: {
+                            Label("ACK", systemImage: "checkmark.circle")
                         }
-                    }
-                    // Swipe links → Unacknowledge
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                        if incident.status == .acknowledged {
-                            Button {
-                                Task {
-                                    let ok = try? await apiService.unacknowledgeIncident(
-                                        incidentID: incident.incidentID,
-                                        user: ackUser.isEmpty ? "mobile" : ackUser
-                                    )
-                                    if ok == true {
-                                        viewModel.updateIncidentStatus(incidentID: incident.incidentID, status: .active)
-                                    }
+                        .tint(.gray)
+                    } else if incident.status == .acknowledged {
+                        Button {
+                            Task {
+                                let ok = try? await apiService.unacknowledgeIncident(
+                                    incidentID: incident.incidentID,
+                                    user: ackUser.isEmpty ? "mobile" : ackUser
+                                )
+                                if ok == true {
+                                    viewModel.updateIncidentStatus(incidentID: incident.incidentID, status: .active)
                                 }
-                            } label: {
-                                Label("Unack", systemImage: "arrow.uturn.backward.circle")
                             }
-                            .tint(.blue)
+                        } label: {
+                            Label("Unack", systemImage: "arrow.uturn.backward.circle")
                         }
+                        .tint(.blue)
+                    } else {
+                        Button {
+                            Task {
+                                let ok = try? await apiService.acknowledgeIncident(
+                                    incidentID: incident.incidentID,
+                                    user: ackUser.isEmpty ? "mobile" : ackUser
+                                )
+                                if ok == true {
+                                    viewModel.updateIncidentStatus(incidentID: incident.incidentID, status: .acknowledged)
+                                }
+                            }
+                        } label: {
+                            Label("ACK", systemImage: "checkmark.circle")
+                        }
+                        .tint(.blue)
                     }
                 }
             }
         }
+        .listStyle(.plain)
+        .background(Color(.systemGroupedBackground))
         .refreshable {
             await viewModel.refreshIncidents()
         }
@@ -141,71 +175,128 @@ struct IncidentRowView: View {
     let alarmCounts: [AlarmColor: Int]?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            // Zeile 1: ID + Titel + Zeit
-            HStack(spacing: 6) {
+        let isAlarmsCleared = incident.incidentState.uppercased() == "ALARMS CLEARED"
+
+        VStack(alignment: .leading, spacing: 3) {
+            // Top: #ID  +  scrolling title
+            HStack(spacing: 5) {
                 Text("#\(incident.incidentID)")
-                    .font(.caption)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+                    .fixedSize()
+                ScrollingText(text: incident.summary,
+                              font: .subheadline, weight: .semibold, color: .primary)
+            }
+
+            // Bottom: status label  +  scrolling device name  +  time  +  alarms
+            HStack(alignment: .center, spacing: 5) {
+                AlarmBadge(
+                    label: isAlarmsCleared ? "CLRD" : incident.status.displayLabel,
+                    color: isAlarmsCleared ? Color(red: 0.13, green: 0.55, blue: 0.13) : incident.status.displayColor
+                )
+                .frame(minWidth: 44)
+
+                ScrollingText(text: incident.deviceName ?? "",
+                              font: .caption, weight: .regular, color: .secondary)
+
+                Text(timeAgoString(from: incident.startTime))
+                    .font(.caption2)
                     .fontWeight(.semibold)
                     .foregroundColor(.secondary)
                     .fixedSize()
 
-                Text(incident.summary)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .lineLimit(1)
-
-                Spacer()
-
-                Text(timeAgoString(from: incident.startTime))
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-
-            // Zeile 2: Device-Name links, State + Alarm-Badges rechts
-            HStack(spacing: 0) {
-                Text(incident.deviceName ?? "")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .layoutPriority(0)
-
-                Spacer(minLength: 8)
-
-                HStack(spacing: 5) {
-                    AlarmBadge(label: incident.status.displayLabel, color: incident.status.displayColor)
-
-                    Spacer().frame(width: 4)
-
-                    if let counts = alarmCounts {
+                if let counts = alarmCounts {
+                    HStack(spacing: 4) {
                         ForEach(alwaysShownAlarmColors, id: \.self) { color in
                             AlarmBadge(label: "\(counts[color] ?? 0)", color: color.color, darkText: color == .yellow)
                         }
-                    } else {
-                        ProgressView().scaleEffect(0.6)
                     }
+                    .fixedSize()
+                } else {
+                    ProgressView().scaleEffect(0.6)
                 }
-                .fixedSize()
             }
         }
-        .padding(.vertical, 3)
+        .padding(.vertical, 4)
     }
 
     private func timeAgoString(from date: Date) -> String {
         let interval = Date().timeIntervalSince(date)
-        if interval < 60 { return "Gerade eben" }
+        if interval < 60 { return "now" }
         if interval < 3600 { return "\(Int(interval / 60))m" }
         if interval < 86400 { return "\(Int(interval / 3600))h" }
         return "\(Int(interval / 86400))d"
     }
 }
 
+// MARK: - Scrolling Title
+
+private struct ScrollingText: View {
+    let text: String
+    var font: Font = .subheadline
+    var weight: Font.Weight = .semibold
+    var color: Color = .primary
+
+    @State private var offset: CGFloat = 0
+    @State private var textWidth: CGFloat = 0
+    @State private var containerWidth: CGFloat = 0
+
+    var body: some View {
+        // Hidden placeholder: sets height from one line, expands to fill available width.
+        // Overlay with the actual scrolling text — overlay never affects layout size.
+        Text(text)
+            .font(font).fontWeight(weight)
+            .lineLimit(1)
+            .hidden()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .leading) {
+                Text(text)
+                    .font(font).fontWeight(weight).foregroundColor(color)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .offset(x: offset)
+                    .background(GeometryReader { g in
+                        Color.clear.onAppear { textWidth = g.size.width }
+                    })
+            }
+            .background(GeometryReader { g in
+                Color.clear.onAppear { containerWidth = g.size.width }
+            })
+            .clipped()
+            .task(id: text) {
+                offset = 0
+                await runMarquee()
+            }
+    }
+
+    private func runMarquee() async {
+        try? await Task.sleep(nanoseconds: 200_000_000) // settle layout
+        while !Task.isCancelled {
+            let overflow = textWidth - containerWidth
+            guard overflow > 2, containerWidth > 0 else {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                continue
+            }
+            try? await Task.sleep(nanoseconds: 2_000_000_000)     // 2s initial pause
+            guard !Task.isCancelled else { return }
+            let duration = Double(overflow) / 60                   // 60 pt/s scroll speed
+            withAnimation(.linear(duration: duration)) { offset = -overflow }
+            try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            try? await Task.sleep(nanoseconds: 2_000_000_000)     // 2s end pause
+            guard !Task.isCancelled else { return }
+            offset = 0                                             // instant jump back
+        }
+    }
+}
+
+
 extension NetreoIncident.IncidentStatus {
     var displayLabel: String {
         switch self {
         case .active:       return "OPEN"
-        case .acknowledged: return "ACK"
+        case .acknowledged: return "ACKD"
         case .resolved:     return "OK"
         case .closed:       return "CLOSED"
         }
@@ -215,7 +306,7 @@ extension NetreoIncident.IncidentStatus {
         switch self {
         case .active:       return .red
         case .acknowledged: return .blue
-        case .resolved:     return .green
+        case .resolved:     return Color(red: 0.13, green: 0.55, blue: 0.13)
         case .closed:       return Color(.systemGray)
         }
     }
@@ -238,6 +329,10 @@ struct AlarmBadge: View {
             .padding(.vertical, 3)
             .background(isZero ? Color.clear : color)
             .cornerRadius(5)
+            .overlay(
+                RoundedRectangle(cornerRadius: 5)
+                    .stroke(isZero ? Color(.systemGray4) : Color.clear, lineWidth: 0.5)
+            )
     }
 }
 
@@ -290,8 +385,10 @@ struct IncidentListViewShared: View {
     @ObservedObject var viewModel: IncidentListViewModel
     let apiService: NetreoAPIService
     @State private var showingFilters = false
+    @State private var connectionStatus: ConnectionStatus = .unknown
     @AppStorage("netreo_ack_user") private var ackUser = ""
-    
+    @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
+
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
@@ -306,11 +403,11 @@ struct IncidentListViewShared: View {
                         Image(systemName: "checkmark.shield")
                             .font(.system(size: 60))
                             .foregroundColor(.green)
-                        
+
                         Text("No Active Incidents")
                             .font(.title2)
                             .fontWeight(.semibold)
-                        
+
                         Text("All systems are operating normally")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
@@ -324,17 +421,27 @@ struct IncidentListViewShared: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    ConnectionBadgeButton(status: connectionStatus) {
+                        Task { await viewModel.refreshIncidents() }
+                    }
+                }
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Image("BMCHelixLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                }
                 ToolbarItem(placement: .principal) {
-                    Text("Incidents")
-                        .font(.system(size: 26, weight: .bold, design: .default))
+                    Text("Active Incidents")
+                        .font(.system(size: 18, weight: .bold, design: .default))
                 }
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Button(action: { showingFilters.toggle() }) {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                     }
-
                     AutoRefreshButton(
-                        interval: 120,
+                        interval: refreshInterval,
                         isLoading: viewModel.isLoading,
                         action: viewModel.refreshIncidents
                     )
@@ -343,71 +450,95 @@ struct IncidentListViewShared: View {
             .sheet(isPresented: $showingFilters) {
                 FiltersView(viewModel: viewModel)
             }
+            .onChange(of: viewModel.isLoading) { loading in
+                if loading {
+                    connectionStatus = .checking
+                } else {
+                    connectionStatus = viewModel.errorMessage == nil ? .connected : .disconnected
+                }
+            }
+            .task(id: connectionStatus) {
+                guard connectionStatus == .disconnected else { return }
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                guard !Task.isCancelled, connectionStatus == .disconnected else { return }
+                await viewModel.refreshIncidents()
+            }
         }
     }
-    
+
     private var incidentsList: some View {
         List {
-            Section {
-                ForEach(viewModel.filteredIncidents) { incident in
-                    NavigationLink {
-                        IncidentDetailView(
-                            incident: incident,
-                            apiService: apiService,
-                            preloadedAlarmCounts: viewModel.alarmCounts[incident.incidentID]
-                        )
-                    } label: {
-                        IncidentRowView(
-                            incident: incident,
-                            alarmCounts: viewModel.alarmCounts[incident.incidentID]
-                        )
-                    }
-                    // Swipe rechts → Acknowledge
-                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                        if incident.status != .acknowledged {
-                            Button {
-                                Task {
-                                    let ok = try? await apiService.acknowledgeIncident(
-                                        incidentID: incident.incidentID,
-                                        user: ackUser.isEmpty ? "mobile" : ackUser
-                                    )
-                                    if ok == true {
-                                        viewModel.updateIncidentStatus(incidentID: incident.incidentID, status: .acknowledged)
-                                    }
-                                }
-                            } label: {
-                                Label("ACK", systemImage: "checkmark.circle")
-                            }
-                            .tint(.blue)
+            ForEach(viewModel.filteredIncidents) { incident in
+                NavigationLink {
+                    IncidentDetailView(
+                        incident: incident,
+                        apiService: apiService,
+                        preloadedAlarmCounts: viewModel.alarmCounts[incident.incidentID]
+                    )
+                } label: {
+                    IncidentRowView(
+                        incident: incident,
+                        alarmCounts: viewModel.alarmCounts[incident.incidentID]
+                    )
+                    .frame(maxHeight: .infinity, alignment: .center)
+                }
+                .listRowBackground(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(.secondarySystemGroupedBackground))
+                        .padding(.vertical, 2)
+                )
+                .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 12))
+                .listRowSeparator(.hidden)
+                // Swipe rechts → ACK oder UnACK
+                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                    let isAlarmsCleared = incident.incidentState.uppercased() == "ALARMS CLEARED"
+                    if isAlarmsCleared {
+                        Button { } label: {
+                            Label("ACK", systemImage: "checkmark.circle")
                         }
-                    }
-                    // Swipe links → Unacknowledge
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                        if incident.status == .acknowledged {
-                            Button {
-                                Task {
-                                    let ok = try? await apiService.unacknowledgeIncident(
-                                        incidentID: incident.incidentID,
-                                        user: ackUser.isEmpty ? "mobile" : ackUser
-                                    )
-                                    if ok == true {
-                                        viewModel.updateIncidentStatus(incidentID: incident.incidentID, status: .active)
-                                    }
+                        .tint(.gray)
+                    } else if incident.status == .acknowledged {
+                        Button {
+                            Task {
+                                let ok = try? await apiService.unacknowledgeIncident(
+                                    incidentID: incident.incidentID,
+                                    user: ackUser.isEmpty ? "mobile" : ackUser
+                                )
+                                if ok == true {
+                                    viewModel.updateIncidentStatus(incidentID: incident.incidentID, status: .active)
                                 }
-                            } label: {
-                                Label("Unack", systemImage: "arrow.uturn.backward.circle")
                             }
-                            .tint(.blue)
+                        } label: {
+                            Label("Unack", systemImage: "arrow.uturn.backward.circle")
                         }
+                        .tint(.blue)
+                    } else {
+                        Button {
+                            Task {
+                                let ok = try? await apiService.acknowledgeIncident(
+                                    incidentID: incident.incidentID,
+                                    user: ackUser.isEmpty ? "mobile" : ackUser
+                                )
+                                if ok == true {
+                                    viewModel.updateIncidentStatus(incidentID: incident.incidentID, status: .acknowledged)
+                                }
+                            }
+                        } label: {
+                            Label("ACK", systemImage: "checkmark.circle")
+                        }
+                        .tint(.blue)
                     }
                 }
             }
         }
+        .listStyle(.plain)
+        .background(Color(.systemGroupedBackground))
         .refreshable {
             await viewModel.refreshIncidents()
         }
     }
 }
+
 
 #Preview {
     IncidentListView(apiService: NetreoAPIService(baseURL: "http://demo.netreo.com", apiKey: "test"))

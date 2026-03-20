@@ -10,6 +10,17 @@ struct IncidentDetailView: View {
     @State private var detail: IncidentDetail?
     @State private var isLoading = true
     @State private var errorMessage: String?
+    @State private var currentStatus: NetreoIncident.IncidentStatus
+    @State private var isAcking = false
+    @AppStorage("netreo_ack_user") private var ackUser = ""
+    @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
+
+    init(incident: NetreoIncident, apiService: NetreoAPIService, preloadedAlarmCounts: [AlarmColor: Int]?) {
+        self.incident = incident
+        self.apiService = apiService
+        self.preloadedAlarmCounts = preloadedAlarmCounts
+        self._currentStatus = State(initialValue: incident.status)
+    }
 
     var body: some View {
         Group {
@@ -30,8 +41,24 @@ struct IncidentDetailView: View {
                 detailContent(d)
             }
         }
-        .navigationTitle("#\(incident.incidentID)")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                VStack(spacing: 1) {
+                    Text("Incident Detail")
+                        .font(.headline)
+                    Text("#\(incident.incidentID)")
+                        .font(.headline)
+                }
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                AutoRefreshButton(
+                    interval: refreshInterval,
+                    isLoading: isLoading,
+                    action: loadDetail
+                )
+            }
+        }
         .task { await loadDetail() }
     }
 
@@ -42,11 +69,47 @@ struct IncidentDetailView: View {
         List {
             // ── Status Section ──────────────────────────────────────────
             Section {
-                HStack(spacing: 12) {
-                    StateBadge(label: d.incidentState)
+                HStack(spacing: 0) {
+                    // ACK / UnACK button
+                    let isAlarmsCleared = d.incidentState.uppercased() == "ALARMS CLEARED"
+                    if isAlarmsCleared {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.largeTitle)
+                            .foregroundColor(Color(.systemGray4))
+                    } else if isAcking {
+                        ProgressView()
+                            .frame(width: 36, height: 36)
+                    } else if currentStatus == .acknowledged {
+                        Button {
+                            Task { await toggleAck() }
+                        } label: {
+                            Image(systemName: "arrow.uturn.backward.circle.fill")
+                                .font(.largeTitle)
+                                .foregroundColor(.blue)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        Button {
+                            Task { await toggleAck() }
+                        } label: {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.largeTitle)
+                                .foregroundColor(.blue)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     Spacer()
+                    let stateLabel: String = {
+                        if currentStatus == .acknowledged { return "ACK" }
+                        if d.incidentState.uppercased() == "ACKNOWLEDGED" { return "OPEN" }
+                        return d.incidentState
+                    }()
+                    StateBadge(label: stateLabel)
+                    Spacer()
+
                     if let counts = preloadedAlarmCounts {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 4) {
                             ForEach(alwaysShownAlarmColors, id: \.self) { color in
                                 AlarmBadge(label: "\(counts[color] ?? 0)", color: color.color)
                             }
@@ -58,15 +121,17 @@ struct IncidentDetailView: View {
 
             // ── Incident Metadata ────────────────────────────────────────
             Section(header: Text("Incident Info")) {
-                InfoRow(label: "Incident ID",    value: d.incidentID)
                 InfoRow(label: "Title",          value: d.title)
                 InfoRow(label: "Device",         value: d.deviceName)
+                let ip = d.deviceIP?.isEmpty == false ? d.deviceIP : incident.deviceIP
+                if let ip, !ip.isEmpty {
+                    InfoRow(label: "IP",         value: ip)
+                }
                 InfoRow(label: "Alert Type",     value: d.alertType ?? "—")
                 if let openTime = d.openTime {
                     InfoRow(label: "Created",    value: formatDate(openTime))
                     InfoRow(label: "Duration",   value: durationString(from: openTime))
                 }
-                InfoRow(label: "ACK",            value: d.acknowledged ? "Yes" : "No")
                 if d.acknowledged {
                     if let t = d.ackTime    { InfoRow(label: "ACK Time",    value: formatDate(t)) }
                     if let u = d.ackUser,  !u.isEmpty  { InfoRow(label: "ACK User",    value: u) }
@@ -136,6 +201,29 @@ struct IncidentDetailView: View {
         isLoading = false
     }
 
+    private func toggleAck() async {
+        isAcking = true
+        let user = ackUser.isEmpty ? "mobile" : ackUser
+        if currentStatus == .acknowledged {
+            let ok = try? await apiService.unacknowledgeIncident(incidentID: incident.incidentID, user: user)
+            if ok == true {
+                currentStatus = .active
+                if let fresh = try? await apiService.fetchIncidentDetail(incidentID: incident.incidentID) {
+                    detail = fresh
+                }
+            }
+        } else {
+            let ok = try? await apiService.acknowledgeIncident(incidentID: incident.incidentID, user: user)
+            if ok == true {
+                currentStatus = .acknowledged
+                if let fresh = try? await apiService.fetchIncidentDetail(incidentID: incident.incidentID) {
+                    detail = fresh
+                }
+            }
+        }
+        isAcking = false
+    }
+
     private func stateColor(_ state: String) -> Color {
         switch state.uppercased() {
         case "CRITICAL":         return .red
@@ -154,7 +242,7 @@ struct IncidentDetailView: View {
     }
 
     private func durationString(from start: Date) -> String {
-        let s = Int(Date().timeIntervalSince(start))
+        let s = max(0, Int(Date().timeIntervalSince(start)))
         let d = s / 86400; let h = (s % 86400) / 3600
         let m = (s % 3600) / 60; let sec = s % 60
         if d > 0 { return "\(d)d \(h)h \(m)m \(sec)s" }
@@ -211,12 +299,13 @@ private struct InfoRow: View {
             Text(label)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
-                .frame(minWidth: 110, alignment: .leading)
+                .frame(minWidth: 100, alignment: .leading)
             Spacer()
             Text(value)
                 .font(.subheadline)
                 .multilineTextAlignment(.trailing)
         }
+        .padding(.vertical, 2)
     }
 }
 
@@ -237,10 +326,10 @@ private struct StateBadge: View {
     private var color: Color {
         switch label.uppercased() {
         case "OPEN":                     return .red
-        case "CRITICAL":                 return .red
-        case "MAJOR":                    return .orange
+        case "CRITICAL", "DOWN":         return .red
+        case "MAJOR", "UNREACHABLE":     return .orange
         case "WARNING", "MINOR":         return Color(red: 0.75, green: 0.55, blue: 0)
-        case "OK", "RESOLVED", "CLOSED": return .green
+        case "OK", "RESOLVED", "CLOSED", "UP", "NORMAL", "RECOVERY", "CLEARED", "ALARMS CLEARED": return Color(red: 0.13, green: 0.55, blue: 0.13)
         case "ACKNOWLEDGED", "ACK":      return .blue
         default:                         return Color(.systemGray)
         }

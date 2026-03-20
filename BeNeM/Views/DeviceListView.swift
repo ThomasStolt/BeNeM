@@ -3,11 +3,12 @@ import SwiftUI
 struct DeviceListView: View {
     @StateObject private var viewModel: DeviceListViewModel
     @State private var showingAddDevice = false
-    
+    @State private var connectionStatus: ConnectionStatus = .unknown
+
     init(apiService: NetreoAPIService) {
         _viewModel = StateObject(wrappedValue: DeviceListViewModel(apiService: apiService))
     }
-    
+
     var body: some View {
         NavigationView {
             List {
@@ -23,33 +24,53 @@ struct DeviceListView: View {
                 }
             }
             .navigationTitle("Devices")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Add") {
-                        showingAddDevice = true
+                ToolbarItem(placement: .navigationBarLeading) {
+                    ConnectionBadgeButton(status: connectionStatus) {
+                        Task { await viewModel.loadDevices() }
                     }
+                }
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Image("BMCHelixLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Add") { showingAddDevice = true }
                 }
             }
             .sheet(isPresented: $showingAddDevice) {
                 AddDeviceView(viewModel: viewModel)
             }
-            .refreshable {
-                await viewModel.loadDevices()
-            }
+            .refreshable { await viewModel.loadDevices() }
             .overlay {
-                if viewModel.isLoading {
+                if viewModel.isLoading && viewModel.devices.isEmpty {
                     ProgressView("Loading devices...")
                 }
             }
             .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
-                Button("OK") {
-                    viewModel.errorMessage = nil
-                }
+                Button("OK") { viewModel.errorMessage = nil }
             } message: {
                 Text(viewModel.errorMessage ?? "")
             }
+            .onChange(of: viewModel.isLoading) { loading in
+                if loading {
+                    connectionStatus = .checking
+                } else {
+                    connectionStatus = viewModel.errorMessage == nil ? .connected : .disconnected
+                }
+            }
+            .task(id: connectionStatus) {
+                guard connectionStatus == .disconnected else { return }
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                guard !Task.isCancelled, connectionStatus == .disconnected else { return }
+                await viewModel.loadDevices()
+            }
         }
         .task {
+            connectionStatus = .checking
             await viewModel.loadDevices()
         }
     }

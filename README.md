@@ -6,13 +6,15 @@ A native iOS app for **BMC Helix Network Management** (BHNM). Monitor your infra
 
 ## Features
 
-- **Dashboard** — at-a-glance summary with active incident count, total device count, and a Tactical Overview linking to Category, Site, and Business Workflow screens
+- **Dashboard** — at-a-glance summary with active incident count, total device count, an animated incident ticker, and HOSTS / SERVICES / THRESHOLDS alarm summaries
 - **Tactical Overview** — Category / Site / Business Workflow lists showing each group's device count and color-coded alarm status (Green / Blue / Yellow / Orange / Red)
-- **Incident List** — live view of all active incidents with severity badges and per-incident alarm counts
+- **Incident List** — live view of active, acknowledged, and closed incidents with severity badges and per-incident alarm counts; sorted newest-first by Incident ID
 - **Acknowledge / Unacknowledge** — swipe right to ACK, swipe left to UnACK, with instant local status update
 - **Incident Detail** — primary alarms, related alarms, and the full incident state log
+- **Incident Ticker** — animated news-flash banner on the Dashboard cycles through the latest 3 incidents; tap to navigate directly to the detail screen
 - **Filters** — filter incidents by severity and status; filter tactical groups to show only those with active alarms
 - **Auto-refresh** — data refreshes automatically every 120 seconds with a visible countdown ring; tap the ring to refresh immediately
+- **Auto-retry** — all screens automatically retry the connection 15 seconds after a network failure
 - **Pull-to-refresh** — manual refresh at any time by pulling down any list
 - **Auto Discovery** — scans your local Wi-Fi subnet for BHNM servers (Settings → Auto Discovery)
 - **Connection Test** — built-in connectivity test with detailed diagnostics
@@ -50,6 +52,17 @@ open BeNeM.xcodeproj
 - **Simulator**: Select any iPhone simulator and press ▶
 - **Physical device**: Connect your iPhone, select it as the destination and press ▶
 
+Alternatively, use the included build script:
+
+```bash
+# Copy the example config and fill in your device UDID
+cp build.local.sh.example build.local.sh
+# Edit build.local.sh — set BENEM_DEVICE_ID to your device's UDID
+
+# Build and deploy
+./build_and_deploy.sh
+```
+
 > **Note:** For corporate or self-signed certificate servers the app includes `NSAllowsArbitraryLoads` in its `Info.plist`. Review and adjust your ATS settings before submitting to the App Store.
 
 ## Configuration
@@ -86,16 +99,16 @@ BeNeM/
 │   ├── NetreoAPIConfiguration.swift  # URL building, endpoint routing
 │   └── NetworkDiscovery.swift        # Local Wi-Fi subnet scan for BHNM servers
 ├── ViewModels/
-│   ├── IncidentListViewModel.swift   # Filtering, alarm count loading
+│   ├── IncidentListViewModel.swift   # Filtering, sorting, alarm count loading
 │   ├── DeviceListViewModel.swift     # Device list loading
 │   └── TacticalViewModel.swift       # Category / Site / Business Workflow loading
 ├── Views/
-│   ├── DashboardView.swift           # Home screen: status cards + tactical overview
+│   ├── DashboardView.swift           # Home: status cards, incident ticker, alarm summaries
 │   ├── GroupListView.swift           # Group list with alarm badges and device count
-│   ├── IncidentListView.swift        # Incident list + swipe actions
+│   ├── IncidentListView.swift        # Incident list + swipe ACK/UnACK
 │   ├── IncidentDetailView.swift      # Incident detail screen
 │   ├── AutoDiscoveryView.swift       # Wi-Fi server discovery UI
-│   ├── AutoRefreshButton.swift       # Reusable countdown ring + refresh button
+│   ├── AutoRefreshButton.swift       # Countdown ring + refresh button + connection badge
 │   └── SettingsView.swift            # Configuration + connection test + debug info
 └── BeNeMApp.swift                    # App entry point
 ```
@@ -126,9 +139,9 @@ Releases follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
 ```bash
 # Bump version and build number (runs xcrun agvtool internally)
-./scripts/bump_version.sh patch   # 1.0.0 → 1.0.1
-./scripts/bump_version.sh minor   # 1.0.0 → 1.1.0
-./scripts/bump_version.sh major   # 1.0.0 → 2.0.0
+./scripts/bump_version.sh patch   # 1.1.0 → 1.1.1
+./scripts/bump_version.sh minor   # 1.1.0 → 1.2.0
+./scripts/bump_version.sh major   # 1.1.0 → 2.0.0
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.

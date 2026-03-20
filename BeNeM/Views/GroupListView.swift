@@ -10,6 +10,8 @@ private let kGap: CGFloat = 8            // gap between count and name
 struct GroupListView: View {
     let title: String
     @StateObject private var viewModel: TacticalViewModel
+    @State private var connectionStatus: ConnectionStatus = .unknown
+    @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
 
     init(title: String, apiService: NetreoAPIService, type: TacticalViewModel.GroupType) {
         self.title = title
@@ -58,6 +60,17 @@ struct GroupListView: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                ConnectionBadgeButton(status: connectionStatus) {
+                    Task { await viewModel.load() }
+                }
+            }
+            ToolbarItem(placement: .navigationBarLeading) {
+                Image("BMCHelixLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 24, height: 24)
+            }
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 Button {
                     viewModel.showAlarmsOnly.toggle()
@@ -70,14 +83,27 @@ struct GroupListView: View {
                 .padding(.trailing, 6)
 
                 AutoRefreshButton(
-                    interval: 120,
+                    interval: refreshInterval,
                     isLoading: viewModel.isLoading,
                     action: viewModel.load
                 )
             }
         }
+        .onChange(of: viewModel.isLoading) { loading in
+            if loading {
+                connectionStatus = .checking
+            } else {
+                connectionStatus = viewModel.errorMessage == nil ? .connected : .disconnected
+            }
+        }
+        .task(id: connectionStatus) {
+            guard connectionStatus == .disconnected else { return }
+            try? await Task.sleep(nanoseconds: 15_000_000_000)
+            guard !Task.isCancelled, connectionStatus == .disconnected else { return }
+            await viewModel.load()
+        }
         .task {
-            // Only load on first appearance; the auto-refresh timer handles subsequent updates.
+            connectionStatus = .checking
             if viewModel.groups.isEmpty && viewModel.errorMessage == nil {
                 await viewModel.load()
             }

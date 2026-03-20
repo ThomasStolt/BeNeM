@@ -10,6 +10,7 @@ struct NetreoIncident: Codable, Identifiable {
     let description: String?
     let severity: IncidentSeverity
     var status: IncidentStatus
+    let incidentState: String
     let category: String?
     let startTime: Date
     let acknowledgedTime: Date?
@@ -69,6 +70,7 @@ struct NetreoIncident: Codable, Identifiable {
         case description
         case severity
         case status
+        case incidentState = "incident_state"
         case category
         case startTime = "start_time"
         case acknowledgedTime = "acknowledged_time"
@@ -76,7 +78,7 @@ struct NetreoIncident: Codable, Identifiable {
         case acknowledgedBy = "acknowledged_by"
     }
     
-    init(incidentID: String, deviceIP: String?, deviceName: String?, summary: String, description: String?, severity: IncidentSeverity, status: IncidentStatus, category: String?, startTime: Date, acknowledgedTime: Date? = nil, resolvedTime: Date? = nil, acknowledgedBy: String? = nil) {
+    init(incidentID: String, deviceIP: String?, deviceName: String?, summary: String, description: String?, severity: IncidentSeverity, status: IncidentStatus, incidentState: String = "OPEN", category: String?, startTime: Date, acknowledgedTime: Date? = nil, resolvedTime: Date? = nil, acknowledgedBy: String? = nil) {
         self.incidentID = incidentID
         self.deviceIP = deviceIP
         self.deviceName = deviceName
@@ -84,6 +86,7 @@ struct NetreoIncident: Codable, Identifiable {
         self.description = description
         self.severity = severity
         self.status = status
+        self.incidentState = incidentState
         self.category = category
         self.startTime = startTime
         self.acknowledgedTime = acknowledgedTime
@@ -112,6 +115,7 @@ struct NetreoIncident: Codable, Identifiable {
             status = .active
         }
         
+        incidentState = (try? container.decodeIfPresent(String.self, forKey: .incidentState)) ?? "OPEN"
         category = try container.decodeIfPresent(String.self, forKey: .category)
         
         if let timestamp = try? container.decode(Double.self, forKey: .startTime) {

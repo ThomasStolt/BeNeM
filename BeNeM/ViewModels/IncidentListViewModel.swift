@@ -68,7 +68,7 @@ class IncidentListViewModel: ObservableObject {
             }
         }
 
-        return filtered.sorted { $0.severity.priority > $1.severity.priority }
+        return filtered.sorted { (Int($0.incidentID) ?? 0) > (Int($1.incidentID) ?? 0) }
     }
 
     func count(for badge: FilterBadge) -> Int {
@@ -112,8 +112,10 @@ class IncidentListViewModel: ObservableObject {
             print("IncidentListViewModel: Received \(fetchedIncidents.count) incidents")
             
             await MainActor.run {
+                // Remove counts for incidents that no longer exist
+                let newIDs = Set(fetchedIncidents.map(\.incidentID))
+                alarmCounts = alarmCounts.filter { newIDs.contains($0.key) }
                 incidents = fetchedIncidents
-                alarmCounts = [:]
                 isLoading = false
                 print("IncidentListViewModel: Updated incidents array on main thread")
                 print("IncidentListViewModel: incidents.count is now \(incidents.count)")
