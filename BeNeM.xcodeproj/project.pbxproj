@@ -31,6 +31,7 @@
 		BB0001000000000000000007 /* AutoRefreshButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001000000000000000008 /* AutoRefreshButton.swift */; };
 		BB0001000000000000000009 /* NetworkDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000100000000000000000A /* NetworkDiscovery.swift */; };
 		BB000100000000000000000B /* AutoDiscoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000100000000000000000C /* AutoDiscoveryView.swift */; };
+		BB000100000000000000000D /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000100000000000000000E /* SplashView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -59,6 +60,7 @@
 		BB0001000000000000000008 /* AutoRefreshButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoRefreshButton.swift; sourceTree = "<group>"; };
 		BB000100000000000000000A /* NetworkDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkDiscovery.swift; sourceTree = "<group>"; };
 		BB000100000000000000000C /* AutoDiscoveryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoDiscoveryView.swift; sourceTree = "<group>"; };
+		BB000100000000000000000E /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -147,6 +149,7 @@
 				BB0001000000000000000006 /* GroupListView.swift */,
 				BB0001000000000000000008 /* AutoRefreshButton.swift */,
 				BB000100000000000000000C /* AutoDiscoveryView.swift */,
+				BB000100000000000000000E /* SplashView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -251,6 +254,7 @@
 				BB0001000000000000000007 /* AutoRefreshButton.swift in Sources */,
 				BB0001000000000000000009 /* NetworkDiscovery.swift in Sources */,
 				BB000100000000000000000B /* AutoDiscoveryView.swift in Sources */,
+				BB000100000000000000000D /* SplashView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
