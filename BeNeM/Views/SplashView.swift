@@ -36,14 +36,14 @@ struct SplashView: View {
                 LinearGradient(
                     stops: [
                         .init(color: .clear, location: 0.0),
-                        .init(color: .white.opacity(0.6), location: 0.5),
+                        .init(color: .white.opacity(0.9), location: 0.5),
                         .init(color: .clear, location: 1.0)
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
                 )
             )
-            .frame(width: 30, height: 400)
+            .frame(width: 60, height: 400)
             .rotationEffect(.degrees(20))
             .offset(x: shimmerOffset)
     }
@@ -64,7 +64,7 @@ struct SplashView: View {
         // Shimmer
         if !reduceMotion {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                withAnimation(.easeInOut(duration: 1.6)) {
+                withAnimation(.easeInOut(duration: 2.2)) {
                     shimmerOffset = 200
                 }
             }
