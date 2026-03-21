@@ -24,31 +24,8 @@ struct SplashView: View {
         Image("BMCHelixLogo")
             .resizable()
             .scaledToFit()
-            // Glass: depth shadow
-            .shadow(color: .black.opacity(0.6), radius: 20, x: 0, y: 10)
-            // Glass: top highlight
-            .overlay(topHighlight)
-            // Glass: border
-            .overlay(glassBorder)
             // Shimmer clipped to logo pixels
             .overlay(shimmerBand.mask(logoMask))
-    }
-
-    private var topHighlight: some View {
-        LinearGradient(
-            stops: [
-                .init(color: .white, location: 0.0),
-                .init(color: .clear, location: 0.4)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .opacity(0.25)
-    }
-
-    private var glassBorder: some View {
-        RoundedRectangle(cornerRadius: 12)
-            .stroke(Color.white.opacity(0.2), lineWidth: 1)
     }
 
     // MARK: - Shimmer
@@ -86,26 +63,26 @@ struct SplashView: View {
     private func startAnimations() {
         // Shimmer
         if !reduceMotion {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                withAnimation(.easeInOut(duration: 0.8)) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                withAnimation(.easeInOut(duration: 1.6)) {
                     shimmerOffset = 200
                 }
             }
         }
 
         // Fade out
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             if reduceMotion {
                 splashOpacity = 0
             } else {
-                withAnimation(.easeInOut(duration: 0.5)) {
+                withAnimation(.easeInOut(duration: 1.0)) {
                     splashOpacity = 0
                 }
             }
         }
 
         // Remove from hierarchy
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
             onDismiss()
         }
     }
