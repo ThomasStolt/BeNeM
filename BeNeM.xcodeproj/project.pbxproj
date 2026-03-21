@@ -25,13 +25,6 @@
 		A11234567890001A /* BeNeMApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11234567890001B /* BeNeMApp.swift */; };
 		A11234567890003A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A11234567890003B /* Assets.xcassets */; };
 		A11234567890004A /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A11234567890004B /* Preview Assets.xcassets */; };
-		A1123456789000DA /* SimpleNetreoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1123456789000DB /* SimpleNetreoService.swift */; };
-		A1123456789000EA /* SimpleQuickConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1123456789000EB /* SimpleQuickConfigView.swift */; };
-		A1123456789000FA /* SimpleContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1123456789000FB /* SimpleContentView.swift */; };
-		A112345678900100 /* SimpleDeviceListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A112345678900101 /* SimpleDeviceListView.swift */; };
-		A112345678900110 /* DeviceInterfacesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A112345678900111 /* DeviceInterfacesView.swift */; };
-		A112345678900120 /* InterfacePerformanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A112345678900121 /* InterfacePerformanceView.swift */; };
-		A112345678900130 /* DeviceLatencyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A112345678900131 /* DeviceLatencyView.swift */; };
 		BB0001000000000000000001 /* GroupSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001000000000000000002 /* GroupSummary.swift */; };
 		BB0001000000000000000003 /* TacticalViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001000000000000000004 /* TacticalViewModel.swift */; };
 		BB0001000000000000000005 /* GroupListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001000000000000000006 /* GroupListView.swift */; };
@@ -60,13 +53,6 @@
 		A1123456789000AB /* AddDeviceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddDeviceView.swift; sourceTree = "<group>"; };
 		A1123456789000BB /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A1123456789000CB /* QuickConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickConfigView.swift; sourceTree = "<group>"; };
-		A1123456789000DB /* SimpleNetreoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleNetreoService.swift; sourceTree = "<group>"; };
-		A1123456789000EB /* SimpleQuickConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleQuickConfigView.swift; sourceTree = "<group>"; };
-		A1123456789000FB /* SimpleContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleContentView.swift; sourceTree = "<group>"; };
-		A112345678900101 /* SimpleDeviceListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleDeviceListView.swift; sourceTree = "<group>"; };
-		A112345678900111 /* DeviceInterfacesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceInterfacesView.swift; sourceTree = "<group>"; };
-		A112345678900121 /* InterfacePerformanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterfacePerformanceView.swift; sourceTree = "<group>"; };
-		A112345678900131 /* DeviceLatencyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceLatencyView.swift; sourceTree = "<group>"; };
 		BB0001000000000000000002 /* GroupSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupSummary.swift; sourceTree = "<group>"; };
 		BB0001000000000000000004 /* TacticalViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TacticalViewModel.swift; sourceTree = "<group>"; };
 		BB0001000000000000000006 /* GroupListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupListView.swift; sourceTree = "<group>"; };
@@ -99,7 +85,6 @@
 			children = (
 				A11234567890001B /* BeNeMApp.swift */,
 				A11234567890002B /* ContentView.swift */,
-				A1123456789000FB /* SimpleContentView.swift */,
 				A11234567890000F /* Models */,
 				A11234567890000G /* Services */,
 				A11234567890000H /* ViewModels */,
@@ -134,7 +119,6 @@
 			children = (
 				A11234567890006B /* NetreoAPIService.swift */,
 				A11234567890007B /* NetreoAPIConfiguration.swift */,
-				A1123456789000DB /* SimpleNetreoService.swift */,
 				BB000100000000000000000A /* NetworkDiscovery.swift */,
 			);
 			path = Services;
@@ -160,11 +144,6 @@
 				A1123456789000AB /* AddDeviceView.swift */,
 				A1123456789000BB /* SettingsView.swift */,
 				A1123456789000CB /* QuickConfigView.swift */,
-				A1123456789000EB /* SimpleQuickConfigView.swift */,
-				A112345678900101 /* SimpleDeviceListView.swift */,
-				A112345678900111 /* DeviceInterfacesView.swift */,
-				A112345678900121 /* InterfacePerformanceView.swift */,
-				A112345678900131 /* DeviceLatencyView.swift */,
 				BB0001000000000000000006 /* GroupListView.swift */,
 				BB0001000000000000000008 /* AutoRefreshButton.swift */,
 				BB000100000000000000000C /* AutoDiscoveryView.swift */,
@@ -253,22 +232,15 @@
 				A11234567890001A /* BeNeMApp.swift in Sources */,
 				8C6281342E64D6BE00522D09 /* QuickConfigView.swift in Sources */,
 				8C6281322E64D6A900522D09 /* AddDeviceView.swift in Sources */,
-				A1123456789000DA /* SimpleNetreoService.swift in Sources */,
 				8C62812C2E64D59000522D09 /* NetreoAPIService.swift in Sources */,
-				A1123456789000EA /* SimpleQuickConfigView.swift in Sources */,
 				8C6281332E64D6B600522D09 /* SettingsView.swift in Sources */,
-				A1123456789000FA /* SimpleContentView.swift in Sources */,
 				8C62812B2E64D3C700522D09 /* IncidentListViewModel.swift in Sources */,
 				8C6281312E64D68E00522D09 /* DeviceListView.swift in Sources */,
-				A112345678900100 /* SimpleDeviceListView.swift in Sources */,
 				8C6281302E64D67D00522D09 /* ContentView.swift in Sources */,
-				A112345678900110 /* DeviceInterfacesView.swift in Sources */,
 				8C6281282E64CF6D00522D09 /* DashboardView.swift in Sources */,
 				8C6281292E64CF6D00522D09 /* IncidentListView.swift in Sources */,
 				8C62812D2E64D5A100522D09 /* NetreoAPIConfiguration.swift in Sources */,
-				A112345678900120 /* InterfacePerformanceView.swift in Sources */,
 				8C62812F2E64D5C900522D09 /* DeviceListViewModel.swift in Sources */,
-				A112345678900130 /* DeviceLatencyView.swift in Sources */,
 				8C62812E2E64D5B200522D09 /* NetreoDevice.swift in Sources */,
 				8C6281232E64CF2300522D09 /* NetreoIncident.swift in Sources */,
 				AABB0001000000000000001A /* IncidentDetail.swift in Sources */,
