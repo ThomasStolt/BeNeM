@@ -181,8 +181,14 @@ private struct GroupRow: View {
                           green: group.hostsGreen, blue: group.hostsBlue,
                           yellow: group.hostsYellow, orange: group.hostsOrange,
                           red: group.hostsRed)
-                metricRow(label: "S", green: 0, blue: 0, yellow: 0, orange: 0, red: 0)
-                metricRow(label: "T", green: 0, blue: 0, yellow: 0, orange: 0, red: 0)
+                metricRow(label: "S",
+                          green: group.servicesGreen, blue: group.servicesBlue,
+                          yellow: group.servicesYellow, orange: group.servicesOrange,
+                          red: group.servicesRed)
+                metricRow(label: "T",
+                          green: group.thresholdsGreen, blue: group.thresholdsBlue,
+                          yellow: group.thresholdsYellow, orange: group.thresholdsOrange,
+                          red: group.thresholdsRed)
             }
         }
         .padding(.vertical, 2)

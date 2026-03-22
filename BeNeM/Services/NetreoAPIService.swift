@@ -188,12 +188,12 @@ class NetreoAPIService: ObservableObject {
     // MARK: - Tactical Group Summaries
 
     func fetchCategorySummaries() async throws -> [GroupSummary] {
-        async let devicesFetch  = fetchDevices()
+        async let devicesFetch   = fetchDevices()
         async let incidentsFetch = fetchIncidents()
-        async let namesFetch    = fetchGroupNames(endpoint: "restful/category/list")
+        async let namesFetch     = fetchGroupNames(endpoint: "restful/category/list")
         let (devices, incidents, names) = try await (devicesFetch, incidentsFetch, namesFetch)
-        let statusByIP = await deviceStatusMap(devices: devices, incidents: incidents)
-        return buildSummaries(devices: devices, statusByIP: statusByIP, keyPath: \.categoryID, names: names)
+        let maps = await deviceStatusMap(devices: devices, incidents: incidents)
+        return buildSummaries(devices: devices, hostStatusByIP: maps.hosts, serviceStatusByIP: maps.services, thresholdStatusByIP: maps.thresholds, keyPath: \.categoryID, names: names)
     }
 
     func fetchSiteSummaries() async throws -> [GroupSummary] {
@@ -201,8 +201,8 @@ class NetreoAPIService: ObservableObject {
         async let incidentsFetch = fetchIncidents()
         async let namesFetch     = fetchGroupNames(endpoint: "restful/site/list")
         let (devices, incidents, names) = try await (devicesFetch, incidentsFetch, namesFetch)
-        let statusByIP = await deviceStatusMap(devices: devices, incidents: incidents)
-        return buildSummaries(devices: devices, statusByIP: statusByIP, keyPath: \.siteID, names: names)
+        let maps = await deviceStatusMap(devices: devices, incidents: incidents)
+        return buildSummaries(devices: devices, hostStatusByIP: maps.hosts, serviceStatusByIP: maps.services, thresholdStatusByIP: maps.thresholds, keyPath: \.siteID, names: names)
     }
 
     func fetchBusinessWorkflowSummaries() async throws -> [GroupSummary] {
@@ -210,29 +210,37 @@ class NetreoAPIService: ObservableObject {
         async let devicesFetch   = fetchDevices()
         async let incidentsFetch = fetchIncidents()
         let (devices, incidents) = try await (devicesFetch, incidentsFetch)
-        let statusByIP = await deviceStatusMap(devices: devices, incidents: incidents)
+        let maps = await deviceStatusMap(devices: devices, incidents: incidents)
         let activeIPs = Set(devices.filter(\.isActive).map(\.ip))
 
         return try await withThrowingTaskGroup(of: GroupSummary?.self) { taskGroup in
             for sg in groups {
                 taskGroup.addTask {
                     let memberIPs = (try? await self.fetchStrategicGroupMemberIPs(groupID: sg.id)) ?? []
-                    var green = 0, blue = 0, yellow = 0, orange = 0, red = 0
+                    var hG = 0, hB = 0, hY = 0, hO = 0, hR = 0
+                    var sG = 0, sB = 0, sY = 0, sO = 0, sR = 0
+                    var tG = 0, tB = 0, tY = 0, tO = 0, tR = 0
                     for ip in memberIPs where activeIPs.contains(ip) {
-                        switch statusByIP[ip] ?? .green {
-                        case .green:  green += 1
-                        case .blue:   blue += 1
-                        case .yellow: yellow += 1
-                        case .orange: orange += 1
-                        case .red:    red += 1
+                        switch maps.hosts[ip] ?? .green {
+                        case .green:  hG += 1
+                        case .blue:   hB += 1
+                        case .yellow: hY += 1
+                        case .orange: hO += 1
+                        case .red:    hR += 1
+                        }
+                        if let svc = maps.services[ip] {
+                            switch svc { case .green: sG += 1; case .blue: sB += 1; case .yellow: sY += 1; case .orange: sO += 1; case .red: sR += 1 }
+                        }
+                        if let thr = maps.thresholds[ip] {
+                            switch thr { case .green: tG += 1; case .blue: tB += 1; case .yellow: tY += 1; case .orange: tO += 1; case .red: tR += 1 }
                         }
                     }
-                    let total = green + blue + yellow + orange + red
+                    let total = hG + hB + hY + hO + hR
                     guard total > 0 else { return nil }
                     return GroupSummary(id: sg.id, name: sg.name,
-                                       hostsGreen: green, hostsBlue: blue,
-                                       hostsYellow: yellow, hostsOrange: orange,
-                                       hostsRed: red)
+                                       hostsGreen: hG, hostsBlue: hB, hostsYellow: hY, hostsOrange: hO, hostsRed: hR,
+                                       servicesGreen: sG, servicesBlue: sB, servicesYellow: sY, servicesOrange: sO, servicesRed: sR,
+                                       thresholdsGreen: tG, thresholdsBlue: tB, thresholdsYellow: tY, thresholdsOrange: tO, thresholdsRed: tR)
                 }
             }
             var result: [GroupSummary] = []
@@ -247,40 +255,48 @@ class NetreoAPIService: ObservableObject {
 
     func fetchCategorySummaries(devices: [NetreoDevice], incidents: [NetreoIncident]) async throws -> [GroupSummary] {
         let names = try await fetchGroupNames(endpoint: "restful/category/list")
-        let statusByIP = await deviceStatusMap(devices: devices, incidents: incidents)
-        return buildSummaries(devices: devices, statusByIP: statusByIP, keyPath: \.categoryID, names: names)
+        let maps = await deviceStatusMap(devices: devices, incidents: incidents)
+        return buildSummaries(devices: devices, hostStatusByIP: maps.hosts, serviceStatusByIP: maps.services, thresholdStatusByIP: maps.thresholds, keyPath: \.categoryID, names: names)
     }
 
     func fetchSiteSummaries(devices: [NetreoDevice], incidents: [NetreoIncident]) async throws -> [GroupSummary] {
         let names = try await fetchGroupNames(endpoint: "restful/site/list")
-        let statusByIP = await deviceStatusMap(devices: devices, incidents: incidents)
-        return buildSummaries(devices: devices, statusByIP: statusByIP, keyPath: \.siteID, names: names)
+        let maps = await deviceStatusMap(devices: devices, incidents: incidents)
+        return buildSummaries(devices: devices, hostStatusByIP: maps.hosts, serviceStatusByIP: maps.services, thresholdStatusByIP: maps.thresholds, keyPath: \.siteID, names: names)
     }
 
     func fetchBusinessWorkflowSummaries(devices: [NetreoDevice], incidents: [NetreoIncident]) async throws -> [GroupSummary] {
         let groups = try await fetchStrategicGroupList()
-        let statusByIP = await deviceStatusMap(devices: devices, incidents: incidents)
+        let maps = await deviceStatusMap(devices: devices, incidents: incidents)
         let activeIPs = Set(devices.filter(\.isActive).map(\.ip))
         return try await withThrowingTaskGroup(of: GroupSummary?.self) { taskGroup in
             for sg in groups {
                 taskGroup.addTask {
                     let memberIPs = (try? await self.fetchStrategicGroupMemberIPs(groupID: sg.id)) ?? []
-                    var green = 0, blue = 0, yellow = 0, orange = 0, red = 0
+                    var hG = 0, hB = 0, hY = 0, hO = 0, hR = 0
+                    var sG = 0, sB = 0, sY = 0, sO = 0, sR = 0
+                    var tG = 0, tB = 0, tY = 0, tO = 0, tR = 0
                     for ip in memberIPs where activeIPs.contains(ip) {
-                        switch statusByIP[ip] ?? .green {
-                        case .green:  green += 1
-                        case .blue:   blue += 1
-                        case .yellow: yellow += 1
-                        case .orange: orange += 1
-                        case .red:    red += 1
+                        switch maps.hosts[ip] ?? .green {
+                        case .green:  hG += 1
+                        case .blue:   hB += 1
+                        case .yellow: hY += 1
+                        case .orange: hO += 1
+                        case .red:    hR += 1
+                        }
+                        if let svc = maps.services[ip] {
+                            switch svc { case .green: sG += 1; case .blue: sB += 1; case .yellow: sY += 1; case .orange: sO += 1; case .red: sR += 1 }
+                        }
+                        if let thr = maps.thresholds[ip] {
+                            switch thr { case .green: tG += 1; case .blue: tB += 1; case .yellow: tY += 1; case .orange: tO += 1; case .red: tR += 1 }
                         }
                     }
-                    let total = green + blue + yellow + orange + red
+                    let total = hG + hB + hY + hO + hR
                     guard total > 0 else { return nil }
                     return GroupSummary(id: sg.id, name: sg.name,
-                                       hostsGreen: green, hostsBlue: blue,
-                                       hostsYellow: yellow, hostsOrange: orange,
-                                       hostsRed: red)
+                                       hostsGreen: hG, hostsBlue: hB, hostsYellow: hY, hostsOrange: hO, hostsRed: hR,
+                                       servicesGreen: sG, servicesBlue: sB, servicesYellow: sY, servicesOrange: sO, servicesRed: sR,
+                                       thresholdsGreen: tG, thresholdsBlue: tB, thresholdsYellow: tY, thresholdsOrange: tO, thresholdsRed: tR)
                 }
             }
             var result: [GroupSummary] = []
@@ -291,10 +307,9 @@ class NetreoAPIService: ObservableObject {
         }
     }
 
-    /// Derives a per-device-IP alarm color by fetching actual alarm counts for each incident.
-    /// This avoids the faulty severity-default (.critical) and instead uses the real alarm
-    /// colors from primary_alarm_log + relatedalarms in the incident detail API.
-    private func deviceStatusMap(devices: [NetreoDevice], incidents: [NetreoIncident]) async -> [String: HostAlarmStatus] {
+    private func deviceStatusMap(devices: [NetreoDevice], incidents: [NetreoIncident])
+        async -> (hosts: [String: HostAlarmStatus], services: [String: HostAlarmStatus], thresholds: [String: HostAlarmStatus]) {
+
         // Build a name → IP lookup (full name + base hostname for each device)
         var nameToIP: [String: String] = [:]
         for device in devices {
@@ -330,37 +345,61 @@ class NetreoAPIService: ObservableObject {
         }
         #endif
 
-        // Fetch real alarm counts per incident in parallel, derive worst color per IP
-        var worstColorByIP: [String: AlarmColor] = [:]
-        await withTaskGroup(of: (String, AlarmColor).self) { group in
+        // Fetch alert_type + alarm counts for ALL incidents per IP in parallel
+        var worstHostByIP: [String: AlarmColor] = [:]
+        var worstServiceByIP: [String: AlarmColor] = [:]
+        var worstThresholdByIP: [String: AlarmColor] = [:]
+
+        await withTaskGroup(of: (String, String, AlarmColor).self) { group in
             for (ip, ipIncidents) in incidentsByIP {
-                guard let incident = ipIncidents.first else { continue }
-                group.addTask {
-                    let counts = (try? await self.fetchIncidentAlarmCounts(incidentID: incident.incidentID)) ?? [:]
-                    let worst = AlarmColor.worst(from: counts)
-                    return (ip, worst)
+                for incident in ipIncidents {
+                    group.addTask {
+                        let (alertType, counts) = await self.fetchIncidentAlarmData(incidentID: incident.incidentID)
+                        return (ip, alertType, AlarmColor.worst(from: counts))
+                    }
                 }
             }
-            for await (ip, color) in group {
-                let current = worstColorByIP[ip]
-                if current == nil || color.priority > current!.priority {
-                    worstColorByIP[ip] = color
+            for await (ip, alertType, color) in group {
+                switch alertType {
+                case "service":
+                    let cur = worstServiceByIP[ip]
+                    if cur == nil || color.priority > cur!.priority { worstServiceByIP[ip] = color }
+                case "threshold":
+                    let cur = worstThresholdByIP[ip]
+                    if cur == nil || color.priority > cur!.priority { worstThresholdByIP[ip] = color }
+                default: // "host" or anything else
+                    let cur = worstHostByIP[ip]
+                    if cur == nil || color.priority > cur!.priority { worstHostByIP[ip] = color }
                 }
             }
         }
 
-        // Map AlarmColor → HostAlarmStatus for every device
-        var result: [String: HostAlarmStatus] = [:]
+        // Host status for ALL active devices (green = no host incident)
+        var hostResult: [String: HostAlarmStatus] = [:]
         for device in devices {
-            switch worstColorByIP[device.ip] {
-            case .red:               result[device.ip] = .red
-            case .orange:            result[device.ip] = .orange
-            case .yellow:            result[device.ip] = .yellow
-            case .blue:              result[device.ip] = .blue
-            case .green, .grey, nil: result[device.ip] = .green
+            switch worstHostByIP[device.ip] {
+            case .red:               hostResult[device.ip] = .red
+            case .orange:            hostResult[device.ip] = .orange
+            case .yellow:            hostResult[device.ip] = .yellow
+            case .blue:              hostResult[device.ip] = .blue
+            case .green, .grey, nil: hostResult[device.ip] = .green
             }
         }
-        return result
+
+        // Service / threshold status for only devices that have incidents of that type
+        func toStatus(_ color: AlarmColor) -> HostAlarmStatus {
+            switch color {
+            case .red:          return .red
+            case .orange:       return .orange
+            case .yellow:       return .yellow
+            case .blue:         return .blue
+            case .green, .grey: return .green
+            }
+        }
+        let serviceResult   = worstServiceByIP.mapValues   { toStatus($0) }
+        let thresholdResult = worstThresholdByIP.mapValues { toStatus($0) }
+
+        return (hostResult, serviceResult, thresholdResult)
     }
 
     private struct SGInfo { let id: String; let name: String }
@@ -440,33 +479,73 @@ class NetreoAPIService: ObservableObject {
 
 
     private func buildSummaries(devices: [NetreoDevice],
-                                statusByIP: [String: HostAlarmStatus],
+                                hostStatusByIP: [String: HostAlarmStatus],
+                                serviceStatusByIP: [String: HostAlarmStatus],
+                                thresholdStatusByIP: [String: HostAlarmStatus],
                                 keyPath: KeyPath<NetreoDevice, String?>,
                                 names: [String: String]) -> [GroupSummary] {
         struct Counts { var green = 0; var blue = 0; var yellow = 0; var orange = 0; var red = 0 }
-        var buckets: [String: (name: String, counts: Counts)] = [:]
+        var hostBuckets: [String: (name: String, counts: Counts)] = [:]
+        var serviceBuckets:   [String: Counts] = [:]
+        var thresholdBuckets: [String: Counts] = [:]
+
         for device in devices {
-            guard device.isActive else { continue }   // skip unmonitored (poll=0) devices
+            guard device.isActive else { continue }
             guard let key = device[keyPath: keyPath], !key.isEmpty else { continue }
             let displayName = names[key] ?? key
-            var bucket = buckets[key] ?? (name: displayName, counts: Counts())
-            switch statusByIP[device.ip] ?? .green {
-            case .green:  bucket.counts.green += 1
-            case .blue:   bucket.counts.blue += 1
-            case .yellow: bucket.counts.yellow += 1
-            case .orange: bucket.counts.orange += 1
-            case .red:    bucket.counts.red += 1
+
+            // H — all active devices
+            var hb = hostBuckets[key] ?? (name: displayName, counts: Counts())
+            switch hostStatusByIP[device.ip] ?? .green {
+            case .green:  hb.counts.green  += 1
+            case .blue:   hb.counts.blue   += 1
+            case .yellow: hb.counts.yellow += 1
+            case .orange: hb.counts.orange += 1
+            case .red:    hb.counts.red    += 1
             }
-            buckets[key] = bucket
+            hostBuckets[key] = hb
+
+            // S — only devices with service incidents
+            if let svc = serviceStatusByIP[device.ip] {
+                var sb = serviceBuckets[key] ?? Counts()
+                switch svc {
+                case .green:  sb.green  += 1
+                case .blue:   sb.blue   += 1
+                case .yellow: sb.yellow += 1
+                case .orange: sb.orange += 1
+                case .red:    sb.red    += 1
+                }
+                serviceBuckets[key] = sb
+            }
+
+            // T — only devices with threshold incidents
+            if let thr = thresholdStatusByIP[device.ip] {
+                var tb = thresholdBuckets[key] ?? Counts()
+                switch thr {
+                case .green:  tb.green  += 1
+                case .blue:   tb.blue   += 1
+                case .yellow: tb.yellow += 1
+                case .orange: tb.orange += 1
+                case .red:    tb.red    += 1
+                }
+                thresholdBuckets[key] = tb
+            }
         }
-        return buckets.compactMap { key, val -> GroupSummary? in
-            let c = val.counts
-            let total = c.green + c.blue + c.yellow + c.orange + c.red
+
+        return hostBuckets.compactMap { key, val -> GroupSummary? in
+            let total = val.counts.green + val.counts.blue + val.counts.yellow + val.counts.orange + val.counts.red
             guard total > 0 else { return nil }
-            return GroupSummary(id: key, name: val.name,
-                                hostsGreen: c.green, hostsBlue: c.blue,
-                                hostsYellow: c.yellow, hostsOrange: c.orange,
-                                hostsRed: c.red)
+            let s = serviceBuckets[key]   ?? Counts()
+            let t = thresholdBuckets[key] ?? Counts()
+            return GroupSummary(
+                id: key, name: val.name,
+                hostsGreen:      val.counts.green,  hostsBlue:      val.counts.blue,
+                hostsYellow:     val.counts.yellow, hostsOrange:    val.counts.orange,  hostsRed:      val.counts.red,
+                servicesGreen:   s.green,           servicesBlue:   s.blue,
+                servicesYellow:  s.yellow,          servicesOrange: s.orange,           servicesRed:   s.red,
+                thresholdsGreen: t.green,           thresholdsBlue: t.blue,
+                thresholdsYellow: t.yellow,         thresholdsOrange: t.orange,         thresholdsRed: t.red
+            )
         }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
     
@@ -521,24 +600,26 @@ class NetreoAPIService: ObservableObject {
         return IncidentDetail.parse(from: json)
     }
 
-    func fetchIncidentAlarmCounts(incidentID: String) async throws -> [AlarmColor: Int] {
-        guard var components = URLComponents(string: "\(configuration.baseURL)/api/incident_api.php") else { return [:] }
+    /// Fetches incident detail and returns both the alert_type and alarm color counts.
+    /// alert_type values from BHNM: "Host", "Service", "Threshold" (case-insensitive).
+    private func fetchIncidentAlarmData(incidentID: String) async -> (alertType: String, counts: [AlarmColor: Int]) {
+        guard var components = URLComponents(string: "\(configuration.baseURL)/api/incident_api.php") else { return ("host", [:]) }
         components.queryItems = [
-            URLQueryItem(name: "pwd", value: configuration.apiKey),
-            URLQueryItem(name: "method", value: "getincidentdetail"),
+            URLQueryItem(name: "pwd",         value: configuration.apiKey),
+            URLQueryItem(name: "method",      value: "getincidentdetail"),
             URLQueryItem(name: "incident_id", value: incidentID)
         ]
         if let pin = configuration.pin {
             components.queryItems?.append(URLQueryItem(name: "pin", value: pin))
         }
-        guard let url = components.url else { return [:] }
-
-        let (data, _) = try await urlSession.data(from: url)
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        guard let url = components.url,
+              let (data, _) = try? await urlSession.data(from: url),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let incident = json["incident"] as? [String: Any],
-              let detail = incident["detail"] as? [String: Any] else { return [:] }
+              let detail = incident["detail"] as? [String: Any] else { return ("host", [:]) }
 
-        // Alarme aus primary_alarm_log + relatedalarms sammeln
+        let alertType = (incident["alert_type"] as? String ?? "host").lowercased()
+
         var alarmEntries: [[String: Any]] = []
         if let primary = detail["primary_alarm_log"] as? [[String: Any]] {
             alarmEntries.append(contentsOf: primary)
@@ -552,7 +633,11 @@ class NetreoAPIService: ObservableObject {
             let color = AlarmColor.fromState(alarm["state"] as? String)
             counts[color, default: 0] += 1
         }
-        return counts
+        return (alertType, counts)
+    }
+
+    func fetchIncidentAlarmCounts(incidentID: String) async throws -> [AlarmColor: Int] {
+        return await fetchIncidentAlarmData(incidentID: incidentID).counts
     }
 
     func fetchIncidents() async throws -> [NetreoIncident] {

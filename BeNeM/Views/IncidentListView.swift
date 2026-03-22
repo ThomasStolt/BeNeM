@@ -4,46 +4,25 @@ struct IncidentListView: View {
     @StateObject private var viewModel: IncidentListViewModel
     @State private var showingFilters = false
     @State private var connectionStatus: ConnectionStatus = .unknown
+    @State private var navPath = NavigationPath()
+    let navResetID: UUID
     @AppStorage("netreo_ack_user") private var ackUser = ""
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
     private let apiService: NetreoAPIService
 
-    init(apiService: NetreoAPIService) {
+    init(apiService: NetreoAPIService, navResetID: UUID) {
         self._viewModel = StateObject(wrappedValue: IncidentListViewModel(apiService: apiService))
         self.apiService = apiService
+        self.navResetID = navResetID
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack(path: $navPath) {
             VStack(spacing: 0) {
                 if viewModel.isLoading && viewModel.incidents.isEmpty {
                     ProgressView("Loading incidents...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if viewModel.incidents.isEmpty {
-                    #if DEBUG
-                    let _ = print("IncidentListView: incidents.isEmpty = true, count = \(viewModel.incidents.count)")
-                    let _ = print("IncidentListView: isLoading = \(viewModel.isLoading)")
-                    let _ = print("IncidentListView: errorMessage = \(viewModel.errorMessage ?? "nil")")
-                    #endif
-                    VStack(spacing: 20) {
-                        Image(systemName: "checkmark.shield")
-                            .font(.system(size: 60))
-                            .foregroundColor(.green)
-
-                        Text("No Active Incidents")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-
-                        Text("All systems are operating normally")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color(.systemGroupedBackground))
                 } else {
-                    #if DEBUG
-                    let _ = print("IncidentListView: Showing incidents list, count = \(viewModel.incidents.count)")
-                    #endif
                     incidentsList
                 }
             }
@@ -95,19 +74,36 @@ struct IncidentListView: View {
                 connectionStatus = .checking
                 Task { await viewModel.loadIncidents() }
             }
+            .navigationDestination(for: NetreoIncident.self) { incident in
+                IncidentDetailView(
+                    incident: incident,
+                    apiService: apiService,
+                    preloadedAlarmCounts: viewModel.alarmCounts[incident.incidentID]
+                )
+            }
         }
+        .onChange(of: navResetID) { _, _ in withAnimation { navPath = NavigationPath() } }
     }
     
     private var incidentsList: some View {
         List {
-            ForEach(viewModel.filteredIncidents) { incident in
-                NavigationLink {
-                    IncidentDetailView(
-                        incident: incident,
-                        apiService: apiService,
-                        preloadedAlarmCounts: viewModel.alarmCounts[incident.incidentID]
+            if viewModel.filteredIncidents.isEmpty {
+                Text("There are currently no open incidents.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                    .listRowBackground(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(.secondarySystemGroupedBackground))
+                            .padding(.vertical, 2)
                     )
-                } label: {
+                    .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
+                    .listRowSeparator(.hidden)
+            }
+            ForEach(viewModel.filteredIncidents) { incident in
+                NavigationLink(value: incident) {
                     IncidentRowView(
                         incident: incident,
                         alarmCounts: viewModel.alarmCounts[incident.incidentID]
@@ -119,7 +115,7 @@ struct IncidentListView: View {
                         .fill(Color(.secondarySystemGroupedBackground))
                         .padding(.vertical, 2)
                 )
-                .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 12))
+                .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
                 .listRowSeparator(.hidden)
                 // Swipe rechts → ACK oder UnACK
                 .swipeActions(edge: .leading, allowsFullSwipe: true) {
@@ -165,6 +161,7 @@ struct IncidentListView: View {
         }
         .listStyle(.plain)
         .background(Color(.systemGroupedBackground))
+        .padding(.horizontal)
         .refreshable {
             await viewModel.refreshIncidents()
         }
@@ -222,7 +219,8 @@ struct IncidentRowView: View {
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
     }
 
 }
@@ -391,5 +389,5 @@ struct FiltersView: View {
 
 
 #Preview {
-    IncidentListView(apiService: NetreoAPIService(baseURL: "http://demo.netreo.com", apiKey: "test"))
+    IncidentListView(apiService: NetreoAPIService(baseURL: "http://demo.netreo.com", apiKey: "test"), navResetID: UUID())
 }

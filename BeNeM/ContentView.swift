@@ -10,13 +10,15 @@ struct ContentView: View {
 
     @State private var apiService: NetreoAPIService?
     @State private var selectedTab = 0
+    @State private var homeNavResetID = UUID()
+    @State private var incidentNavResetID = UUID()
 
     var body: some View {
         TabView(selection: $selectedTab) {
             if !baseURL.isEmpty && !apiKey.isEmpty, let service = apiService {
-                DashboardView(apiService: service, selectedTab: $selectedTab)
+                DashboardView(apiService: service, selectedTab: $selectedTab, navResetID: homeNavResetID)
                     .tag(0)
-                IncidentListView(apiService: service)
+                IncidentListView(apiService: service, navResetID: incidentNavResetID)
                     .tag(1)
                 DeviceListView(apiService: service)
                     .tag(2)
@@ -28,7 +30,10 @@ struct ContentView: View {
                 .tag(3)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            CustomTabBar(selectedTab: $selectedTab, isConfigured: apiService != nil)
+            CustomTabBar(selectedTab: $selectedTab, isConfigured: apiService != nil) { tappedTag in
+                if tappedTag == 0 { homeNavResetID = UUID() }
+                if tappedTag == 1 { incidentNavResetID = UUID() }
+            }
         }
         .onChange(of: baseURL) { _, _ in updateAPIService() }
         .onChange(of: apiKey) { _, _ in updateAPIService() }
@@ -65,11 +70,12 @@ struct ContentView: View {
 private struct CustomTabBar: View {
     @Binding var selectedTab: Int
     let isConfigured: Bool
+    let onSameTabTap: (Int) -> Void
 
     var body: some View {
         HStack(spacing: 0) {
             if isConfigured {
-                tabButton(tag: 0, icon: "house.fill",                    label: "Dashboard", color: .green)
+                tabButton(tag: 0, icon: "house.fill",                    label: "Home",      color: .green)
                 tabButton(tag: 1, icon: "exclamationmark.triangle.fill", label: "Incidents", color: .red)
                 tabButton(tag: 2, icon: "network",                       label: "Devices",   color: .blue)
                 tabButton(tag: 3, icon: "gear",                          label: "Settings",  color: Color(.systemGray))
@@ -88,7 +94,8 @@ private struct CustomTabBar: View {
     }
 
     private func tabButton(tag: Int, icon: String, label: String, color: Color) -> some View {
-        VStack(spacing: 3) {
+        let isSelected = selectedTab == tag
+        return VStack(spacing: 3) {
             Image(systemName: icon)
                 .font(.system(size: 22))
                 .foregroundColor(color)
@@ -96,9 +103,21 @@ private struct CustomTabBar: View {
                 .font(.system(size: 10))
                 .foregroundColor(color)
         }
+        .padding(.vertical, 5)
+        .padding(.horizontal, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(isSelected ? Color(.systemGray3) : Color.clear, lineWidth: 1.5)
+        )
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
-        .onTapGesture { selectedTab = tag }
+        .onTapGesture {
+            if selectedTab == tag {
+                onSameTabTap(tag)
+            } else {
+                selectedTab = tag
+            }
+        }
     }
 }
 

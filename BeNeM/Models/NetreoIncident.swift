@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-struct NetreoIncident: Codable, Identifiable {
+struct NetreoIncident: Codable, Identifiable, Hashable {
     var id: String { incidentID }
     let incidentID: String
     let deviceIP: String?

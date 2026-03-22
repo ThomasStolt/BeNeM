@@ -14,20 +14,23 @@ struct DashboardView: View {
     @StateObject private var categoryViewModel: TacticalViewModel
     @State private var connectionStatus: ConnectionStatus = .unknown
     @Binding var selectedTab: Int
+    let navResetID: UUID
+    @State private var navPath = NavigationPath()
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
 
     private let apiService: NetreoAPIService
 
-    init(apiService: NetreoAPIService, selectedTab: Binding<Int>) {
+    init(apiService: NetreoAPIService, selectedTab: Binding<Int>, navResetID: UUID) {
         self.apiService = apiService
         self._selectedTab = selectedTab
+        self.navResetID = navResetID
         self._incidentViewModel  = StateObject(wrappedValue: IncidentListViewModel(apiService: apiService))
         self._deviceViewModel    = StateObject(wrappedValue: DeviceListViewModel(apiService: apiService))
         self._categoryViewModel  = StateObject(wrappedValue: TacticalViewModel(apiService: apiService, type: .category))
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack(path: $navPath) {
             ScrollView {
                 VStack(spacing: 20) {
                     if (incidentViewModel.isLoading || deviceViewModel.isLoading)
@@ -85,6 +88,7 @@ struct DashboardView: View {
                 Task { await loadData() }
             }
         }
+        .onChange(of: navResetID) { _, _ in withAnimation { navPath = NavigationPath() } }
     }
 
     // MARK: Status Cards
@@ -95,7 +99,7 @@ struct DashboardView: View {
                 StatusCard(
                     title: "Active Incidents",
                     count: incidentViewModel.activeIncidentsCount,
-                    color: incidentViewModel.criticalIncidentsCount > 0 ? .red : .orange,
+                    color: incidentViewModel.activeIncidentsCount == 0 ? .green : .red,
                     icon: "exclamationmark.triangle.fill"
                 )
             }
@@ -114,13 +118,23 @@ struct DashboardView: View {
 
     private var hostTotals: (green: Int, blue: Int, yellow: Int, orange: Int, red: Int) {
         let g = categoryViewModel.groups
-        return (
-            g.reduce(0) { $0 + $1.hostsGreen },
-            g.reduce(0) { $0 + $1.hostsBlue },
-            g.reduce(0) { $0 + $1.hostsYellow },
-            g.reduce(0) { $0 + $1.hostsOrange },
-            g.reduce(0) { $0 + $1.hostsRed }
-        )
+        return (g.reduce(0) { $0 + $1.hostsGreen }, g.reduce(0) { $0 + $1.hostsBlue },
+                g.reduce(0) { $0 + $1.hostsYellow }, g.reduce(0) { $0 + $1.hostsOrange },
+                g.reduce(0) { $0 + $1.hostsRed })
+    }
+
+    private var serviceTotals: (green: Int, blue: Int, yellow: Int, orange: Int, red: Int) {
+        let g = categoryViewModel.groups
+        return (g.reduce(0) { $0 + $1.servicesGreen }, g.reduce(0) { $0 + $1.servicesBlue },
+                g.reduce(0) { $0 + $1.servicesYellow }, g.reduce(0) { $0 + $1.servicesOrange },
+                g.reduce(0) { $0 + $1.servicesRed })
+    }
+
+    private var thresholdTotals: (green: Int, blue: Int, yellow: Int, orange: Int, red: Int) {
+        let g = categoryViewModel.groups
+        return (g.reduce(0) { $0 + $1.thresholdsGreen }, g.reduce(0) { $0 + $1.thresholdsBlue },
+                g.reduce(0) { $0 + $1.thresholdsYellow }, g.reduce(0) { $0 + $1.thresholdsOrange },
+                g.reduce(0) { $0 + $1.thresholdsRed })
     }
 
     private var heatMapSection: some View {
@@ -142,30 +156,35 @@ struct DashboardView: View {
                 ]
             )
 
-            // Box 2: SERVICES (placeholder)
+            // Box 2: SERVICES
+            let s = serviceTotals
+            let servicesTotal = s.green + s.blue + s.yellow + s.orange + s.red
             statBox(
                 title: "SERVICES",
-                count: 0,
+                count: servicesTotal,
                 isLoading: categoryViewModel.isLoading,
                 badges: [
-                    (0, hmGreen),
-                    (0, hmOrange),
-                    (0, hmBlue),
-                    (0, hmYellow),
-                    (0, hmRed),
+                    (s.green,  hmGreen),
+                    (s.blue,   hmBlue),
+                    (s.yellow, hmYellow),
+                    (s.orange, hmOrange),
+                    (s.red,    hmRed),
                 ]
             )
 
-            // Box 3: THRESHOLDS (placeholder)
+            // Box 3: THRESHOLDS
+            let t = thresholdTotals
+            let thresholdsTotal = t.green + t.blue + t.yellow + t.orange + t.red
             statBox(
                 title: "THRESHOLDS",
-                count: 0,
+                count: thresholdsTotal,
                 isLoading: categoryViewModel.isLoading,
                 badges: [
-                    (0, hmGreen),
-                    (0, hmBlue),
-                    (0, hmYellow),
-                    (0, hmRed),
+                    (t.green,  hmGreen),
+                    (t.blue,   hmBlue),
+                    (t.yellow, hmYellow),
+                    (t.orange, hmOrange),
+                    (t.red,    hmRed),
                 ]
             )
         }
@@ -451,9 +470,27 @@ struct IncidentTickerBanner: View {
     private var visible: [NetreoIncident] { Array(incidents.prefix(3)) }
 
     var body: some View {
-        if !visible.isEmpty {
+        if visible.isEmpty {
+            emptyContent
+        } else {
             content
         }
+    }
+
+    private var emptyContent: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(.systemGray6))
+                .overlay(RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color(.systemGray4), lineWidth: 0.5))
+
+            Text("There are currently no open incidents.")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.secondary)
+                .opacity(contentOpacity)
+        }
+        .frame(height: 52)
+        .task { await pulse() }
     }
 
     private var content: some View {
@@ -553,6 +590,17 @@ struct IncidentTickerBanner: View {
         .task(id: visible.count) { await cycle() }
     }
 
+    private func pulse() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeIn(duration: 0.55)) { contentOpacity = 0 }
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.55)) { contentOpacity = 1 }
+        }
+    }
+
     private func cycle() async {
         guard visible.count > 1 else { return }
         while !Task.isCancelled {
@@ -581,5 +629,5 @@ struct IncidentTickerBanner: View {
 }
 
 #Preview {
-    DashboardView(apiService: NetreoAPIService(baseURL: "http://demo.netreo.com", apiKey: "test"), selectedTab: .constant(0))
+    DashboardView(apiService: NetreoAPIService(baseURL: "http://demo.netreo.com", apiKey: "test"), selectedTab: .constant(0), navResetID: UUID())
 }
