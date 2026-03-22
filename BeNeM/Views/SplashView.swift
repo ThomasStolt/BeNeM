@@ -3,7 +3,7 @@ import SwiftUI
 struct SplashView: View {
     var onDismiss: () -> Void
 
-    @State private var shimmerOffset: CGFloat = -240
+    @State private var shimmerOffset: CGFloat = -288
     @State private var logoOpacity: Double = 0.0
     @State private var splashOpacity: Double = 1.0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -15,8 +15,8 @@ struct SplashView: View {
             Image("BMCHelixLogo")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 240)
-                .overlay(shimmerBand.mask(logoMask))
+                .frame(width: 288)
+                .overlay(shimmerBand.blendMode(.screen))
                 .opacity(logoOpacity)
         }
         .opacity(splashOpacity)
@@ -43,13 +43,6 @@ struct SplashView: View {
             .offset(x: shimmerOffset)
     }
 
-    private var logoMask: some View {
-        Image("BMCHelixLogo")
-            .resizable()
-            .scaledToFit()
-            .frame(width: 240)
-    }
-
     // MARK: - Animation
     // Timeline:
     //   0.0 s — fade-in starts (1.0 s)
@@ -71,7 +64,7 @@ struct SplashView: View {
         if !reduceMotion {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 withAnimation(.easeInOut(duration: 2.2)) {
-                    shimmerOffset = 240
+                    shimmerOffset = 288
                 }
             }
         }
