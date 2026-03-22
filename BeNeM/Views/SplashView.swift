@@ -16,7 +16,7 @@ struct SplashView: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 288)
-                .overlay(shimmerBand.blendMode(.screen))
+                .overlay(shimmerBand.mask(logoMask))
                 .opacity(logoOpacity)
         }
         .opacity(splashOpacity)
@@ -41,6 +41,13 @@ struct SplashView: View {
             .frame(width: 60, height: 400)
             .rotationEffect(.degrees(20))
             .offset(x: shimmerOffset)
+    }
+
+    private var logoMask: some View {
+        Image("BMCHelixLogo")
+            .resizable()
+            .scaledToFit()
+            .frame(width: 288)
     }
 
     // MARK: - Animation
