@@ -52,43 +52,43 @@ struct SplashView: View {
 
     // MARK: - Animation
     // Timeline:
-    //   0.0 s — fade-in starts (1.0 s)
-    //   1.0 s — logo fully visible, shimmer starts (2.2 s sweep across 2 s visible window)
-    //   3.0 s — fade-out starts (1.0 s)
-    //   4.0 s — dismiss
+    //   0.0 s — fade-in starts (0.9 s)
+    //   0.9 s — logo fully visible, shimmer starts (2.0 s sweep across 1.8 s visible window)
+    //   2.7 s — fade-out starts (0.9 s)
+    //   3.6 s — dismiss
 
     private func startAnimations() {
         // Fade in logo
         if reduceMotion {
             logoOpacity = 1.0
         } else {
-            withAnimation(.easeIn(duration: 1.0)) {
+            withAnimation(.easeIn(duration: 0.9)) {
                 logoOpacity = 1.0
             }
         }
 
         // Shimmer: start after fade-in completes
         if !reduceMotion {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                withAnimation(.easeInOut(duration: 2.2)) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+                withAnimation(.easeInOut(duration: 2.0)) {
                     shimmerOffset = 288
                 }
             }
         }
 
         // Fade out
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.7) {
             if reduceMotion {
                 splashOpacity = 0
             } else {
-                withAnimation(.easeOut(duration: 1.0)) {
+                withAnimation(.easeOut(duration: 0.9)) {
                     splashOpacity = 0
                 }
             }
         }
 
         // Remove from hierarchy
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.6) {
             onDismiss()
         }
     }
