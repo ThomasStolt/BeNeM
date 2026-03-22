@@ -3,7 +3,7 @@ import SwiftUI
 struct SplashView: View {
     var onDismiss: () -> Void
 
-    @State private var shimmerOffset: CGFloat = -200
+    @State private var shimmerOffset: CGFloat = -240
     @State private var logoOpacity: Double = 0.0
     @State private var splashOpacity: Double = 1.0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -15,7 +15,7 @@ struct SplashView: View {
             Image("BMCHelixLogo")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 200)
+                .frame(width: 240)
                 .overlay(shimmerBand.mask(logoMask))
                 .opacity(logoOpacity)
         }
@@ -47,48 +47,48 @@ struct SplashView: View {
         Image("BMCHelixLogo")
             .resizable()
             .scaledToFit()
-            .frame(width: 200)
+            .frame(width: 240)
     }
 
     // MARK: - Animation
     // Timeline:
-    //   0.0 s — fade-in starts (0.5 s)
-    //   0.5 s — logo fully visible, shimmer starts (2.2 s sweep across 1 s visible window)
-    //   1.5 s — fade-out starts (0.5 s)
-    //   2.0 s — dismiss
+    //   0.0 s — fade-in starts (1.0 s)
+    //   1.0 s — logo fully visible, shimmer starts (2.2 s sweep across 2 s visible window)
+    //   3.0 s — fade-out starts (1.0 s)
+    //   4.0 s — dismiss
 
     private func startAnimations() {
         // Fade in logo
         if reduceMotion {
             logoOpacity = 1.0
         } else {
-            withAnimation(.easeIn(duration: 0.5)) {
+            withAnimation(.easeIn(duration: 1.0)) {
                 logoOpacity = 1.0
             }
         }
 
         // Shimmer: start after fade-in completes
         if !reduceMotion {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 withAnimation(.easeInOut(duration: 2.2)) {
-                    shimmerOffset = 200
+                    shimmerOffset = 240
                 }
             }
         }
 
         // Fade out
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
             if reduceMotion {
                 splashOpacity = 0
             } else {
-                withAnimation(.easeOut(duration: 0.5)) {
+                withAnimation(.easeOut(duration: 1.0)) {
                     splashOpacity = 0
                 }
             }
         }
 
         // Remove from hierarchy
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
             onDismiss()
         }
     }
