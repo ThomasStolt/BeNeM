@@ -4,6 +4,7 @@ struct DeviceListView: View {
     @StateObject private var viewModel: DeviceListViewModel
     @State private var showingAddDevice = false
     @State private var connectionStatus: ConnectionStatus = .unknown
+    @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
 
     init(apiService: NetreoAPIService) {
         _viewModel = StateObject(wrappedValue: DeviceListViewModel(apiService: apiService))
@@ -37,8 +38,13 @@ struct DeviceListView: View {
                         .scaledToFit()
                         .frame(width: 24, height: 24)
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Button("Add") { showingAddDevice = true }
+                    AutoRefreshButton(
+                        interval: refreshInterval,
+                        isLoading: viewModel.isLoading,
+                        action: viewModel.loadDevices
+                    )
                 }
             }
             .sheet(isPresented: $showingAddDevice) {
@@ -66,7 +72,7 @@ struct DeviceListView: View {
                 guard connectionStatus == .disconnected else { return }
                 try? await Task.sleep(nanoseconds: 15_000_000_000)
                 guard !Task.isCancelled, connectionStatus == .disconnected else { return }
-                await viewModel.loadDevices()
+                Task { await viewModel.loadDevices() }
             }
         }
         .task {

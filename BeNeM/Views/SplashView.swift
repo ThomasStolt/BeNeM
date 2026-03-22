@@ -12,7 +12,7 @@ struct SplashView: View {
         ZStack {
             Color("SplashBackground").ignoresSafeArea()
 
-            Image("BMCHelixLogo")
+            Image("SplashLogo")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 288)
@@ -44,7 +44,7 @@ struct SplashView: View {
     }
 
     private var logoMask: some View {
-        Image("BMCHelixLogo")
+        Image("SplashLogo")
             .resizable()
             .scaledToFit()
             .frame(width: 288)

@@ -7,6 +7,12 @@ struct DiscoveredServer: Identifiable {
     let ip: String
     let sysDescr: String
     var baseURL: String { "http://\(ip)" }
+
+    /// True only for Core and Primary instances — the ones that expose the management API.
+    var isConnectable: Bool {
+        sysDescr.hasPrefix("BMC Helix Network Management Core") ||
+        sysDescr.hasPrefix("BMC Helix Network Management Primary")
+    }
 }
 
 class NetworkDiscovery: ObservableObject {
@@ -54,11 +60,9 @@ class NetworkDiscovery: ObservableObject {
 
             // As each task finishes, update UI and start next IP
             for await result in group {
-                await MainActor.run {
-                    scannedCount += 1
-                    progress = Double(scannedCount) / Double(totalCount)
-                    if let server = result { servers.append(server) }
-                }
+                scannedCount += 1
+                progress = Double(scannedCount) / Double(totalCount)
+                if let server = result { servers.append(server) }
                 pending -= 1
                 if let ip = ipIterator.next() {
                     group.addTask { await self.probe(ip: ip) }
@@ -67,7 +71,7 @@ class NetworkDiscovery: ObservableObject {
             }
         }
 
-        await MainActor.run { isScanning = false }
+        isScanning = false
     }
 
     // MARK: - SNMP probe

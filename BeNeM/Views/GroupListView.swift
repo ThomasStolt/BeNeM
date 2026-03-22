@@ -150,11 +150,11 @@ struct GroupListView: View {
 private struct GroupRow: View {
     let group: GroupSummary
 
-    private let green  = Color(red: 0.13, green: 0.55, blue: 0.13)
-    private let yellow = Color(red: 0.97, green: 0.85, blue: 0.05)
-    private let orange = Color(red: 0.95, green: 0.45, blue: 0.05)
-    private let red    = Color(red: 0.90, green: 0.15, blue: 0.10)
-    private let blue   = Color(red: 0.10, green: 0.40, blue: 0.85)
+    private let green  = AlarmColor.green.color
+    private let yellow = AlarmColor.yellow.color
+    private let orange = AlarmColor.orange.color
+    private let red    = AlarmColor.red.color
+    private let blue   = AlarmColor.blue.color
 
     var body: some View {
         HStack(alignment: .center, spacing: 0) {

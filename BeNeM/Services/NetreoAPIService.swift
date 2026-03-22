@@ -23,14 +23,20 @@ class NetreoAPIService: ObservableObject {
         self.init(configuration: config)
     }
     
+    private func formEncodedBody(_ params: [URLQueryItem]) -> Data? {
+        var comps = URLComponents()
+        comps.queryItems = params
+        return comps.percentEncodedQuery?.data(using: .utf8)
+    }
+
     func fetchDevices() async throws -> [NetreoDevice] {
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/list") else { return [] }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        var bodyParts = ["password=\(configuration.apiKey)"]
-        if let pin = configuration.pin { bodyParts.append("pin=\(pin)") }
-        request.httpBody = bodyParts.joined(separator: "&").data(using: .utf8)
+        var params = [URLQueryItem(name: "password", value: configuration.apiKey)]
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
         let (data, _) = try await urlSession.data(for: request)
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
         // API returns either {"devices":[...]} or {"data":{"devices":[...]}}
@@ -43,11 +49,12 @@ class NetreoAPIService: ObservableObject {
         } else {
             return []
         }
-        // Debug: log fields from first device to identify alarm status field
+        #if DEBUG
         if let first = devicesArray.first {
             let debugLines = first.map { "\($0.key) = \($0.value)" }.sorted()
             UserDefaults.standard.set(debugLines.joined(separator: "\n"), forKey: "debug_device_fields")
         }
+        #endif
         return devicesArray.compactMap { parseRESTfulDevice(from: $0) }
     }
 
@@ -177,9 +184,6 @@ class NetreoAPIService: ObservableObject {
         }
     }
     
-    func fetchDevicePerformance(identifier: String) async throws -> [DevicePerformance] {
-        return []
-    }
 
     // MARK: - Tactical Group Summaries
 
@@ -209,6 +213,54 @@ class NetreoAPIService: ObservableObject {
         let statusByIP = await deviceStatusMap(devices: devices, incidents: incidents)
         let activeIPs = Set(devices.filter(\.isActive).map(\.ip))
 
+        return try await withThrowingTaskGroup(of: GroupSummary?.self) { taskGroup in
+            for sg in groups {
+                taskGroup.addTask {
+                    let memberIPs = (try? await self.fetchStrategicGroupMemberIPs(groupID: sg.id)) ?? []
+                    var green = 0, blue = 0, yellow = 0, orange = 0, red = 0
+                    for ip in memberIPs where activeIPs.contains(ip) {
+                        switch statusByIP[ip] ?? .green {
+                        case .green:  green += 1
+                        case .blue:   blue += 1
+                        case .yellow: yellow += 1
+                        case .orange: orange += 1
+                        case .red:    red += 1
+                        }
+                    }
+                    let total = green + blue + yellow + orange + red
+                    guard total > 0 else { return nil }
+                    return GroupSummary(id: sg.id, name: sg.name,
+                                       hostsGreen: green, hostsBlue: blue,
+                                       hostsYellow: yellow, hostsOrange: orange,
+                                       hostsRed: red)
+                }
+            }
+            var result: [GroupSummary] = []
+            for try await summary in taskGroup {
+                if let s = summary { result.append(s) }
+            }
+            return result.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        }
+    }
+
+    // Overloads that accept pre-fetched data so the Dashboard can avoid redundant network calls.
+
+    func fetchCategorySummaries(devices: [NetreoDevice], incidents: [NetreoIncident]) async throws -> [GroupSummary] {
+        let names = try await fetchGroupNames(endpoint: "restful/category/list")
+        let statusByIP = await deviceStatusMap(devices: devices, incidents: incidents)
+        return buildSummaries(devices: devices, statusByIP: statusByIP, keyPath: \.categoryID, names: names)
+    }
+
+    func fetchSiteSummaries(devices: [NetreoDevice], incidents: [NetreoIncident]) async throws -> [GroupSummary] {
+        let names = try await fetchGroupNames(endpoint: "restful/site/list")
+        let statusByIP = await deviceStatusMap(devices: devices, incidents: incidents)
+        return buildSummaries(devices: devices, statusByIP: statusByIP, keyPath: \.siteID, names: names)
+    }
+
+    func fetchBusinessWorkflowSummaries(devices: [NetreoDevice], incidents: [NetreoIncident]) async throws -> [GroupSummary] {
+        let groups = try await fetchStrategicGroupList()
+        let statusByIP = await deviceStatusMap(devices: devices, incidents: incidents)
+        let activeIPs = Set(devices.filter(\.isActive).map(\.ip))
         return try await withThrowingTaskGroup(of: GroupSummary?.self) { taskGroup in
             for sg in groups {
                 taskGroup.addTask {
@@ -270,22 +322,23 @@ class NetreoAPIService: ObservableObject {
             }
             incidentsByIP[ip, default: []].append(incident)
         }
+        #if DEBUG
         if unmatched.isEmpty {
             UserDefaults.standard.removeObject(forKey: "debug_unmatched_incidents")
         } else {
             UserDefaults.standard.set(unmatched.joined(separator: "\n"), forKey: "debug_unmatched_incidents")
         }
+        #endif
 
         // Fetch real alarm counts per incident in parallel, derive worst color per IP
         var worstColorByIP: [String: AlarmColor] = [:]
         await withTaskGroup(of: (String, AlarmColor).self) { group in
             for (ip, ipIncidents) in incidentsByIP {
-                for incident in ipIncidents {
-                    group.addTask {
-                        let counts = (try? await self.fetchIncidentAlarmCounts(incidentID: incident.incidentID)) ?? [:]
-                        let worst = AlarmColor.worst(from: counts)
-                        return (ip, worst)
-                    }
+                guard let incident = ipIncidents.first else { continue }
+                group.addTask {
+                    let counts = (try? await self.fetchIncidentAlarmCounts(incidentID: incident.incidentID)) ?? [:]
+                    let worst = AlarmColor.worst(from: counts)
+                    return (ip, worst)
                 }
             }
             for await (ip, color) in group {
@@ -318,9 +371,9 @@ class NetreoAPIService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        var body = "password=\(configuration.apiKey)"
-        if let pin = configuration.pin { body += "&pin=\(pin)" }
-        request.httpBody = body.data(using: .utf8)
+        var params = [URLQueryItem(name: "password", value: configuration.apiKey)]
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
         let (data, _) = try await urlSession.data(for: request)
         guard let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
         return arr.compactMap { item -> SGInfo? in
@@ -339,9 +392,9 @@ class NetreoAPIService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        var body = "password=\(configuration.apiKey)&id=\(groupID)"
-        if let pin = configuration.pin { body += "&pin=\(pin)" }
-        request.httpBody = body.data(using: .utf8)
+        var params = [URLQueryItem(name: "password", value: configuration.apiKey), URLQueryItem(name: "id", value: groupID)]
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
         let (data, _) = try await urlSession.data(for: request)
         guard let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
         return arr.compactMap { $0["ip"] as? String }
@@ -353,9 +406,9 @@ class NetreoAPIService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        var body = "password=\(configuration.apiKey)"
-        if let pin = configuration.pin { body += "&pin=\(pin)" }
-        request.httpBody = body.data(using: .utf8)
+        var params = [URLQueryItem(name: "password", value: configuration.apiKey)]
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
         let (data, _) = try await urlSession.data(for: request)
 
         // Collect items from whichever response shape the API uses
@@ -422,16 +475,14 @@ class NetreoAPIService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        var bodyParts = [
-            "password=\(configuration.apiKey)",
-            "incident_id=\(incidentID)",
-            "user=\(user)",
-            "comment=\(comment)"
+        var params = [
+            URLQueryItem(name: "password", value: configuration.apiKey),
+            URLQueryItem(name: "incident_id", value: incidentID),
+            URLQueryItem(name: "user", value: user),
+            URLQueryItem(name: "comment", value: comment)
         ]
-        if let pin = configuration.pin {
-            bodyParts.append("pin=\(pin)")
-        }
-        request.httpBody = bodyParts.joined(separator: "&").data(using: .utf8)
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
         let (_, response) = try await urlSession.data(for: request)
         return (response as? HTTPURLResponse)?.statusCode ?? 0 < 400
     }
@@ -441,23 +492,21 @@ class NetreoAPIService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        var bodyParts = [
-            "password=\(configuration.apiKey)",
-            "incident_id=\(incidentID)",
-            "user=\(user)",
-            "comment=\(comment)",
-            "unacknowledge=1"
+        var params = [
+            URLQueryItem(name: "password", value: configuration.apiKey),
+            URLQueryItem(name: "incident_id", value: incidentID),
+            URLQueryItem(name: "user", value: user),
+            URLQueryItem(name: "comment", value: comment),
+            URLQueryItem(name: "unacknowledge", value: "1")
         ]
-        if let pin = configuration.pin {
-            bodyParts.append("pin=\(pin)")
-        }
-        request.httpBody = bodyParts.joined(separator: "&").data(using: .utf8)
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
         let (_, response) = try await urlSession.data(for: request)
         return (response as? HTTPURLResponse)?.statusCode ?? 0 < 400
     }
 
     func fetchIncidentDetail(incidentID: String) async throws -> IncidentDetail? {
-        var components = URLComponents(string: "\(configuration.baseURL)/api/incident_api.php")!
+        guard var components = URLComponents(string: "\(configuration.baseURL)/api/incident_api.php") else { return nil }
         components.queryItems = [
             URLQueryItem(name: "pwd",         value: configuration.apiKey),
             URLQueryItem(name: "method",      value: "getincidentdetail"),
@@ -473,7 +522,7 @@ class NetreoAPIService: ObservableObject {
     }
 
     func fetchIncidentAlarmCounts(incidentID: String) async throws -> [AlarmColor: Int] {
-        var components = URLComponents(string: "\(configuration.baseURL)/api/incident_api.php")!
+        guard var components = URLComponents(string: "\(configuration.baseURL)/api/incident_api.php") else { return [:] }
         components.queryItems = [
             URLQueryItem(name: "pwd", value: configuration.apiKey),
             URLQueryItem(name: "method", value: "getincidentdetail"),
@@ -521,70 +570,6 @@ class NetreoAPIService: ObservableObject {
             parameters["pin"] = pin
         }
         return parameters
-    }
-    
-    private func performLegacyDeviceRequest(
-        endpoint: NetreoEndpoint,
-        parameters: [String: Any]
-    ) async throws -> [NetreoDevice] {
-        let url = URL(string: configuration.endpoint(for: endpoint.path(for: configuration.version)))!
-        var request = URLRequest(url: url)
-        request.httpMethod = endpoint.httpMethod(for: configuration.version).rawValue
-        
-        if endpoint.httpMethod(for: configuration.version) == .POST ||
-           endpoint.httpMethod(for: configuration.version) == .PUT {
-            let bodyString = parameters.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
-            request.httpBody = bodyString.data(using: .utf8)
-            request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        }
-        
-        let (data, response) = try await urlSession.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
-        }
-        
-        guard 200...299 ~= httpResponse.statusCode else {
-            throw APIError.httpError(httpResponse.statusCode, data)
-        }
-        
-        // Try to parse response
-        if let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            let success = jsonObject["success"] as? Bool ?? true
-            
-            if !success {
-                let errorMessage = jsonObject["error"] as? String ?? 
-                                 jsonObject["failure"] as? String ?? 
-                                 "Unknown error"
-                throw APIError.requestFailed(errorMessage)
-            }
-            
-            // For testing, return some mock devices if no real data
-            return createMockDevices()
-        }
-        
-        throw APIError.invalidResponse
-    }
-    
-    private func performModernDeviceRequest(endpoint: NetreoEndpoint) async throws -> [NetreoDevice] {
-        let url = URL(string: configuration.endpoint(for: endpoint.path(for: configuration.version)))!
-        var request = URLRequest(url: url)
-        request.httpMethod = endpoint.httpMethod(for: configuration.version).rawValue
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
-        
-        let (data, response) = try await urlSession.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
-        }
-        
-        guard 200...299 ~= httpResponse.statusCode else {
-            throw APIError.httpError(httpResponse.statusCode, data)
-        }
-        
-        // For testing, return some mock devices
-        return createMockDevices()
     }
     
     private func performLegacyBoolRequest(
@@ -646,8 +631,10 @@ class NetreoAPIService: ObservableObject {
         parameters["method"] = "getincidents"
         
         let urlString = configuration.endpoint(for: endpoint.path(for: configuration.version))
+        #if DEBUG
         print("Fetching incidents from URL: \(urlString)")
         print("Parameters: \(parameters)")
+        #endif
         
         let url = URL(string: urlString)!
         var request = URLRequest(url: url)
@@ -667,19 +654,18 @@ class NetreoAPIService: ObservableObject {
             throw APIError.httpError(httpResponse.statusCode, data)
         }
         
-        // Debug: Print raw response
+        #if DEBUG
         if let responseString = String(data: data, encoding: .utf8) {
             print("Raw incident API response: \(responseString)")
         }
+        #endif
         
         // Try to parse response
         if let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            #if DEBUG
             print("Parsed incident JSON object: \(jsonObject)")
-
-            // Debug: Top-level Keys und ersten Incident-Eintrag speichern
             let topLevelKeys = Array(jsonObject.keys).sorted().joined(separator: ", ")
             var debugInfo = "Top-level keys: \(topLevelKeys)\n\n"
-
             let allArrayKeys = jsonObject.keys.filter { jsonObject[$0] is [[String: Any]] || jsonObject[$0] is [Any] }
             for key in allArrayKeys.sorted() {
                 if let arr = jsonObject[key] as? [[String: Any]], let first = arr.first {
@@ -688,12 +674,12 @@ class NetreoAPIService: ObservableObject {
                     debugInfo += "\n"
                 }
             }
-            // Falls kein Array: gesamtes Objekt anzeigen
             if allArrayKeys.isEmpty {
                 debugInfo += "Kein Array gefunden. Gesamte Antwort:\n"
                 debugInfo += jsonObject.map { "  \($0.key) = \($0.value)" }.sorted().joined(separator: "\n")
             }
             UserDefaults.standard.set(debugInfo, forKey: "debug_incident_fields")
+            #endif
 
             let success = jsonObject["success"] as? Bool ?? true
 
@@ -741,10 +727,11 @@ class NetreoAPIService: ObservableObject {
             throw APIError.httpError(httpResponse.statusCode, data)
         }
         
-        // Debug: rohe Antwort speichern
+        #if DEBUG
         if let rawString = String(data: data.prefix(2000), encoding: .utf8) {
             UserDefaults.standard.set("Modern API response:\n\(rawString)", forKey: "debug_incident_fields")
         }
+        #endif
 
         // Try to decode incidents from response
         do {
@@ -763,41 +750,54 @@ class NetreoAPIService: ObservableObject {
     
     private func parseIncidentsFromNetreoFormat(from array: [[String: Any]], defaultStatus: NetreoIncident.IncidentStatus? = nil) throws -> [NetreoIncident] {
         var incidents: [NetreoIncident] = []
+        #if DEBUG
         print("Parsing \(array.count) incidents from Netreo format")
-
-        // Debug: ersten Incident komplett in UserDefaults speichern
         if let first = array.first {
             let debugLines = first.map { key, value in "\(key) = \(value)" }.sorted()
             let debugString = debugLines.joined(separator: "\n")
             UserDefaults.standard.set(debugString, forKey: "debug_incident_fields")
             print("DEBUG first incident fields:\n\(debugString)")
         }
+        #endif
         
         for (index, incidentData) in array.enumerated() {
             do {
+                #if DEBUG
                 print("Parsing incident \(index + 1)")
-                
+                #endif
+
                 // Parse incident ID more carefully
                 let incidentID: String
                 if let intID = incidentData["incident_id"] as? Int {
                     incidentID = String(intID)
+                    #if DEBUG
                     print("Parsed incident_id as Int: \(intID) -> \(incidentID)")
+                    #endif
                 } else if let stringID = incidentData["incident_id"] as? String {
                     incidentID = stringID
+                    #if DEBUG
                     print("Parsed incident_id as String: \(stringID)")
+                    #endif
                 } else {
-                    // Try alternative field names that might contain the ID
                     if let altID = incidentData["id"] as? Int {
                         incidentID = String(altID)
+                        #if DEBUG
                         print("Using 'id' field: \(altID)")
+                        #endif
                     } else if let altStringID = incidentData["id"] as? String {
                         incidentID = altStringID
+                        #if DEBUG
                         print("Using 'id' field as string: \(altStringID)")
+                        #endif
                     } else {
                         incidentID = "unknown_\(index)"
+                        #if DEBUG
                         print("No valid ID found, using: \(incidentID)")
+                        #endif
                     }
+                    #if DEBUG
                     print("Available keys in incident data: \(Array(incidentData.keys))")
+                    #endif
                 }
                 let title = incidentData["title"] as? String ?? "Unknown"
                 let deviceName = incidentData["name"] as? String
@@ -881,14 +881,20 @@ class NetreoAPIService: ObservableObject {
                 )
                 
                 incidents.append(incident)
+                #if DEBUG
                 print("Successfully parsed incident \(incidentID)")
+                #endif
             } catch {
+                #if DEBUG
                 print("Failed to parse incident \(index + 1): \(error)")
+                #endif
                 continue
             }
         }
-        
+
+        #if DEBUG
         print("Successfully parsed \(incidents.count) incidents")
+        #endif
         return incidents
     }
     
@@ -904,49 +910,6 @@ class NetreoAPIService: ObservableObject {
         return incidents
     }
     
-    private func createMockDevices() -> [NetreoDevice] {
-        return [
-            NetreoDevice(
-                ip: "192.168.1.1",
-                name: "Router",
-                hostname: "main-router",
-                status: .up,
-                deviceType: "router",
-                lastUpdated: Date(),
-                siteID: "1",
-                categoryID: "1",
-                snmpCommunity: "public",
-                isActive: true,
-                additionalProperties: [:]
-            ),
-            NetreoDevice(
-                ip: "192.168.1.10",
-                name: "Switch",
-                hostname: "core-switch",
-                status: .up,
-                deviceType: "switch",
-                lastUpdated: Date(),
-                siteID: "1",
-                categoryID: "2",
-                snmpCommunity: "public",
-                isActive: true,
-                additionalProperties: [:]
-            ),
-            NetreoDevice(
-                ip: "192.168.1.100",
-                name: "Server",
-                hostname: "web-server",
-                status: .warning,
-                deviceType: "server",
-                lastUpdated: Date(),
-                siteID: "1",
-                categoryID: "3",
-                snmpCommunity: "public",
-                isActive: true,
-                additionalProperties: [:]
-            )
-        ]
-    }
 }
 
 enum AlarmColor: String, CaseIterable, Hashable {

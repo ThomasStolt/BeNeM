@@ -3,6 +3,7 @@ import SwiftUI
 struct AutoDiscoveryView: View {
     @StateObject private var discovery = NetworkDiscovery()
     @AppStorage("netreo_base_url") private var baseURL = ""
+    @AppStorage("netreo_api_key") private var apiKey = ""
     @State private var connectingServer: DiscoveredServer?
     @State private var apiKeyInput = ""
     @State private var showConnectSheet = false
@@ -48,30 +49,9 @@ struct AutoDiscoveryView: View {
 
             // Results
             if !discovery.servers.isEmpty {
-                Section(header: Text("Found Netreo Servers")) {
+                Section(header: Text("Found BHNM Servers")) {
                     ForEach(discovery.servers) { server in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(server.ip)
-                                .font(.headline)
-                            Text(server.sysDescr)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .lineLimit(2)
-                        }
-                        .padding(.vertical, 2)
-                        .swipeActions {
-                            Button("Connect") {
-                                connectingServer = server
-                                apiKeyInput = ""
-                                showConnectSheet = true
-                            }
-                            .tint(.blue)
-                        }
-                        .onTapGesture {
-                            connectingServer = server
-                            apiKeyInput = ""
-                            showConnectSheet = true
-                        }
+                        serverRow(server)
                     }
                 }
             } else if !discovery.isScanning && discovery.errorMessage == nil && discovery.scannedCount > 0 {
@@ -101,6 +81,39 @@ struct AutoDiscoveryView: View {
             }
         }
         .animation(.easeInOut, value: showSuccessBanner)
+    }
+
+    // MARK: Server row
+
+    @ViewBuilder
+    private func serverRow(_ server: DiscoveredServer) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(server.ip)
+                .font(.headline)
+                .foregroundColor(server.isConnectable ? .primary : .secondary)
+            Text(server.sysDescr)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .lineLimit(2)
+        }
+        .padding(.vertical, 2)
+        .opacity(server.isConnectable ? 1.0 : 0.6)
+        .swipeActions {
+            if server.isConnectable {
+                Button("Connect") {
+                    connectingServer = server
+                    apiKeyInput = ""
+                    showConnectSheet = true
+                }
+                .tint(.blue)
+            }
+        }
+        .onTapGesture {
+            guard server.isConnectable else { return }
+            connectingServer = server
+            apiKeyInput = ""
+            showConnectSheet = true
+        }
     }
 
     // MARK: Connect sheet
@@ -133,7 +146,7 @@ struct AutoDiscoveryView: View {
                         if let server = connectingServer {
                             baseURL = server.baseURL
                             if !apiKeyInput.isEmpty {
-                                UserDefaults.standard.set(apiKeyInput, forKey: "netreo_api_key")
+                                apiKey = apiKeyInput
                             }
                         }
                         showConnectSheet = false

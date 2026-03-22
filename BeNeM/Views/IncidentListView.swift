@@ -20,9 +20,11 @@ struct IncidentListView: View {
                     ProgressView("Loading incidents...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if viewModel.incidents.isEmpty {
+                    #if DEBUG
                     let _ = print("IncidentListView: incidents.isEmpty = true, count = \(viewModel.incidents.count)")
                     let _ = print("IncidentListView: isLoading = \(viewModel.isLoading)")
                     let _ = print("IncidentListView: errorMessage = \(viewModel.errorMessage ?? "nil")")
+                    #endif
                     VStack(spacing: 20) {
                         Image(systemName: "checkmark.shield")
                             .font(.system(size: 60))
@@ -39,7 +41,9 @@ struct IncidentListView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color(.systemGroupedBackground))
                 } else {
+                    #if DEBUG
                     let _ = print("IncidentListView: Showing incidents list, count = \(viewModel.incidents.count)")
+                    #endif
                     incidentsList
                 }
             }
@@ -85,7 +89,7 @@ struct IncidentListView: View {
                 guard connectionStatus == .disconnected else { return }
                 try? await Task.sleep(nanoseconds: 15_000_000_000)
                 guard !Task.isCancelled, connectionStatus == .disconnected else { return }
-                await viewModel.refreshIncidents()
+                Task { await viewModel.refreshIncidents() }
             }
             .onAppear {
                 connectionStatus = .checking
@@ -193,14 +197,14 @@ struct IncidentRowView: View {
             HStack(alignment: .center, spacing: 5) {
                 AlarmBadge(
                     label: isAlarmsCleared ? "CLRD" : incident.status.displayLabel,
-                    color: isAlarmsCleared ? Color(red: 0.13, green: 0.55, blue: 0.13) : incident.status.displayColor
+                    color: isAlarmsCleared ? AlarmColor.green.color : incident.status.displayColor
                 )
                 .frame(minWidth: 44)
 
                 ScrollingText(text: incident.deviceName ?? "",
                               font: .caption, weight: .regular, color: .secondary)
 
-                Text(timeAgoString(from: incident.startTime))
+                Text(incident.startTime.timeAgoString())
                     .font(.caption2)
                     .fontWeight(.semibold)
                     .foregroundColor(.secondary)
@@ -221,8 +225,11 @@ struct IncidentRowView: View {
         .padding(.vertical, 4)
     }
 
-    private func timeAgoString(from date: Date) -> String {
-        let interval = Date().timeIntervalSince(date)
+}
+
+private extension Date {
+    func timeAgoString() -> String {
+        let interval = Date().timeIntervalSince(self)
         if interval < 60 { return "now" }
         if interval < 3600 { return "\(Int(interval / 60))m" }
         if interval < 86400 { return "\(Int(interval / 3600))h" }
@@ -381,163 +388,6 @@ struct FiltersView: View {
     }
 }
 
-struct IncidentListViewShared: View {
-    @ObservedObject var viewModel: IncidentListViewModel
-    let apiService: NetreoAPIService
-    @State private var showingFilters = false
-    @State private var connectionStatus: ConnectionStatus = .unknown
-    @AppStorage("netreo_ack_user") private var ackUser = ""
-    @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
-
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                if viewModel.isLoading && viewModel.incidents.isEmpty {
-                    ProgressView("Loading incidents...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if viewModel.incidents.isEmpty {
-                    let _ = print("IncidentListViewShared: incidents.isEmpty = true, count = \(viewModel.incidents.count)")
-                    let _ = print("IncidentListViewShared: isLoading = \(viewModel.isLoading)")
-                    let _ = print("IncidentListViewShared: errorMessage = \(viewModel.errorMessage ?? "nil")")
-                    VStack(spacing: 20) {
-                        Image(systemName: "checkmark.shield")
-                            .font(.system(size: 60))
-                            .foregroundColor(.green)
-
-                        Text("No Active Incidents")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-
-                        Text("All systems are operating normally")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color(.systemGroupedBackground))
-                } else {
-                    let _ = print("IncidentListViewShared: Showing incidents list, count = \(viewModel.incidents.count)")
-                    incidentsList
-                }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    ConnectionBadgeButton(status: connectionStatus) {
-                        Task { await viewModel.refreshIncidents() }
-                    }
-                }
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Image("BMCHelixLogo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 24, height: 24)
-                }
-                ToolbarItem(placement: .principal) {
-                    Text("Active Incidents")
-                        .font(.system(size: 18, weight: .bold, design: .default))
-                }
-                ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    Button(action: { showingFilters.toggle() }) {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
-                    }
-                    AutoRefreshButton(
-                        interval: refreshInterval,
-                        isLoading: viewModel.isLoading,
-                        action: viewModel.refreshIncidents
-                    )
-                }
-            }
-            .sheet(isPresented: $showingFilters) {
-                FiltersView(viewModel: viewModel)
-            }
-            .onChange(of: viewModel.isLoading) { loading in
-                if loading {
-                    connectionStatus = .checking
-                } else {
-                    connectionStatus = viewModel.errorMessage == nil ? .connected : .disconnected
-                }
-            }
-            .task(id: connectionStatus) {
-                guard connectionStatus == .disconnected else { return }
-                try? await Task.sleep(nanoseconds: 15_000_000_000)
-                guard !Task.isCancelled, connectionStatus == .disconnected else { return }
-                await viewModel.refreshIncidents()
-            }
-        }
-    }
-
-    private var incidentsList: some View {
-        List {
-            ForEach(viewModel.filteredIncidents) { incident in
-                NavigationLink {
-                    IncidentDetailView(
-                        incident: incident,
-                        apiService: apiService,
-                        preloadedAlarmCounts: viewModel.alarmCounts[incident.incidentID]
-                    )
-                } label: {
-                    IncidentRowView(
-                        incident: incident,
-                        alarmCounts: viewModel.alarmCounts[incident.incidentID]
-                    )
-                    .frame(maxHeight: .infinity, alignment: .center)
-                }
-                .listRowBackground(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(.secondarySystemGroupedBackground))
-                        .padding(.vertical, 2)
-                )
-                .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 12))
-                .listRowSeparator(.hidden)
-                // Swipe rechts → ACK oder UnACK
-                .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                    let isAlarmsCleared = incident.incidentState.uppercased() == "ALARMS CLEARED"
-                    if isAlarmsCleared {
-                        Button { } label: {
-                            Label("ACK", systemImage: "checkmark.circle")
-                        }
-                        .tint(.gray)
-                    } else if incident.status == .acknowledged {
-                        Button {
-                            Task {
-                                let ok = try? await apiService.unacknowledgeIncident(
-                                    incidentID: incident.incidentID,
-                                    user: ackUser.isEmpty ? "mobile" : ackUser
-                                )
-                                if ok == true {
-                                    viewModel.updateIncidentStatus(incidentID: incident.incidentID, status: .active)
-                                }
-                            }
-                        } label: {
-                            Label("Unack", systemImage: "arrow.uturn.backward.circle")
-                        }
-                        .tint(.blue)
-                    } else {
-                        Button {
-                            Task {
-                                let ok = try? await apiService.acknowledgeIncident(
-                                    incidentID: incident.incidentID,
-                                    user: ackUser.isEmpty ? "mobile" : ackUser
-                                )
-                                if ok == true {
-                                    viewModel.updateIncidentStatus(incidentID: incident.incidentID, status: .acknowledged)
-                                }
-                            }
-                        } label: {
-                            Label("ACK", systemImage: "checkmark.circle")
-                        }
-                        .tint(.blue)
-                    }
-                }
-            }
-        }
-        .listStyle(.plain)
-        .background(Color(.systemGroupedBackground))
-        .refreshable {
-            await viewModel.refreshIncidents()
-        }
-    }
-}
 
 
 #Preview {

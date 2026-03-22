@@ -30,9 +30,28 @@ class TacticalViewModel: ObservableObject {
         errorMessage = nil
         do {
             switch type {
-            case .category:      groups = try await apiService.fetchCategorySummaries()
-            case .site:          groups = try await apiService.fetchSiteSummaries()
+            case .category:         groups = try await apiService.fetchCategorySummaries()
+            case .site:             groups = try await apiService.fetchSiteSummaries()
             case .businessWorkflow: groups = try await apiService.fetchBusinessWorkflowSummaries()
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
+    }
+
+    func loadWith(preloadedDevices: [NetreoDevice], preloadedIncidents: [NetreoIncident]) async {
+        guard !isLoading else { return }
+        isLoading = true
+        errorMessage = nil
+        do {
+            switch type {
+            case .category:
+                groups = try await apiService.fetchCategorySummaries(devices: preloadedDevices, incidents: preloadedIncidents)
+            case .site:
+                groups = try await apiService.fetchSiteSummaries(devices: preloadedDevices, incidents: preloadedIncidents)
+            case .businessWorkflow:
+                groups = try await apiService.fetchBusinessWorkflowSummaries(devices: preloadedDevices, incidents: preloadedIncidents)
             }
         } catch {
             errorMessage = error.localizedDescription

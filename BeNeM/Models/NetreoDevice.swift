@@ -1,7 +1,7 @@
 import Foundation
 
 struct NetreoDevice: Codable, Identifiable {
-    let id = UUID()
+    let id: String
     let ip: String
     let name: String?
     let hostname: String?
@@ -15,6 +15,7 @@ struct NetreoDevice: Codable, Identifiable {
     let additionalProperties: [String: AnyCodable]
     
     init(ip: String, name: String?, hostname: String?, status: DeviceStatus, deviceType: String?, lastUpdated: Date, siteID: String?, categoryID: String?, snmpCommunity: String?, isActive: Bool, additionalProperties: [String: AnyCodable]) {
+        self.id = ip
         self.ip = ip
         self.name = name
         self.hostname = hostname
@@ -45,6 +46,7 @@ struct NetreoDevice: Codable, Identifiable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         
         ip = try container.decode(String.self, forKey: .ip)
+        id = ip
         name = try container.decodeIfPresent(String.self, forKey: .name)
         hostname = try container.decodeIfPresent(String.self, forKey: .hostname)
         
@@ -105,75 +107,6 @@ struct NetreoDevice: Codable, Identifiable {
     }
 }
 
-struct DevicePerformance: Codable {
-    let deviceIP: String
-    let timestamp: Date
-    let metrics: [String: Double]
-    let additionalData: [String: AnyCodable]
-    
-    var cpuUsage: Double? { metrics["cpu_usage"] ?? metrics["cpuUsage"] }
-    var memoryUsage: Double? { metrics["memory_usage"] ?? metrics["memoryUsage"] }
-    var diskUsage: Double? { metrics["disk_usage"] ?? metrics["diskUsage"] }
-    var networkThroughput: Double? { metrics["network_throughput"] ?? metrics["networkThroughput"] }
-    
-    enum CodingKeys: String, CodingKey {
-        case deviceIP, timestamp, metrics
-    }
-    
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        
-        deviceIP = try container.decode(String.self, forKey: .deviceIP)
-        
-        if let timestamp = try? container.decode(Double.self, forKey: .timestamp) {
-            self.timestamp = Date(timeIntervalSince1970: timestamp)
-        } else if let dateString = try? container.decode(String.self, forKey: .timestamp) {
-            let formatter = ISO8601DateFormatter()
-            self.timestamp = formatter.date(from: dateString) ?? Date()
-        } else {
-            self.timestamp = Date()
-        }
-        
-        metrics = try container.decodeIfPresent([String: Double].self, forKey: .metrics) ?? [:]
-        
-        let dynamicContainer = try decoder.container(keyedBy: DynamicCodingKeys.self)
-        var additionalProps: [String: AnyCodable] = [:]
-        
-        for key in dynamicContainer.allKeys {
-            if !CodingKeys.allCases.map(\.rawValue).contains(key.stringValue) {
-                if let value = try? dynamicContainer.decode(AnyCodable.self, forKey: key) {
-                    additionalProps[key.stringValue] = value
-                }
-            }
-        }
-        additionalData = additionalProps
-    }
-}
-
-struct APIResponse<T: Codable>: Codable {
-    let success: Bool
-    let data: T?
-    let result: T?
-    let error: String?
-    let failure: String?
-    let message: String?
-    let status: String?
-    
-    var responseData: T? {
-        return data ?? result
-    }
-    
-    var errorMessage: String? {
-        return error ?? failure ?? message
-    }
-}
-
-struct DeviceListResponse: Codable {
-    let devices: [NetreoDevice]
-    let totalCount: Int?
-    let page: Int?
-    let pageSize: Int?
-}
 
 struct AnyCodable: Codable {
     let value: Any
@@ -245,8 +178,3 @@ extension NetreoDevice.CodingKeys: CaseIterable {
     }
 }
 
-extension DevicePerformance.CodingKeys: CaseIterable {
-    static var allCases: [DevicePerformance.CodingKeys] {
-        return [.deviceIP, .timestamp, .metrics]
-    }
-}

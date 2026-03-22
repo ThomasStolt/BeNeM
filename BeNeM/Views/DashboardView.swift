@@ -2,11 +2,11 @@ import SwiftUI
 
 // MARK: - DashboardView
 
-private let hmGreen  = Color(red: 0.13, green: 0.55, blue: 0.13)
-private let hmYellow = Color(red: 0.97, green: 0.85, blue: 0.05)
-private let hmOrange = Color(red: 0.95, green: 0.45, blue: 0.05)
-private let hmRed    = Color(red: 0.90, green: 0.15, blue: 0.10)
-private let hmBlue   = Color(red: 0.10, green: 0.40, blue: 0.85)
+private let hmGreen  = AlarmColor.green.color
+private let hmYellow = AlarmColor.yellow.color
+private let hmOrange = AlarmColor.orange.color
+private let hmRed    = AlarmColor.red.color
+private let hmBlue   = AlarmColor.blue.color
 
 struct DashboardView: View {
     @StateObject private var incidentViewModel: IncidentListViewModel
@@ -82,7 +82,7 @@ struct DashboardView: View {
                 guard connectionStatus == .disconnected else { return }
                 try? await Task.sleep(nanoseconds: 15_000_000_000)
                 guard !Task.isCancelled, connectionStatus == .disconnected else { return }
-                await loadData()
+                Task { await loadData() }
             }
         }
     }
@@ -260,8 +260,11 @@ struct DashboardView: View {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await incidentViewModel.loadIncidents() }
             group.addTask { await deviceViewModel.loadDevices() }
-            group.addTask { await categoryViewModel.load() }
         }
+        await categoryViewModel.loadWith(
+            preloadedDevices: deviceViewModel.devices,
+            preloadedIncidents: incidentViewModel.incidents
+        )
         connectionStatus = deviceViewModel.errorMessage == nil ? .connected : .disconnected
     }
 }
@@ -448,8 +451,9 @@ struct IncidentTickerBanner: View {
     private var visible: [NetreoIncident] { Array(incidents.prefix(3)) }
 
     var body: some View {
-        if visible.isEmpty { return AnyView(EmptyView()) }
-        return AnyView(content)
+        if !visible.isEmpty {
+            content
+        }
     }
 
     private var content: some View {

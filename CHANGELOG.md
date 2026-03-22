@@ -12,6 +12,38 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.2.0] — 2026-03-22
+
+### Added
+
+- **Splash screen** — animated logo on launch with shimmer sweep and fade-in/out; auto-dismisses after ~3.6 s; respects `accessibilityReduceMotion`
+- **Auto Discovery: connectable filter** — only BHNM Core and Primary instances can be connected to; secondary/probe nodes are shown in the results list but greyed out
+- **Auto-refresh on Devices tab** — the auto-refresh countdown ring is now also visible on the Device List screen
+
+### Changed
+
+- **Dashboard data loading optimised** — Category, Site, and Business Workflow summaries now reuse the devices and incidents already fetched by the Dashboard, eliminating a redundant full round-trip to the API on each refresh
+- **Form-encoded request bodies** — all POST requests now use `URLQueryItem` / `percentEncodedQuery` for correct percent-encoding of special characters in API keys, passwords, and ACK comments
+- **Device identity** — `NetreoDevice.id` is now the device IP address (stable, server-assigned) rather than a random `UUID()`, preventing SwiftUI list flicker during background refresh
+- **Alarm colors unified** — `AlarmColor` constants are used consistently across all views; inline `Color(red:green:blue:)` literals removed
+- **Debug output guarded** — all `print()` statements and `UserDefaults` debug writes are now inside `#if DEBUG` blocks and are omitted from Release builds
+- **Toolbar logo asset separated** — the toolbar logo (`BMCHelixLogo`) and the splash screen logo (`SplashLogo`) now reference independent image assets, so changes to one no longer affect the other
+
+### Removed
+
+- Unused scaffold files deleted: `SimpleNetreoService.swift`, `SimpleContentView.swift`, `DeviceInterfacesView.swift`, `DeviceLatencyView.swift`, `InterfacePerformanceView.swift`, `SimpleDeviceListView.swift`, `SimpleQuickConfigView.swift`
+- Unused model types removed: `DevicePerformance`, `APIResponse`, `DeviceListResponse`
+- Mock device data and `createMockDevices()` helper removed
+- Dead legacy code paths `performLegacyDeviceRequest` and `performModernDeviceRequest` removed
+
+### Fixed
+
+- Auto-retry after network disconnect no longer spawns orphaned tasks; retry is now launched with `Task { }` inside `.task(id:)` to prevent overlapping retries
+- `IncidentTickerBanner` no longer uses `AnyView` type erasure; replaced with a direct `@ViewBuilder` conditional
+- `URLComponents` force-unwrap (`!`) in incident detail and alarm count requests replaced with safe `guard let`
+
+---
+
 ## [1.1.0] — 2026-03-20
 
 ### Added
@@ -89,6 +121,7 @@ Initial release.
 
 ---
 
-[Unreleased]: https://github.com/thomasstolt/BeNeM/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/thomasstolt/BeNeM/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/thomasstolt/BeNeM/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/thomasstolt/BeNeM/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/thomasstolt/BeNeM/releases/tag/v1.0.0

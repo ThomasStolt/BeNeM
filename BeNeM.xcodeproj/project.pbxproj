@@ -8,8 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		8C6281232E64CF2300522D09 /* NetreoIncident.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6281222E64CF2300522D09 /* NetreoIncident.swift */; };
-		AABB0001000000000000001A /* IncidentDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0001000000000000001B /* IncidentDetail.swift */; };
-		AABB0001000000000000002A /* IncidentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0001000000000000002B /* IncidentDetailView.swift */; };
 		8C6281282E64CF6D00522D09 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6281262E64CF6D00522D09 /* DashboardView.swift */; };
 		8C6281292E64CF6D00522D09 /* IncidentListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6281272E64CF6D00522D09 /* IncidentListView.swift */; };
 		8C62812B2E64D3C700522D09 /* IncidentListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C62812A2E64D3C700522D09 /* IncidentListViewModel.swift */; };
@@ -25,6 +23,8 @@
 		A11234567890001A /* BeNeMApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11234567890001B /* BeNeMApp.swift */; };
 		A11234567890003A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A11234567890003B /* Assets.xcassets */; };
 		A11234567890004A /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A11234567890004B /* Preview Assets.xcassets */; };
+		AABB0001000000000000001A /* IncidentDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0001000000000000001B /* IncidentDetail.swift */; };
+		AABB0001000000000000002A /* IncidentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0001000000000000002B /* IncidentDetailView.swift */; };
 		BB0001000000000000000001 /* GroupSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001000000000000000002 /* GroupSummary.swift */; };
 		BB0001000000000000000003 /* TacticalViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001000000000000000004 /* TacticalViewModel.swift */; };
 		BB0001000000000000000005 /* GroupListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001000000000000000006 /* GroupListView.swift */; };
@@ -36,8 +36,6 @@
 
 /* Begin PBXFileReference section */
 		8C6281222E64CF2300522D09 /* NetreoIncident.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetreoIncident.swift; sourceTree = "<group>"; };
-		AABB0001000000000000001B /* IncidentDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentDetail.swift; sourceTree = "<group>"; };
-		AABB0001000000000000002B /* IncidentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentDetailView.swift; sourceTree = "<group>"; };
 		8C6281262E64CF6D00522D09 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		8C6281272E64CF6D00522D09 /* IncidentListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentListView.swift; sourceTree = "<group>"; };
 		8C62812A2E64D3C700522D09 /* IncidentListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentListViewModel.swift; sourceTree = "<group>"; };
@@ -54,6 +52,8 @@
 		A1123456789000AB /* AddDeviceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddDeviceView.swift; sourceTree = "<group>"; };
 		A1123456789000BB /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A1123456789000CB /* QuickConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickConfigView.swift; sourceTree = "<group>"; };
+		AABB0001000000000000001B /* IncidentDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentDetail.swift; sourceTree = "<group>"; };
+		AABB0001000000000000002B /* IncidentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentDetailView.swift; sourceTree = "<group>"; };
 		BB0001000000000000000002 /* GroupSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupSummary.swift; sourceTree = "<group>"; };
 		BB0001000000000000000004 /* TacticalViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TacticalViewModel.swift; sourceTree = "<group>"; };
 		BB0001000000000000000006 /* GroupListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupListView.swift; sourceTree = "<group>"; };
@@ -386,7 +386,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_ASSET_PATHS = "\"BeNeM/Preview Content\"";
 				DEVELOPMENT_TEAM = 8L27BJGYXP;
 				ENABLE_PREVIEWS = YES;
@@ -396,7 +396,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tstolt.benem;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -411,7 +411,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_ASSET_PATHS = "\"BeNeM/Preview Content\"";
 				DEVELOPMENT_TEAM = 8L27BJGYXP;
 				ENABLE_PREVIEWS = YES;
@@ -421,7 +421,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tstolt.benem;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

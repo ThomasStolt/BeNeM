@@ -103,6 +103,7 @@ BeNeM/
 │   ├── DeviceListViewModel.swift     # Device list loading
 │   └── TacticalViewModel.swift       # Category / Site / Business Workflow loading
 ├── Views/
+│   ├── SplashView.swift              # Animated launch screen with logo shimmer
 │   ├── DashboardView.swift           # Home: status cards, incident ticker, alarm summaries
 │   ├── GroupListView.swift           # Group list with alarm badges and device count
 │   ├── IncidentListView.swift        # Incident list + swipe ACK/UnACK
