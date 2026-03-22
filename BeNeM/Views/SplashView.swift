@@ -31,7 +31,7 @@ struct SplashView: View {
                 LinearGradient(
                     stops: [
                         .init(color: .clear, location: 0.0),
-                        .init(color: .white.opacity(0.9), location: 0.5),
+                        .init(color: Color(red: 1.0, green: 0.85, blue: 0.3).opacity(0.9), location: 0.5),
                         .init(color: .clear, location: 1.0)
                     ],
                     startPoint: .leading,
