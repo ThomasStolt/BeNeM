@@ -4,28 +4,23 @@ struct SplashView: View {
     var onDismiss: () -> Void
 
     @State private var shimmerOffset: CGFloat = -200
+    @State private var logoOpacity: Double = 0.0
     @State private var splashOpacity: Double = 1.0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color("SplashBackground").ignoresSafeArea()
 
-            logoWithEffects
+            Image("BMCHelixLogo")
+                .resizable()
+                .scaledToFit()
                 .frame(width: 200)
+                .overlay(shimmerBand.mask(logoMask))
+                .opacity(logoOpacity)
         }
         .opacity(splashOpacity)
         .onAppear(perform: startAnimations)
-    }
-
-    // MARK: - Logo
-
-    private var logoWithEffects: some View {
-        Image("BMCHelixLogo")
-            .resizable()
-            .scaledToFit()
-            // Shimmer clipped to logo pixels
-            .overlay(shimmerBand.mask(logoMask))
     }
 
     // MARK: - Shimmer
@@ -48,9 +43,6 @@ struct SplashView: View {
             .offset(x: shimmerOffset)
     }
 
-    // Note: BMCHelixLogo.png is an indexed-color PNG with a tRNS transparency chunk,
-    // so SwiftUI correctly renders it with transparent areas. The mask below clips
-    // the shimmer to the logo's opaque pixels only.
     private var logoMask: some View {
         Image("BMCHelixLogo")
             .resizable()
@@ -59,11 +51,25 @@ struct SplashView: View {
     }
 
     // MARK: - Animation
+    // Timeline:
+    //   0.0 s — fade-in starts (0.5 s)
+    //   0.5 s — logo fully visible, shimmer starts (2.2 s sweep across 1 s visible window)
+    //   1.5 s — fade-out starts (0.5 s)
+    //   2.0 s — dismiss
 
     private func startAnimations() {
-        // Shimmer
+        // Fade in logo
+        if reduceMotion {
+            logoOpacity = 1.0
+        } else {
+            withAnimation(.easeIn(duration: 0.5)) {
+                logoOpacity = 1.0
+            }
+        }
+
+        // Shimmer: start after fade-in completes
         if !reduceMotion {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 withAnimation(.easeInOut(duration: 2.2)) {
                     shimmerOffset = 200
                 }
@@ -71,18 +77,18 @@ struct SplashView: View {
         }
 
         // Fade out
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             if reduceMotion {
                 splashOpacity = 0
             } else {
-                withAnimation(.easeInOut(duration: 1.0)) {
+                withAnimation(.easeOut(duration: 0.5)) {
                     splashOpacity = 0
                 }
             }
         }
 
         // Remove from hierarchy
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             onDismiss()
         }
     }
