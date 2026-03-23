@@ -23,13 +23,11 @@ struct QuickConfigView: View {
                     .autocapitalization(.none)
                     .keyboardType(.URL)
                 
-                TextField("API Key", text: $apiKey)
+                SecureField("API Key", text: $apiKey)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .autocapitalization(.none)
                 
-                TextField("PIN (SaaS only - optional)", text: $pin)
+                SecureField("PIN (SaaS only - optional)", text: $pin)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .autocapitalization(.none)
             }
             
             HStack(spacing: 12) {
