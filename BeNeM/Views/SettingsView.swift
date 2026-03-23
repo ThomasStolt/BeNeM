@@ -10,6 +10,12 @@ struct SettingsView: View {
     @AppStorage("netreo_retry_count") private var retryCount: Double = 3.0
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
 
+    // Draft state — held locally until Save is tapped
+    @State private var draftBaseURL = ""
+    @State private var draftApiKey = ""
+    @State private var draftPin = ""
+    @State private var draftAckUser = ""
+
     @State private var isTesting = false
     @State private var alertTitle = ""
     @State private var alertMessage = ""
@@ -17,6 +23,13 @@ struct SettingsView: View {
     @State private var debugFields: String? = UserDefaults.standard.string(forKey: "debug_incident_fields")
     @State private var debugDeviceFields: String? = UserDefaults.standard.string(forKey: "debug_device_fields")
     @State private var debugUnmatched: String? = UserDefaults.standard.string(forKey: "debug_unmatched_incidents")
+
+    private var hasUnsavedChanges: Bool {
+        draftBaseURL != baseURL ||
+        draftApiKey != apiKey ||
+        draftPin != pin ||
+        draftAckUser != ackUser
+    }
 
     var body: some View {
         NavigationView {
@@ -28,15 +41,15 @@ struct SettingsView: View {
                 }
 
                 Section(header: Text("BHNM Server")) {
-                    TextField("Base URL", text: $baseURL)
+                    TextField("Base URL", text: $draftBaseURL)
                         .autocapitalization(.none)
                         .keyboardType(.URL)
 
-                    SecureField("API Key", text: $apiKey)
+                    SecureField("API Key", text: $draftApiKey)
 
-                    SecureField("PIN (SaaS only)", text: $pin)
+                    SecureField("PIN (SaaS only)", text: $draftPin)
 
-                    TextField("ACK User", text: $ackUser)
+                    TextField("ACK User", text: $draftAckUser)
                         .autocapitalization(.none)
                 }
 
@@ -140,6 +153,25 @@ struct SettingsView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(alertMessage)
+            }
+            .onAppear {
+                draftBaseURL = baseURL
+                draftApiKey = apiKey
+                draftPin = pin
+                draftAckUser = ackUser
+            }
+            .toolbar {
+                if hasUnsavedChanges {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Save") {
+                            baseURL = draftBaseURL
+                            apiKey = draftApiKey
+                            pin = draftPin
+                            ackUser = draftAckUser
+                        }
+                        .fontWeight(.semibold)
+                    }
+                }
             }
         }
     }
