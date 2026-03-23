@@ -42,7 +42,7 @@ struct ContentView: View {
         .onChange(of: timeout) { _, _ in updateAPIService() }
         .onChange(of: retryCount) { _, _ in updateAPIService() }
         .onChange(of: apiService == nil) { _, isNil in
-            if isNil { selectedTab = 0 }
+            if isNil && selectedTab != 3 { selectedTab = 0 }
         }
         .onAppear { updateAPIService() }
     }
