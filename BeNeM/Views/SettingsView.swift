@@ -96,7 +96,7 @@ struct SettingsView: View {
                             }
                         }
                     }
-                    .disabled(baseURL.isEmpty || apiKey.isEmpty || isTesting)
+                    .disabled(draftBaseURL.isEmpty || draftApiKey.isEmpty || isTesting)
                 }
 
                 Section(header: Text("Debug: Unmatched Incidents")) {
@@ -181,8 +181,7 @@ struct SettingsView: View {
         isTesting = true
         defer { isTesting = false }
 
-        // Validate URL
-        let trimmedURL = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedURL = draftBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: trimmedURL), url.scheme != nil, url.host != nil else {
             alertTitle = "Invalid URL"
             alertMessage = "The URL \"\(trimmedURL)\" is not a valid format.\n\nExample: https://netreo.example.com"
@@ -190,83 +189,83 @@ struct SettingsView: View {
             return
         }
 
-        // Send actual HTTP request
-        let config = NetreoAPIConfiguration(
-            baseURL: trimmedURL,
-            apiKey: apiKey,
-            pin: pin.isEmpty ? nil : pin,
-            version: NetreoAPIConfiguration.APIVersion(rawValue: apiVersionString) ?? .legacy,
-            timeout: timeout,
-            retryCount: Int(retryCount)
-        )
-
-        let testURL: URL
-        switch config.version {
-        case .legacy:
-            testURL = URL(string: config.endpoint(for: "/api.php"))!
-        case .v1:
-            testURL = URL(string: config.endpoint(for: "/api/v1/devices"))!
-        case .v2:
-            testURL = URL(string: config.endpoint(for: "/api/v2/devices"))!
-        case .openapi:
-            testURL = URL(string: config.endpoint(for: "/openapi/devices"))!
+        // Always test against the actual endpoint the app uses at runtime
+        guard let testURL = URL(string: "\(trimmedURL.trimmingSuffix("/"))/fw/index.php?r=restful/devices/list") else {
+            alertTitle = "Invalid URL"
+            alertMessage = "Could not construct test URL from \"\(trimmedURL)\"."
+            showingAlert = true
+            return
         }
 
-        var request = URLRequest(url: testURL, timeoutInterval: min(timeout, 15))
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        switch config.version {
-        case .legacy:
-            request.httpMethod = "POST"
-            request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-            let body = "pwd=\(apiKey)&method=getdevices"
-            request.httpBody = body.data(using: .utf8)
-        default:
-            request.httpMethod = "GET"
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        var request = URLRequest(url: testURL, timeoutInterval: 15)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+
+        var bodyItems = [URLQueryItem(name: "password", value: draftApiKey)]
+        if !draftPin.isEmpty {
+            bodyItems.append(URLQueryItem(name: "pin", value: draftPin))
         }
+        var comps = URLComponents()
+        comps.queryItems = bodyItems
+        request.httpBody = comps.percentEncodedQuery?.data(using: .utf8)
 
         do {
             let sessionConfig = URLSessionConfiguration.default
-            sessionConfig.timeoutIntervalForRequest = min(timeout, 15)
+            sessionConfig.timeoutIntervalForRequest = 15
             let session = URLSession(configuration: sessionConfig)
 
             let (data, response) = try await session.data(for: request)
             let http = response as! HTTPURLResponse
             let statusCode = http.statusCode
-            let bodyPreview = String(data: data.prefix(300), encoding: .utf8) ?? "(nicht lesbar)"
 
             switch statusCode {
-            case 200...299:
-                alertTitle = "Connection successful"
-                alertMessage = "The server responded with HTTP \(statusCode).\n\nURL: \(testURL.absoluteString)"
+            case 200:
+                // Parse device count using the same two-shape JSON the app handles at runtime
+                var deviceCount = 0
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    if let arr = json["devices"] as? [[String: Any]] {
+                        deviceCount = arr.count
+                    } else if let nested = json["data"] as? [String: Any],
+                              let arr = nested["devices"] as? [[String: Any]] {
+                        deviceCount = arr.count
+                    }
+                }
+                if deviceCount > 0 {
+                    alertTitle = "Connection successful"
+                    alertMessage = "Found \(deviceCount) device\(deviceCount == 1 ? "" : "s")."
+                } else {
+                    alertTitle = "Connected — no devices found"
+                    alertMessage = "The server responded successfully but returned no devices.\n\nCheck that your API key has permission to list devices."
+                }
             case 401, 403:
                 alertTitle = "Authentication failed"
-                alertMessage = "HTTP \(statusCode): The server rejected the request.\n\nPossible causes:\n• API key invalid or expired\n• PIN missing or incorrect (SaaS)\n• Wrong API version selected\n\nResponse: \(bodyPreview)"
+                alertMessage = "HTTP \(statusCode): The server rejected the credentials.\n\nCheck your API key and PIN."
             case 404:
                 alertTitle = "Endpoint not found"
-                alertMessage = "HTTP 404: The API endpoint was not found.\n\nURL: \(testURL.absoluteString)\n\nPossible causes:\n• Wrong API version selected\n• Base URL contains an incorrect path"
+                alertMessage = "HTTP 404: The API endpoint was not found.\n\nCheck the base URL."
             case 500...599:
                 alertTitle = "Server error"
-                alertMessage = "HTTP \(statusCode): The server reported an internal error.\n\nResponse: \(bodyPreview)"
+                alertMessage = "HTTP \(statusCode): The server reported an internal error."
             default:
+                let bodyPreview = String(data: data.prefix(300), encoding: .utf8) ?? "(unreadable)"
                 alertTitle = "Unexpected response"
-                alertMessage = "HTTP \(statusCode)\n\nURL: \(testURL.absoluteString)\nResponse: \(bodyPreview)"
+                alertMessage = "HTTP \(statusCode)\n\nResponse: \(bodyPreview)"
             }
         } catch let urlError as URLError {
             alertTitle = "Connection failed"
             switch urlError.code {
             case .notConnectedToInternet:
-                alertMessage = "No internet: The device is not connected to a network."
+                alertMessage = "No internet connection."
             case .cannotFindHost:
-                alertMessage = "Host not found: The server \"\(url.host ?? trimmedURL)\" could not be resolved.\n\nPossible causes:\n• VPN not connected (if internal server)\n• Hostname misspelled\n• DNS unreachable"
+                alertMessage = "Host not found: \"\(url.host ?? trimmedURL)\" could not be resolved.\n\nCheck the URL and that your VPN is connected if this is an internal server."
             case .cannotConnectToHost:
-                alertMessage = "Cannot connect to host: \"\(url.host ?? trimmedURL)\" port \(url.port.map(String.init) ?? "default") is not reachable.\n\nPossible causes:\n• VPN not connected (if internal server)\n• Server not running\n• Wrong port\n• Firewall blocking the connection"
+                alertMessage = "Cannot connect to \"\(url.host ?? trimmedURL)\".\n\nCheck the URL, port, and firewall settings."
             case .timedOut:
-                alertMessage = "Timeout: The server did not respond within \(Int(min(timeout, 15))) seconds.\n\nURL: \(testURL.absoluteString)"
+                alertMessage = "Timed out after 15 seconds.\n\nURL: \(testURL.absoluteString)"
             case .secureConnectionFailed, .serverCertificateUntrusted:
-                alertMessage = "SSL/TLS error: The server certificate is invalid or not trusted.\n\nDetails: \(urlError.localizedDescription)"
+                alertMessage = "SSL/TLS error: \(urlError.localizedDescription)"
             default:
-                alertMessage = "\(urlError.localizedDescription)\n\n(Code: \(urlError.code.rawValue))"
+                alertMessage = "\(urlError.localizedDescription) (code \(urlError.code.rawValue))"
             }
         } catch {
             alertTitle = "Error"
