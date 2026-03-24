@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 struct DeviceDetailView: View {
     @StateObject private var viewModel: DeviceDetailViewModel
@@ -12,7 +13,6 @@ struct DeviceDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 deviceHeaderCard(device)
-                interfacesSection
                 issuesSection
                 performanceSection
             }
@@ -52,40 +52,6 @@ struct DeviceDetailView: View {
         .background(Color(.secondarySystemGroupedBackground))
     }
 
-    // MARK: - Network Interfaces
-
-    private var interfacesSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            sectionHeader("Interfaces")
-            if viewModel.isLoadingInterfaces {
-                HStack { Spacer(); ProgressView(); Spacer() }.padding()
-            } else if let err = viewModel.interfacesError {
-                Text(err).font(.caption).foregroundColor(.secondary).padding()
-            } else if viewModel.interfaceMetrics.isEmpty {
-                Text("No interface data available")
-                    .font(.subheadline).foregroundColor(.secondary)
-                    .padding()
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(viewModel.interfaceMetrics, id: \.instanceDescr) { metric in
-                        HStack {
-                            Text(metric.instanceDescr.isEmpty ? "—" : metric.instanceDescr)
-                                .font(.subheadline)
-                            Spacer()
-                            Text(metric.value1.map { formatBps($0) } ?? "—")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.horizontal).padding(.vertical, 8)
-                        Divider().padding(.leading)
-                    }
-                }
-                .background(Color(.secondarySystemGroupedBackground))
-            }
-        }
-        .padding(.top, 16)
-    }
-
     // MARK: - Current Issues
 
     private var issuesSection: some View {
@@ -101,7 +67,6 @@ struct DeviceDetailView: View {
                     .padding()
             } else {
                 VStack(spacing: 0) {
-                    // Column headers
                     HStack {
                         Text("TYPE").frame(width: 80, alignment: .leading)
                         Text("DESCRIPTION").frame(maxWidth: .infinity, alignment: .leading)
@@ -109,9 +74,7 @@ struct DeviceDetailView: View {
                     }
                     .font(.caption2).foregroundColor(.secondary)
                     .padding(.horizontal).padding(.top, 6).padding(.bottom, 4)
-
                     Divider()
-
                     ForEach(viewModel.incidents) { incident in
                         HStack(alignment: .top) {
                             Text(incident.category ?? incident.severity.rawValue.capitalized)
@@ -140,34 +103,24 @@ struct DeviceDetailView: View {
     private var performanceSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionHeader("Performance")
-            if viewModel.isLoadingPerformance {
+            if viewModel.isLoadingCategories {
                 HStack { Spacer(); ProgressView(); Spacer() }.padding()
-            } else if let err = viewModel.performanceError {
+            } else if let err = viewModel.categoriesError {
                 Text(err).font(.caption).foregroundColor(.secondary).padding()
-            } else if viewModel.cpuMetrics.isEmpty && viewModel.memoryMetrics.isEmpty && viewModel.diskMetrics.isEmpty {
+            } else if viewModel.categories.isEmpty {
                 Text("No performance data available")
-                    .font(.subheadline).foregroundColor(.secondary)
-                    .padding()
+                    .font(.subheadline).foregroundColor(.secondary).padding()
             } else {
-                VStack(spacing: 12) {
-                    if let cpu = viewModel.cpuMetrics.first {
-                        metricRow(label: "CPU", metric: cpu)
-                    }
-                    if let mem = viewModel.memoryMetrics.first {
-                        metricRow(label: "Memory", metric: mem)
-                    }
-                    if !viewModel.diskMetrics.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Disk")
-                                .font(.subheadline).fontWeight(.medium)
-                                .padding(.horizontal)
-                            ForEach(viewModel.diskMetrics, id: \.instanceDescr) { m in
-                                diskRow(metric: m)
-                            }
+                VStack(spacing: 0) {
+                    ForEach(viewModel.categories, id: \.id) { category in
+                        let instances = viewModel.cardStates.values
+                            .filter { $0.instance.categoryId == category.id }
+                            .sorted { $0.instance.key < $1.instance.key }
+                        if !instances.isEmpty {
+                            categoryGroup(category: category, instances: instances)
                         }
                     }
                 }
-                .padding(.vertical, 8)
                 .background(Color(.secondarySystemGroupedBackground))
             }
         }
@@ -175,7 +128,31 @@ struct DeviceDetailView: View {
         .padding(.bottom, 24)
     }
 
-    // MARK: - Sub-Views
+    private func categoryGroup(category: PerformanceCategory, instances: [MetricCardState]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(category.name.uppercased())
+                .font(.caption2).fontWeight(.semibold)
+                .foregroundColor(.secondary)
+                .padding(.horizontal).padding(.top, 10).padding(.bottom, 2)
+            ForEach(instances, id: \.instance.key) { state in
+                MetricCard(
+                    state: Binding(
+                        get: { viewModel.cardStates[state.instance.key] ?? state },
+                        set: { viewModel.cardStates[state.instance.key] = $0 }
+                    ),
+                    onTap: {
+                        Task { await viewModel.tapCard(instanceKey: state.instance.key) }
+                    },
+                    onTimeFrameChange: { tf in
+                        Task { await viewModel.changeTimeFrame(tf, instanceKey: state.instance.key) }
+                    }
+                )
+                Divider().padding(.leading)
+            }
+        }
+    }
+
+    // MARK: - Helpers
 
     private func sectionHeader(_ title: String) -> some View {
         Text(title.uppercased())
@@ -184,72 +161,6 @@ struct DeviceDetailView: View {
             .padding(.horizontal)
             .padding(.bottom, 4)
     }
-
-    private func metricRow(label: String, metric: PerformanceMetric) -> some View {
-        let pct = metric.value1 ?? 0
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(label).font(.subheadline).fontWeight(.medium)
-                Spacer()
-                Text(String(format: "%.1f%%", pct))
-                    .font(.subheadline).fontWeight(.semibold)
-                    .foregroundColor(barColor(pct: pct))
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.systemGray5))
-                        .frame(height: 8)
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(barColor(pct: pct))
-                        .frame(width: geo.size.width * CGFloat(min(pct, 100) / 100), height: 8)
-                }
-            }
-            .frame(height: 8)
-        }
-        .padding(.horizontal)
-    }
-
-    private func diskRow(metric: PerformanceMetric) -> some View {
-        // value1 = used bytes, value2 = total bytes (if available); otherwise treat value1 as %
-        let (usedPct, label): (Double, String) = {
-            if let v1 = metric.value1, let v2 = metric.value2, v2 > 0 {
-                let pct = (v1 / v2) * 100
-                let usedStr  = formatBytes(v1)
-                let totalStr = formatBytes(v2)
-                return (pct, "\(usedStr) of \(totalStr)")
-            } else if let v1 = metric.value1 {
-                return (v1, String(format: "%.1f%% used", v1))
-            }
-            return (0, "—")
-        }()
-
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(metric.instanceDescr.isEmpty ? "disk" : metric.instanceDescr)
-                    .font(.caption).foregroundColor(.secondary)
-                Spacer()
-                Text(label).font(.caption2).foregroundColor(.secondary)
-                Text(String(format: "%.0f%%", usedPct))
-                    .font(.caption).fontWeight(.semibold)
-                    .foregroundColor(barColor(pct: usedPct))
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(Color(.systemGray5))
-                        .frame(height: 6)
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(barColor(pct: usedPct))
-                        .frame(width: geo.size.width * CGFloat(min(usedPct, 100) / 100), height: 6)
-                }
-            }
-            .frame(height: 6)
-        }
-        .padding(.horizontal)
-    }
-
-    // MARK: - Helpers
 
     private func statusColor(_ status: NetreoDevice.DeviceStatus) -> Color {
         switch status {
@@ -262,14 +173,6 @@ struct DeviceDetailView: View {
         }
     }
 
-    private func barColor(pct: Double) -> Color {
-        switch pct {
-        case ..<60: return .green
-        case ..<80: return .orange
-        default:    return .red
-        }
-    }
-
     private func durationString(from start: Date) -> String {
         let s = max(0, Int(Date().timeIntervalSince(start)))
         let d = s / 86400; let h = (s % 86400) / 3600; let m = (s % 3600) / 60
@@ -277,23 +180,127 @@ struct DeviceDetailView: View {
         if h > 0 { return "\(h)h \(m)m" }
         return "\(m)m"
     }
+}
 
-    private func formatBytes(_ bytes: Double) -> String {
-        let kb = bytes / 1024; let mb = kb / 1024; let gb = mb / 1024
-        if gb >= 1  { return String(format: "%.1f GB", gb) }
-        if mb >= 1  { return String(format: "%.1f MB", mb) }
-        if kb >= 1  { return String(format: "%.0f kB", kb) }
-        return String(format: "%.0f B", bytes)
+// MARK: - MetricCard
+
+private struct MetricCard: View {
+    @Binding var state: MetricCardState
+    let onTap: () -> Void
+    let onTimeFrameChange: (TimeFrame) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Collapsed row — always visible
+            HStack {
+                statusDot
+                Text(state.instance.title)
+                    .font(.subheadline)
+                Spacer()
+                if state.isLoading {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: state.isExpanded ? "chevron.up" : "chevron.down")
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                }
+            }
+            .padding(.horizontal).padding(.vertical, 10)
+            .contentShape(Rectangle())
+            .onTapGesture { onTap() }
+
+            // Expanded content
+            if state.isExpanded {
+                VStack(spacing: 8) {
+                    // Time frame picker
+                    Picker("", selection: $state.selectedTimeFrame) {
+                        ForEach(TimeFrame.allCases, id: \.self) { tf in
+                            Text(tf.displayName).tag(tf)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                    .onChange(of: state.selectedTimeFrame) { newValue in
+                        onTimeFrameChange(newValue)
+                    }
+
+                    if state.data.isEmpty {
+                        Text(state.error != nil ? "Failed to load data" : "No data available")
+                            .font(.caption).foregroundColor(.secondary).padding()
+                    } else {
+                        // Chart
+                        Chart(state.data, id: \.timestamp) { point in
+                            LineMark(
+                                x: .value("Time", point.timestamp),
+                                y: .value(state.instance.unit, point.value)
+                            )
+                            .foregroundStyle(Color.accentColor)
+                        }
+                        .frame(height: 120)
+                        .padding(.horizontal)
+
+                        // Stat tiles
+                        HStack(spacing: 0) {
+                            statTile(label: "CURRENT", value: formatValue(state.current, unit: state.instance.unit))
+                            Divider()
+                            statTile(label: "AVG",     value: formatValue(state.average, unit: state.instance.unit))
+                            Divider()
+                            statTile(label: "MAX",     value: formatValue(state.max,     unit: state.instance.unit))
+                        }
+                        .frame(height: 56)
+                        .padding(.horizontal)
+                    }
+
+                    if let err = state.error {
+                        Text(err).font(.caption2).foregroundColor(.red).padding(.horizontal)
+                    }
+                }
+                .padding(.bottom, 8)
+            }
+        }
     }
 
-    private func formatBps(_ bps: Double) -> String {
-        let kbps = bps / 1_000
-        let mbps = kbps / 1_000
-        let gbps = mbps / 1_000
-        if gbps >= 1  { return String(format: "%.1f Gbps", gbps) }
-        if mbps >= 1  { return String(format: "%.1f Mbps", mbps) }
-        if kbps >= 1  { return String(format: "%.0f Kbps", kbps) }
-        return String(format: "%.0f bps", bps)
+    private var statusDot: some View {
+        let color: Color = {
+            guard state.hasBeenFetched, let value = state.current else { return .gray }
+            switch state.instance.unit {
+            case "%":
+                return value < 60 ? .green : value < 80 ? .orange : .red
+            case "s":
+                return value < 0.01 ? .green : value < 0.1 ? .orange : .red
+            default:
+                return .blue
+            }
+        }()
+        return Circle().fill(color).frame(width: 8, height: 8)
+    }
+
+    private func statTile(label: String, value: String) -> some View {
+        VStack(spacing: 2) {
+            Text(label).font(.caption2).foregroundColor(.secondary)
+            Text(value).font(.subheadline).fontWeight(.semibold)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func formatValue(_ value: Double?, unit: String) -> String {
+        guard let v = value else { return "—" }
+        switch unit {
+        case "s":
+            if v < 0.001 { return "\(Int(v * 1_000_000)) µs" }
+            if v < 1     { return String(format: "%.1f ms", v * 1000) }
+            return String(format: "%.2f s", v)
+        case "%":
+            return String(format: "%.1f%%", v)
+        case "B":
+            let kb = v / 1024; let mb = kb / 1024; let gb = mb / 1024
+            if gb >= 1 { return String(format: "%.1f GB", gb) }
+            if mb >= 1 { return String(format: "%.1f MB", mb) }
+            if kb >= 1 { return String(format: "%.0f kB", kb) }
+            return String(format: "%.0f B", v)
+        default:
+            return String(format: "%.2f \(unit)", v)
+        }
     }
 }
 
