@@ -60,7 +60,7 @@ Or copy `.env.template` to `.env`, fill it in, and source it:
 ```bash
 cp .env.template .env
 # edit .env
-source .env   # or: export $(cat .env | xargs)
+source .env   # or: export $(grep -v '^#' .env | xargs)
 ```
 
 ### Generate a link

@@ -52,7 +52,7 @@ def main():
     enc_pin     = encrypt(args.pin, key)
 
     # Percent-encode plain-text fields (%20 for spaces, matching Swift URLComponents)
-    server   = quote(args.server, safe=":/?#[]@!$&'()*+,;=")  # safe chars valid in URLs
+    server   = quote(args.server, safe="")  # encode ALL chars including structural URL delimiters
     ack_user = quote(args.user, safe="")
 
     url = f"benem://configure?server={server}&api_key={enc_api_key}&pin={enc_pin}&ack_user={ack_user}"
