@@ -24,6 +24,7 @@ struct SettingsView: View {
     @State private var alertTitle = ""
     @State private var alertMessage = ""
     @State private var showingAlert = false
+    @State private var showingDeleteConfirmation = false
 
     var body: some View {
         NavigationView {
@@ -98,7 +99,7 @@ struct SettingsView: View {
                         if activeSavedID != nil {
                             Divider().frame(height: 44)
                             Button(role: .destructive) {
-                                // TODO Task 7: showDeleteConfirmation()
+                                showingDeleteConfirmation = true
                             } label: {
                                 Image(systemName: "trash")
                                     .padding(.horizontal, 16)
@@ -166,6 +167,14 @@ struct SettingsView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(alertMessage)
+            }
+            .alert("Delete '\(draftName)'?", isPresented: $showingDeleteConfirmation) {
+                Button("Delete", role: .destructive) {
+                    deleteActiveConnection()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This connection will be removed from your saved list.")
             }
             .onAppear {
                 draftBaseURL = baseURL
@@ -324,6 +333,22 @@ struct SettingsView: View {
         draftPin     = ""
         draftAckUser = ""
         activeSavedID = nil
+    }
+
+    private func deleteActiveConnection() {
+        guard let id = activeSavedID else { return }
+        savedConnections.removeAll { $0.id == id }
+        UserDefaults.standard.saveSavedConnections(savedConnections)
+        activeSavedID = nil
+        // Keep draft fields populated so the user can see what was deleted.
+        if savedConnections.isEmpty {
+            // Clear @AppStorage — ContentView will set apiService = nil → WelcomeView.
+            baseURL  = ""
+            apiKey   = ""
+            pin      = ""
+            ackUser  = ""
+        }
+        // If connections remain, do NOT auto-switch. User picks from the picker.
     }
 }
 
