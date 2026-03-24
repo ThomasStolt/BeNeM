@@ -16,7 +16,7 @@ struct SettingsView: View {
     @State private var draftApiKey = ""
     @State private var draftPin = ""
     @State private var draftAckUser = ""
-    @State private var draftName = "New BHNM Connection"
+    @State private var draftName = "New Server"
     @State private var activeSavedID: UUID? = nil
     @State private var savedConnections: [SavedConnection] = []
 
@@ -35,39 +35,25 @@ struct SettingsView: View {
                     }
                 }
 
-                if savedConnections.count >= 2 {
-                    Section(header: Text("Connection")) {
-                        HStack {
-                            Text("Server")
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            Menu {
-                                ForEach(savedConnections) { connection in
-                                    Button(connection.name) {
-                                        selectConnection(connection)
-                                    }
+                Section(header: Text("BHNM Server")) {
+                    HStack {
+                        TextField("Name", text: $draftName)
+                            .autocapitalization(.none)
+                        Menu {
+                            ForEach(savedConnections) { connection in
+                                Button(connection.name) {
+                                    selectConnection(connection)
                                 }
-                                Divider()
-                                Button("+ New Connection") {
-                                    selectNewConnection()
-                                }
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Text(activeSavedID != nil
-                                         ? (savedConnections.first(where: { $0.id == activeSavedID })?.name ?? draftName)
-                                         : draftName)
-                                    Image(systemName: "chevron.up.chevron.down")
-                                        .font(.caption)
-                                }
-                                .foregroundColor(.primary)
                             }
+                            if !savedConnections.isEmpty { Divider() }
+                            Button("New Server") {
+                                selectNewConnection()
+                            }
+                        } label: {
+                            Image(systemName: "chevron.up.chevron.down")
+                                .foregroundColor(.secondary)
                         }
                     }
-                }
-
-                Section(header: Text("BHNM Server")) {
-                    TextField("Connection Name", text: $draftName)
-                        .autocapitalization(.none)
 
                     TextField("Base URL", text: $draftBaseURL)
                         .autocapitalization(.none)
@@ -84,27 +70,21 @@ struct SettingsView: View {
                         Button {
                             Task { await testConnection() }
                         } label: {
-                            HStack {
-                                if isTesting {
-                                    ProgressView().padding(.trailing, 6)
-                                    Text("Testing…")
-                                } else {
-                                    Text("Test Connection")
-                                }
+                            HStack(spacing: 6) {
+                                if isTesting { ProgressView() }
+                                Text(isTesting ? "Testing…" : "Test Connection")
                             }
                             .frame(maxWidth: .infinity)
                         }
                         .disabled(draftBaseURL.isEmpty || draftApiKey.isEmpty || draftName.isEmpty || isTesting)
 
-                        if activeSavedID != nil {
-                            Divider().frame(height: 44)
-                            Button(role: .destructive) {
-                                showingDeleteConfirmation = true
-                            } label: {
-                                Image(systemName: "trash")
-                                    .padding(.horizontal, 16)
-                            }
+                        Divider().frame(height: 44)
+
+                        Button("Delete", role: .destructive) {
+                            showingDeleteConfirmation = true
                         }
+                        .frame(maxWidth: .infinity)
+                        .disabled(activeSavedID == nil)
                     }
                 }
 
@@ -338,7 +318,7 @@ struct SettingsView: View {
     }
 
     private func selectNewConnection() {
-        draftName    = "New BHNM Connection"
+        draftName    = "New Server"
         draftBaseURL = ""
         draftApiKey  = ""
         draftPin     = ""
