@@ -1,19 +1,56 @@
 import Foundation
 
+// MARK: - TimeFrame
+
+enum TimeFrame: String, CaseIterable {
+    case lastHour    = "Last Hour"
+    case last2Hours  = "Last 2 Hours"
+    case last5Hours  = "Last 5 Hours"
+    case last24Hours = "Last 24 Hours"
+
+    var displayName: String {
+        switch self {
+        case .lastHour:    return "1h"
+        case .last2Hours:  return "2h"
+        case .last5Hours:  return "5h"
+        case .last24Hours: return "24h"
+        }
+    }
+}
+
+// MARK: - MetricCardState
+
+struct MetricCardState {
+    let instance: PerformanceInstance
+    var isExpanded: Bool = false
+    var isLoading: Bool = false
+    var hasBeenFetched: Bool = false
+    var data: [PerformanceDataPoint] = []
+    var selectedTimeFrame: TimeFrame = .last24Hours
+    var error: String? = nil
+
+    var current: Double? { data.last?.value }
+    var average: Double? {
+        guard !data.isEmpty else { return nil }
+        return data.map(\.value).reduce(0, +) / Double(data.count)
+    }
+    var max: Double? { data.map(\.value).max() }
+}
+
+// MARK: - DeviceDetailViewModel
+
 @MainActor
 class DeviceDetailViewModel: ObservableObject {
     @Published var incidents: [NetreoIncident] = []
-    @Published var cpuMetrics: [PerformanceMetric] = []
-    @Published var memoryMetrics: [PerformanceMetric] = []
-    @Published var diskMetrics: [PerformanceMetric] = []
-    @Published var interfaceMetrics: [PerformanceMetric] = []
     @Published var isLoadingIncidents = true
-    @Published var isLoadingPerformance = true
-    @Published var isLoadingInterfaces = true
     @Published var incidentsError: String?
-    @Published var performanceError: String?
-    @Published var interfacesError: String?
 
+    @Published var categories: [PerformanceCategory] = []
+    @Published var cardStates: [String: MetricCardState] = [:]
+    @Published var isLoadingCategories = false
+    @Published var categoriesError: String?
+
+    private var devIndex: String?
     private let apiService: NetreoAPIService
     let device: NetreoDevice
 
@@ -25,12 +62,13 @@ class DeviceDetailViewModel: ObservableObject {
     func load() async {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.loadIncidents() }
-            group.addTask { await self.loadPerformance() }
-            group.addTask { await self.loadInterfaces() }
+            group.addTask { await self.loadPerformanceStructure() }
         }
     }
 
-    @MainActor private func loadIncidents() async {
+    // MARK: - Incidents
+
+    private func loadIncidents() async {
         isLoadingIncidents = true
         incidentsError = nil
         do {
@@ -42,7 +80,8 @@ class DeviceDetailViewModel: ObservableObject {
                 return incName.caseInsensitiveCompare(deviceName) == .orderedSame
                     || incName.caseInsensitiveCompare(device.ip)  == .orderedSame
                     || incIP   == device.ip
-                    || incName.lowercased().components(separatedBy: ".").first == deviceName.lowercased().components(separatedBy: ".").first
+                    || incName.lowercased().components(separatedBy: ".").first
+                       == deviceName.lowercased().components(separatedBy: ".").first
             }
         } catch {
             incidentsError = error.localizedDescription
@@ -50,41 +89,103 @@ class DeviceDetailViewModel: ObservableObject {
         isLoadingIncidents = false
     }
 
-    @MainActor private func loadPerformance() async {
-        isLoadingPerformance = true
-        performanceError = nil
+    // MARK: - Performance Structure
+
+    private func loadPerformanceStructure() async {
+        isLoadingCategories = true
+        categoriesError = nil
         let name = device.name ?? device.ip
-        do {
-            async let cpu  = apiService.fetchPerformanceMetrics(deviceName: name, statGroup: "cpu",    units: "%")
-            async let mem  = apiService.fetchPerformanceMetrics(deviceName: name, statGroup: "memory", units: "%")
-            async let disk = apiService.fetchPerformanceMetrics(deviceName: name, statGroup: "disk",   units: "%")
-            let (c, m, d) = try await (cpu, mem, disk)
-            cpuMetrics    = deduplicated(c)
-            memoryMetrics = deduplicated(m)
-            diskMetrics   = deduplicated(d)
-        } catch {
-            performanceError = error.localizedDescription
+
+        guard let index = try? await apiService.findDeviceIndex(name: name) else {
+            categoriesError = "Could not resolve device index for \"\(name)\""
+            isLoadingCategories = false
+            return
         }
-        isLoadingPerformance = false
+        devIndex = index
+
+        guard let cats = try? await apiService.fetchPerformanceCategories(deviceId: index),
+              !cats.isEmpty else {
+            categoriesError = "No performance categories found"
+            isLoadingCategories = false
+            return
+        }
+        categories = cats
+
+        var allInstances: [PerformanceInstance] = []
+        await withTaskGroup(of: [PerformanceInstance].self) { group in
+            for cat in cats {
+                group.addTask {
+                    (try? await self.apiService.fetchPerformanceInstances(deviceId: index, category: cat)) ?? []
+                }
+            }
+            for await instances in group {
+                allInstances.append(contentsOf: instances)
+            }
+        }
+
+        var states: [String: MetricCardState] = [:]
+        for instance in allInstances {
+            states[instance.key] = MetricCardState(instance: instance)
+        }
+        cardStates = states
+        isLoadingCategories = false
+
+        // Auto-load Latency instances
+        let latencyInstances = allInstances.filter { instance in
+            cats.first(where: { $0.id == instance.categoryId })?.name.lowercased().contains("latency") == true
+        }
+        for instance in latencyInstances {
+            Task { await self.tapCard(instanceKey: instance.key) }
+        }
     }
 
-    @MainActor private func loadInterfaces() async {
-        isLoadingInterfaces = true
-        interfacesError = nil
+    // MARK: - Card Interactions
+
+    func tapCard(instanceKey: String) async {
+        guard let state = cardStates[instanceKey] else { return }
+        guard !state.isLoading else { return }
+
+        if state.hasBeenFetched {
+            cardStates[instanceKey]?.isExpanded.toggle()
+            return
+        }
+
+        cardStates[instanceKey]?.isLoading = true
         let name = device.name ?? device.ip
         do {
-            let metrics = try await apiService.fetchPerformanceMetrics(
-                deviceName: name, statGroup: "interface", units: "bps"
+            let data = try await apiService.fetchTimeSeries(
+                deviceName: name,
+                instance: state.instance,
+                timeFrame: state.selectedTimeFrame
             )
-            interfaceMetrics = deduplicated(metrics)
+            cardStates[instanceKey]?.data = data
+            cardStates[instanceKey]?.hasBeenFetched = true
+            cardStates[instanceKey]?.isExpanded = true
+            cardStates[instanceKey]?.isLoading = false
         } catch {
-            interfacesError = error.localizedDescription
+            cardStates[instanceKey]?.error = error.localizedDescription
+            cardStates[instanceKey]?.hasBeenFetched = true
+            cardStates[instanceKey]?.isLoading = false
         }
-        isLoadingInterfaces = false
     }
 
-    private func deduplicated(_ metrics: [PerformanceMetric]) -> [PerformanceMetric] {
-        var seen = Set<String>()
-        return metrics.filter { seen.insert($0.instanceDescr).inserted }
+    func changeTimeFrame(_ tf: TimeFrame, instanceKey: String) async {
+        guard let state = cardStates[instanceKey], !state.isLoading else { return }
+        cardStates[instanceKey]?.selectedTimeFrame = tf
+        cardStates[instanceKey]?.isLoading = true
+        let name = device.name ?? device.ip
+        do {
+            let newData = try await apiService.fetchTimeSeries(
+                deviceName: name,
+                instance: state.instance,
+                timeFrame: tf
+            )
+            cardStates[instanceKey]?.data = newData
+            cardStates[instanceKey]?.error = nil
+            cardStates[instanceKey]?.isLoading = false
+        } catch {
+            cardStates[instanceKey]?.error = error.localizedDescription
+            cardStates[instanceKey]?.isLoading = false
+        }
     }
 }

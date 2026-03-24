@@ -203,6 +203,44 @@ class NetreoAPIService: ObservableObject {
         return instances
     }
 
+    func fetchTimeSeries(
+        deviceName: String,
+        instance: PerformanceInstance,
+        timeFrame: TimeFrame
+    ) async throws -> [PerformanceDataPoint] {
+        let urlString = "\(configuration.baseURL)/fw/index.php?r=restful/devices/get-time-series-metrics"
+        guard let url = URL(string: urlString) else { return [] }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var params = [
+            URLQueryItem(name: "password",               value: configuration.apiKey),
+            URLQueryItem(name: "groupFilterBy",          value: "device"),
+            URLQueryItem(name: "groupFilterValue",       value: deviceName),
+            URLQueryItem(name: "metricFilterStatGroup",  value: instance.statGroup),
+            URLQueryItem(name: "metricFilterUnits",      value: instance.unit),
+            URLQueryItem(name: "timeFrameFilterBy",      value: "time_offset"),
+            URLQueryItem(name: "timeFrameFilterValue",   value: timeFrame.rawValue),
+            URLQueryItem(name: "returnFormatFilterBy",   value: "average"),
+        ]
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
+        let (data, _) = try await urlSession.data(for: request)
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let metrics = json["metrics"] as? [[String: Any]] else { return [] }
+        return metrics.compactMap { dict -> PerformanceDataPoint? in
+            guard let tsString = dict["timeStamp"] as? String,
+                  let ts = Double(tsString) else { return nil }
+            let rawValue = dict[instance.valueKey]
+            let value: Double?
+            if let s = rawValue as? String { value = Double(s) }
+            else if let d = rawValue as? Double { value = d }
+            else { value = nil }
+            guard let v = value else { return nil }
+            return PerformanceDataPoint(timestamp: Date(timeIntervalSince1970: ts), value: v)
+        }
+    }
+
     func fetchPerformanceMetrics(
         deviceName: String,
         statGroup: String,
