@@ -12,8 +12,7 @@ final class DeepLinkHandler: ObservableObject {
     }
 
     @Published var pendingImport: PendingImport? = nil
-    @Published var showImportError = false
-    private(set) var importErrorMessage = ""
+    @Published var importError: String? = nil
 
     // MARK: - Public API
 
@@ -33,6 +32,11 @@ final class DeepLinkHandler: ObservableObject {
         guard let server = param("server"), !server.isEmpty,
               let encryptedKey = param("api_key"), !encryptedKey.isEmpty else {
             fail("The link is missing required fields.")
+            return
+        }
+
+        guard server.hasPrefix("http://") || server.hasPrefix("https://") else {
+            fail("The link contains an invalid server URL.")
             return
         }
 
@@ -103,8 +107,7 @@ final class DeepLinkHandler: ObservableObject {
     // MARK: - Private
 
     private func fail(_ message: String) {
-        importErrorMessage = message
-        showImportError = true
+        importError = message
     }
 
     private func loadKey() throws -> SymmetricKey {
