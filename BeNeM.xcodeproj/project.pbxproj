@@ -32,6 +32,7 @@
 		BB0001000000000000000009 /* NetworkDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000100000000000000000A /* NetworkDiscovery.swift */; };
 		BB000100000000000000000B /* AutoDiscoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000100000000000000000C /* AutoDiscoveryView.swift */; };
 		BB000100000000000000000D /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000100000000000000000E /* SplashView.swift */; };
+		CC0001000000000000000001 /* DeviceDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0001000000000000000002 /* DeviceDetailViewModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -61,6 +62,7 @@
 		BB000100000000000000000A /* NetworkDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkDiscovery.swift; sourceTree = "<group>"; };
 		BB000100000000000000000C /* AutoDiscoveryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoDiscoveryView.swift; sourceTree = "<group>"; };
 		BB000100000000000000000E /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
+		CC0001000000000000000002 /* DeviceDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDetailViewModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -132,6 +134,7 @@
 				8C62812A2E64D3C700522D09 /* IncidentListViewModel.swift */,
 				A11234567890008B /* DeviceListViewModel.swift */,
 				BB0001000000000000000004 /* TacticalViewModel.swift */,
+				CC0001000000000000000002 /* DeviceDetailViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -238,6 +241,7 @@
 				8C62812C2E64D59000522D09 /* NetreoAPIService.swift in Sources */,
 				8C6281332E64D6B600522D09 /* SettingsView.swift in Sources */,
 				8C62812B2E64D3C700522D09 /* IncidentListViewModel.swift in Sources */,
+				CC0001000000000000000001 /* DeviceDetailViewModel.swift in Sources */,
 				8C6281312E64D68E00522D09 /* DeviceListView.swift in Sources */,
 				8C6281302E64D67D00522D09 /* ContentView.swift in Sources */,
 				8C6281282E64CF6D00522D09 /* DashboardView.swift in Sources */,
@@ -392,6 +396,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BeNeM/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BHNM;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -417,6 +422,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BeNeM/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BHNM;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
