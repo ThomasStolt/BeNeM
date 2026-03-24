@@ -7,6 +7,25 @@ struct PerformanceMetric {
     let value2: Double?   // secondary value where applicable (e.g. bytes total)
 }
 
+struct PerformanceCategory {
+    let id: String
+    let name: String
+}
+
+struct PerformanceInstance {
+    let key: String        // unique; interface instances are suffixed "-in" or "-out"
+    let title: String
+    let unit: String
+    let statGroup: String  // value passed to metricFilterStatGroup
+    let categoryId: String
+    let valueKey: String   // "value1" or "value2" (outbound interface)
+}
+
+struct PerformanceDataPoint {
+    let timestamp: Date
+    let value: Double
+}
+
 class NetreoAPIService: ObservableObject {
     private let configuration: NetreoAPIConfiguration
     private let urlSession: URLSession
