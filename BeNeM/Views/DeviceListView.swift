@@ -5,6 +5,7 @@ struct DeviceListView: View {
     @State private var showingAddDevice = false
     @State private var connectionStatus: ConnectionStatus = .unknown
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
+    @AppStorage("maxDevicesCount") private var maxDevicesCount: Int = 20
     private let apiService: NetreoAPIService
 
     init(apiService: NetreoAPIService) {
@@ -26,7 +27,7 @@ struct DeviceListView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     ConnectionBadgeButton(status: connectionStatus) {
-                        Task { await viewModel.loadDevices() }
+                        Task { await viewModel.loadDevices(limit: maxDevicesCount) }
                     }
                 }
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -40,14 +41,14 @@ struct DeviceListView: View {
                     AutoRefreshButton(
                         interval: refreshInterval,
                         isLoading: viewModel.isLoading,
-                        action: viewModel.loadDevices
+                        action: { await viewModel.loadDevices(limit: maxDevicesCount) }
                     )
                 }
             }
             .sheet(isPresented: $showingAddDevice) {
                 AddDeviceView(viewModel: viewModel)
             }
-            .refreshable { await viewModel.loadDevices() }
+            .refreshable { await viewModel.loadDevices(limit: maxDevicesCount) }
             .overlay {
                 if viewModel.isLoading && viewModel.devices.isEmpty {
                     ProgressView("Loading devices...")
@@ -65,16 +66,19 @@ struct DeviceListView: View {
                     connectionStatus = viewModel.errorMessage == nil ? .connected : .disconnected
                 }
             }
+            .onChange(of: maxDevicesCount) { newLimit in
+                Task { await viewModel.loadDevices(limit: newLimit) }
+            }
             .task(id: connectionStatus) {
                 guard connectionStatus == .disconnected else { return }
                 try? await Task.sleep(nanoseconds: 15_000_000_000)
                 guard !Task.isCancelled, connectionStatus == .disconnected else { return }
-                Task { await viewModel.loadDevices() }
+                Task { await viewModel.loadDevices(limit: maxDevicesCount) }
             }
         }
         .task {
             connectionStatus = .checking
-            await viewModel.loadDevices()
+            await viewModel.loadDevices(limit: maxDevicesCount)
         }
     }
 }
