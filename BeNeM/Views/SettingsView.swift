@@ -76,6 +76,7 @@ struct SettingsView: View {
                             }
                             .frame(maxWidth: .infinity)
                         }
+                        .buttonStyle(.borderless)
                         .disabled(draftBaseURL.isEmpty || draftApiKey.isEmpty || draftName.isEmpty || isTesting)
 
                         Divider().frame(height: 44)
@@ -84,6 +85,7 @@ struct SettingsView: View {
                             showingDeleteConfirmation = true
                         }
                         .frame(maxWidth: .infinity)
+                        .buttonStyle(.borderless)
                         .disabled(activeSavedID == nil)
                     }
                 }
