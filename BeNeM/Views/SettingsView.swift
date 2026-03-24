@@ -16,18 +16,14 @@ struct SettingsView: View {
     @State private var draftApiKey = ""
     @State private var draftPin = ""
     @State private var draftAckUser = ""
+    @State private var draftName = "New BHNM Connection"
+    @State private var activeSavedID: UUID? = nil
+    @State private var savedConnections: [SavedConnection] = []
 
     @State private var isTesting = false
     @State private var alertTitle = ""
     @State private var alertMessage = ""
     @State private var showingAlert = false
-
-    private var hasUnsavedChanges: Bool {
-        draftBaseURL != baseURL ||
-        draftApiKey != apiKey ||
-        draftPin != pin ||
-        draftAckUser != ackUser
-    }
 
     var body: some View {
         NavigationView {
@@ -38,7 +34,40 @@ struct SettingsView: View {
                     }
                 }
 
+                if savedConnections.count >= 2 {
+                    Section(header: Text("Connection")) {
+                        HStack {
+                            Text("Server")
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Menu {
+                                ForEach(savedConnections) { connection in
+                                    Button(connection.name) {
+                                        // TODO Task 6: selectConnection(connection)
+                                    }
+                                }
+                                Divider()
+                                Button("+ New Connection") {
+                                    // TODO Task 6: selectNewConnection()
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Text(activeSavedID != nil
+                                         ? (savedConnections.first(where: { $0.id == activeSavedID })?.name ?? draftName)
+                                         : draftName)
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.caption)
+                                }
+                                .foregroundColor(.primary)
+                            }
+                        }
+                    }
+                }
+
                 Section(header: Text("BHNM Server")) {
+                    TextField("Connection Name", text: $draftName)
+                        .autocapitalization(.none)
+
                     TextField("Base URL", text: $draftBaseURL)
                         .autocapitalization(.none)
                         .keyboardType(.URL)
@@ -50,20 +79,32 @@ struct SettingsView: View {
                     TextField("ACK User", text: $draftAckUser)
                         .autocapitalization(.none)
 
-                    Button {
-                        Task { await testConnection() }
-                    } label: {
-                        HStack {
-                            if isTesting {
-                                ProgressView()
-                                    .padding(.trailing, 6)
-                                Text("Testing…")
-                            } else {
-                                Text("Test Connection")
+                    HStack(spacing: 0) {
+                        Button {
+                            Task { await testConnection() }
+                        } label: {
+                            HStack {
+                                if isTesting {
+                                    ProgressView().padding(.trailing, 6)
+                                    Text("Testing…")
+                                } else {
+                                    Text("Test Connection")
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .disabled(draftBaseURL.isEmpty || draftApiKey.isEmpty || draftName.isEmpty || isTesting)
+
+                        if activeSavedID != nil {
+                            Divider().frame(height: 44)
+                            Button(role: .destructive) {
+                                // TODO Task 7: showDeleteConfirmation()
+                            } label: {
+                                Image(systemName: "trash")
+                                    .padding(.horizontal, 16)
                             }
                         }
                     }
-                    .disabled(draftBaseURL.isEmpty || draftApiKey.isEmpty || isTesting)
                 }
 
                 Section(header: Text("Refresh")) {
@@ -133,17 +174,6 @@ struct SettingsView: View {
                 draftAckUser = ackUser
             }
             .toolbar {
-                if hasUnsavedChanges {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Save") {
-                            baseURL = draftBaseURL
-                            apiKey = draftApiKey
-                            pin = draftPin
-                            ackUser = draftAckUser
-                        }
-                        .fontWeight(.semibold)
-                    }
-                }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
                     Button("Done") {
