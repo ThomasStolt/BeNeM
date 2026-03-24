@@ -17,7 +17,8 @@ struct SettingsView: View {
     @State private var draftPin = ""
     @State private var draftAckUser = ""
     @State private var draftName = "New Server"
-    @State private var activeSavedID: UUID? = nil
+    @AppStorage("netreo_active_connection_id") private var activeSavedConnectionID: String = ""
+    private var activeSavedUUID: UUID? { UUID(uuidString: activeSavedConnectionID) }
     @State private var savedConnections: [SavedConnection] = []
 
     private enum Field: Hashable { case name, baseURL, apiKey, pin, ackUser }
@@ -48,7 +49,7 @@ struct SettingsView: View {
                                 Button {
                                     selectConnection(connection)
                                 } label: {
-                                    if connection.id == activeSavedID {
+                                    if connection.id.uuidString == activeSavedConnectionID {
                                         Label(connection.name, systemImage: "checkmark")
                                     } else {
                                         Text(connection.name)
@@ -105,7 +106,7 @@ struct SettingsView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderless)
-                        .disabled(activeSavedID == nil)
+                        .disabled(activeSavedConnectionID.isEmpty)
                     }
                 }
 
@@ -173,14 +174,8 @@ struct SettingsView: View {
                 draftApiKey  = apiKey
                 draftPin     = pin
                 draftAckUser = ackUser
-                // Find which saved connection matches current @AppStorage credentials
-                if let match = savedConnections.first(where: {
-                    $0.baseURL == baseURL &&
-                    $0.apiKey  == apiKey  &&
-                    $0.pin     == pin     &&
-                    $0.ackUser == ackUser
-                }) {
-                    activeSavedID = match.id
+                // Restore display name from persisted active connection ID
+                if let match = savedConnections.first(where: { $0.id.uuidString == activeSavedConnectionID }) {
                     draftName = match.name
                 }
             }
@@ -192,6 +187,16 @@ struct SettingsView: View {
                     } label: {
                         Image(systemName: "keyboard.chevron.compact.down")
                     }
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .deepLinkConnectionApplied)) { _ in
+                savedConnections = UserDefaults.standard.loadSavedConnections()
+                draftBaseURL = baseURL
+                draftApiKey  = apiKey
+                draftPin     = pin
+                draftAckUser = ackUser
+                if let match = savedConnections.first(where: { $0.id.uuidString == activeSavedConnectionID }) {
+                    draftName = match.name
                 }
             }
         }
@@ -256,7 +261,7 @@ struct SettingsView: View {
                     // Upsert into savedConnections
                     let trimmedName = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
                     let now = SavedConnection(
-                        id: activeSavedID ?? UUID(),
+                        id: activeSavedUUID ?? UUID(),
                         name: trimmedName.isEmpty ? "Unnamed" : trimmedName,
                         baseURL: draftBaseURL.trimmingCharacters(in: .whitespacesAndNewlines),
                         apiKey: draftApiKey,
@@ -269,7 +274,7 @@ struct SettingsView: View {
                         savedConnections.append(now)
                     }
                     UserDefaults.standard.saveSavedConnections(savedConnections)
-                    activeSavedID = now.id
+                    activeSavedConnectionID = now.id.uuidString
 
                     // Write to @AppStorage (triggers ContentView.updateAPIService via onChange)
                     baseURL  = now.baseURL
@@ -327,7 +332,7 @@ struct SettingsView: View {
         draftApiKey  = connection.apiKey
         draftPin     = connection.pin
         draftAckUser = connection.ackUser
-        activeSavedID = connection.id
+        activeSavedConnectionID = connection.id.uuidString
         Task { await testConnection() }
     }
 
@@ -337,14 +342,14 @@ struct SettingsView: View {
         draftApiKey  = ""
         draftPin     = ""
         draftAckUser = ""
-        activeSavedID = nil
+        activeSavedConnectionID = ""
     }
 
     private func deleteActiveConnection() {
-        guard let id = activeSavedID else { return }
+        guard let id = activeSavedUUID else { return }
         savedConnections.removeAll { $0.id == id }
         UserDefaults.standard.saveSavedConnections(savedConnections)
-        activeSavedID = nil
+        activeSavedConnectionID = ""
         // Clear all draft fields — user must pick or configure a new connection.
         draftName    = "New Server"
         draftBaseURL = ""
