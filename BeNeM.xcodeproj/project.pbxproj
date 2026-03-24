@@ -35,6 +35,8 @@
 		CC0001000000000000000001 /* DeviceDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0001000000000000000002 /* DeviceDetailViewModel.swift */; };
 		DD0001000000000000000001 /* DeviceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0001000000000000000002 /* DeviceDetailView.swift */; };
 		EE0001000000000000000001 /* SavedConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0001000000000000000002 /* SavedConnection.swift */; };
+		FF0001000000000000000001 /* Data+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0001000000000000000002 /* Data+Hex.swift */; };
+		FF0001000000000000000003 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0001000000000000000004 /* Secrets.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -67,6 +69,8 @@
 		CC0001000000000000000002 /* DeviceDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDetailViewModel.swift; sourceTree = "<group>"; };
 		DD0001000000000000000002 /* DeviceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDetailView.swift; sourceTree = "<group>"; };
 		EE0001000000000000000002 /* SavedConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedConnection.swift; sourceTree = "<group>"; };
+		FF0001000000000000000002 /* Data+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Data+Hex.swift"; sourceTree = "<group>"; };
+		FF0001000000000000000004 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -93,14 +97,24 @@
 			children = (
 				A11234567890001B /* BeNeMApp.swift */,
 				A11234567890002B /* ContentView.swift */,
+				FF0001000000000000000004 /* Secrets.swift */,
 				A11234567890000F /* Models */,
 				A11234567890000G /* Services */,
 				A11234567890000H /* ViewModels */,
 				A11234567890000I /* Views */,
+				FF0001000000000000000005 /* Extensions */,
 				A11234567890003B /* Assets.xcassets */,
 				A11234567890000J /* Preview Content */,
 			);
 			path = BeNeM;
+			sourceTree = "<group>";
+		};
+		FF0001000000000000000005 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				FF0001000000000000000002 /* Data+Hex.swift */,
+			);
+			path = Extensions;
 			sourceTree = "<group>";
 		};
 		A11234567890000E /* Products */ = {
@@ -267,6 +281,8 @@
 				BB000100000000000000000D /* SplashView.swift in Sources */,
 				DD0001000000000000000001 /* DeviceDetailView.swift in Sources */,
 				EE0001000000000000000001 /* SavedConnection.swift in Sources */,
+				FF0001000000000000000001 /* Data+Hex.swift in Sources */,
+				FF0001000000000000000003 /* Secrets.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
