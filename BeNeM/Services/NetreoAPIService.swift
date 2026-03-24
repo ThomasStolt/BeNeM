@@ -107,6 +107,102 @@ class NetreoAPIService: ObservableObject {
         return devicesArray.compactMap { parseRESTfulDevice(from: $0) }
     }
 
+    func findDeviceIndex(name: String) async throws -> String? {
+        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/find") else { return nil }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var params = [
+            URLQueryItem(name: "password", value: configuration.apiKey),
+            URLQueryItem(name: "name",     value: name),
+        ]
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
+        let (data, _) = try await urlSession.data(for: request)
+        guard let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+              let first = arr.first else { return nil }
+        return first["dev_index"] as? String
+    }
+
+    func fetchPerformanceCategories(deviceId: String) async throws -> [PerformanceCategory] {
+        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/performance-category") else { return [] }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var params = [
+            URLQueryItem(name: "password",   value: configuration.apiKey),
+            URLQueryItem(name: "device_id",  value: deviceId),
+        ]
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
+        let (data, _) = try await urlSession.data(for: request)
+        guard let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+        return arr.compactMap { dict -> PerformanceCategory? in
+            let rawId = (dict["id"] as? String) ?? (dict["id"] as? Int).map(String.init)
+            guard let id = rawId else { return nil }
+            let name = (dict["category"] as? String) ?? (dict["cat"] as? String) ?? ""
+            guard !name.isEmpty else { return nil }
+            return PerformanceCategory(id: id, name: name)
+        }
+    }
+
+    func fetchPerformanceInstances(deviceId: String, category: PerformanceCategory) async throws -> [PerformanceInstance] {
+        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/performance-instance-per-category") else { return [] }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var params = [
+            URLQueryItem(name: "password",  value: configuration.apiKey),
+            URLQueryItem(name: "device_id", value: deviceId),
+            URLQueryItem(name: "id",        value: category.id),
+        ]
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
+        let (data, _) = try await urlSession.data(for: request)
+        guard let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+
+        var instances: [PerformanceInstance] = []
+        for dict in arr {
+            let rawKey = (dict["key"] as? String) ?? (dict["key"] as? Int).map(String.init) ?? ""
+            let type_ = dict["type"] as? String ?? ""
+
+            if type_ == "interface" {
+                // Interface entries produce two instances: inbound and outbound
+                // The "-in"/"-out" suffix is REQUIRED to ensure cardStates dictionary keys are unique
+                let description = dict["description"] as? String ?? rawKey
+                let bwUnit = (dict["bandwidth"] as? [String: Any])?["unit"] as? String ?? "%"
+                instances.append(PerformanceInstance(
+                    key: "\(rawKey)-in",
+                    title: "\(description) — In",
+                    unit: bwUnit,
+                    statGroup: category.name,
+                    categoryId: category.id,
+                    valueKey: "value1"
+                ))
+                instances.append(PerformanceInstance(
+                    key: "\(rawKey)-out",
+                    title: "\(description) — Out",
+                    unit: bwUnit,
+                    statGroup: category.name,
+                    categoryId: category.id,
+                    valueKey: "value2"
+                ))
+            } else {
+                let title = dict["title"] as? String ?? rawKey
+                let unit  = dict["unit"]  as? String ?? ""
+                instances.append(PerformanceInstance(
+                    key: rawKey,
+                    title: title,
+                    unit: unit,
+                    statGroup: category.name,
+                    categoryId: category.id,
+                    valueKey: "value1"
+                ))
+            }
+        }
+        return instances
+    }
+
     func fetchPerformanceMetrics(
         deviceName: String,
         statGroup: String,
