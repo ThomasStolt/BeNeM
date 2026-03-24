@@ -6,23 +6,41 @@ class DeviceListViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
 
-    private let apiService: NetreoAPIService
-    private var currentLimit: Int = 20
-    
+    @Published var hasMore = false
+    @Published var isLoadingMore = false
+
+    private var apiService: NetreoAPIService
+    private var currentLimit: Int? = nil
+
     init(apiService: NetreoAPIService) {
         self.apiService = apiService
     }
-    
+
     func loadDevices(limit: Int? = nil) async {
         if let limit { currentLimit = limit }
         isLoading = true
         errorMessage = nil
         do {
-            devices = try await apiService.fetchDevicesPage(limit: currentLimit)
+            let page = try await apiService.fetchDevicesPage(limit: currentLimit, offset: 0)
+            devices = page
+            hasMore = currentLimit.map { page.count >= $0 } ?? false
         } catch {
             errorMessage = error.localizedDescription
         }
         isLoading = false
+    }
+
+    func loadMoreDevices() async {
+        guard let limit = currentLimit, hasMore, !isLoadingMore else { return }
+        isLoadingMore = true
+        do {
+            let page = try await apiService.fetchDevicesPage(limit: limit, offset: devices.count)
+            devices.append(contentsOf: page)
+            hasMore = page.count >= limit
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isLoadingMore = false
     }
     
     func addDevice(ip: String, snmpPublic: String, name: String? = nil) async {
@@ -50,7 +68,12 @@ class DeviceListViewModel: ObservableObject {
             errorMessage = error.localizedDescription
         }
     }
-    
+
+    func updateAPIService(_ newService: NetreoAPIService) {
+        apiService = newService
+        Task { await loadDevices(limit: currentLimit) }
+    }
+
     func renameDevice(_ device: NetreoDevice, newName: String) async {
         do {
             let success = try await apiService.renameDevice(identifier: device.ip, newName: newName)

@@ -12,7 +12,7 @@ class TacticalViewModel: ObservableObject {
         return groups.filter { $0.hostsBlue + $0.hostsYellow + $0.hostsOrange + $0.hostsRed > 0 }
     }
 
-    private let apiService: NetreoAPIService
+    private var apiService: NetreoAPIService
     private let type: GroupType
 
     enum GroupType {
@@ -38,6 +38,11 @@ class TacticalViewModel: ObservableObject {
             errorMessage = error.localizedDescription
         }
         isLoading = false
+    }
+
+    func updateAPIService(_ newService: NetreoAPIService) {
+        apiService = newService
+        Task { await load() }
     }
 
     func loadWith(preloadedDevices: [NetreoDevice], preloadedIncidents: [NetreoIncident]) async {
