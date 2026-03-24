@@ -51,6 +51,21 @@ struct SettingsView: View {
 
                     TextField("ACK User", text: $draftAckUser)
                         .autocapitalization(.none)
+
+                    Button {
+                        Task { await testConnection() }
+                    } label: {
+                        HStack {
+                            if isTesting {
+                                ProgressView()
+                                    .padding(.trailing, 6)
+                                Text("Testing…")
+                            } else {
+                                Text("Test Connection")
+                            }
+                        }
+                    }
+                    .disabled(draftBaseURL.isEmpty || draftApiKey.isEmpty || isTesting)
                 }
 
                 Section(header: Text("Refresh")) {
@@ -80,23 +95,6 @@ struct SettingsView: View {
                         Text("Retry Count: \(Int(retryCount))")
                         Slider(value: $retryCount, in: 1...10, step: 1)
                     }
-                }
-
-                Section(header: Text("Connection Test")) {
-                    Button {
-                        Task { await testConnection() }
-                    } label: {
-                        HStack {
-                            if isTesting {
-                                ProgressView()
-                                    .padding(.trailing, 6)
-                                Text("Testing…")
-                            } else {
-                                Text("Test Connection")
-                            }
-                        }
-                    }
-                    .disabled(draftBaseURL.isEmpty || draftApiKey.isEmpty || isTesting)
                 }
 
                 Section(header: Text("Debug: Unmatched Incidents")) {
@@ -170,6 +168,12 @@ struct SettingsView: View {
                             ackUser = draftAckUser
                         }
                         .fontWeight(.semibold)
+                    }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                     }
                 }
             }
