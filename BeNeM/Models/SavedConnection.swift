@@ -19,7 +19,7 @@ extension UserDefaults {
     }
 
     func saveSavedConnections(_ connections: [SavedConnection]) {
-        let data = try? JSONEncoder().encode(connections)
+        guard let data = try? JSONEncoder().encode(connections) else { return }
         set(data, forKey: Self.savedConnectionsKey)
     }
 }
