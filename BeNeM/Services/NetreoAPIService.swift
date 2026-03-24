@@ -64,6 +64,30 @@ class NetreoAPIService: ObservableObject {
         return devicesArray.compactMap { parseRESTfulDevice(from: $0) }
     }
 
+    func fetchDevicesPage(limit: Int) async throws -> [NetreoDevice] {
+        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/list") else { return [] }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var params = [URLQueryItem(name: "password", value: configuration.apiKey)]
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        params.append(URLQueryItem(name: "recordStart", value: "0"))
+        params.append(URLQueryItem(name: "recordCount", value: String(limit)))
+        request.httpBody = formEncodedBody(params)
+        let (data, _) = try await urlSession.data(for: request)
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
+        let devicesArray: [[String: Any]]
+        if let arr = json["devices"] as? [[String: Any]] {
+            devicesArray = arr
+        } else if let nested = json["data"] as? [String: Any],
+                  let arr = nested["devices"] as? [[String: Any]] {
+            devicesArray = arr
+        } else {
+            return []
+        }
+        return devicesArray.compactMap { parseRESTfulDevice(from: $0) }
+    }
+
     func fetchPerformanceMetrics(
         deviceName: String,
         statGroup: String,
@@ -103,6 +127,33 @@ class NetreoAPIService: ObservableObject {
                    ?? dict["value2"] as? Double
             return PerformanceMetric(instanceDescr: descr, value1: v1, value2: v2)
         }
+    }
+
+    /// Fetches metrics for a device with a given stat group filter and stores the raw
+    /// JSON response in UserDefaults for inspection in Settings → Debug.
+    func fetchRawMetricsResponse(deviceName: String, statGroup: String, units: String) async {
+        let urlString = "\(configuration.baseURL)/fw/index.php?r=restful/devices/get-time-series-metrics"
+        guard let url = URL(string: urlString) else { return }
+        var params = [
+            URLQueryItem(name: "password",               value: configuration.apiKey),
+            URLQueryItem(name: "groupFilterBy",          value: "device"),
+            URLQueryItem(name: "groupFilterValue",       value: deviceName),
+            URLQueryItem(name: "timeFrameFilterBy",      value: "time_offset"),
+            URLQueryItem(name: "timeFrameFilterValue",   value: "Last 24 Hours"),
+            URLQueryItem(name: "returnFormatFilterBy",   value: "average"),
+        ]
+        if !statGroup.isEmpty { params.append(URLQueryItem(name: "metricFilterStatGroup", value: statGroup)) }
+        if !units.isEmpty     { params.append(URLQueryItem(name: "metricFilterUnits",     value: units)) }
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = formEncodedBody(params)
+        guard let (data, _) = try? await urlSession.data(for: request),
+              let raw = String(data: data, encoding: .utf8) else { return }
+        // Truncate to 2000 chars to fit reasonably in UserDefaults
+        let truncated = raw.count > 2000 ? String(raw.prefix(2000)) + "…" : raw
+        UserDefaults.standard.set(truncated, forKey: "debug_raw_metrics_response")
     }
 
     private func parseRESTfulDevice(from dict: [String: Any]) -> NetreoDevice? {
