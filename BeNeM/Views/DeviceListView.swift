@@ -5,8 +5,10 @@ struct DeviceListView: View {
     @State private var showingAddDevice = false
     @State private var connectionStatus: ConnectionStatus = .unknown
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
+    private let apiService: NetreoAPIService
 
     init(apiService: NetreoAPIService) {
+        self.apiService = apiService
         _viewModel = StateObject(wrappedValue: DeviceListViewModel(apiService: apiService))
     }
 
@@ -14,13 +16,8 @@ struct DeviceListView: View {
         NavigationView {
             List {
                 ForEach(viewModel.devices) { device in
-                    DeviceRowView(device: device)
-                }
-                .onDelete { indexSet in
-                    Task {
-                        for index in indexSet {
-                            await viewModel.deleteDevice(viewModel.devices[index])
-                        }
+                    NavigationLink(destination: DeviceDetailView(device: device, apiService: apiService)) {
+                        DeviceRowView(device: device)
                     }
                 }
             }
