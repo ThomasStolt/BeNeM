@@ -20,9 +20,6 @@ struct SettingsView: View {
     @State private var alertTitle = ""
     @State private var alertMessage = ""
     @State private var showingAlert = false
-    @State private var debugFields: String? = UserDefaults.standard.string(forKey: "debug_incident_fields")
-    @State private var debugDeviceFields: String? = UserDefaults.standard.string(forKey: "debug_device_fields")
-    @State private var debugUnmatched: String? = UserDefaults.standard.string(forKey: "debug_unmatched_incidents")
 
     private var hasUnsavedChanges: Bool {
         draftBaseURL != baseURL ||
@@ -94,51 +91,6 @@ struct SettingsView: View {
                     VStack(alignment: .leading) {
                         Text("Retry Count: \(Int(retryCount))")
                         Slider(value: $retryCount, in: 1...10, step: 1)
-                    }
-                }
-
-                Section(header: Text("Debug: Unmatched Incidents")) {
-                    if let fields = debugUnmatched {
-                        Text(fields)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
-                    } else {
-                        Text("None — all incident device names matched.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    Button("Refresh") {
-                        debugUnmatched = UserDefaults.standard.string(forKey: "debug_unmatched_incidents")
-                    }
-                }
-
-                Section(header: Text("Debug: Device API Fields")) {
-                    if let fields = debugDeviceFields {
-                        Text(fields)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
-                    } else {
-                        Text("No data yet — open the Dashboard first.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    Button("Refresh") {
-                        debugDeviceFields = UserDefaults.standard.string(forKey: "debug_device_fields")
-                    }
-                }
-
-                Section(header: Text("Debug: Incident API Fields")) {
-                    if let fields = debugFields {
-                        Text(fields)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
-                    } else {
-                        Text("No data yet — open the Incidents tab first.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    Button("Refresh") {
-                        debugFields = UserDefaults.standard.string(forKey: "debug_incident_fields")
                     }
                 }
 
