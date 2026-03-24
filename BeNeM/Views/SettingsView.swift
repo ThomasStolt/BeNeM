@@ -178,8 +178,10 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("Done") {
+                    Button {
                         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
                     }
                 }
             }
@@ -333,15 +335,18 @@ struct SettingsView: View {
         savedConnections.removeAll { $0.id == id }
         UserDefaults.standard.saveSavedConnections(savedConnections)
         activeSavedID = nil
-        // Keep draft fields populated so the user can see what was deleted.
-        if savedConnections.isEmpty {
-            // Clear @AppStorage — ContentView will set apiService = nil → WelcomeView.
-            baseURL  = ""
-            apiKey   = ""
-            pin      = ""
-            ackUser  = ""
-        }
-        // If connections remain, do NOT auto-switch. User picks from the picker.
+        // Clear all draft fields — user must pick or configure a new connection.
+        draftName    = "New Server"
+        draftBaseURL = ""
+        draftApiKey  = ""
+        draftPin     = ""
+        draftAckUser = ""
+        // Clear @AppStorage — disconnects the current service.
+        // If no connections remain, ContentView sets apiService = nil → WelcomeView.
+        baseURL  = ""
+        apiKey   = ""
+        pin      = ""
+        ackUser  = ""
     }
 }
 
