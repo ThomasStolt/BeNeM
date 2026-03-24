@@ -6,8 +6,8 @@ class DeviceDetailViewModel: ObservableObject {
     @Published var cpuMetrics: [PerformanceMetric] = []
     @Published var memoryMetrics: [PerformanceMetric] = []
     @Published var diskMetrics: [PerformanceMetric] = []
-    @Published var isLoadingIncidents = false
-    @Published var isLoadingPerformance = false
+    @Published var isLoadingIncidents = true
+    @Published var isLoadingPerformance = true
     @Published var incidentsError: String?
     @Published var performanceError: String?
 

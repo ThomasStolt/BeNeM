@@ -109,13 +109,17 @@ struct DeviceDetailView: View {
                 HStack { Spacer(); ProgressView(); Spacer() }.padding()
             } else if let err = viewModel.performanceError {
                 Text(err).font(.caption).foregroundColor(.secondary).padding()
+            } else if viewModel.cpuMetrics.isEmpty && viewModel.memoryMetrics.isEmpty && viewModel.diskMetrics.isEmpty {
+                Text("No performance data available")
+                    .font(.subheadline).foregroundColor(.secondary)
+                    .padding()
             } else {
                 VStack(spacing: 12) {
                     if let cpu = viewModel.cpuMetrics.first {
-                        metricRow(label: "CPU", metric: cpu, color: .blue)
+                        metricRow(label: "CPU", metric: cpu)
                     }
                     if let mem = viewModel.memoryMetrics.first {
-                        metricRow(label: "Memory", metric: mem, color: .green)
+                        metricRow(label: "Memory", metric: mem)
                     }
                     if !viewModel.diskMetrics.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
@@ -146,7 +150,7 @@ struct DeviceDetailView: View {
             .padding(.bottom, 4)
     }
 
-    private func metricRow(label: String, metric: PerformanceMetric, color: Color) -> some View {
+    private func metricRow(label: String, metric: PerformanceMetric) -> some View {
         let pct = metric.value1 ?? 0
         return VStack(alignment: .leading, spacing: 4) {
             HStack {
