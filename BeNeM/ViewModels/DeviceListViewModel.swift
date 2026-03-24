@@ -5,23 +5,23 @@ class DeviceListViewModel: ObservableObject {
     @Published var devices: [NetreoDevice] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
-    
+
     private let apiService: NetreoAPIService
+    private var currentLimit: Int = 20
     
     init(apiService: NetreoAPIService) {
         self.apiService = apiService
     }
     
-    func loadDevices() async {
+    func loadDevices(limit: Int? = nil) async {
+        if let limit { currentLimit = limit }
         isLoading = true
         errorMessage = nil
-        
         do {
-            devices = try await apiService.fetchDevices()
+            devices = try await apiService.fetchDevicesPage(limit: currentLimit)
         } catch {
             errorMessage = error.localizedDescription
         }
-        
         isLoading = false
     }
     
