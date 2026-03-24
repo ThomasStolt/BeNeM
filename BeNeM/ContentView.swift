@@ -22,9 +22,6 @@ struct ContentView: View {
                     .tag(1)
                 DeviceListView(apiService: service)
                     .tag(2)
-            } else {
-                WelcomeView()
-                    .tag(0)
             }
             SettingsView()
                 .tag(3)
@@ -42,9 +39,12 @@ struct ContentView: View {
         .onChange(of: timeout) { _, _ in updateAPIService() }
         .onChange(of: retryCount) { _, _ in updateAPIService() }
         .onChange(of: apiService == nil) { _, isNil in
-            if isNil && selectedTab != 3 { selectedTab = 0 }
+            if isNil { selectedTab = 3 }
         }
-        .onAppear { updateAPIService() }
+        .onAppear {
+            updateAPIService()
+            if apiService == nil { selectedTab = 3 }
+        }
     }
 
     private func updateAPIService() {
@@ -80,8 +80,7 @@ private struct CustomTabBar: View {
                 tabButton(tag: 2, icon: "network",                       label: "Devices",   color: .blue)
                 tabButton(tag: 3, icon: "gear",                          label: "Settings",  color: Color(.systemGray))
             } else {
-                tabButton(tag: 0, icon: "house", label: "Home",     color: Color(.systemGray))
-                tabButton(tag: 3, icon: "gear",  label: "Settings", color: Color(.systemGray))
+                tabButton(tag: 3, icon: "gear", label: "Settings", color: Color(.systemGray))
             }
         }
         .frame(height: 49)
@@ -121,50 +120,6 @@ private struct CustomTabBar: View {
     }
 }
 
-// MARK: - WelcomeView
-
-struct WelcomeView: View {
-    var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 30) {
-                    VStack(spacing: 20) {
-                        Image(systemName: "network")
-                            .font(.system(size: 80))
-                            .foregroundStyle(.tint)
-
-                        Text("Welcome to BeNeM")
-                            .font(.title)
-                            .fontWeight(.bold)
-
-                        Text("Network Management Client for Netreo")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-
-                    QuickConfigView()
-
-                    VStack(spacing: 12) {
-                        Text("Getting Started:")
-                            .font(.headline)
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label("Enter your Netreo server IP address", systemImage: "1.circle.fill")
-                            Label("Provide your API key from Netreo admin", systemImage: "2.circle.fill")
-                            Label("Test the connection", systemImage: "3.circle.fill")
-                            Label("Start monitoring your network devices", systemImage: "4.circle.fill")
-                        }
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    }
-                }
-                .padding()
-            }
-            .navigationTitle("BeNeM")
-        }
-    }
-}
 
 #Preview {
     ContentView()

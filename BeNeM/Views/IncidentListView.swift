@@ -26,21 +26,12 @@ struct IncidentListView: View {
                     incidentsList
                 }
             }
+            .navigationTitle("Active Incidents")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     ConnectionBadgeButton(status: connectionStatus) {
                         Task { await viewModel.refreshIncidents() }
-                    }
-                }
-                ToolbarItem(placement: .principal) {
-                    HStack(spacing: 6) {
-                        Image("BMCHelixLogo")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 24, height: 24)
-                        Text("Active Incidents")
-                            .font(.system(size: 18, weight: .bold, design: .default))
                     }
                 }
                 ToolbarItemGroup(placement: .navigationBarTrailing) {

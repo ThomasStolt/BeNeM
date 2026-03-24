@@ -36,21 +36,12 @@ struct DeviceListView: View {
                     .listRowSeparator(.hidden)
                 }
             }
+            .navigationTitle("Devices")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     ConnectionBadgeButton(status: connectionStatus) {
                         Task { await viewModel.loadDevices(limit: maxDevicesCount) }
-                    }
-                }
-                ToolbarItem(placement: .principal) {
-                    HStack(spacing: 6) {
-                        Image("BMCHelixLogo")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 24, height: 24)
-                        Text("Devices")
-                            .font(.system(size: 18, weight: .bold))
                     }
                 }
                 ToolbarItemGroup(placement: .navigationBarTrailing) {

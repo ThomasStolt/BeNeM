@@ -2,14 +2,16 @@ import Foundation
 
 @MainActor
 class TacticalViewModel: ObservableObject {
-    @Published var groups: [GroupSummary] = []
+    @Published var groups: [GroupSummary] = [] { didSet { applyFilter() } }
     @Published var isLoading = false
     @Published var errorMessage: String?
-    @Published var showAlarmsOnly = false
+    @Published var showAlarmsOnly = false { didSet { applyFilter() } }
+    @Published var filteredGroups: [GroupSummary] = []
 
-    var filteredGroups: [GroupSummary] {
-        guard showAlarmsOnly else { return groups }
-        return groups.filter { $0.hostsBlue + $0.hostsYellow + $0.hostsOrange + $0.hostsRed > 0 }
+    private func applyFilter() {
+        filteredGroups = showAlarmsOnly
+            ? groups.filter { $0.hostsYellow + $0.hostsOrange + $0.hostsRed > 0 }
+            : groups
     }
 
     private var apiService: NetreoAPIService

@@ -84,6 +84,12 @@ class IncidentListViewModel: ObservableObject {
         activeBadge = (activeBadge == badge) ? nil : badge
     }
 
+    var openIncidents: [NetreoIncident] {
+        incidents
+            .filter { $0.status == .active }
+            .sorted { (Int($0.incidentID) ?? 0) > (Int($1.incidentID) ?? 0) }
+    }
+
     var activeIncidentsCount: Int {
         incidents.filter { $0.status == .active }.count
     }

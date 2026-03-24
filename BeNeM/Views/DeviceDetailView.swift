@@ -13,6 +13,7 @@ struct DeviceDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 deviceHeaderCard(device)
+                latencySection
                 issuesSection
                 performanceSection
             }
@@ -25,31 +26,82 @@ struct DeviceDetailView: View {
     // MARK: - Device Header Card
 
     private func deviceHeaderCard(_ device: NetreoDevice) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                Circle()
-                    .fill(statusColor(device.status))
-                    .frame(width: 14, height: 14)
+        HStack(spacing: 16) {
+            Image(systemName: deviceIcon(for: device))
+                .font(.system(size: 26))
+                .foregroundColor(.accentColor)
+                .frame(width: 52, height: 52)
+                .background(Color(.tertiarySystemGroupedBackground))
+                .cornerRadius(10)
+
+            VStack(alignment: .leading, spacing: 3) {
                 Text(device.name ?? device.ip)
-                    .font(.title2).fontWeight(.semibold)
-                Spacer()
-                StatusBadge(status: device.status)
-            }
-            HStack(spacing: 6) {
+                    .font(.title3).fontWeight(.bold)
                 Text(device.ip)
                     .font(.caption).foregroundColor(.secondary)
                 if let type = device.deviceType, !type.isEmpty {
-                    Text("·").foregroundColor(.secondary).font(.caption)
                     Text(type).font(.caption).foregroundColor(.secondary)
                 }
-                if let site = device.siteID, !site.isEmpty {
-                    Text("·").foregroundColor(.secondary).font(.caption)
-                    Text(site).font(.caption).foregroundColor(.secondary)
+            }
+            Spacer()
+            StatusBadge(status: device.status)
+        }
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(12)
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
+    }
+
+    private func deviceIcon(for device: NetreoDevice) -> String {
+        let type = (device.deviceType ?? "").lowercased()
+        if type.contains("raspberry") { return "cpu" }
+        if type.contains("firewall") { return "shield.lefthalf.filled" }
+        if type.contains("switch") { return "network" }
+        if type.contains("router") { return "network" }
+        if type.contains("server") { return "server.rack" }
+        if type.contains("access point") || type.contains("ap ") { return "wifi.router" }
+        if type.contains("windows") { return "pc" }
+        if type.contains("linux") { return "terminal" }
+        return "desktopcomputer"
+    }
+
+    // MARK: - Latency Section (always expanded, compact)
+
+    private var latencyInstances: [MetricCardState] {
+        viewModel.cardStates.values
+            .filter { state in
+                viewModel.categories
+                    .first(where: { $0.id == state.instance.categoryId })?
+                    .name.lowercased().contains("latency") == true
+            }
+            .sorted { $0.instance.key < $1.instance.key }
+    }
+
+    private var latencySection: some View {
+        Group {
+            if viewModel.isLoadingCategories {
+                EmptyView()
+            } else if !latencyInstances.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    sectionHeader("Round Trip Latency")
+                    VStack(spacing: 0) {
+                        ForEach(latencyInstances, id: \.instance.key) { state in
+                            LatencyCard(
+                                state: Binding(
+                                    get: { viewModel.cardStates[state.instance.key] ?? state },
+                                    set: { viewModel.cardStates[state.instance.key] = $0 }
+                                )
+                            )
+                        }
+                    }
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .cornerRadius(12)
+                    .padding(.horizontal, 16)
                 }
+                .padding(.top, 16)
             }
         }
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
     }
 
     // MARK: - Current Issues
@@ -113,11 +165,14 @@ struct DeviceDetailView: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(viewModel.categories, id: \.id) { category in
-                        let instances = viewModel.cardStates.values
-                            .filter { $0.instance.categoryId == category.id }
-                            .sorted { $0.instance.key < $1.instance.key }
-                        if !instances.isEmpty {
-                            categoryGroup(category: category, instances: instances)
+                        // Skip latency — it's shown in the dedicated section above
+                        if !category.name.lowercased().contains("latency") {
+                            let instances = viewModel.cardStates.values
+                                .filter { $0.instance.categoryId == category.id }
+                                .sorted { $0.instance.key < $1.instance.key }
+                            if !instances.isEmpty {
+                                categoryGroup(category: category, instances: instances)
+                            }
                         }
                     }
                 }
@@ -142,9 +197,6 @@ struct DeviceDetailView: View {
                     ),
                     onTap: {
                         Task { await viewModel.tapCard(instanceKey: state.instance.key) }
-                    },
-                    onTimeFrameChange: { tf in
-                        Task { await viewModel.changeTimeFrame(tf, instanceKey: state.instance.key) }
                     }
                 )
                 Divider().padding(.leading)
@@ -160,6 +212,7 @@ struct DeviceDetailView: View {
             .foregroundColor(.secondary)
             .padding(.horizontal)
             .padding(.bottom, 4)
+            .padding(.top, 16)
     }
 
     private func statusColor(_ status: NetreoDevice.DeviceStatus) -> Color {
@@ -182,12 +235,97 @@ struct DeviceDetailView: View {
     }
 }
 
-// MARK: - MetricCard
+// MARK: - LatencyCard (always expanded, compact)
+
+private struct LatencyCard: View {
+    @Binding var state: MetricCardState
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if state.isLoading {
+                HStack { Spacer(); ProgressView().controlSize(.small); Spacer() }
+                    .padding(.vertical, 16)
+            } else if state.data.isEmpty {
+                Text(state.error != nil ? "Failed to load" : "No data available")
+                    .font(.caption).foregroundColor(.secondary)
+                    .padding()
+            } else {
+                Chart(state.data, id: \.timestamp) { point in
+                    AreaMark(
+                        x: .value("Time", point.timestamp),
+                        y: .value("ms", point.value * 1000)
+                    )
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color.accentColor.opacity(0.3), Color.accentColor.opacity(0)],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    )
+                    .interpolationMethod(.catmullRom)
+                    LineMark(
+                        x: .value("Time", point.timestamp),
+                        y: .value("ms", point.value * 1000)
+                    )
+                    .foregroundStyle(Color.accentColor)
+                    .interpolationMethod(.catmullRom)
+                    .lineStyle(StrokeStyle(lineWidth: 2))
+                }
+                .chartXAxis(.hidden)
+                .chartYAxis {
+                    AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { _ in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
+                            .foregroundStyle(Color.secondary.opacity(0.2))
+                        AxisTick(stroke: StrokeStyle(lineWidth: 1))
+                            .foregroundStyle(Color.secondary.opacity(0.3))
+                        AxisValueLabel()
+                            .foregroundStyle(Color.secondary)
+                            .font(.system(size: 10))
+                    }
+                }
+                .frame(height: 90)
+                .padding(.leading, 4)
+                .padding(.trailing, 12)
+                .padding(.top, 10)
+
+                HStack(spacing: 0) {
+                    statTile(label: "CURRENT", value: formatLatency(state.current))
+                    Divider()
+                    statTile(label: "AVG",     value: formatLatency(state.average))
+                    Divider()
+                    statTile(label: "MAX",     value: formatLatency(state.max))
+                }
+                .frame(height: 48)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 8)
+            }
+            if let err = state.error {
+                Text(err).font(.caption2).foregroundColor(.red)
+                    .padding(.horizontal).padding(.bottom, 6)
+            }
+        }
+    }
+
+    private func statTile(label: String, value: String) -> some View {
+        VStack(spacing: 2) {
+            Text(label).font(.caption2).foregroundColor(.secondary)
+            Text(value).font(.subheadline).fontWeight(.semibold)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func formatLatency(_ value: Double?) -> String {
+        guard let v = value else { return "—" }
+        if v < 0.001 { return "\(Int(v * 1_000_000)) µs" }
+        if v < 1     { return String(format: "%.1f ms", v * 1000) }
+        return String(format: "%.2f s", v)
+    }
+}
+
+// MARK: - MetricCard (collapsible, on-demand)
 
 private struct MetricCard: View {
     @Binding var state: MetricCardState
     let onTap: () -> Void
-    let onTimeFrameChange: (TimeFrame) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -212,34 +350,46 @@ private struct MetricCard: View {
             // Expanded content
             if state.isExpanded {
                 VStack(spacing: 8) {
-                    // Time frame picker
-                    Picker("", selection: $state.selectedTimeFrame) {
-                        ForEach(TimeFrame.allCases, id: \.self) { tf in
-                            Text(tf.displayName).tag(tf)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
-                    .onChange(of: state.selectedTimeFrame) { _, newValue in
-                        onTimeFrameChange(newValue)
-                    }
-
                     if state.data.isEmpty {
                         Text(state.error != nil ? "Failed to load data" : "No data available")
                             .font(.caption).foregroundColor(.secondary).padding()
                     } else {
-                        // Chart
                         Chart(state.data, id: \.timestamp) { point in
+                            AreaMark(
+                                x: .value("Time", point.timestamp),
+                                y: .value(state.instance.unit, point.value)
+                            )
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [Color.accentColor.opacity(0.3), Color.accentColor.opacity(0)],
+                                    startPoint: .top, endPoint: .bottom
+                                )
+                            )
+                            .interpolationMethod(.catmullRom)
                             LineMark(
                                 x: .value("Time", point.timestamp),
                                 y: .value(state.instance.unit, point.value)
                             )
                             .foregroundStyle(Color.accentColor)
+                            .interpolationMethod(.catmullRom)
+                            .lineStyle(StrokeStyle(lineWidth: 2))
+                        }
+                        .chartXAxis(.hidden)
+                        .chartYAxis {
+                            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { _ in
+                                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
+                                    .foregroundStyle(Color.secondary.opacity(0.2))
+                                AxisTick(stroke: StrokeStyle(lineWidth: 1))
+                                    .foregroundStyle(Color.secondary.opacity(0.3))
+                                AxisValueLabel()
+                                    .foregroundStyle(Color.secondary)
+                                    .font(.system(size: 10))
+                            }
                         }
                         .frame(height: 120)
-                        .padding(.horizontal)
+                        .padding(.leading, 4)
+                        .padding(.trailing, 12)
 
-                        // Stat tiles
                         HStack(spacing: 0) {
                             statTile(label: "CURRENT", value: formatValue(state.current, unit: state.instance.unit))
                             Divider()

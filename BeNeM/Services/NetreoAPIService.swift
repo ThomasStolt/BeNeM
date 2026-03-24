@@ -13,12 +13,13 @@ struct PerformanceCategory {
 }
 
 struct PerformanceInstance {
-    let key: String        // unique; interface instances are suffixed "-in" or "-out"
+    let key: String           // unique; interface instances are suffixed "-in" or "-out"
     let title: String
     let unit: String
-    let statGroup: String  // value passed to metricFilterStatGroup
+    let statGroup: String     // value passed to metricFilterStatGroup
     let categoryId: String
-    let valueKey: String   // "value1" or "value2" (outbound interface)
+    let valueKey: String      // "value1" or "value2" (outbound interface)
+    let instanceDescr: String? // interface description for response filtering; nil for non-interface
 }
 
 struct PerformanceDataPoint {
@@ -83,15 +84,15 @@ class NetreoAPIService: ObservableObject {
         return devicesArray.compactMap { parseRESTfulDevice(from: $0) }
     }
 
-    func fetchDevicesPage(limit: Int) async throws -> [NetreoDevice] {
+    func fetchDevicesPage(limit: Int? = nil, offset: Int = 0) async throws -> [NetreoDevice] {
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/list") else { return [] }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         var params = [URLQueryItem(name: "password", value: configuration.apiKey)]
         if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
-        params.append(URLQueryItem(name: "recordStart", value: "0"))
-        params.append(URLQueryItem(name: "recordCount", value: String(limit)))
+        params.append(URLQueryItem(name: "recordStart", value: String(offset)))
+        if let limit { params.append(URLQueryItem(name: "recordCount", value: String(limit))) }
         request.httpBody = formEncodedBody(params)
         let (data, _) = try await urlSession.data(for: request)
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
@@ -177,7 +178,8 @@ class NetreoAPIService: ObservableObject {
                     unit: bwUnit,
                     statGroup: category.name,
                     categoryId: category.id,
-                    valueKey: "value1"
+                    valueKey: "value1",
+                    instanceDescr: description
                 ))
                 instances.append(PerformanceInstance(
                     key: "\(rawKey)-out",
@@ -185,7 +187,8 @@ class NetreoAPIService: ObservableObject {
                     unit: bwUnit,
                     statGroup: category.name,
                     categoryId: category.id,
-                    valueKey: "value2"
+                    valueKey: "value2",
+                    instanceDescr: description
                 ))
             } else {
                 let title = dict["title"] as? String ?? rawKey
@@ -196,7 +199,8 @@ class NetreoAPIService: ObservableObject {
                     unit: unit,
                     statGroup: category.name,
                     categoryId: category.id,
-                    valueKey: "value1"
+                    valueKey: "value1",
+                    instanceDescr: nil
                 ))
             }
         }
@@ -229,6 +233,11 @@ class NetreoAPIService: ObservableObject {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let metrics = json["metrics"] as? [[String: Any]] else { return [] }
         return metrics.compactMap { dict -> PerformanceDataPoint? in
+            // For interface instances, filter to only the matching interface description
+            if let filter = instance.instanceDescr {
+                let descr = dict["instanceDescr"] as? String ?? ""
+                guard descr == filter else { return nil }
+            }
             guard let tsString = dict["timeStamp"] as? String,
                   let ts = Double(tsString) else { return nil }
             let rawValue = dict[instance.valueKey]

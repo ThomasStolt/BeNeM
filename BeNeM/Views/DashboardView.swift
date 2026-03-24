@@ -42,7 +42,7 @@ struct DashboardView: View {
                     } else {
                         statusCards
                         IncidentTickerBanner(
-                            incidents: incidentViewModel.filteredIncidents,
+                            incidents: incidentViewModel.openIncidents,
                             alarmCounts: incidentViewModel.alarmCounts,
                             apiService: apiService
                         )

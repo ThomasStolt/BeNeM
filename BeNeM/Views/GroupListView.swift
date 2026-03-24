@@ -46,6 +46,16 @@ struct GroupListView: View {
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if viewModel.showAlarmsOnly && viewModel.filteredGroups.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.largeTitle)
+                        .foregroundColor(.green)
+                    Text("All groups are healthy")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
                     columnHeader
@@ -66,10 +76,14 @@ struct GroupListView: View {
                 }
             }
             ToolbarItem(placement: .principal) {
-                Image("BMCHelixLogo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 24, height: 24)
+                HStack(spacing: 6) {
+                    Image("BMCHelixLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                    Text(title)
+                        .font(.system(size: 18, weight: .bold))
+                }
             }
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 Button {

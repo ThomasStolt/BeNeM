@@ -26,7 +26,6 @@ struct MetricCardState {
     var isLoading: Bool = false
     var hasBeenFetched: Bool = false
     var data: [PerformanceDataPoint] = []
-    var selectedTimeFrame: TimeFrame = .last24Hours
     var error: String? = nil
 
     var current: Double? { data.last?.value }
@@ -123,6 +122,15 @@ class DeviceDetailViewModel: ObservableObject {
             }
         }
 
+        // Keep only useful instances: remove per-process, swap, and raw-byte metrics
+        allInstances = allInstances.filter { instance in
+            let title = instance.title.lowercased()
+            if title.contains("by process") { return false }
+            if title.contains("swap") { return false }
+            if instance.unit == "B" { return false }
+            return true
+        }
+
         var states: [String: MetricCardState] = [:]
         for instance in allInstances {
             states[instance.key] = MetricCardState(instance: instance)
@@ -156,7 +164,7 @@ class DeviceDetailViewModel: ObservableObject {
             let data = try await apiService.fetchTimeSeries(
                 deviceName: name,
                 instance: state.instance,
-                timeFrame: state.selectedTimeFrame
+                timeFrame: .last24Hours
             )
             cardStates[instanceKey]?.data = data
             cardStates[instanceKey]?.hasBeenFetched = true
@@ -169,23 +177,4 @@ class DeviceDetailViewModel: ObservableObject {
         }
     }
 
-    func changeTimeFrame(_ tf: TimeFrame, instanceKey: String) async {
-        guard let state = cardStates[instanceKey], !state.isLoading else { return }
-        cardStates[instanceKey]?.selectedTimeFrame = tf
-        cardStates[instanceKey]?.isLoading = true
-        let name = device.name ?? device.ip
-        do {
-            let newData = try await apiService.fetchTimeSeries(
-                deviceName: name,
-                instance: state.instance,
-                timeFrame: tf
-            )
-            cardStates[instanceKey]?.data = newData
-            cardStates[instanceKey]?.error = nil
-            cardStates[instanceKey]?.isLoading = false
-        } catch {
-            cardStates[instanceKey]?.error = error.localizedDescription
-            cardStates[instanceKey]?.isLoading = false
-        }
-    }
 }

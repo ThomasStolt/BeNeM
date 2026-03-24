@@ -24,6 +24,8 @@ struct SettingsView: View {
     private enum Field: Hashable { case name, baseURL, apiKey, pin, ackUser }
     @FocusState private var focusedField: Field?
 
+    private enum TestStatus { case untested, success, failure }
+    @State private var testStatus: TestStatus = .untested
     @State private var isTesting = false
     @State private var alertTitle = ""
     @State private var alertMessage = ""
@@ -41,6 +43,11 @@ struct SettingsView: View {
 
                 Section(header: Text("BHNM Server")) {
                     HStack {
+                        if testStatus != .untested {
+                            Circle()
+                                .fill(testStatus == .success ? Color.green : Color.red)
+                                .frame(width: 8, height: 8)
+                        }
                         TextField("Connection Name", text: $draftName)
                             .autocapitalization(.none)
                             .focused($focusedField, equals: .name)
@@ -89,7 +96,7 @@ struct SettingsView: View {
                                 if isTesting {
                                     ProgressView()
                                 } else {
-                                    Image(systemName: "network")
+                                    Text("Test")
                                 }
                             }
                             .frame(maxWidth: .infinity)
@@ -282,27 +289,33 @@ struct SettingsView: View {
                     pin      = now.pin
                     ackUser  = now.ackUser
 
-                    alertTitle   = "Connection successful"
-                    alertMessage = "Connected — \(deviceCount) device\(deviceCount == 1 ? "" : "s") found. '\(now.name)' saved."
+                    testStatus = .success
+                    return  // success — no alert
                 } else {
+                    testStatus = .failure
                     alertTitle   = "Connected — no devices found"
                     alertMessage = "The server responded successfully but returned no devices.\n\nCheck that your API key has permission to list devices."
                 }
             case 401, 403:
+                testStatus = .failure
                 alertTitle = "Authentication failed"
                 alertMessage = "HTTP \(statusCode): The server rejected the credentials.\n\nCheck your API key and PIN."
             case 404:
+                testStatus = .failure
                 alertTitle = "Endpoint not found"
                 alertMessage = "HTTP 404: The API endpoint was not found.\n\nCheck the base URL."
             case 500...599:
+                testStatus = .failure
                 alertTitle = "Server error"
                 alertMessage = "HTTP \(statusCode): The server reported an internal error."
             default:
+                testStatus = .failure
                 let bodyPreview = String(data: data.prefix(300), encoding: .utf8) ?? "(unreadable)"
                 alertTitle = "Unexpected response"
                 alertMessage = "HTTP \(statusCode)\n\nResponse: \(bodyPreview)"
             }
         } catch let urlError as URLError {
+            testStatus = .failure
             alertTitle = "Connection failed"
             switch urlError.code {
             case .notConnectedToInternet:
@@ -319,6 +332,7 @@ struct SettingsView: View {
                 alertMessage = "\(urlError.localizedDescription) (code \(urlError.code.rawValue))"
             }
         } catch {
+            testStatus = .failure
             alertTitle = "Error"
             alertMessage = error.localizedDescription
         }
@@ -327,6 +341,7 @@ struct SettingsView: View {
     }
 
     private func selectConnection(_ connection: SavedConnection) {
+        testStatus   = .untested
         draftName    = connection.name
         draftBaseURL = connection.baseURL
         draftApiKey  = connection.apiKey
@@ -337,6 +352,7 @@ struct SettingsView: View {
     }
 
     private func selectNewConnection() {
+        testStatus   = .untested
         draftName    = "New Server"
         draftBaseURL = ""
         draftApiKey  = ""
@@ -350,6 +366,7 @@ struct SettingsView: View {
         savedConnections.removeAll { $0.id == id }
         UserDefaults.standard.saveSavedConnections(savedConnections)
         activeSavedConnectionID = ""
+        testStatus   = .untested
         // Clear all draft fields — user must pick or configure a new connection.
         draftName    = "New Server"
         draftBaseURL = ""
