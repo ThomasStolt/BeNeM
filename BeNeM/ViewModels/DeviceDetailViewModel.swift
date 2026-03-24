@@ -6,8 +6,8 @@ class DeviceDetailViewModel: ObservableObject {
     @Published var cpuMetrics: [PerformanceMetric] = []
     @Published var memoryMetrics: [PerformanceMetric] = []
     @Published var diskMetrics: [PerformanceMetric] = []
-    @Published var isLoadingIncidents = true
-    @Published var isLoadingPerformance = true
+    @Published var isLoadingIncidents = false
+    @Published var isLoadingPerformance = false
     @Published var incidentsError: String?
     @Published var performanceError: String?
 
@@ -26,7 +26,7 @@ class DeviceDetailViewModel: ObservableObject {
         }
     }
 
-    private func loadIncidents() async {
+    @MainActor private func loadIncidents() async {
         isLoadingIncidents = true
         incidentsError = nil
         do {
@@ -38,7 +38,7 @@ class DeviceDetailViewModel: ObservableObject {
                 return incName.caseInsensitiveCompare(deviceName) == .orderedSame
                     || incName.caseInsensitiveCompare(device.ip)  == .orderedSame
                     || incIP   == device.ip
-                    || incName.lowercased().hasPrefix(deviceName.lowercased().components(separatedBy: ".").first ?? deviceName.lowercased())
+                    || incName.lowercased().components(separatedBy: ".").first == deviceName.lowercased().components(separatedBy: ".").first
             }
         } catch {
             incidentsError = error.localizedDescription
@@ -46,7 +46,7 @@ class DeviceDetailViewModel: ObservableObject {
         isLoadingIncidents = false
     }
 
-    private func loadPerformance() async {
+    @MainActor private func loadPerformance() async {
         isLoadingPerformance = true
         performanceError = nil
         let name = device.name ?? device.ip
