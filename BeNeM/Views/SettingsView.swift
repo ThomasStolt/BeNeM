@@ -177,10 +177,22 @@ struct SettingsView: View {
                 Text("This connection will be removed from your saved list.")
             }
             .onAppear {
+                savedConnections = UserDefaults.standard.loadSavedConnections()
                 draftBaseURL = baseURL
-                draftApiKey = apiKey
-                draftPin = pin
+                draftApiKey  = apiKey
+                draftPin     = pin
                 draftAckUser = ackUser
+                // Find which saved connection matches current @AppStorage credentials
+                activeSavedID = savedConnections.first(where: {
+                    $0.baseURL == baseURL &&
+                    $0.apiKey  == apiKey  &&
+                    $0.pin     == pin     &&
+                    $0.ackUser == ackUser
+                })?.id
+                if let id = activeSavedID,
+                   let match = savedConnections.first(where: { $0.id == id }) {
+                    draftName = match.name
+                }
             }
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
