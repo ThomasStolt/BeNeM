@@ -85,6 +85,28 @@
 		};
 /* End PBXFrameworksBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		CHECKSC00000000000000001 /* Check Secrets.swift exists */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Check Secrets.swift exists";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ ! -f \"$SRCROOT/BeNeM/Secrets.swift\" ]; then\n  echo \"warning: Secrets.swift is missing. Copy BeNeM/Secrets.swift.template \\u2192 BeNeM/Secrets.swift and fill in your 64-char hex key.\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXGroup section */
 		A11234567890000C = {
 			isa = PBXGroup;
@@ -195,6 +217,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = A11234567890000L /* Build configuration list for PBXNativeTarget "BeNeM" */;
 			buildPhases = (
+				CHECKSC00000000000000001 /* Check Secrets.swift exists */,
 				A11234567890000M /* Sources */,
 				A11234567890000B /* Frameworks */,
 				A11234567890000N /* Resources */,
