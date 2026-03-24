@@ -9,6 +9,7 @@ final class DeepLinkHandler: ObservableObject {
         let apiKey: String
         let pin: String       // "" if absent
         let ackUser: String
+        let name: String      // "" if absent — falls back to hostname
     }
 
     @Published var pendingImport: PendingImport? = nil
@@ -42,6 +43,7 @@ final class DeepLinkHandler: ObservableObject {
 
         let encryptedPin = param("pin") ?? ""
         let ackUser = param("ack_user") ?? "enter user name"
+        let name = param("name") ?? ""
 
         do {
             let symmetricKey = try loadKey()
@@ -51,7 +53,8 @@ final class DeepLinkHandler: ObservableObject {
                 serverURL: server,
                 apiKey: decryptedKey,
                 pin: decryptedPin,
-                ackUser: ackUser
+                ackUser: ackUser,
+                name: name
             )
         } catch {
             fail("The link is invalid or was created with a different key.")
@@ -74,14 +77,15 @@ final class DeepLinkHandler: ObservableObject {
         let upsertedID: UUID
 
         if let idx = connections.firstIndex(where: { $0.baseURL.lowercased() == serverLower }) {
-            // Update credentials in place; preserve id, baseURL, name
+            // Update credentials in place; update name if provided, otherwise preserve existing
+            if !imp.name.isEmpty { connections[idx].name = imp.name }
             connections[idx].apiKey  = imp.apiKey
             connections[idx].pin     = imp.pin
             connections[idx].ackUser = imp.ackUser
             upsertedID = connections[idx].id
         } else {
-            // New entry — derive display name from hostname
-            let name = URL(string: imp.serverURL)?.host ?? imp.serverURL
+            // New entry — use provided name, or fall back to hostname
+            let name = imp.name.isEmpty ? (URL(string: imp.serverURL)?.host ?? imp.serverURL) : imp.name
             let newConn = SavedConnection(
                 id: UUID(),
                 name: name,

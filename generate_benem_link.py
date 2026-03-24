@@ -44,6 +44,7 @@ def main():
     parser.add_argument("--api_key", required=True,  help="API key to encrypt")
     parser.add_argument("--pin",     default="",     help="PIN to encrypt (optional, omit for non-SaaS servers)")
     parser.add_argument("--user",    default="enter user name", help="ACK user name (plain text, optional)")
+    parser.add_argument("--name",    default="",               help="Connection name shown in the app (plain text, optional)")
     args = parser.parse_args()
 
     key = load_key()
@@ -56,6 +57,8 @@ def main():
     ack_user = quote(args.user, safe="")
 
     url = f"benem://configure?server={server}&api_key={enc_api_key}&pin={enc_pin}&ack_user={ack_user}"
+    if args.name:
+        url += f"&name={quote(args.name, safe='')}"
     print(url)
 
 
