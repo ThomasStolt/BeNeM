@@ -6,10 +6,13 @@ class DeviceDetailViewModel: ObservableObject {
     @Published var cpuMetrics: [PerformanceMetric] = []
     @Published var memoryMetrics: [PerformanceMetric] = []
     @Published var diskMetrics: [PerformanceMetric] = []
+    @Published var interfaceMetrics: [PerformanceMetric] = []
     @Published var isLoadingIncidents = true
     @Published var isLoadingPerformance = true
+    @Published var isLoadingInterfaces = true
     @Published var incidentsError: String?
     @Published var performanceError: String?
+    @Published var interfacesError: String?
 
     private let apiService: NetreoAPIService
     let device: NetreoDevice
@@ -23,6 +26,7 @@ class DeviceDetailViewModel: ObservableObject {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.loadIncidents() }
             group.addTask { await self.loadPerformance() }
+            group.addTask { await self.loadInterfaces() }
         }
     }
 
@@ -62,6 +66,21 @@ class DeviceDetailViewModel: ObservableObject {
             performanceError = error.localizedDescription
         }
         isLoadingPerformance = false
+    }
+
+    @MainActor private func loadInterfaces() async {
+        isLoadingInterfaces = true
+        interfacesError = nil
+        let name = device.name ?? device.ip
+        do {
+            let metrics = try await apiService.fetchPerformanceMetrics(
+                deviceName: name, statGroup: "interface", units: "bps"
+            )
+            interfaceMetrics = deduplicated(metrics)
+        } catch {
+            interfacesError = error.localizedDescription
+        }
+        isLoadingInterfaces = false
     }
 
     private func deduplicated(_ metrics: [PerformanceMetric]) -> [PerformanceMetric] {
