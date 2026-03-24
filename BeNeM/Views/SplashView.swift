@@ -18,9 +18,25 @@ struct SplashView: View {
                 .frame(width: 288)
                 .overlay(shimmerBand.mask(logoMask))
                 .opacity(logoOpacity)
+
+            VStack {
+                Spacer()
+                Text(versionString)
+                    .font(.system(size: 12, weight: .light, design: .default))
+                    .foregroundColor(.white.opacity(0.55))
+                    .tracking(1.5)
+                    .padding(.bottom, 36)
+            }
+            .opacity(logoOpacity)
         }
         .opacity(splashOpacity)
         .onAppear(perform: startAnimations)
+    }
+
+    private var versionString: String {
+        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        let b = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
+        return "v\(v) (\(b))"
     }
 
     // MARK: - Shimmer

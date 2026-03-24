@@ -12,6 +12,80 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.4.2] — 2026-03-25
+
+### Added
+
+- **Version in Splash Screen** — the app version and build number are shown in small, elegant white text at the bottom of the launch screen, fading in and out with the logo
+- **Version in Settings** — a new "About" section at the bottom of Settings displays the current app version and build number
+
+### Changed
+
+- **Settings: "Discover BHNM Server"** — the discovery entry in Settings was renamed from "Auto Discovery" to "Discover BHNM Server" for clarity
+
+---
+
+## [1.4.1] — 2026-03-24
+
+### Changed
+
+- **Settings: "Test" button** — the globe icon in the BHNM Server section is replaced by a plain "Test" label for clarity
+- **Settings: silent success** — a successful connection test now shows a **green dot** next to the connection name instead of a popup alert; a failed test still shows a red dot and a diagnostic alert; the dot resets when switching or deleting a connection
+- **Incident Ticker** — the dashboard ticker now shows only **open (non-acknowledged) incidents**, sorted newest-first; acknowledged incidents are no longer surfaced there
+- **Tactical filter** — the alarm filter in Categories / Sites / Business Workflows now keeps only groups with **yellow, orange, or red** host alarms (warning / major / critical); informational (blue) hosts no longer prevent a group from being hidden
+
+### Fixed
+
+- **GroupListView title** — the title (Categories / Sites / Business Workflows) was missing from the navigation bar; the group title is now shown alongside the BMC Helix logo
+- **Title centering** — "Active Incidents" and "Devices" navigation titles were visually off-centre because the custom principal toolbar item competed with asymmetric leading/trailing items; both titles now use the standard `.navigationTitle` placement and are always centred
+- **Tactical filter reactivity** — `filteredGroups` is now a `@Published` property updated via an explicit `applyFilter()` `didSet` observer, eliminating a SwiftUI rendering edge case where the computed-property approach could fail to trigger a redraw
+- **Tactical filter empty state** — when the alarm filter is active but all groups are healthy, the list now shows a "All groups are healthy" message instead of a blank screen
+- **App startup without configuration** — removed the legacy Welcome screen; the app now navigates directly to Settings when no server is configured
+
+---
+
+## [1.4.0] — 2026-03-24
+
+### Added
+
+- **Device Detail View** — tap any device in the Devices list to open a full detail screen showing active incidents for that device, performance metric cards (CPU, memory, interfaces, latency, etc.), and network interface details
+- **Performance charts on-demand** — each performance metric in Device Detail is a collapsible card that fetches and renders its time-series chart only when expanded, keeping the initial load fast
+- **Network interfaces** — Device Detail includes a dedicated Interfaces section listing all polled interfaces with their current state
+- **Device list limit** — Settings → Devices now has a stepper (10–100, default 20) to cap how many devices are loaded in the Devices tab
+- **Named connections** — multiple BHNM servers can be saved and switched via a connection picker in Settings; the active connection is persisted across launches
+- **Delete connection** — saved connections can be removed with a confirmation prompt; deleting the active connection disconnects the service
+- **URL scheme import** — `benem://configure` deep links allow a server connection to be imported by URL (e.g. from a QR code or MDM profile); supports `url`, `key`, `pin`, `user`, and `name` parameters
+- **SETUP.md + link generator** — `SETUP.md` documents the URL scheme format; a Python script (`scripts/generate_link.py`) and `.env.template` are included for generating import links
+- **Secrets infrastructure** — `Secrets.swift` (gitignored) holds optional compile-time defaults; an Xcode build phase emits a warning when the file is absent
+
+### Changed
+
+- **Settings UX** — credentials are now applied immediately on successful test (no separate Save button needed); keyboard dismisses on scroll or tap-outside; the Test Connection button moved inside the BHNM Server section
+- **apiService propagation** — switching the active connection now immediately updates all open ViewModels (`IncidentListViewModel`, `DeviceListViewModel`, `TacticalViewModel`) via `onChange` so live data refreshes without requiring navigation
+
+### Fixed
+
+- Test connection now validates against the actual runtime endpoint (`/fw/index.php?r=restful/devices/list`) using the draft credentials, not the previously active ones
+- API key and PIN fields are masked (`SecureField`) on the Welcome screen
+- Switching server no longer shows stale data from the previous connection; all data arrays are cleared on server change
+- `bump_version.sh` rewritten to edit `project.pbxproj` directly (resolves `agvtool` path issues in some Xcode environments)
+
+---
+
+## [1.3.0] — 2026-03-22
+
+### Added
+
+- **S / T alarm columns** — Services and Thresholds badge rows are now visible in the Tactical Overview group rows (currently placeholder zeros; will be populated in a future release when the BHNM API exposes service and threshold incident data)
+- **Same-tab navigation reset** — tapping the currently active tab in the custom tab bar pops the navigation stack back to the root of that tab
+
+### Changed
+
+- **App icon** — updated to a new icon set across all required sizes
+- **App display name** — renamed to **BeNeM** in `Info.plist`
+
+---
+
 ## [1.2.0] — 2026-03-22
 
 ### Added
@@ -121,7 +195,11 @@ Initial release.
 
 ---
 
-[Unreleased]: https://github.com/thomasstolt/BeNeM/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/thomasstolt/BeNeM/compare/v1.4.2...HEAD
+[1.4.2]: https://github.com/thomasstolt/BeNeM/compare/v1.4.1...v1.4.2
+[1.4.1]: https://github.com/thomasstolt/BeNeM/compare/v1.4.0...v1.4.1
+[1.4.0]: https://github.com/thomasstolt/BeNeM/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/thomasstolt/BeNeM/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/thomasstolt/BeNeM/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/thomasstolt/BeNeM/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/thomasstolt/BeNeM/releases/tag/v1.0.0

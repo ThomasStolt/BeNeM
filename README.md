@@ -6,18 +6,22 @@ An open source native iOS app for **BMC Helix Network Management** (BHNM). Monit
 
 ## Features
 
-- **Dashboard** — at-a-glance summary with active incident count, total device count, an animated incident ticker, and HOSTS / SERVICES / THRESHOLDS alarm summaries
-- **Tactical Overview** — Category / Site / Business Workflow lists showing each group's device count and color-coded alarm status (Green / Blue / Yellow / Orange / Red)
+- **Dashboard** — at-a-glance summary with active incident count, total device count, an animated incident ticker (open incidents only), and HOSTS / SERVICES / THRESHOLDS alarm summaries
+- **Tactical Overview** — Category / Site / Business Workflow lists showing each group's device count and color-coded alarm status (Green / Blue / Yellow / Orange / Red); filter to show only groups with active alarms
 - **Incident List** — live view of active, acknowledged, and closed incidents with severity badges and per-incident alarm counts; sorted newest-first by Incident ID
 - **Acknowledge / Unacknowledge** — swipe right to ACK, swipe left to UnACK, with instant local status update
 - **Incident Detail** — primary alarms, related alarms, and the full incident state log
-- **Incident Ticker** — animated news-flash banner on the Dashboard cycles through the latest 3 incidents; tap to navigate directly to the detail screen
-- **Filters** — filter incidents by severity and status; filter tactical groups to show only those with active alarms
+- **Device Detail** — tap any device for a full detail view: active incidents, performance metric charts (CPU, memory, interfaces, latency), and network interface status
+- **Performance charts on-demand** — metric cards in Device Detail fetch and render their time-series chart only when expanded
+- **Incident Ticker** — animated banner on the Dashboard cycles through the latest open incidents; tap to navigate directly to the detail screen
+- **Filters** — filter incidents by severity and status; filter tactical groups to show only those with warning / major / critical alarms
+- **Named connections** — save multiple BHNM servers and switch between them via a connection picker in Settings; connection test shows a green dot on success, no popup
+- **URL scheme import** — import a server connection via `benem://configure?url=…&key=…` deep link (QR code, MDM profile, or share sheet)
 - **Auto-refresh** — data refreshes automatically every 120 seconds with a visible countdown ring; tap the ring to refresh immediately
 - **Auto-retry** — all screens automatically retry the connection 15 seconds after a network failure
 - **Pull-to-refresh** — manual refresh at any time by pulling down any list
-- **Auto Discovery** — scans your local Wi-Fi subnet for BHNM servers (Settings → Auto Discovery)
-- **Connection Test** — built-in connectivity test with detailed diagnostics
+- **Discover BHNM Server** — scans your local Wi-Fi subnet for BHNM servers (Settings → Discover BHNM Server)
+- **Connection Test** — built-in connectivity test with detailed diagnostics; green dot on success, red dot + alert on failure
 - **Multiple API versions** — supports Legacy (PHP), API v1, API v2, and OpenAPI 3.0 endpoints
 
 ## Requirements
@@ -79,11 +83,11 @@ On first launch, open the **Settings** tab and enter:
 | Timeout | Request timeout in seconds (default: 30 s) |
 | Retry Count | Number of retries on failure (default: 3) |
 
-Use the **Test Connection** button to verify your settings before using the app.
+Tap the **Test** button to verify your settings. A green dot confirms the connection was successful and saves the server automatically; a red dot shows a diagnostic alert.
 
-### Auto Discovery
+### Discover BHNM Server
 
-If you are on the same Wi-Fi network as your BHNM server, tap **Settings → Auto Discovery** to automatically scan the local /24 subnet for BHNM instances. Discovered servers can be connected to directly from the results list.
+If you are on the same Wi-Fi network as your BHNM server, tap **Settings → Discover BHNM Server** to automatically scan the local /24 subnet for BHNM instances. Discovered servers can be connected to directly from the results list.
 
 ## Project Structure
 
@@ -101,17 +105,19 @@ BeNeM/
 ├── ViewModels/
 │   ├── IncidentListViewModel.swift   # Filtering, sorting, alarm count loading
 │   ├── DeviceListViewModel.swift     # Device list loading
+│   ├── DeviceDetailViewModel.swift   # Concurrent incident + performance loading for one device
 │   └── TacticalViewModel.swift       # Category / Site / Business Workflow loading
 ├── Views/
-│   ├── SplashView.swift              # Animated launch screen with logo shimmer
+│   ├── SplashView.swift              # Animated launch screen with logo shimmer + version
 │   ├── DashboardView.swift           # Home: status cards, incident ticker, alarm summaries
 │   ├── GroupListView.swift           # Group list with alarm badges and device count
 │   ├── IncidentListView.swift        # Incident list + swipe ACK/UnACK
 │   ├── IncidentDetailView.swift      # Incident detail screen
+│   ├── DeviceDetailView.swift        # Device detail: incidents, performance charts, interfaces
 │   ├── AutoDiscoveryView.swift       # Wi-Fi server discovery UI
 │   ├── AutoRefreshButton.swift       # Countdown ring + refresh button + connection badge
-│   └── SettingsView.swift            # Configuration + connection test + debug info
-└── BeNeMApp.swift                    # App entry point
+│   └── SettingsView.swift            # Configuration + named connections + version info
+└── BeNeMApp.swift                    # App entry point + URL scheme handler
 ```
 
 > **Note on class names:** Swift types use the legacy `Netreo` prefix (e.g. `NetreoAPIService`, `NetreoIncident`) as they predate the product rebrand. AppStorage keys (`netreo_base_url`, `netreo_api_key`, etc.) are also kept unchanged to preserve existing user settings.

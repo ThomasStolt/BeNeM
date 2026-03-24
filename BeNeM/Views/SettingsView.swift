@@ -37,7 +37,7 @@ struct SettingsView: View {
             Form {
                 Section(header: Text("Discovery")) {
                     NavigationLink(destination: AutoDiscoveryView()) {
-                        Label("Auto Discovery", systemImage: "magnifyingglass.circle.fill")
+                        Label("Discover BHNM Server", systemImage: "magnifyingglass.circle.fill")
                     }
                 }
 
@@ -156,6 +156,15 @@ struct SettingsView: View {
 
                 Section(footer: Text("Enter your BHNM server details to connect to BMC Helix Network Management. Choose the appropriate API version based on your deployment.")) {
                     EmptyView()
+                }
+
+                Section(header: Text("About")) {
+                    HStack {
+                        Text("Version")
+                        Spacer()
+                        Text(appVersionString)
+                            .foregroundColor(.secondary)
+                    }
                 }
 
             }
@@ -359,6 +368,12 @@ struct SettingsView: View {
         draftPin     = ""
         draftAckUser = ""
         activeSavedConnectionID = ""
+    }
+
+    private var appVersionString: String {
+        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+        let b = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
+        return "\(v) (\(b))"
     }
 
     private func deleteActiveConnection() {
