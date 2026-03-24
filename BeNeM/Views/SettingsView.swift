@@ -20,6 +20,9 @@ struct SettingsView: View {
     @State private var activeSavedID: UUID? = nil
     @State private var savedConnections: [SavedConnection] = []
 
+    private enum Field: Hashable { case name, baseURL, apiKey, pin, ackUser }
+    @FocusState private var focusedField: Field?
+
     @State private var isTesting = false
     @State private var alertTitle = ""
     @State private var alertMessage = ""
@@ -39,6 +42,7 @@ struct SettingsView: View {
                     HStack {
                         TextField("Name", text: $draftName)
                             .autocapitalization(.none)
+                            .focused($focusedField, equals: .name)
                         Menu {
                             ForEach(savedConnections) { connection in
                                 Button(connection.name) {
@@ -58,13 +62,17 @@ struct SettingsView: View {
                     TextField("Base URL", text: $draftBaseURL)
                         .autocapitalization(.none)
                         .keyboardType(.URL)
+                        .focused($focusedField, equals: .baseURL)
 
                     SecureField("API Key", text: $draftApiKey)
+                        .focused($focusedField, equals: .apiKey)
 
                     SecureField("PIN (SaaS only)", text: $draftPin)
+                        .focused($focusedField, equals: .pin)
 
                     TextField("ACK User", text: $draftAckUser)
                         .autocapitalization(.none)
+                        .focused($focusedField, equals: .ackUser)
 
                     HStack(spacing: 0) {
                         Button {
@@ -179,7 +187,7 @@ struct SettingsView: View {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
                     Button {
-                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        focusedField = nil
                     } label: {
                         Image(systemName: "keyboard.chevron.compact.down")
                     }
@@ -190,6 +198,7 @@ struct SettingsView: View {
 
     @MainActor
     private func testConnection() async {
+        focusedField = nil
         isTesting = true
         defer { isTesting = false }
 
