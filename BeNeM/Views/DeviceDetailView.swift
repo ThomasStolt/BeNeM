@@ -12,6 +12,7 @@ struct DeviceDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 deviceHeaderCard(device)
+                interfacesSection
                 issuesSection
                 performanceSection
             }
@@ -49,6 +50,40 @@ struct DeviceDetailView: View {
         }
         .padding()
         .background(Color(.secondarySystemGroupedBackground))
+    }
+
+    // MARK: - Network Interfaces
+
+    private var interfacesSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sectionHeader("Interfaces")
+            if viewModel.isLoadingInterfaces {
+                HStack { Spacer(); ProgressView(); Spacer() }.padding()
+            } else if let err = viewModel.interfacesError {
+                Text(err).font(.caption).foregroundColor(.secondary).padding()
+            } else if viewModel.interfaceMetrics.isEmpty {
+                Text("No interface data available")
+                    .font(.subheadline).foregroundColor(.secondary)
+                    .padding()
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(viewModel.interfaceMetrics, id: \.instanceDescr) { metric in
+                        HStack {
+                            Text(metric.instanceDescr.isEmpty ? "—" : metric.instanceDescr)
+                                .font(.subheadline)
+                            Spacer()
+                            Text(metric.value1.map { formatBps($0) } ?? "—")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal).padding(.vertical, 8)
+                        Divider().padding(.leading)
+                    }
+                }
+                .background(Color(.secondarySystemGroupedBackground))
+            }
+        }
+        .padding(.top, 16)
     }
 
     // MARK: - Current Issues
@@ -249,6 +284,16 @@ struct DeviceDetailView: View {
         if mb >= 1  { return String(format: "%.1f MB", mb) }
         if kb >= 1  { return String(format: "%.0f kB", kb) }
         return String(format: "%.0f B", bytes)
+    }
+
+    private func formatBps(_ bps: Double) -> String {
+        let kbps = bps / 1_000
+        let mbps = kbps / 1_000
+        let gbps = mbps / 1_000
+        if gbps >= 1  { return String(format: "%.1f Gbps", gbps) }
+        if mbps >= 1  { return String(format: "%.1f Mbps", mbps) }
+        if kbps >= 1  { return String(format: "%.0f Kbps", kbps) }
+        return String(format: "%.0f bps", bps)
     }
 }
 
