@@ -220,7 +220,7 @@ private struct MetricCard: View {
                     }
                     .pickerStyle(.segmented)
                     .padding(.horizontal)
-                    .onChange(of: state.selectedTimeFrame) { newValue in
+                    .onChange(of: state.selectedTimeFrame) { _, newValue in
                         onTimeFrameChange(newValue)
                     }
 
