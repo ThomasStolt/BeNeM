@@ -78,9 +78,12 @@ struct SettingsView: View {
                         Button {
                             Task { await testConnection() }
                         } label: {
-                            HStack(spacing: 6) {
-                                if isTesting { ProgressView() }
-                                Text(isTesting ? "Testing…" : "Test Connection")
+                            Group {
+                                if isTesting {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "network")
+                                }
                             }
                             .frame(maxWidth: .infinity)
                         }
@@ -89,10 +92,12 @@ struct SettingsView: View {
 
                         Divider().frame(height: 44)
 
-                        Button("Delete", role: .destructive) {
+                        Button(role: .destructive) {
                             showingDeleteConfirmation = true
+                        } label: {
+                            Image(systemName: "trash")
+                                .frame(maxWidth: .infinity)
                         }
-                        .frame(maxWidth: .infinity)
                         .buttonStyle(.borderless)
                         .disabled(activeSavedID == nil)
                     }
@@ -139,21 +144,10 @@ struct SettingsView: View {
                     EmptyView()
                 }
 
-                #if DEBUG
-                Section(header: Text("Debug — CPU response (known working)")) {
-                    Text(UserDefaults.standard.string(forKey: "debug_raw_cpu_response") ?? "(open any device detail to populate)")
-                        .font(.caption.monospaced())
-                        .foregroundColor(.secondary)
-                }
-                Section(header: Text("Debug — Interface response")) {
-                    Text(UserDefaults.standard.string(forKey: "debug_raw_interface_response") ?? "(open any device detail to populate)")
-                        .font(.caption.monospaced())
-                        .foregroundColor(.secondary)
-                }
-                #endif
             }
             .navigationTitle("Settings")
             .scrollDismissesKeyboard(.immediately)
+            .simultaneousGesture(TapGesture().onEnded { focusedField = nil })
             .alert(alertTitle, isPresented: $showingAlert) {
                 Button("OK", role: .cancel) {}
             } message: {
