@@ -1,6 +1,12 @@
 import Foundation
 import SwiftUI
 
+struct PerformanceMetric {
+    let instanceDescr: String
+    let value1: Double?   // primary value (e.g. % used, bytes used)
+    let value2: Double?   // secondary value where applicable (e.g. bytes total)
+}
+
 class NetreoAPIService: ObservableObject {
     private let configuration: NetreoAPIConfiguration
     private let urlSession: URLSession
@@ -56,6 +62,47 @@ class NetreoAPIService: ObservableObject {
         }
         #endif
         return devicesArray.compactMap { parseRESTfulDevice(from: $0) }
+    }
+
+    func fetchPerformanceMetrics(
+        deviceName: String,
+        statGroup: String,
+        units: String
+    ) async throws -> [PerformanceMetric] {
+        let urlString = "\(configuration.baseURL)/fw/index.php?r=restful/devices/get-time-series-metrics"
+        guard let url = URL(string: urlString) else { return [] }
+
+        var params = [
+            URLQueryItem(name: "password",               value: configuration.apiKey),
+            URLQueryItem(name: "metricFilterStatGroup",  value: statGroup),
+            URLQueryItem(name: "metricFilterUnits",      value: units),
+            URLQueryItem(name: "groupFilterBy",          value: "device"),
+            URLQueryItem(name: "groupFilterValue",       value: deviceName),
+            URLQueryItem(name: "timeFrameFilterBy",      value: "time_offset"),
+            URLQueryItem(name: "timeFrameFilterValue",   value: "Last 24 Hours"),
+            URLQueryItem(name: "returnFormatFilterBy",   value: "average"),
+        ]
+        if let pin = configuration.pin {
+            params.append(URLQueryItem(name: "pin", value: pin))
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = formEncodedBody(params)
+
+        let (data, _) = try await urlSession.data(for: request)
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let metrics = json["metrics"] as? [[String: Any]] else { return [] }
+
+        return metrics.compactMap { dict -> PerformanceMetric? in
+            let descr = dict["instanceDescr"] as? String ?? ""
+            let v1 = (dict["value1"] as? String).flatMap(Double.init)
+                   ?? dict["value1"] as? Double
+            let v2 = (dict["value2"] as? String).flatMap(Double.init)
+                   ?? dict["value2"] as? Double
+            return PerformanceMetric(instanceDescr: descr, value1: v1, value2: v2)
+        }
     }
 
     private func parseRESTfulDevice(from dict: [String: Any]) -> NetreoDevice? {
