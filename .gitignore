@@ -40,7 +40,6 @@ Podfile.lock
 *.env
 secrets.plist
 BeNeM/Secrets.swift
-.env
 
 # Local build configuration (contains device UDID and personal paths — never commit)
 build.local.sh
