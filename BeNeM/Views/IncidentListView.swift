@@ -103,19 +103,27 @@ struct IncidentListView: View {
                     .listRowSeparator(.hidden)
             }
             ForEach(viewModel.filteredIncidents) { incident in
-                NavigationLink(value: incident) {
-                    IncidentRowView(
-                        incident: incident,
-                        alarmCounts: viewModel.alarmCounts[incident.incidentID]
-                    )
-                    .frame(maxHeight: .infinity, alignment: .center)
+                Button { navPath.append(incident) } label: {
+                    HStack(spacing: 0) {
+                        IncidentRowView(
+                            incident: incident,
+                            alarmCounts: viewModel.alarmCounts[incident.incidentID]
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(Color(.tertiaryLabel))
+                            .padding(.trailing, 14)
+                    }
                 }
+                .buttonStyle(.plain)
                 .listRowBackground(
                     RoundedRectangle(cornerRadius: 8)
                         .fill(Color(.secondarySystemGroupedBackground))
                         .padding(.vertical, 2)
                 )
-                .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 16))
+                .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
                 .listRowSeparator(.hidden)
                 // Swipe rechts → ACK oder UnACK
                 .swipeActions(edge: .leading, allowsFullSwipe: true) {
