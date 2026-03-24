@@ -60,7 +60,6 @@ final class DeepLinkHandler: ObservableObject {
 
     func applyPendingImport() {
         guard let imp = pendingImport else { return }
-        pendingImport = nil
 
         // 1. Write active AppStorage keys directly to UserDefaults
         let ud = UserDefaults.standard
@@ -100,7 +99,10 @@ final class DeepLinkHandler: ObservableObject {
         // 3. Persist active connection ID (same key read by SettingsView @AppStorage)
         ud.set(upsertedID.uuidString, forKey: "netreo_active_connection_id")
 
-        // 4. Notify SettingsView to reload if visible
+        // 4. Clear pending import AFTER all work is done, before notification
+        pendingImport = nil
+
+        // 5. Notify SettingsView to reload if visible
         NotificationCenter.default.post(name: .deepLinkConnectionApplied, object: nil)
     }
 

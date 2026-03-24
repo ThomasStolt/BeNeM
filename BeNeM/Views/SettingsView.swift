@@ -106,7 +106,7 @@ struct SettingsView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderless)
-                        .disabled(activeSavedConnectionID.isEmpty)
+                        .disabled(activeSavedUUID == nil)
                     }
                 }
 

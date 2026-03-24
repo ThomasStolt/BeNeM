@@ -41,7 +41,9 @@ struct BeNeMApp: App {
                 ) {
                     Button("OK", role: .cancel) {}
                 } message: {
-                    Text(deepLinkHandler.importError ?? "")
+                    if let error = deepLinkHandler.importError {
+                        Text(error)
+                    }
                 }
         }
     }
