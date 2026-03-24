@@ -71,6 +71,7 @@ class DeviceListViewModel: ObservableObject {
 
     func updateAPIService(_ newService: NetreoAPIService) {
         apiService = newService
+        devices = []
         Task { await loadDevices(limit: currentLimit) }
     }
 

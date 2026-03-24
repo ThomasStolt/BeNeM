@@ -45,8 +45,14 @@ struct SettingsView: View {
                             .focused($focusedField, equals: .name)
                         Menu {
                             ForEach(savedConnections) { connection in
-                                Button(connection.name) {
+                                Button {
                                     selectConnection(connection)
+                                } label: {
+                                    if connection.id == activeSavedID {
+                                        Label(connection.name, systemImage: "checkmark")
+                                    } else {
+                                        Text(connection.name)
+                                    }
                                 }
                             }
                             if !savedConnections.isEmpty { Divider() }

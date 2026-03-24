@@ -38,9 +38,8 @@ class IncidentListViewModel: ObservableObject {
     
     func updateAPIService(_ newService: NetreoAPIService) {
         apiService = newService
-        Task {
-            await loadIncidents()
-        }
+        incidents = []
+        Task { await loadIncidents() }
     }
     
     var filteredIncidents: [NetreoIncident] {

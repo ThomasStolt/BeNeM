@@ -42,6 +42,7 @@ class TacticalViewModel: ObservableObject {
 
     func updateAPIService(_ newService: NetreoAPIService) {
         apiService = newService
+        groups = []
         Task { await load() }
     }
 
