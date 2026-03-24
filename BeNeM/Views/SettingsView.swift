@@ -239,10 +239,34 @@ struct SettingsView: View {
                     }
                 }
                 if deviceCount > 0 {
-                    alertTitle = "Connection successful"
-                    alertMessage = "Found \(deviceCount) device\(deviceCount == 1 ? "" : "s")."
+                    // Upsert into savedConnections
+                    let trimmedName = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let now = SavedConnection(
+                        id: activeSavedID ?? UUID(),
+                        name: trimmedName.isEmpty ? "Unnamed" : trimmedName,
+                        baseURL: draftBaseURL.trimmingCharacters(in: .whitespacesAndNewlines),
+                        apiKey: draftApiKey,
+                        pin: draftPin,
+                        ackUser: draftAckUser
+                    )
+                    if let idx = savedConnections.firstIndex(where: { $0.id == now.id }) {
+                        savedConnections[idx] = now
+                    } else {
+                        savedConnections.append(now)
+                    }
+                    UserDefaults.standard.saveSavedConnections(savedConnections)
+                    activeSavedID = now.id
+
+                    // Write to @AppStorage (triggers ContentView.updateAPIService via onChange)
+                    baseURL  = now.baseURL
+                    apiKey   = now.apiKey
+                    pin      = now.pin
+                    ackUser  = now.ackUser
+
+                    alertTitle   = "Connection successful"
+                    alertMessage = "Connected — \(deviceCount) device\(deviceCount == 1 ? "" : "s") found. '\(now.name)' saved."
                 } else {
-                    alertTitle = "Connected — no devices found"
+                    alertTitle   = "Connected — no devices found"
                     alertMessage = "The server responded successfully but returned no devices.\n\nCheck that your API key has permission to list devices."
                 }
             case 401, 403:
