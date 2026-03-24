@@ -65,7 +65,7 @@ struct GroupListView: View {
                     Task { await viewModel.load() }
                 }
             }
-            ToolbarItem(placement: .navigationBarLeading) {
+            ToolbarItem(placement: .principal) {
                 Image("BMCHelixLogo")
                     .resizable()
                     .scaledToFit()
@@ -90,11 +90,8 @@ struct GroupListView: View {
             }
         }
         .onChange(of: viewModel.isLoading) { loading in
-            if loading {
-                connectionStatus = .checking
-            } else {
-                connectionStatus = viewModel.errorMessage == nil ? .connected : .disconnected
-            }
+            guard !loading else { return }
+            connectionStatus = viewModel.errorMessage == nil ? .connected : .disconnected
         }
         .task(id: connectionStatus) {
             guard connectionStatus == .disconnected else { return }
@@ -103,7 +100,6 @@ struct GroupListView: View {
             await viewModel.load()
         }
         .task {
-            connectionStatus = .checking
             if viewModel.groups.isEmpty && viewModel.errorMessage == nil {
                 await viewModel.load()
             }
