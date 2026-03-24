@@ -115,7 +115,7 @@ struct IncidentListView: View {
                         .fill(Color(.secondarySystemGroupedBackground))
                         .padding(.vertical, 2)
                 )
-                .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
+                .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 16))
                 .listRowSeparator(.hidden)
                 // Swipe rechts → ACK oder UnACK
                 .swipeActions(edge: .leading, allowsFullSwipe: true) {
