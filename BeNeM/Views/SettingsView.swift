@@ -183,14 +183,13 @@ struct SettingsView: View {
                 draftPin     = pin
                 draftAckUser = ackUser
                 // Find which saved connection matches current @AppStorage credentials
-                activeSavedID = savedConnections.first(where: {
+                if let match = savedConnections.first(where: {
                     $0.baseURL == baseURL &&
                     $0.apiKey  == apiKey  &&
                     $0.pin     == pin     &&
                     $0.ackUser == ackUser
-                })?.id
-                if let id = activeSavedID,
-                   let match = savedConnections.first(where: { $0.id == id }) {
+                }) {
+                    activeSavedID = match.id
                     draftName = match.name
                 }
             }
