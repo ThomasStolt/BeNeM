@@ -55,12 +55,17 @@ class DeviceDetailViewModel: ObservableObject {
             async let mem  = apiService.fetchPerformanceMetrics(deviceName: name, statGroup: "memory", units: "%")
             async let disk = apiService.fetchPerformanceMetrics(deviceName: name, statGroup: "disk",   units: "%")
             let (c, m, d) = try await (cpu, mem, disk)
-            cpuMetrics    = c
-            memoryMetrics = m
-            diskMetrics   = d
+            cpuMetrics    = deduplicated(c)
+            memoryMetrics = deduplicated(m)
+            diskMetrics   = deduplicated(d)
         } catch {
             performanceError = error.localizedDescription
         }
         isLoadingPerformance = false
+    }
+
+    private func deduplicated(_ metrics: [PerformanceMetric]) -> [PerformanceMetric] {
+        var seen = Set<String>()
+        return metrics.filter { seen.insert($0.instanceDescr).inserted }
     }
 }
