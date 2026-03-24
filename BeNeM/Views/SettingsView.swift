@@ -9,6 +9,7 @@ struct SettingsView: View {
     @AppStorage("netreo_timeout") private var timeout: Double = 30.0
     @AppStorage("netreo_retry_count") private var retryCount: Double = 3.0
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
+    @AppStorage("maxDevicesCount") private var maxDevicesCount: Int = 20
 
     // Draft state — held locally until Save is tapped
     @State private var draftBaseURL = ""
@@ -72,6 +73,14 @@ struct SettingsView: View {
                     }
                 }
 
+                Section(header: Text("Devices")) {
+                    Stepper("Load up to \(maxDevicesCount) devices",
+                            value: $maxDevicesCount, in: 10...100, step: 10)
+                    Text("Limits how many devices are loaded in the Devices tab. Increase if you have a large estate.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
                 Section(header: Text("API Configuration")) {
                     Picker("API Version", selection: Binding(
                         get: { NetreoAPIConfiguration.APIVersion(rawValue: apiVersionString) ?? .legacy },
@@ -97,6 +106,19 @@ struct SettingsView: View {
                 Section(footer: Text("Enter your BHNM server details to connect to BMC Helix Network Management. Choose the appropriate API version based on your deployment.")) {
                     EmptyView()
                 }
+
+                #if DEBUG
+                Section(header: Text("Debug — CPU response (known working)")) {
+                    Text(UserDefaults.standard.string(forKey: "debug_raw_cpu_response") ?? "(open any device detail to populate)")
+                        .font(.caption.monospaced())
+                        .foregroundColor(.secondary)
+                }
+                Section(header: Text("Debug — Interface response")) {
+                    Text(UserDefaults.standard.string(forKey: "debug_raw_interface_response") ?? "(open any device detail to populate)")
+                        .font(.caption.monospaced())
+                        .foregroundColor(.secondary)
+                }
+                #endif
             }
             .navigationTitle("Settings")
             .alert(alertTitle, isPresented: $showingAlert) {
