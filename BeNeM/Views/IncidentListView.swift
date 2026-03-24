@@ -33,15 +33,15 @@ struct IncidentListView: View {
                         Task { await viewModel.refreshIncidents() }
                     }
                 }
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Image("BMCHelixLogo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 24, height: 24)
-                }
                 ToolbarItem(placement: .principal) {
-                    Text("Active Incidents")
-                        .font(.system(size: 18, weight: .bold, design: .default))
+                    HStack(spacing: 6) {
+                        Image("BMCHelixLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 24, height: 24)
+                        Text("Active Incidents")
+                            .font(.system(size: 18, weight: .bold, design: .default))
+                    }
                 }
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Button(action: { showingFilters.toggle() }) {
@@ -58,11 +58,8 @@ struct IncidentListView: View {
                 FiltersView(viewModel: viewModel)
             }
             .onChange(of: viewModel.isLoading) { loading in
-                if loading {
-                    connectionStatus = .checking
-                } else {
-                    connectionStatus = viewModel.errorMessage == nil ? .connected : .disconnected
-                }
+                guard !loading else { return }
+                connectionStatus = viewModel.errorMessage == nil ? .connected : .disconnected
             }
             .task(id: connectionStatus) {
                 guard connectionStatus == .disconnected else { return }
@@ -71,7 +68,7 @@ struct IncidentListView: View {
                 Task { await viewModel.refreshIncidents() }
             }
             .onAppear {
-                connectionStatus = .checking
+                guard viewModel.incidents.isEmpty && viewModel.errorMessage == nil else { return }
                 Task { await viewModel.loadIncidents() }
             }
             .navigationDestination(for: NetreoIncident.self) { incident in
@@ -83,6 +80,9 @@ struct IncidentListView: View {
             }
         }
         .onChange(of: navResetID) { _, _ in withAnimation { navPath = NavigationPath() } }
+        .onChange(of: ObjectIdentifier(apiService)) { _, _ in
+            viewModel.updateAPIService(apiService)
+        }
     }
     
     private var incidentsList: some View {

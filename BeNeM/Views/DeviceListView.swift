@@ -21,8 +21,21 @@ struct DeviceListView: View {
                         DeviceRowView(device: device)
                     }
                 }
+                if viewModel.hasMore {
+                    HStack {
+                        Spacer()
+                        if viewModel.isLoadingMore {
+                            ProgressView()
+                        } else {
+                            Button("Load more") {
+                                Task { await viewModel.loadMoreDevices() }
+                            }
+                        }
+                        Spacer()
+                    }
+                    .listRowSeparator(.hidden)
+                }
             }
-            .navigationTitle("Devices")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -30,11 +43,15 @@ struct DeviceListView: View {
                         Task { await viewModel.loadDevices(limit: maxDevicesCount) }
                     }
                 }
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Image("BMCHelixLogo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 24, height: 24)
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: 6) {
+                        Image("BMCHelixLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 24, height: 24)
+                        Text("Devices")
+                            .font(.system(size: 18, weight: .bold))
+                    }
                 }
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Button("Add") { showingAddDevice = true }
@@ -60,11 +77,8 @@ struct DeviceListView: View {
                 Text(viewModel.errorMessage ?? "")
             }
             .onChange(of: viewModel.isLoading) { loading in
-                if loading {
-                    connectionStatus = .checking
-                } else {
-                    connectionStatus = viewModel.errorMessage == nil ? .connected : .disconnected
-                }
+                guard !loading else { return }
+                connectionStatus = viewModel.errorMessage == nil ? .connected : .disconnected
             }
             .onChange(of: maxDevicesCount) { newLimit in
                 Task { await viewModel.loadDevices(limit: newLimit) }
@@ -77,8 +91,11 @@ struct DeviceListView: View {
             }
         }
         .task {
-            connectionStatus = .checking
+            guard viewModel.devices.isEmpty && viewModel.errorMessage == nil else { return }
             await viewModel.loadDevices(limit: maxDevicesCount)
+        }
+        .onChange(of: ObjectIdentifier(apiService)) { _, _ in
+            viewModel.updateAPIService(apiService)
         }
     }
 }

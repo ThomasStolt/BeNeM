@@ -61,15 +61,15 @@ struct DashboardView: View {
                         Task { await loadData() }
                     }
                 }
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Image("BMCHelixLogo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 24, height: 24)
-                }
                 ToolbarItem(placement: .principal) {
-                    Text("Tactical Overview")
-                        .font(.system(size: 18, weight: .bold))
+                    HStack(spacing: 6) {
+                        Image("BMCHelixLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 24, height: 24)
+                        Text("Tactical Overview")
+                            .font(.system(size: 18, weight: .bold))
+                    }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     AutoRefreshButton(
@@ -80,7 +80,10 @@ struct DashboardView: View {
                 }
             }
             .refreshable { await loadData() }
-            .task { await loadData() }
+            .task {
+                guard incidentViewModel.incidents.isEmpty && deviceViewModel.devices.isEmpty else { return }
+                await loadData()
+            }
             .task(id: connectionStatus) {
                 guard connectionStatus == .disconnected else { return }
                 try? await Task.sleep(nanoseconds: 15_000_000_000)
@@ -89,6 +92,11 @@ struct DashboardView: View {
             }
         }
         .onChange(of: navResetID) { _, _ in withAnimation { navPath = NavigationPath() } }
+        .onChange(of: ObjectIdentifier(apiService)) { _, _ in
+            incidentViewModel.updateAPIService(apiService)
+            deviceViewModel.updateAPIService(apiService)
+            categoryViewModel.updateAPIService(apiService)
+        }
     }
 
     // MARK: Status Cards
@@ -275,7 +283,6 @@ struct DashboardView: View {
     // MARK: Helpers
 
     private func loadData() async {
-        connectionStatus = .checking
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await incidentViewModel.loadIncidents() }
             group.addTask { await deviceViewModel.loadDevices() }
