@@ -40,7 +40,7 @@ struct SettingsView: View {
 
                 Section(header: Text("BHNM Server")) {
                     HStack {
-                        TextField("Name", text: $draftName)
+                        TextField("Connection Name", text: $draftName)
                             .autocapitalization(.none)
                             .focused($focusedField, equals: .name)
                         Menu {
@@ -153,6 +153,7 @@ struct SettingsView: View {
                 #endif
             }
             .navigationTitle("Settings")
+            .scrollDismissesKeyboard(.immediately)
             .alert(alertTitle, isPresented: $showingAlert) {
                 Button("OK", role: .cancel) {}
             } message: {
