@@ -37,6 +37,7 @@
 		EE0001000000000000000001 /* SavedConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0001000000000000000002 /* SavedConnection.swift */; };
 		FF0001000000000000000001 /* Data+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0001000000000000000002 /* Data+Hex.swift */; };
 		FF0001000000000000000003 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0001000000000000000004 /* Secrets.swift */; };
+		GG0001000000000000000001 /* DeepLinkHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = GG0001000000000000000002 /* DeepLinkHandler.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -71,6 +72,7 @@
 		EE0001000000000000000002 /* SavedConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedConnection.swift; sourceTree = "<group>"; };
 		FF0001000000000000000002 /* Data+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Data+Hex.swift"; sourceTree = "<group>"; };
 		FF0001000000000000000004 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
+		GG0001000000000000000002 /* DeepLinkHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkHandler.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -143,6 +145,7 @@
 				A11234567890006B /* NetreoAPIService.swift */,
 				A11234567890007B /* NetreoAPIConfiguration.swift */,
 				BB000100000000000000000A /* NetworkDiscovery.swift */,
+				GG0001000000000000000002 /* DeepLinkHandler.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -283,6 +286,7 @@
 				EE0001000000000000000001 /* SavedConnection.swift in Sources */,
 				FF0001000000000000000001 /* Data+Hex.swift in Sources */,
 				FF0001000000000000000003 /* Secrets.swift in Sources */,
+				GG0001000000000000000001 /* DeepLinkHandler.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
