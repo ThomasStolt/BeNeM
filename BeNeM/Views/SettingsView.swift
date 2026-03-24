@@ -43,12 +43,12 @@ struct SettingsView: View {
                             Menu {
                                 ForEach(savedConnections) { connection in
                                     Button(connection.name) {
-                                        // TODO Task 6: selectConnection(connection)
+                                        selectConnection(connection)
                                     }
                                 }
                                 Divider()
                                 Button("+ New Connection") {
-                                    // TODO Task 6: selectNewConnection()
+                                    selectNewConnection()
                                 }
                             } label: {
                                 HStack(spacing: 4) {
@@ -305,6 +305,25 @@ struct SettingsView: View {
         }
 
         showingAlert = true
+    }
+
+    private func selectConnection(_ connection: SavedConnection) {
+        draftName    = connection.name
+        draftBaseURL = connection.baseURL
+        draftApiKey  = connection.apiKey
+        draftPin     = connection.pin
+        draftAckUser = connection.ackUser
+        activeSavedID = connection.id
+        Task { await testConnection() }
+    }
+
+    private func selectNewConnection() {
+        draftName    = "New BHNM Connection"
+        draftBaseURL = ""
+        draftApiKey  = ""
+        draftPin     = ""
+        draftAckUser = ""
+        activeSavedID = nil
     }
 }
 
