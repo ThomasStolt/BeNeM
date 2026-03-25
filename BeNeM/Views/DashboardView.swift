@@ -145,12 +145,27 @@ struct DashboardView: View {
                 g.reduce(0) { $0 + $1.thresholdsRed })
     }
 
+    private var anomalyTotals: (green: Int, blue: Int, yellow: Int, orange: Int, red: Int) {
+        let g = categoryViewModel.groups
+        return (g.reduce(0) { $0 + $1.anomaliesGreen }, g.reduce(0) { $0 + $1.anomaliesBlue },
+                g.reduce(0) { $0 + $1.anomaliesYellow }, g.reduce(0) { $0 + $1.anomaliesOrange },
+                g.reduce(0) { $0 + $1.anomaliesRed })
+    }
+
     private var heatMapSection: some View {
         let h = hostTotals
         let hostsTotal = h.green + h.blue + h.yellow + h.orange + h.red
+        let s = serviceTotals
+        let servicesTotal = s.green + s.blue + s.yellow + s.orange + s.red
+        let t = thresholdTotals
+        let thresholdsTotal = t.green + t.blue + t.yellow + t.orange + t.red
+        let a = anomalyTotals
+        let anomaliesTotal = a.green + a.blue + a.yellow + a.orange + a.red
 
-        return HStack(spacing: 10) {
-            // Box 1: HOSTS
+        return LazyVGrid(
+            columns: [GridItem(.flexible()), GridItem(.flexible())],
+            spacing: 8
+        ) {
             statBox(
                 title: "HOSTS",
                 count: hostsTotal,
@@ -163,10 +178,6 @@ struct DashboardView: View {
                     (h.red,    hmRed),
                 ]
             )
-
-            // Box 2: SERVICES
-            let s = serviceTotals
-            let servicesTotal = s.green + s.blue + s.yellow + s.orange + s.red
             statBox(
                 title: "SERVICES",
                 count: servicesTotal,
@@ -179,10 +190,6 @@ struct DashboardView: View {
                     (s.red,    hmRed),
                 ]
             )
-
-            // Box 3: THRESHOLDS
-            let t = thresholdTotals
-            let thresholdsTotal = t.green + t.blue + t.yellow + t.orange + t.red
             statBox(
                 title: "THRESHOLDS",
                 count: thresholdsTotal,
@@ -193,6 +200,18 @@ struct DashboardView: View {
                     (t.yellow, hmYellow),
                     (t.orange, hmOrange),
                     (t.red,    hmRed),
+                ]
+            )
+            statBox(
+                title: "ANOMALIES",
+                count: anomaliesTotal,
+                isLoading: categoryViewModel.isLoading,
+                badges: [
+                    (a.green,  hmGreen),
+                    (a.blue,   hmBlue),
+                    (a.yellow, hmYellow),
+                    (a.orange, hmOrange),
+                    (a.red,    hmRed),
                 ]
             )
         }
@@ -208,11 +227,14 @@ struct DashboardView: View {
             if isLoading && count == 0 {
                 ProgressView().scaleEffect(0.7).frame(height: 22)
             } else {
-                Text("\(count)")
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
-                    .foregroundColor(.primary)
-                    .minimumScaleFactor(0.6)
-                    .lineLimit(1)
+                ScrollingText(
+                    text: "\(count)",
+                    font: .system(size: 21, weight: .semibold, design: .rounded),
+                    weight: .semibold,
+                    color: .primary,
+                    centerWhenFitting: true
+                )
+                .frame(height: 22)
             }
 
             // All badges in one row
@@ -220,30 +242,35 @@ struct DashboardView: View {
                 ForEach(0..<badges.count, id: \.self) { idx in
                     let (n, color) = badges[idx]
                     if n > 0 {
-                        Text("\(n)")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(color == hmYellow ? Color.black : Color.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 2)
-                            .background(color)
-                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                        ScrollingText(
+                            text: "\(n)",
+                            font: .system(size: 9, weight: .semibold),
+                            weight: .semibold,
+                            color: color == hmYellow ? Color.black : Color.white,
+                            centerWhenFitting: true
+                        )
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 2)
+                        .background(color)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                     } else {
                         Text("0")
                             .font(.system(size: 9, weight: .regular))
+                            .lineLimit(1)
                             .foregroundColor(Color(.systemGray3))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 2)
-                            .overlay(RoundedRectangle(cornerRadius: 3).stroke(Color(.systemGray4), lineWidth: 0.5))
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(.systemGray4), lineWidth: 0.5))
                     }
                 }
             }
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 8)
+        .padding(.vertical, 13)
+        .padding(.horizontal, 10)
         .frame(maxWidth: .infinity)
         .background(Color(.systemGray6))
-        .cornerRadius(12)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(.systemGray4), lineWidth: 0.5))
+        .cornerRadius(13)
+        .overlay(RoundedRectangle(cornerRadius: 13).stroke(Color(.systemGray4), lineWidth: 0.5))
     }
 
     // MARK: Tactical Section
@@ -286,11 +313,8 @@ struct DashboardView: View {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await incidentViewModel.loadIncidents() }
             group.addTask { await deviceViewModel.loadDevices() }
+            group.addTask { await categoryViewModel.load() }
         }
-        await categoryViewModel.loadWith(
-            preloadedDevices: deviceViewModel.devices,
-            preloadedIncidents: incidentViewModel.incidents
-        )
         connectionStatus = deviceViewModel.errorMessage == nil ? .connected : .disconnected
     }
 }
@@ -530,7 +554,7 @@ struct IncidentTickerBanner: View {
                         .background(badgeColor)
                         .cornerRadius(3)
 
-                    Text("#\(incident.incidentID)")
+                    Text(incident.displayID)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.secondary)
                         .fixedSize()
