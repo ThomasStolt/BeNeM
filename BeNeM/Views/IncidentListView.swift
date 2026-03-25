@@ -26,12 +26,21 @@ struct IncidentListView: View {
                     incidentsList
                 }
             }
-            .navigationTitle("Active Incidents")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     ConnectionBadgeButton(status: connectionStatus) {
                         Task { await viewModel.refreshIncidents() }
+                    }
+                }
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: 6) {
+                        Image("BMCHelixLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 24, height: 24)
+                        Text("Active Incidents")
+                            .font(.system(size: 18, weight: .bold, design: .default))
                     }
                 }
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
@@ -180,7 +189,7 @@ struct IncidentRowView: View {
         VStack(alignment: .leading, spacing: 3) {
             // Top: #ID  +  scrolling title
             HStack(spacing: 5) {
-                Text("#\(incident.incidentID)")
+                Text(incident.displayID)
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundColor(.secondary)
@@ -236,11 +245,13 @@ private extension Date {
 
 // MARK: - Scrolling Title
 
-private struct ScrollingText: View {
+struct ScrollingText: View {
     let text: String
     var font: Font = .subheadline
     var weight: Font.Weight = .semibold
     var color: Color = .primary
+    /// When true, centers the text inside the container if it fits without scrolling.
+    var centerWhenFitting: Bool = false
 
     @State private var offset: CGFloat = 0
     @State private var textWidth: CGFloat = 0
@@ -278,10 +289,21 @@ private struct ScrollingText: View {
         try? await Task.sleep(nanoseconds: 200_000_000) // settle layout
         while !Task.isCancelled {
             let overflow = textWidth - containerWidth
-            guard overflow > 2, containerWidth > 0 else {
+            guard containerWidth > 0 else {
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 continue
             }
+            guard overflow > 2 else {
+                // Text fits — center it if requested, otherwise leave at leading
+                if centerWhenFitting {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        offset = (containerWidth - textWidth) / 2
+                    }
+                }
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                continue
+            }
+            offset = 0                                             // start from leading edge
             try? await Task.sleep(nanoseconds: 2_000_000_000)     // 2s initial pause
             guard !Task.isCancelled else { return }
             let duration = Double(overflow) / 60                   // 60 pt/s scroll speed

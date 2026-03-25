@@ -21,6 +21,8 @@ struct SettingsView: View {
     private var activeSavedUUID: UUID? { UUID(uuidString: activeSavedConnectionID) }
     @State private var savedConnections: [SavedConnection] = []
 
+    @State private var isClassCWiFiAvailable = NetworkDiscovery.isOnClassCWiFi
+
     private enum Field: Hashable { case name, baseURL, apiKey, pin, ackUser }
     @FocusState private var focusedField: Field?
 
@@ -35,10 +37,16 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("Discovery")) {
+                Section(
+                    header: Text("Discovery"),
+                    footer: Text(isClassCWiFiAvailable
+                        ? "Scans your Wi‑Fi network for BHNM servers."
+                        : "Requires a Wi‑Fi connection with a /24 (Class C) subnet.")
+                ) {
                     NavigationLink(destination: AutoDiscoveryView()) {
                         Label("Discover BHNM Server", systemImage: "magnifyingglass.circle.fill")
                     }
+                    .disabled(!isClassCWiFiAvailable)
                 }
 
                 Section(header: Text("BHNM Server")) {
@@ -170,7 +178,6 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .scrollDismissesKeyboard(.immediately)
-            .simultaneousGesture(TapGesture().onEnded { focusedField = nil })
             .alert(alertTitle, isPresented: $showingAlert) {
                 Button("OK", role: .cancel) {}
             } message: {
@@ -185,6 +192,7 @@ struct SettingsView: View {
                 Text("This connection will be removed from your saved list.")
             }
             .onAppear {
+                isClassCWiFiAvailable = NetworkDiscovery.isOnClassCWiFi
                 savedConnections = UserDefaults.standard.loadSavedConnections()
                 draftBaseURL = baseURL
                 draftApiKey  = apiKey

@@ -9,7 +9,7 @@ BeNeM (Be Netreo Mobile) is an iOS app built with Swift/SwiftUI for monitoring n
 ```
 BeNeM/
 ├── Services/
-│   ├── NetreoAPIService.swift       # All API calls (incidents, devices, tactical, ACK/UnACK)
+│   ├── NetreoAPIService.swift       # All API calls (incidents, devices, tactical, ACK/UnACK, performance)
 │   ├── NetreoAPIConfiguration.swift # URL configuration, endpoints, HTTP methods
 │   └── NetworkDiscovery.swift       # Local Wi-Fi /24 subnet scan for BHNM servers (SNMP)
 ├── Models/
@@ -20,15 +20,19 @@ BeNeM/
 ├── ViewModels/
 │   ├── IncidentListViewModel.swift
 │   ├── DeviceListViewModel.swift
+│   ├── DeviceDetailViewModel.swift  # Concurrent incident + performance loading for one device
 │   └── TacticalViewModel.swift      # Loads GroupSummary for Category/Site/Business Workflow
 └── Views/
+    ├── SplashView.swift              # Animated launch screen with logo shimmer + version
+    ├── DashboardView.swift           # Home: StatusCards + Drill Down links + Incident Ticker + H/S/T/A summary cards
     ├── IncidentListView.swift        # Swipe gestures: right = ACK, left = UnACK
     ├── IncidentDetailView.swift
-    ├── DashboardView.swift           # Home: StatusCards + Tactical Overview
+    ├── DeviceDetailView.swift        # Device detail: incidents, performance charts, interfaces
     ├── GroupListView.swift           # Lists groups with alarm badges and device count
     ├── AutoRefreshButton.swift       # Reusable countdown ring + refresh button (120 s)
     ├── AutoDiscoveryView.swift       # Wi-Fi server discovery UI
-    └── SettingsView.swift
+    ├── SettingsView.swift
+    └── BeNeMApp.swift                # App entry point + URL scheme handler
 ```
 
 ## API – BHNM
@@ -48,10 +52,27 @@ The app communicates with a self-hosted BHNM instance.
 | Unacknowledge incident | POST | `/fw/index.php?r=restful/incident/unacknowledge` |
 | Incident detail | GET | `/api/incident_api.php` (method=getincidentdetail) |
 | Device list | POST | `/fw/index.php?r=restful/devices/list` |
-| Category names | POST | `/fw/index.php?r=restful/category/list` |
-| Site names | POST | `/fw/index.php?r=restful/site/list` |
-| Strategic groups | POST | `/fw/index.php?r=restful/strategic-group/list` |
-| Strategic group devices | POST | `/fw/index.php?r=restful/strategic-group/device-list` (body: `id=<groupID>`) |
+| Tactical overview (H/S/T) | POST | `/fw/index.php?r=restful/tactical-overview/data` (body: `grouping_type=category\|site\|app`) |
+| Find device by name | POST | `/fw/index.php?r=restful/devices/find` (body: `name=<deviceName>`) → returns `dev_index` |
+| Performance categories | POST | `/fw/index.php?r=restful/devices/performance-category` (body: `device_id=<id>`) |
+| Performance instances | POST | `/fw/index.php?r=restful/devices/performance-instance-per-category` (body: `device_id=<id>&id=<categoryId>`) |
+| Time-series metrics | POST | `/fw/index.php?r=restful/devices/get-time-series-metrics` (see body parameters below) |
+
+### Time-Series Metrics Body (form-urlencoded)
+```
+password=<apiKey>
+groupFilterBy=device
+groupFilterValue=<deviceName>
+metricFilterStatGroup=<statGroup>   # e.g. "CPU", "Memory", interface category name
+metricFilterUnits=<units>           # e.g. "%", "Bytes/s"
+timeFrameFilterBy=time_offset
+timeFrameFilterValue=<timeFrame>    # e.g. "Last 24 Hours", "Last 7 Days"
+returnFormatFilterBy=average
+pin=<pin>                           # optional
+```
+Response: `{ "metrics": [ { "timeStamp": "<epoch>", "value1": <num>, "value2": <num>, "instanceDescr": <str>, ... } ] }`
+
+Interface instances produce two `PerformanceInstance` entries per physical interface (suffixed `-in`/`-out`); `valueKey` selects `value1` (inbound) or `value2` (outbound) from the response.
 
 ### ACK / UnACK Body (form-urlencoded)
 ```
@@ -63,25 +84,36 @@ pin=<pin>          # optional
 unacknowledge=1    # only for UnACK
 ```
 
-## Tactical Overview (Dashboard → Category / Site / Business Workflow)
+## Tactical Overview (Home → Categories / Sites / Business Workflows)
+
+Navigation from Home uses value-based `NavigationLink(value:)` with a `TacticalDestination` enum and `.navigationDestination(for:)`, so tapping the Home tab always pops back to the root regardless of depth.
 
 `GroupListView` displays per group:
-- **DEVICES** (outlined blue badge, leftmost): total actively-polled devices (`poll=1` only — matches BHNM UI)
-- **H / S / T** alarm badge rows: Hosts / Services / Thresholds (S + T are placeholder zeros for now)
+- **DEVICES** (outlined blue badge, leftmost): total of all host-status counts from the tactical overview endpoint
+- **H / S / T / A** alarm badge rows: Hosts / Services / Thresholds / Anomalies
 - Badge colors (left → right): Green / Blue / Yellow / Orange / Red
 - Badges with value 0 are shown as grey text with no background
-- Filter button (funnel icon) in the toolbar hides all-green groups
+- Group name column is centered and word-wraps for long names
+- Alternating row backgrounds (every second row has a very light gray tint)
+- Empty group names (blank from API) are displayed as "Unknown"
+- Filter button (funnel icon) in the toolbar hides groups where all H/S/T/A values are green (`hasAlarms` computed property on `GroupSummary`)
 
 ### Alarm Status Derivation
-The BHNM device API (`restful/devices/list`) returns **no real-time alarm state**. Status is derived from **incidents** instead:
-1. Fetch devices (for Site/Category assignment via `site`/`category` fields)
-2. Fetch active incidents
-3. Match: `incident.deviceName` ↔ `device.name` (case-insensitive, base-hostname fallback)
-4. For each matched incident, call `getincidentdetail` to read `primary_alarm_log` + `relatedalarms`
-5. Derive worst `AlarmColor` from actual alarm entries (not parsed severity, which is unreliable)
-6. Aggregate by Site / Category / Business Workflow
+H/S/T/A counts come directly from `restful/tactical-overview/data` — a single POST request per view that returns pre-aggregated, real-time status counts from BHNM's monitoring core (the same source as the BHNM web dashboard). No device or incident fetching is needed for the tactical views.
 
-Business Workflows additionally use `restful/strategic-group/device-list` to map IPs to groups.
+Anomalies use the `anom_threshold_*` prefix in the API response.
+
+`grouping_type` mapping in `TacticalViewModel.GroupType`:
+- `.category` → `"category"`
+- `.site` → `"site"`
+- `.businessWorkflow` → `"app"`
+
+Status field → badge color mapping:
+- `*_ok_count` → Green
+- `*_ack_count` → Blue
+- `*_warn_count` → Yellow
+- `*_un_count` → Orange (unvalidated)
+- `*_crit_count` → Red
 
 ## Data Refresh
 
@@ -132,11 +164,10 @@ xcrun devicectl list devices
 ## Important Notes
 
 - `NetreoAPIService` still has legacy code paths (`configuration.version == .legacy`). Incidents and ACK/UnACK use the RESTful endpoints directly (no `version` switch).
-- The device API returns **no alarm color field** — real-time status is derived from the incident detail API (`getincidentdetail`) using `primary_alarm_log` + `relatedalarms` alarm entries.
-- Severity fields are often missing from the BHNM incident list API; the alarm color from the detail API is authoritative.
+- The device list API returns **no alarm color field**. For per-incident alarm colors (used in `IncidentDetailView` and `IncidentListView` badge counts), `getincidentdetail` is still called — it returns `primary_alarm_log` + `relatedalarms` entries whose `state` field is authoritative. Severity fields in the incident list API are unreliable.
+- The **Tactical Overview** (H/S/T aggregates) no longer uses incident or device data — it calls `restful/tactical-overview/data` directly.
 - SourceKit regularly reports false-positive errors in this project (e.g. "Cannot find type X in scope"). `xcodebuild` succeeds regardless — trust the compiler, not SourceKit.
 - Debug info is temporarily stored in `UserDefaults`:
   - `debug_incident_fields`: fields from the first incident
   - `debug_device_fields`: fields from the first device
-  - `debug_unmatched_incidents`: incident device names that couldn't be matched to a device
   - All are visible in **Settings → Debug** and can be refreshed with the "Refresh" button.

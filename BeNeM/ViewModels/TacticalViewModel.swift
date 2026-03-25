@@ -10,7 +10,7 @@ class TacticalViewModel: ObservableObject {
 
     private func applyFilter() {
         filteredGroups = showAlarmsOnly
-            ? groups.filter { $0.hostsYellow + $0.hostsOrange + $0.hostsRed > 0 }
+            ? groups.filter { $0.hasAlarms }
             : groups
     }
 
@@ -19,6 +19,14 @@ class TacticalViewModel: ObservableObject {
 
     enum GroupType {
         case category, site, businessWorkflow
+
+        var groupingType: String {
+            switch self {
+            case .category:         return "category"
+            case .site:             return "site"
+            case .businessWorkflow: return "app"
+            }
+        }
     }
 
     init(apiService: NetreoAPIService, type: GroupType) {
@@ -31,11 +39,7 @@ class TacticalViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         do {
-            switch type {
-            case .category:         groups = try await apiService.fetchCategorySummaries()
-            case .site:             groups = try await apiService.fetchSiteSummaries()
-            case .businessWorkflow: groups = try await apiService.fetchBusinessWorkflowSummaries()
-            }
+            groups = try await apiService.fetchTacticalOverviewSummaries(groupingType: type.groupingType)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -48,22 +52,4 @@ class TacticalViewModel: ObservableObject {
         Task { await load() }
     }
 
-    func loadWith(preloadedDevices: [NetreoDevice], preloadedIncidents: [NetreoIncident]) async {
-        guard !isLoading else { return }
-        isLoading = true
-        errorMessage = nil
-        do {
-            switch type {
-            case .category:
-                groups = try await apiService.fetchCategorySummaries(devices: preloadedDevices, incidents: preloadedIncidents)
-            case .site:
-                groups = try await apiService.fetchSiteSummaries(devices: preloadedDevices, incidents: preloadedIncidents)
-            case .businessWorkflow:
-                groups = try await apiService.fetchBusinessWorkflowSummaries(devices: preloadedDevices, incidents: preloadedIncidents)
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-        isLoading = false
-    }
 }

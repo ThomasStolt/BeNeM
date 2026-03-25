@@ -32,6 +32,7 @@ xcodebuild \
     -project "$PROJECT" \
     -scheme "$SCHEME" \
     -destination "$DESTINATION" \
+    -allowProvisioningUpdates \
     clean build
 
 if [ -n "$DEVICE_ID" ]; then

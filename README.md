@@ -6,15 +6,15 @@ An open source native iOS app for **BMC Helix Network Management** (BHNM). Monit
 
 ## Features
 
-- **Dashboard** — at-a-glance summary with active incident count, total device count, an animated incident ticker (open incidents only), and HOSTS / SERVICES / THRESHOLDS alarm summaries
-- **Tactical Overview** — Category / Site / Business Workflow lists showing each group's device count and color-coded alarm status (Green / Blue / Yellow / Orange / Red); filter to show only groups with active alarms
+- **Dashboard (Home)** — at-a-glance summary with active incident count, total device count, an animated incident ticker (open incidents only), and HOSTS / SERVICES / THRESHOLDS / ANOMALIES alarm summaries with drill-down links to Categories, Sites, and Business Workflows
+- **Categories / Sites / Business Workflows** — group lists showing each group's device count and color-coded alarm status rows (H / S / T / A) across Green / Blue / Yellow / Orange / Red; alternating row backgrounds for readability; filter to show only groups with active alarms; empty group names shown as "Unknown"
 - **Incident List** — live view of active, acknowledged, and closed incidents with severity badges and per-incident alarm counts; sorted newest-first by Incident ID
 - **Acknowledge / Unacknowledge** — swipe right to ACK, swipe left to UnACK, with instant local status update
 - **Incident Detail** — primary alarms, related alarms, and the full incident state log
 - **Device Detail** — tap any device for a full detail view: active incidents, performance metric charts (CPU, memory, interfaces, latency), and network interface status
 - **Performance charts on-demand** — metric cards in Device Detail fetch and render their time-series chart only when expanded
 - **Incident Ticker** — animated banner on the Dashboard cycles through the latest open incidents; tap to navigate directly to the detail screen
-- **Filters** — filter incidents by severity and status; filter tactical groups to show only those with warning / major / critical alarms
+- **Filters** — filter incidents by severity and status; filter tactical groups to show only those with any non-green alarms (hosts, services, thresholds, or anomalies)
 - **Named connections** — save multiple BHNM servers and switch between them via a connection picker in Settings; connection test shows a green dot on success, no popup
 - **URL scheme import** — import a server connection via `benem://configure?url=…&key=…` deep link (QR code, MDM profile, or share sheet)
 - **Auto-refresh** — data refreshes automatically every 120 seconds with a visible countdown ring; tap the ring to refresh immediately
@@ -133,12 +133,15 @@ The app uses a mix of BHNM's legacy PHP endpoints and RESTful endpoints:
 | Acknowledge | POST | `/fw/index.php?r=restful/incident/acknowledge` |
 | Unacknowledge | POST | `/fw/index.php?r=restful/incident/unacknowledge` |
 | List devices | POST | `/fw/index.php?r=restful/devices/list` |
-| List categories | POST | `/fw/index.php?r=restful/category/list` |
-| List sites | POST | `/fw/index.php?r=restful/site/list` |
-| List strategic groups | POST | `/fw/index.php?r=restful/strategic-group/list` |
-| Strategic group members | POST | `/fw/index.php?r=restful/strategic-group/device-list` |
+| Tactical overview (H/S/T) | POST | `/fw/index.php?r=restful/tactical-overview/data` |
+| Find device by name | POST | `/fw/index.php?r=restful/devices/find` |
+| Performance categories | POST | `/fw/index.php?r=restful/devices/performance-category` |
+| Performance instances | POST | `/fw/index.php?r=restful/devices/performance-instance-per-category` |
+| Time-series metrics | POST | `/fw/index.php?r=restful/devices/get-time-series-metrics` |
 
-> **Note on alarm status:** The BHNM device list API does not expose a real-time alarm color or health state. BeNeM derives each device's current status from active incidents (matched by device name) using the incident detail API for accurate alarm colors, then aggregates them per group. Only actively monitored devices (`poll=1`) are counted, matching BHNM's own UI behavior.
+The tactical overview endpoint accepts a `grouping_type` body parameter (`category`, `site`, or `app` for Business Workflows) and returns pre-aggregated host, service, and threshold counts per group directly from BHNM's monitoring core — the same data source as BHNM's own web dashboard.
+
+> **Note on alarm status:** H/S/T counts come directly from `restful/tactical-overview/data`, which returns `host_*_count`, `service_*_count`, and `threshold_*_count` fields per group. Status values map to badge colors as follows: `ok` → green, `ack` → blue, `warn` → yellow, `un` (unvalidated) → orange, `crit` → red.
 
 ## Versioning
 

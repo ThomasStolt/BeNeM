@@ -484,10 +484,11 @@ class NetreoAPIService: ObservableObject {
             let h = statusCounts(status, prefix: "host_")
             let s = statusCounts(status, prefix: "service_")
             let t = statusCounts(status, prefix: "threshold_")
-            let a = statusCounts(status, prefix: "anomaly_")
+            let a = statusCounts(status, prefix: "anom_threshold_")
             guard h.green + h.blue + h.yellow + h.orange + h.red > 0 else { continue }
+            let displayName = name.trimmingCharacters(in: .whitespaces).isEmpty ? "Unknown" : name
             result.append(GroupSummary(
-                id: name, name: name,
+                id: name, name: displayName,
                 hostsGreen:       h.green,  hostsBlue:       h.blue,  hostsYellow:       h.yellow,
                 hostsOrange:      h.orange, hostsRed:        h.red,
                 servicesGreen:    s.green,  servicesBlue:    s.blue,  servicesYellow:    s.yellow,

@@ -44,12 +44,8 @@ struct IncidentDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                VStack(spacing: 1) {
-                    Text("Incident Detail")
-                        .font(.headline)
-                    Text("#\(incident.incidentID)")
-                        .font(.headline)
-                }
+                Text("Incident Detail")
+                    .font(.headline)
             }
             ToolbarItem(placement: .navigationBarTrailing) {
                 AutoRefreshButton(
@@ -105,7 +101,12 @@ struct IncidentDetailView: View {
                         if d.incidentState.uppercased() == "ACKNOWLEDGED" { return "OPEN" }
                         return d.incidentState
                     }()
-                    StateBadge(label: stateLabel)
+                    HStack(spacing: 6) {
+                        Text("Status:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        StateBadge(label: stateLabel)
+                    }
                     Spacer()
 
                     if let counts = preloadedAlarmCounts {
@@ -121,6 +122,7 @@ struct IncidentDetailView: View {
 
             // ── Incident Metadata ────────────────────────────────────────
             Section(header: Text("Incident Info")) {
+                InfoRow(label: "Incident ID",    value: incident.incidentID)
                 InfoRow(label: "Title",          value: d.title)
                 InfoRow(label: "Device",         value: d.deviceName)
                 let ip = d.deviceIP?.isEmpty == false ? d.deviceIP : incident.deviceIP

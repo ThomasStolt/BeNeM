@@ -26,6 +26,10 @@ class NetworkDiscovery: ObservableObject {
     // Max simultaneous UDP connections
     private let concurrencyLimit = 30
 
+    /// True when the device is on a /24 (Class C) Wi-Fi subnet — the only configuration
+    /// the scanner supports.
+    static var isOnClassCWiFi: Bool { localNetworkInfo() != nil }
+
     @MainActor
     func scan() async {
         guard let info = localNetworkInfo() else {
@@ -161,12 +165,12 @@ class NetworkDiscovery: ObservableObject {
 
 // MARK: - Network info helpers
 
-private struct LocalNetworkInfo {
+struct LocalNetworkInfo {
     let prefix: String    // e.g. "192.168.1"
     let lastOctet: Int    // local IP's last octet, to skip self
 }
 
-private func localNetworkInfo() -> LocalNetworkInfo? {
+func localNetworkInfo() -> LocalNetworkInfo? {
     var ifaddr: UnsafeMutablePointer<ifaddrs>?
     guard getifaddrs(&ifaddr) == 0 else { return nil }
     defer { freeifaddrs(ifaddr) }

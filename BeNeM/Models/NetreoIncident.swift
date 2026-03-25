@@ -3,6 +3,16 @@ import SwiftUI
 
 struct NetreoIncident: Codable, Identifiable, Hashable {
     var id: String { incidentID }
+
+    /// Short display ID: strips any prefix up to the last "-", then prepends "#".
+    /// e.g. "#NetreoCloudDemo-58431" → "#58431", "58431" → "#58431"
+    var displayID: String {
+        let bare = incidentID.hasPrefix("#") ? String(incidentID.dropFirst()) : incidentID
+        if let dash = bare.lastIndex(of: "-") {
+            return "#" + bare[bare.index(after: dash)...]
+        }
+        return "#\(bare)"
+    }
     let incidentID: String
     let deviceIP: String?
     let deviceName: String?

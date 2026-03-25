@@ -8,6 +8,10 @@ private let hmOrange = AlarmColor.orange.color
 private let hmRed    = AlarmColor.red.color
 private let hmBlue   = AlarmColor.blue.color
 
+enum TacticalDestination: Hashable {
+    case categories, sites, businessWorkflows
+}
+
 struct DashboardView: View {
     @StateObject private var incidentViewModel: IncidentListViewModel
     @StateObject private var deviceViewModel: DeviceListViewModel
@@ -67,7 +71,7 @@ struct DashboardView: View {
                             .resizable()
                             .scaledToFit()
                             .frame(width: 24, height: 24)
-                        Text("Tactical Overview")
+                        Text("Home")
                             .font(.system(size: 18, weight: .bold))
                     }
                 }
@@ -81,14 +85,27 @@ struct DashboardView: View {
             }
             .refreshable { await loadData() }
             .task {
-                guard incidentViewModel.incidents.isEmpty && deviceViewModel.devices.isEmpty else { return }
-                await loadData()
+                if incidentViewModel.incidents.isEmpty && deviceViewModel.devices.isEmpty {
+                    await loadData()
+                } else if categoryViewModel.groups.isEmpty {
+                    await categoryViewModel.load()
+                }
             }
             .task(id: connectionStatus) {
                 guard connectionStatus == .disconnected else { return }
                 try? await Task.sleep(nanoseconds: 15_000_000_000)
                 guard !Task.isCancelled, connectionStatus == .disconnected else { return }
                 Task { await loadData() }
+            }
+            .navigationDestination(for: TacticalDestination.self) { dest in
+                switch dest {
+                case .categories:
+                    GroupListView(title: "Categories", apiService: apiService, type: .category)
+                case .sites:
+                    GroupListView(title: "Sites", apiService: apiService, type: .site)
+                case .businessWorkflows:
+                    GroupListView(title: "Business Workflows", apiService: apiService, type: .businessWorkflow)
+                }
             }
         }
         .onChange(of: navResetID) { _, _ in withAnimation { navPath = NavigationPath() } }
@@ -282,14 +299,14 @@ struct DashboardView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             VStack(spacing: 12) {
-                NavigationLink(destination: GroupListView(title: "Categories", apiService: apiService, type: .category)) {
-                    tacticalRow(icon: "tag.fill", iconColor: .purple, title: "Category")
+                NavigationLink(value: TacticalDestination.categories) {
+                    tacticalRow(icon: "tag.fill", iconColor: .purple, title: "Categories")
                 }
-                NavigationLink(destination: GroupListView(title: "Sites", apiService: apiService, type: .site)) {
-                    tacticalRow(icon: "map.fill", iconColor: .blue, title: "Site")
+                NavigationLink(value: TacticalDestination.sites) {
+                    tacticalRow(icon: "map.fill", iconColor: .blue, title: "Sites")
                 }
-                NavigationLink(destination: GroupListView(title: "Business Workflows", apiService: apiService, type: .businessWorkflow)) {
-                    tacticalRow(icon: "arrow.triangle.2.circlepath", iconColor: .green, title: "Business Workflow")
+                NavigationLink(value: TacticalDestination.businessWorkflows) {
+                    tacticalRow(icon: "arrow.triangle.2.circlepath", iconColor: .green, title: "Business Workflows")
                 }
             }
         }

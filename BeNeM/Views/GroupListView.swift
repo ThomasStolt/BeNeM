@@ -10,7 +10,6 @@ private let kGap: CGFloat = 8            // gap between count and name
 struct GroupListView: View {
     let title: String
     @StateObject private var viewModel: TacticalViewModel
-    @State private var connectionStatus: ConnectionStatus = .unknown
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
 
     init(title: String, apiService: NetreoAPIService, type: TacticalViewModel.GroupType) {
@@ -59,9 +58,12 @@ struct GroupListView: View {
             } else {
                 List {
                     columnHeader
-                    ForEach(viewModel.filteredGroups) { group in
+                    ForEach(Array(viewModel.filteredGroups.enumerated()), id: \.element.id) { index, group in
                         GroupRow(group: group)
                             .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16))
+                            .listRowBackground(index.isMultiple(of: 2)
+                                ? Color.clear
+                                : Color(.systemGray6).opacity(0.6))
                     }
                 }
                 .listStyle(.plain)
@@ -70,11 +72,6 @@ struct GroupListView: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                ConnectionBadgeButton(status: connectionStatus) {
-                    Task { await viewModel.load() }
-                }
-            }
             ToolbarItem(placement: .principal) {
                 HStack(spacing: 6) {
                     Image("BMCHelixLogo")
@@ -102,16 +99,6 @@ struct GroupListView: View {
                     action: viewModel.load
                 )
             }
-        }
-        .onChange(of: viewModel.isLoading) { loading in
-            guard !loading else { return }
-            connectionStatus = viewModel.errorMessage == nil ? .connected : .disconnected
-        }
-        .task(id: connectionStatus) {
-            guard connectionStatus == .disconnected else { return }
-            try? await Task.sleep(nanoseconds: 15_000_000_000)
-            guard !Task.isCancelled, connectionStatus == .disconnected else { return }
-            await viewModel.load()
         }
         .task {
             if viewModel.groups.isEmpty && viewModel.errorMessage == nil {
@@ -182,10 +169,10 @@ private struct GroupRow: View {
             // Name
             Text(group.name)
                 .font(.subheadline)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, alignment: .center)
 
-            // Metric rows (Hosts / Services / Thresholds) — right side
+            // Metric rows (Hosts / Services / Thresholds / Anomalies) — right side
             VStack(alignment: .trailing, spacing: 2) {
                 metricRow(label: "H",
                           green: group.hostsGreen, blue: group.hostsBlue,
@@ -199,6 +186,10 @@ private struct GroupRow: View {
                           green: group.thresholdsGreen, blue: group.thresholdsBlue,
                           yellow: group.thresholdsYellow, orange: group.thresholdsOrange,
                           red: group.thresholdsRed)
+                metricRow(label: "A",
+                          green: group.anomaliesGreen, blue: group.anomaliesBlue,
+                          yellow: group.anomaliesYellow, orange: group.anomaliesOrange,
+                          red: group.anomaliesRed)
             }
         }
         .padding(.vertical, 2)
