@@ -30,7 +30,14 @@ struct GroupSummary: Identifiable {
     let thresholdsYellow: Int
     let thresholdsOrange: Int
     let thresholdsRed: Int
+    // A — Anomalies (ML-based deviation detections, distinct from threshold alarms)
+    let anomaliesGreen: Int
+    let anomaliesBlue: Int
+    let anomaliesYellow: Int
+    let anomaliesOrange: Int
+    let anomaliesRed: Int
 
     var totalHosts: Int { hostsGreen + hostsBlue + hostsYellow + hostsOrange + hostsRed }
+    var totalAnomalies: Int { anomaliesGreen + anomaliesBlue + anomaliesYellow + anomaliesOrange + anomaliesRed }
     var hasDevices: Bool { totalHosts > 0 }
 }
