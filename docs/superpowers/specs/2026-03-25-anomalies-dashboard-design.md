@@ -18,12 +18,12 @@ Add a fourth **ANOMALIES** stat card to the Dashboard's `heatMapSection`, arrang
 **In scope:**
 - `GroupSummary` model: add anomaly count fields
 - `NetreoAPIService`: parse `anomaly_*_count` fields from tactical overview response
-- `DashboardView`: replace 3-card `HStack` with 2×2 `LazyVGrid`, add ANOMALIES card, apply φ proportions to `statBox`
-- `TacticalViewModel`: add `anomalyTotals` computed property for Dashboard aggregation
+- `DashboardView`: replace 3-card `HStack` with 2×2 `LazyVGrid`, add ANOMALIES card, apply φ proportions to `statBox`, add `anomalyTotals` private computed property
+- `GroupListView`: **no changes** — the new `GroupSummary` anomaly fields are simply unused by this view for now
 
 **Out of scope:**
-- `GroupListView` rows (H/S/T/A per group row) — separate future feature
-- Filter logic changes in `TacticalViewModel.applyFilter`
+- Per-row anomaly columns in `GroupListView` — separate future feature
+- `TacticalViewModel`: no changes needed
 
 ## Design
 
@@ -31,15 +31,15 @@ Add a fourth **ANOMALIES** stat card to the Dashboard's `heatMapSection`, arrang
 
 All four cards are equal size. φ governs internal dimensions:
 
-| Property | Value | Derivation |
-|---|---|---|
-| Card corner radius | `13pt` | `8 × φ ≈ 12.9` |
-| Card padding (V/H) | `13pt / 10pt` | `8 × φ ≈ 12.9` |
-| Internal gap | `8pt` | base unit |
-| Grid gap | `8pt` | base unit |
-| Count font size | `21pt` | `13 × φ ≈ 21.0` |
-| Title font size | `13pt` | base |
-| Badge corner radius | `8pt` | base unit |
+| Property | Old value | New value | Derivation |
+|---|---|---|---|
+| Card padding vertical | `10pt` | `13pt` | `8 × φ ≈ 12.9` |
+| Card padding horizontal | `8pt` | `10pt` | base |
+| Card corner radius | `12pt` | `13pt` | `8 × φ ≈ 12.9` |
+| Count font size | `18pt` | `21pt` | `13 × φ ≈ 21.0` |
+| Title font size | `13pt` | `13pt` | unchanged (base) |
+| Grid gap | `10pt` | `8pt` | base unit |
+| Badge corner radius | `3pt` | `8pt` | base unit |
 
 ### 2×2 Grid Layout
 
@@ -72,7 +72,17 @@ New fields to parse:
 - `anomaly_un_count` → Orange
 - `anomaly_crit_count` → Red
 
-**Fallback:** All anomaly fields default to `0` if absent (e.g. "Not configured" groups in BHNM). No crash, no UI change — card shows all-green.
+**Fallback:** All anomaly fields default to `0` if absent (e.g. "Not configured" groups in BHNM). No crash, no UI change — card shows all-green zeros.
+
+### Guard Clause in `fetchTacticalOverviewSummaries`
+
+The current parsing loop contains:
+
+```swift
+guard h.green + h.blue + h.yellow + h.orange + h.red > 0 else { continue }
+```
+
+This drops groups with all-zero host counts. Since anomaly data is secondary (anomaly-only groups without any hosts are extremely unlikely in practice), this guard is **intentionally preserved unchanged**. If BHNM ever returns such groups they will be invisible in the app — acceptable for now.
 
 ## Files Changed
 
@@ -99,24 +109,25 @@ In `fetchTacticalOverviewSummaries`, add anomaly parsing alongside existing H/S/
 
 ```swift
 let a = statusCounts(status, prefix: "anomaly_")
-// pass to GroupSummary initialiser
 ```
 
-Update `GroupSummary` initialiser call to include anomaly values.
-
-### `BeNeM/ViewModels/TacticalViewModel.swift`
-
-Add aggregation property for Dashboard:
-
-```swift
-var anomalyTotals: (green: Int, blue: Int, yellow: Int, orange: Int, red: Int) { ... }
-```
+Update `GroupSummary` initialiser call to include all five anomaly values (defaulting `anomaly_*` to 0 via the existing `?? 0` pattern in `statusCounts`).
 
 ### `BeNeM/Views/DashboardView.swift`
 
-1. Replace `heatMapSection`'s `HStack` with `LazyVGrid`.
-2. Add fourth `statBox` for ANOMALIES using `anomalyTotals`.
-3. Update `statBox` function with φ-derived dimensions (padding `13pt`, corner radius `13pt`, count font `21pt`, title font `13pt`, badge corner radius `8pt`).
+Four changes:
+
+1. **Add `anomalyTotals`** as a `private var` computed property on `DashboardView`, directly below the existing `thresholdTotals` property. Same pattern as `hostTotals`, `serviceTotals`, `thresholdTotals` — all three live on `DashboardView`, not on `TacticalViewModel`.
+
+2. **Replace `heatMapSection` body**: The current implementation opens with `let h = hostTotals` bindings and closes with an explicit `return HStack(...)`. When replacing the `HStack` with a `LazyVGrid`, the `return` keyword must be kept (or the leading `let` bindings moved inline) to avoid a compile error. The safest approach is to keep all `let` bindings and change only `HStack` → `LazyVGrid`.
+
+3. **Add the ANOMALIES `statBox` call** as the fourth item in the grid, using `anomalyTotals`.
+
+4. **Update `statBox` function** with the new φ-derived values per the table above (padding, corner radius, count font size, badge corner radius).
+
+### `BeNeM/Views/GroupListView.swift`
+
+**No changes.** `GroupListView` iterates `GroupSummary` for H/S/T display only. The new anomaly fields on `GroupSummary` are simply unused here — intentional, out of scope.
 
 ## Error Handling
 
@@ -126,6 +137,7 @@ var anomalyTotals: (green: Int, blue: Int, yellow: Int, orange: Int, red: Int) {
 ## Testing
 
 - Build and deploy to TomiPhone13 after implementation
-- Verify ANOMALIES card appears with correct counts matching BHNM web UI
-- Verify all-zero anomaly groups still render (grey zeros, no background)
-- Verify filter button in GroupListView is unaffected
+- Verify ANOMALIES card appears in bottom-right of 2×2 grid
+- Verify counts match BHNM web UI Anomalies column (aggregate across all categories)
+- Verify all-zero anomaly groups render correctly (grey zeros, no background)
+- Verify GroupListView, Ticker, and StatusCards are unaffected
