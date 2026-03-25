@@ -447,366 +447,58 @@ class NetreoAPIService: ObservableObject {
 
     // MARK: - Tactical Group Summaries
 
-    func fetchCategorySummaries() async throws -> [GroupSummary] {
-        async let devicesFetch   = fetchDevices()
-        async let incidentsFetch = fetchIncidents()
-        async let namesFetch     = fetchGroupNames(endpoint: "restful/category/list")
-        let (devices, incidents, names) = try await (devicesFetch, incidentsFetch, namesFetch)
-        let maps = await deviceStatusMap(devices: devices, incidents: incidents)
-        return buildSummaries(devices: devices, hostStatusByIP: maps.hosts, serviceStatusByIP: maps.services, thresholdStatusByIP: maps.thresholds, keyPath: \.categoryID, names: names)
-    }
-
-    func fetchSiteSummaries() async throws -> [GroupSummary] {
-        async let devicesFetch   = fetchDevices()
-        async let incidentsFetch = fetchIncidents()
-        async let namesFetch     = fetchGroupNames(endpoint: "restful/site/list")
-        let (devices, incidents, names) = try await (devicesFetch, incidentsFetch, namesFetch)
-        let maps = await deviceStatusMap(devices: devices, incidents: incidents)
-        return buildSummaries(devices: devices, hostStatusByIP: maps.hosts, serviceStatusByIP: maps.services, thresholdStatusByIP: maps.thresholds, keyPath: \.siteID, names: names)
-    }
-
-    func fetchBusinessWorkflowSummaries() async throws -> [GroupSummary] {
-        let groups = try await fetchStrategicGroupList()
-        async let devicesFetch   = fetchDevices()
-        async let incidentsFetch = fetchIncidents()
-        let (devices, incidents) = try await (devicesFetch, incidentsFetch)
-        let maps = await deviceStatusMap(devices: devices, incidents: incidents)
-        let activeIPs = Set(devices.filter(\.isActive).map(\.ip))
-
-        return try await withThrowingTaskGroup(of: GroupSummary?.self) { taskGroup in
-            for sg in groups {
-                taskGroup.addTask {
-                    let memberIPs = (try? await self.fetchStrategicGroupMemberIPs(groupID: sg.id)) ?? []
-                    var hG = 0, hB = 0, hY = 0, hO = 0, hR = 0
-                    var sG = 0, sB = 0, sY = 0, sO = 0, sR = 0
-                    var tG = 0, tB = 0, tY = 0, tO = 0, tR = 0
-                    for ip in memberIPs where activeIPs.contains(ip) {
-                        switch maps.hosts[ip] ?? .green {
-                        case .green:  hG += 1
-                        case .blue:   hB += 1
-                        case .yellow: hY += 1
-                        case .orange: hO += 1
-                        case .red:    hR += 1
-                        }
-                        if let svc = maps.services[ip] {
-                            switch svc { case .green: sG += 1; case .blue: sB += 1; case .yellow: sY += 1; case .orange: sO += 1; case .red: sR += 1 }
-                        }
-                        if let thr = maps.thresholds[ip] {
-                            switch thr { case .green: tG += 1; case .blue: tB += 1; case .yellow: tY += 1; case .orange: tO += 1; case .red: tR += 1 }
-                        }
-                    }
-                    let total = hG + hB + hY + hO + hR
-                    guard total > 0 else { return nil }
-                    return GroupSummary(id: sg.id, name: sg.name,
-                                       hostsGreen: hG, hostsBlue: hB, hostsYellow: hY, hostsOrange: hO, hostsRed: hR,
-                                       servicesGreen: sG, servicesBlue: sB, servicesYellow: sY, servicesOrange: sO, servicesRed: sR,
-                                       thresholdsGreen: tG, thresholdsBlue: tB, thresholdsYellow: tY, thresholdsOrange: tO, thresholdsRed: tR)
-                }
-            }
-            var result: [GroupSummary] = []
-            for try await summary in taskGroup {
-                if let s = summary { result.append(s) }
-            }
-            return result.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        }
-    }
-
-    // Overloads that accept pre-fetched data so the Dashboard can avoid redundant network calls.
-
-    func fetchCategorySummaries(devices: [NetreoDevice], incidents: [NetreoIncident]) async throws -> [GroupSummary] {
-        let names = try await fetchGroupNames(endpoint: "restful/category/list")
-        let maps = await deviceStatusMap(devices: devices, incidents: incidents)
-        return buildSummaries(devices: devices, hostStatusByIP: maps.hosts, serviceStatusByIP: maps.services, thresholdStatusByIP: maps.thresholds, keyPath: \.categoryID, names: names)
-    }
-
-    func fetchSiteSummaries(devices: [NetreoDevice], incidents: [NetreoIncident]) async throws -> [GroupSummary] {
-        let names = try await fetchGroupNames(endpoint: "restful/site/list")
-        let maps = await deviceStatusMap(devices: devices, incidents: incidents)
-        return buildSummaries(devices: devices, hostStatusByIP: maps.hosts, serviceStatusByIP: maps.services, thresholdStatusByIP: maps.thresholds, keyPath: \.siteID, names: names)
-    }
-
-    func fetchBusinessWorkflowSummaries(devices: [NetreoDevice], incidents: [NetreoIncident]) async throws -> [GroupSummary] {
-        let groups = try await fetchStrategicGroupList()
-        let maps = await deviceStatusMap(devices: devices, incidents: incidents)
-        let activeIPs = Set(devices.filter(\.isActive).map(\.ip))
-        return try await withThrowingTaskGroup(of: GroupSummary?.self) { taskGroup in
-            for sg in groups {
-                taskGroup.addTask {
-                    let memberIPs = (try? await self.fetchStrategicGroupMemberIPs(groupID: sg.id)) ?? []
-                    var hG = 0, hB = 0, hY = 0, hO = 0, hR = 0
-                    var sG = 0, sB = 0, sY = 0, sO = 0, sR = 0
-                    var tG = 0, tB = 0, tY = 0, tO = 0, tR = 0
-                    for ip in memberIPs where activeIPs.contains(ip) {
-                        switch maps.hosts[ip] ?? .green {
-                        case .green:  hG += 1
-                        case .blue:   hB += 1
-                        case .yellow: hY += 1
-                        case .orange: hO += 1
-                        case .red:    hR += 1
-                        }
-                        if let svc = maps.services[ip] {
-                            switch svc { case .green: sG += 1; case .blue: sB += 1; case .yellow: sY += 1; case .orange: sO += 1; case .red: sR += 1 }
-                        }
-                        if let thr = maps.thresholds[ip] {
-                            switch thr { case .green: tG += 1; case .blue: tB += 1; case .yellow: tY += 1; case .orange: tO += 1; case .red: tR += 1 }
-                        }
-                    }
-                    let total = hG + hB + hY + hO + hR
-                    guard total > 0 else { return nil }
-                    return GroupSummary(id: sg.id, name: sg.name,
-                                       hostsGreen: hG, hostsBlue: hB, hostsYellow: hY, hostsOrange: hO, hostsRed: hR,
-                                       servicesGreen: sG, servicesBlue: sB, servicesYellow: sY, servicesOrange: sO, servicesRed: sR,
-                                       thresholdsGreen: tG, thresholdsBlue: tB, thresholdsYellow: tY, thresholdsOrange: tO, thresholdsRed: tR)
-                }
-            }
-            var result: [GroupSummary] = []
-            for try await summary in taskGroup {
-                if let s = summary { result.append(s) }
-            }
-            return result.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        }
-    }
-
-    private func deviceStatusMap(devices: [NetreoDevice], incidents: [NetreoIncident])
-        async -> (hosts: [String: HostAlarmStatus], services: [String: HostAlarmStatus], thresholds: [String: HostAlarmStatus]) {
-
-        // Build a name → IP lookup (full name + base hostname for each device)
-        var nameToIP: [String: String] = [:]
-        for device in devices {
-            let ip = device.ip
-            for raw in [device.name, device.hostname].compactMap({ $0 }) {
-                let lower = raw.lowercased()
-                nameToIP[lower] = ip
-                if let base = lower.components(separatedBy: ".").first, !base.isEmpty {
-                    nameToIP[base] = ip
-                }
-            }
-        }
-
-        // Match active/acknowledged incidents to device IPs
-        var incidentsByIP: [String: [NetreoIncident]] = [:]
-        var unmatched: [String] = []
-        for incident in incidents {
-            guard incident.status == .active || incident.status == .acknowledged,
-                  let rawName = incident.deviceName else { continue }
-            let lower = rawName.lowercased()
-            let base  = lower.components(separatedBy: ".").first ?? lower
-            guard let ip = nameToIP[lower] ?? nameToIP[base] else {
-                unmatched.append(rawName)
-                continue
-            }
-            incidentsByIP[ip, default: []].append(incident)
-        }
-        #if DEBUG
-        if unmatched.isEmpty {
-            UserDefaults.standard.removeObject(forKey: "debug_unmatched_incidents")
-        } else {
-            UserDefaults.standard.set(unmatched.joined(separator: "\n"), forKey: "debug_unmatched_incidents")
-        }
-        #endif
-
-        // Fetch alert_type + alarm counts for ALL incidents per IP in parallel
-        var worstHostByIP: [String: AlarmColor] = [:]
-        var worstServiceByIP: [String: AlarmColor] = [:]
-        var worstThresholdByIP: [String: AlarmColor] = [:]
-
-        await withTaskGroup(of: (String, String, AlarmColor).self) { group in
-            for (ip, ipIncidents) in incidentsByIP {
-                for incident in ipIncidents {
-                    group.addTask {
-                        let (alertType, counts) = await self.fetchIncidentAlarmData(incidentID: incident.incidentID)
-                        return (ip, alertType, AlarmColor.worst(from: counts))
-                    }
-                }
-            }
-            for await (ip, alertType, color) in group {
-                switch alertType {
-                case "service":
-                    let cur = worstServiceByIP[ip]
-                    if cur == nil || color.priority > cur!.priority { worstServiceByIP[ip] = color }
-                case "threshold":
-                    let cur = worstThresholdByIP[ip]
-                    if cur == nil || color.priority > cur!.priority { worstThresholdByIP[ip] = color }
-                default: // "host" or anything else
-                    let cur = worstHostByIP[ip]
-                    if cur == nil || color.priority > cur!.priority { worstHostByIP[ip] = color }
-                }
-            }
-        }
-
-        // Host status for ALL active devices (green = no host incident)
-        var hostResult: [String: HostAlarmStatus] = [:]
-        for device in devices {
-            switch worstHostByIP[device.ip] {
-            case .red:               hostResult[device.ip] = .red
-            case .orange:            hostResult[device.ip] = .orange
-            case .yellow:            hostResult[device.ip] = .yellow
-            case .blue:              hostResult[device.ip] = .blue
-            case .green, .grey, nil: hostResult[device.ip] = .green
-            }
-        }
-
-        // Service / threshold status for only devices that have incidents of that type
-        func toStatus(_ color: AlarmColor) -> HostAlarmStatus {
-            switch color {
-            case .red:          return .red
-            case .orange:       return .orange
-            case .yellow:       return .yellow
-            case .blue:         return .blue
-            case .green, .grey: return .green
-            }
-        }
-        let serviceResult   = worstServiceByIP.mapValues   { toStatus($0) }
-        let thresholdResult = worstThresholdByIP.mapValues { toStatus($0) }
-
-        return (hostResult, serviceResult, thresholdResult)
-    }
-
-    private struct SGInfo { let id: String; let name: String }
-
-    // POST /fw/index.php?r=restful/strategic-group/list → direct JSON array
-    private func fetchStrategicGroupList() async throws -> [SGInfo] {
-        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/strategic-group/list") else { return [] }
+    /// Single endpoint replacing all incident-derived summary logic.
+    /// groupingType: "category" | "site" | "app" (business workflows)
+    func fetchTacticalOverviewSummaries(groupingType: String) async throws -> [GroupSummary] {
+        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/tactical-overview/data") else { return [] }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        var params = [URLQueryItem(name: "password", value: configuration.apiKey)]
+        var params = [
+            URLQueryItem(name: "password",      value: configuration.apiKey),
+            URLQueryItem(name: "grouping_type", value: groupingType)
+        ]
         if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
         request.httpBody = formEncodedBody(params)
+
         let (data, _) = try await urlSession.data(for: request)
-        guard let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
-        return arr.compactMap { item -> SGInfo? in
-            // Only include entries flagged as business workflows
-            guard (item["business_workflow"] as? String) == "1" else { return nil }
-            let id   = (item["id"]   as? String) ?? ""
-            let name = (item["name"] as? String) ?? ""
-            guard !id.isEmpty, !name.isEmpty else { return nil }
-            return SGInfo(id: id, name: name)
-        }
-    }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
 
-    // POST /fw/index.php?r=restful/strategic-group/device-list with id=<groupID>
-    private func fetchStrategicGroupMemberIPs(groupID: String) async throws -> [String] {
-        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/strategic-group/device-list") else { return [] }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        var params = [URLQueryItem(name: "password", value: configuration.apiKey), URLQueryItem(name: "id", value: groupID)]
-        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
-        request.httpBody = formEncodedBody(params)
-        let (data, _) = try await urlSession.data(for: request)
-        guard let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
-        return arr.compactMap { $0["ip"] as? String }
-    }
-
-    // Fetches id→name map — handles {"data":[…]}, {"data":{"items":[…]}}, or top-level [{…}]
-    private func fetchGroupNames(endpoint: String) async throws -> [String: String] {
-        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=\(endpoint)") else { return [:] }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        var params = [URLQueryItem(name: "password", value: configuration.apiKey)]
-        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
-        request.httpBody = formEncodedBody(params)
-        let (data, _) = try await urlSession.data(for: request)
-
-        // Collect items from whichever response shape the API uses
-        var items: [[String: Any]] = []
-        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            if let arr = json["data"] as? [[String: Any]] {
-                items = arr                                    // {"data":[…]}
-            } else if let nested = json["data"] as? [String: Any] {
-                for val in nested.values {
-                    if let arr = val as? [[String: Any]] { items = arr; break }
-                }
-            } else {
-                for key in ["categories", "sites", "groups", "items"] {
-                    if let arr = json[key] as? [[String: Any]] { items = arr; break }
-                }
-            }
-        } else if let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-            items = arr                                        // top-level array
+        // Extract (green, blue, yellow, orange, red) from a Status dict for a given prefix.
+        // BHNM status keys: ok → green, ack → blue, warn → yellow, un → orange, crit → red
+        func statusCounts(_ status: [String: Any], prefix: String)
+            -> (green: Int, blue: Int, yellow: Int, orange: Int, red: Int)
+        {
+            let ok   = status["\(prefix)ok_count"]   as? Int ?? 0
+            let ack  = status["\(prefix)ack_count"]  as? Int ?? 0
+            let warn = status["\(prefix)warn_count"] as? Int ?? 0
+            let un   = status["\(prefix)un_count"]   as? Int ?? 0
+            let crit = status["\(prefix)crit_count"] as? Int ?? 0
+            return (ok, ack, warn, un, crit)
         }
 
-        var result: [String: String] = [:]
-        for item in items {
-            let id   = (item["id"]   as? String) ?? ""
-            let name = (item["name"] as? String) ?? id
-            if !id.isEmpty { result[id] = name }
+        var result: [GroupSummary] = []
+        for (name, value) in json {
+            guard let group  = value as? [String: Any],
+                  let status = group["Status"] as? [String: Any] else { continue }
+            let h = statusCounts(status, prefix: "host_")
+            let s = statusCounts(status, prefix: "service_")
+            let t = statusCounts(status, prefix: "threshold_")
+            let a = statusCounts(status, prefix: "anomaly_")
+            guard h.green + h.blue + h.yellow + h.orange + h.red > 0 else { continue }
+            result.append(GroupSummary(
+                id: name, name: name,
+                hostsGreen:       h.green,  hostsBlue:       h.blue,  hostsYellow:       h.yellow,
+                hostsOrange:      h.orange, hostsRed:        h.red,
+                servicesGreen:    s.green,  servicesBlue:    s.blue,  servicesYellow:    s.yellow,
+                servicesOrange:   s.orange, servicesRed:     s.red,
+                thresholdsGreen:  t.green,  thresholdsBlue:  t.blue,  thresholdsYellow:  t.yellow,
+                thresholdsOrange: t.orange, thresholdsRed:   t.red,
+                anomaliesGreen:   a.green,  anomaliesBlue:   a.blue,  anomaliesYellow:   a.yellow,
+                anomaliesOrange:  a.orange, anomaliesRed:    a.red
+            ))
         }
-        return result
-    }
-
-
-    private func buildSummaries(devices: [NetreoDevice],
-                                hostStatusByIP: [String: HostAlarmStatus],
-                                serviceStatusByIP: [String: HostAlarmStatus],
-                                thresholdStatusByIP: [String: HostAlarmStatus],
-                                keyPath: KeyPath<NetreoDevice, String?>,
-                                names: [String: String]) -> [GroupSummary] {
-        struct Counts { var green = 0; var blue = 0; var yellow = 0; var orange = 0; var red = 0 }
-        var hostBuckets: [String: (name: String, counts: Counts)] = [:]
-        var serviceBuckets:   [String: Counts] = [:]
-        var thresholdBuckets: [String: Counts] = [:]
-
-        for device in devices {
-            guard device.isActive else { continue }
-            guard let key = device[keyPath: keyPath], !key.isEmpty else { continue }
-            let displayName = names[key] ?? key
-
-            // H — all active devices
-            var hb = hostBuckets[key] ?? (name: displayName, counts: Counts())
-            switch hostStatusByIP[device.ip] ?? .green {
-            case .green:  hb.counts.green  += 1
-            case .blue:   hb.counts.blue   += 1
-            case .yellow: hb.counts.yellow += 1
-            case .orange: hb.counts.orange += 1
-            case .red:    hb.counts.red    += 1
-            }
-            hostBuckets[key] = hb
-
-            // S — only devices with service incidents
-            if let svc = serviceStatusByIP[device.ip] {
-                var sb = serviceBuckets[key] ?? Counts()
-                switch svc {
-                case .green:  sb.green  += 1
-                case .blue:   sb.blue   += 1
-                case .yellow: sb.yellow += 1
-                case .orange: sb.orange += 1
-                case .red:    sb.red    += 1
-                }
-                serviceBuckets[key] = sb
-            }
-
-            // T — only devices with threshold incidents
-            if let thr = thresholdStatusByIP[device.ip] {
-                var tb = thresholdBuckets[key] ?? Counts()
-                switch thr {
-                case .green:  tb.green  += 1
-                case .blue:   tb.blue   += 1
-                case .yellow: tb.yellow += 1
-                case .orange: tb.orange += 1
-                case .red:    tb.red    += 1
-                }
-                thresholdBuckets[key] = tb
-            }
-        }
-
-        return hostBuckets.compactMap { key, val -> GroupSummary? in
-            let total = val.counts.green + val.counts.blue + val.counts.yellow + val.counts.orange + val.counts.red
-            guard total > 0 else { return nil }
-            let s = serviceBuckets[key]   ?? Counts()
-            let t = thresholdBuckets[key] ?? Counts()
-            return GroupSummary(
-                id: key, name: val.name,
-                hostsGreen:      val.counts.green,  hostsBlue:      val.counts.blue,
-                hostsYellow:     val.counts.yellow, hostsOrange:    val.counts.orange,  hostsRed:      val.counts.red,
-                servicesGreen:   s.green,           servicesBlue:   s.blue,
-                servicesYellow:  s.yellow,          servicesOrange: s.orange,           servicesRed:   s.red,
-                thresholdsGreen: t.green,           thresholdsBlue: t.blue,
-                thresholdsYellow: t.yellow,         thresholdsOrange: t.orange,         thresholdsRed: t.red
-            )
-        }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        return result.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
     
     func acknowledgeIncident(incidentID: String, user: String, comment: String = "Acked from Mobile App") async throws -> Bool {
