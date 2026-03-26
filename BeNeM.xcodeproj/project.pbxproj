@@ -39,6 +39,8 @@
 		FF0001000000000000000003 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0001000000000000000004 /* Secrets.swift */; };
 		GG0001000000000000000001 /* DeepLinkHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = GG0001000000000000000002 /* DeepLinkHandler.swift */; };
 		HH0001000000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = HH0001000000000000000002 /* AppDelegate.swift */; };
+		II0001000000000000000001 /* IconPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = II0001000000000000000002 /* IconPickerSheet.swift */; };
+		II0001000000000000000003 /* ServerConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = II0001000000000000000004 /* ServerConfigView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -75,6 +77,8 @@
 		FF0001000000000000000004 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
 		GG0001000000000000000002 /* DeepLinkHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkHandler.swift; sourceTree = "<group>"; };
 		HH0001000000000000000002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		II0001000000000000000002 /* IconPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconPickerSheet.swift; sourceTree = "<group>"; };
+		II0001000000000000000004 /* ServerConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConfigView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -201,6 +205,8 @@
 				BB000100000000000000000C /* AutoDiscoveryView.swift */,
 				BB000100000000000000000E /* SplashView.swift */,
 				DD0001000000000000000002 /* DeviceDetailView.swift */,
+				II0001000000000000000002 /* IconPickerSheet.swift */,
+				II0001000000000000000004 /* ServerConfigView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -314,6 +320,8 @@
 				FF0001000000000000000001 /* Data+Hex.swift in Sources */,
 				FF0001000000000000000003 /* Secrets.swift in Sources */,
 				GG0001000000000000000001 /* DeepLinkHandler.swift in Sources */,
+				II0001000000000000000001 /* IconPickerSheet.swift in Sources */,
+				II0001000000000000000003 /* ServerConfigView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
