@@ -114,10 +114,14 @@ final class DeepLinkHandler: ObservableObject {
         // 3. Persist active connection ID (same key read by SettingsView @AppStorage)
         ud.set(upsertedID.uuidString, forKey: "netreo_active_connection_id")
 
-        // Re-register push middleware with the new connection's secret
-        if let token = AppDelegate.shared?.cachedDeviceToken {
-            let secret = connections.first(where: { $0.id == upsertedID })?.webhookSecret ?? ""
-            AppDelegate.shared?.registerWithMiddleware(token: token, secret: secret)
+        // Re-register push middleware with the new connection's credentials
+        if let token = AppDelegate.shared?.cachedDeviceToken,
+           let conn = connections.first(where: { $0.id == upsertedID }) {
+            AppDelegate.shared?.registerWithMiddleware(
+                token: token,
+                secret: conn.webhookSecret,
+                middlewareURL: conn.pushMiddlewareURL
+            )
         }
 
         // 4. Apply push notification settings if present

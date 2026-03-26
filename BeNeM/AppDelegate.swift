@@ -42,8 +42,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         let token = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
         print("[APNs] Device token: \(token)")
         cachedDeviceToken = token
-        let secret = activeWebhookSecret()
-        registerWithMiddleware(token: token, secret: secret)
+        let (secret, middlewareURL) = activeConnectionPushCredentials()
+        registerWithMiddleware(token: token, secret: secret, middlewareURL: middlewareURL)
     }
 
     func application(
@@ -79,8 +79,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         completionHandler()
     }
 
-    func registerWithMiddleware(token: String, secret: String) {
-        let middlewareURL = UserDefaults.standard.string(forKey: "push_middleware_url") ?? ""
+    func registerWithMiddleware(token: String, secret: String, middlewareURL: String) {
         guard !middlewareURL.isEmpty, let url = URL(string: "\(middlewareURL)/register") else {
             print("[APNs] No middleware URL configured — skipping token registration.")
             return
@@ -107,12 +106,13 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         }.resume()
     }
 
-    private func activeWebhookSecret() -> String {
+    private func activeConnectionPushCredentials() -> (secret: String, middlewareURL: String) {
         let ud = UserDefaults.standard
         guard let activeID = ud.string(forKey: "netreo_active_connection_id"),
-              !activeID.isEmpty else { return "" }
+              !activeID.isEmpty else { return ("", "") }
         let connections = ud.loadSavedConnections()
-        return connections.first(where: { $0.id.uuidString == activeID })?.webhookSecret ?? ""
+        guard let conn = connections.first(where: { $0.id.uuidString == activeID }) else { return ("", "") }
+        return (conn.webhookSecret, conn.pushMiddlewareURL)
     }
 }
 
