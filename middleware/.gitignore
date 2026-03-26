@@ -17,3 +17,6 @@ venv/
 
 # Caddy runtime data (when run outside Docker)
 .caddy/
+
+# Logs
+*.log
