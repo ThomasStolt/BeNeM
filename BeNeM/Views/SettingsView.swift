@@ -17,7 +17,7 @@ struct SettingsView: View {
     @State private var isClassCWiFiAvailable = NetworkDiscovery.isOnClassCWiFi
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 // MARK: Discovery
                 Section(

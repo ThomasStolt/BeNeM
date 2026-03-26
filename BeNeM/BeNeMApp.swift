@@ -8,6 +8,34 @@ struct BeNeMApp: App {
 
     init() {
         migrateGlobalPushURLIfNeeded()
+        migrateLegacyKeysToSavedConnectionIfNeeded()
+    }
+
+    /// If the user configured a server before the multi-server redesign, the credentials live in
+    /// individual AppStorage keys but there may be no SavedConnection in UserDefaults. Create one
+    /// so the server appears in the list and the app continues to function correctly.
+    private func migrateLegacyKeysToSavedConnectionIfNeeded() {
+        let ud = UserDefaults.standard
+        guard let url = ud.string(forKey: "netreo_base_url"), !url.isEmpty,
+              let key = ud.string(forKey: "netreo_api_key"), !key.isEmpty else { return }
+        var connections = ud.loadSavedConnections()
+        // Only migrate if there is no connection matching this URL already
+        guard !connections.contains(where: { $0.baseURL.lowercased() == url.lowercased() }) else { return }
+        let pin     = ud.string(forKey: "netreo_pin") ?? ""
+        let ackUser = ud.string(forKey: "netreo_ack_user") ?? ""
+        let name    = URL(string: url)?.host ?? url
+        let newConn = SavedConnection(
+            id: UUID(),
+            name: name,
+            baseURL: url,
+            apiKey: key,
+            pin: pin,
+            ackUser: ackUser
+        )
+        connections.append(newConn)
+        ud.saveSavedConnections(connections)
+        // Mark as active so ContentView continues using these credentials
+        ud.set(newConn.id.uuidString, forKey: "netreo_active_connection_id")
     }
 
     private func migrateGlobalPushURLIfNeeded() {
