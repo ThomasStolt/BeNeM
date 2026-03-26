@@ -6,14 +6,16 @@ struct IncidentListView: View {
     @State private var connectionStatus: ConnectionStatus = .unknown
     @State private var navPath = NavigationPath()
     let navResetID: UUID
+    @Binding private var pendingIncidentID: String?
     @AppStorage("netreo_ack_user") private var ackUser = ""
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
     private let apiService: NetreoAPIService
 
-    init(apiService: NetreoAPIService, navResetID: UUID) {
+    init(apiService: NetreoAPIService, navResetID: UUID, pendingIncidentID: Binding<String?>) {
         self._viewModel = StateObject(wrappedValue: IncidentListViewModel(apiService: apiService))
         self.apiService = apiService
         self.navResetID = navResetID
+        self._pendingIncidentID = pendingIncidentID
     }
 
     var body: some View {
@@ -57,9 +59,18 @@ struct IncidentListView: View {
             .sheet(isPresented: $showingFilters) {
                 FiltersView(viewModel: viewModel)
             }
-            .onChange(of: viewModel.isLoading) { loading in
+            .onChange(of: viewModel.isLoading) { _, loading in
                 guard !loading else { return }
                 connectionStatus = viewModel.errorMessage == nil ? .connected : .disconnected
+                navigateToPendingIncident()
+            }
+            .onChange(of: pendingIncidentID) { _, id in
+                guard id != nil else { return }
+                if viewModel.incidents.isEmpty {
+                    Task { await viewModel.loadIncidents() }
+                } else if !viewModel.isLoading {
+                    navigateToPendingIncident()
+                }
             }
             .task(id: connectionStatus) {
                 guard connectionStatus == .disconnected else { return }
@@ -85,6 +96,16 @@ struct IncidentListView: View {
         }
     }
     
+    private func navigateToPendingIncident() {
+        guard let id = pendingIncidentID else { return }
+        if let incident = viewModel.incidents.first(where: { $0.incidentID == id }) {
+            pendingIncidentID = nil
+            navPath.append(incident)
+        } else {
+            pendingIncidentID = nil
+        }
+    }
+
     private var incidentsList: some View {
         List {
             if viewModel.filteredIncidents.isEmpty {
@@ -410,5 +431,5 @@ struct FiltersView: View {
 
 
 #Preview {
-    IncidentListView(apiService: NetreoAPIService(baseURL: "http://demo.netreo.com", apiKey: "test"), navResetID: UUID())
+    IncidentListView(apiService: NetreoAPIService(baseURL: "http://demo.netreo.com", apiKey: "test"), navResetID: UUID(), pendingIncidentID: .constant(nil))
 }

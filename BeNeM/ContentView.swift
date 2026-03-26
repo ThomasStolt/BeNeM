@@ -12,13 +12,14 @@ struct ContentView: View {
     @State private var selectedTab = 0
     @State private var homeNavResetID = UUID()
     @State private var incidentNavResetID = UUID()
+    @State private var pendingIncidentID: String? = nil
 
     var body: some View {
         TabView(selection: $selectedTab) {
             if !baseURL.isEmpty && !apiKey.isEmpty, let service = apiService {
                 DashboardView(apiService: service, selectedTab: $selectedTab, navResetID: homeNavResetID)
                     .tag(0)
-                IncidentListView(apiService: service, navResetID: incidentNavResetID)
+                IncidentListView(apiService: service, navResetID: incidentNavResetID, pendingIncidentID: $pendingIncidentID)
                     .tag(1)
                 DeviceListView(apiService: service)
                     .tag(2)
@@ -41,9 +42,20 @@ struct ContentView: View {
         .onChange(of: apiService == nil) { _, isNil in
             if isNil { selectedTab = 3 }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .pushNotificationIncidentTapped)) { notification in
+            guard let id = notification.userInfo?["incident_id"] as? String else { return }
+            if selectedTab == 1 { incidentNavResetID = UUID() }
+            selectedTab = 1
+            pendingIncidentID = id
+        }
         .onAppear {
             updateAPIService()
             if apiService == nil { selectedTab = 3 }
+            if let id = AppDelegate.shared?.pendingIncidentID {
+                AppDelegate.shared?.pendingIncidentID = nil
+                selectedTab = 1
+                pendingIncidentID = id
+            }
         }
     }
 
