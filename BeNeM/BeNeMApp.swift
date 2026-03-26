@@ -6,6 +6,23 @@ struct BeNeMApp: App {
     @StateObject private var deepLinkHandler = DeepLinkHandler()
     @State private var showSplash = true
 
+    init() {
+        migrateGlobalPushURLIfNeeded()
+    }
+
+    private func migrateGlobalPushURLIfNeeded() {
+        let ud = UserDefaults.standard
+        guard let globalURL = ud.string(forKey: "push_middleware_url"), !globalURL.isEmpty else { return }
+        let activeID = ud.string(forKey: "netreo_active_connection_id") ?? ""
+        var connections = ud.loadSavedConnections()
+        if let idx = connections.firstIndex(where: { $0.id.uuidString == activeID }),
+           connections[idx].pushMiddlewareURL.isEmpty {
+            connections[idx].pushMiddlewareURL = globalURL
+            ud.saveSavedConnections(connections)
+        }
+        ud.removeObject(forKey: "push_middleware_url")
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
