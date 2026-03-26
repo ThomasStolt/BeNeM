@@ -8,6 +8,7 @@ struct SavedConnection: Codable, Identifiable {
     var apiKey: String
     var pin: String      // "" = absent
     var ackUser: String  // "" = absent
+    var webhookSecret: String = ""  // "" = push notifications disabled for this server
 }
 
 extension UserDefaults {
