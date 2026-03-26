@@ -11,7 +11,6 @@ struct SettingsView: View {
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
     @AppStorage("maxDevicesCount") private var maxDevicesCount: Int = 20
     @AppStorage("push_middleware_url") private var pushMiddlewareURL = ""
-    @AppStorage("push_middleware_secret") private var pushMiddlewareSecret = ""
 
     // Draft state — held locally until Save is tapped
     @State private var draftBaseURL = ""
@@ -19,13 +18,14 @@ struct SettingsView: View {
     @State private var draftPin = ""
     @State private var draftAckUser = ""
     @State private var draftName = "New Server"
+    @State private var draftWebhookSecret = ""
     @AppStorage("netreo_active_connection_id") private var activeSavedConnectionID: String = ""
     private var activeSavedUUID: UUID? { UUID(uuidString: activeSavedConnectionID) }
     @State private var savedConnections: [SavedConnection] = []
 
     @State private var isClassCWiFiAvailable = NetworkDiscovery.isOnClassCWiFi
 
-    private enum Field: Hashable { case name, baseURL, apiKey, pin, ackUser }
+    private enum Field: Hashable { case name, baseURL, apiKey, pin, ackUser, webhookSecret }
     @FocusState private var focusedField: Field?
 
     private enum TestStatus { case untested, success, failure }
@@ -53,13 +53,11 @@ struct SettingsView: View {
 
                 Section(
                     header: Text("Push Notifications"),
-                    footer: Text("URL of the BHNM APNs middleware server (e.g. https://bhnm-apns.hurrikap.org). Leave empty to disable push notifications. The webhook secret must match the value configured in the middleware.")
+                    footer: Text("URL of the BHNM APNs middleware server (e.g. https://bhnm-apns.hurrikap.org). Leave empty to disable push notifications.")
                 ) {
                     TextField("Middleware URL", text: $pushMiddlewareURL)
                         .autocapitalization(.none)
                         .keyboardType(.URL)
-                    SecureField("Webhook Secret", text: $pushMiddlewareSecret)
-                        .autocapitalization(.none)
                 }
 
                 Section(header: Text("BHNM Server")) {
@@ -108,6 +106,9 @@ struct SettingsView: View {
                     TextField("ACK User", text: $draftAckUser)
                         .autocapitalization(.none)
                         .focused($focusedField, equals: .ackUser)
+
+                    SecureField("Webhook Secret", text: $draftWebhookSecret)
+                        .focused($focusedField, equals: .webhookSecret)
 
                     HStack(spacing: 0) {
                         Button {
@@ -214,6 +215,7 @@ struct SettingsView: View {
                 // Restore display name from persisted active connection ID
                 if let match = savedConnections.first(where: { $0.id.uuidString == activeSavedConnectionID }) {
                     draftName = match.name
+                    draftWebhookSecret = match.webhookSecret
                 }
             }
             .toolbar {
@@ -234,6 +236,7 @@ struct SettingsView: View {
                 draftAckUser = ackUser
                 if let match = savedConnections.first(where: { $0.id.uuidString == activeSavedConnectionID }) {
                     draftName = match.name
+                    draftWebhookSecret = match.webhookSecret
                 }
             }
         }
@@ -303,7 +306,8 @@ struct SettingsView: View {
                         baseURL: draftBaseURL.trimmingCharacters(in: .whitespacesAndNewlines),
                         apiKey: draftApiKey,
                         pin: draftPin,
-                        ackUser: draftAckUser
+                        ackUser: draftAckUser,
+                        webhookSecret: draftWebhookSecret.trimmingCharacters(in: .whitespacesAndNewlines)
                     )
                     if let idx = savedConnections.firstIndex(where: { $0.id == now.id }) {
                         savedConnections[idx] = now
@@ -377,6 +381,7 @@ struct SettingsView: View {
         draftApiKey  = connection.apiKey
         draftPin     = connection.pin
         draftAckUser = connection.ackUser
+        draftWebhookSecret = connection.webhookSecret
         activeSavedConnectionID = connection.id.uuidString
         Task { await testConnection() }
     }
@@ -388,6 +393,7 @@ struct SettingsView: View {
         draftApiKey  = ""
         draftPin     = ""
         draftAckUser = ""
+        draftWebhookSecret = ""
         activeSavedConnectionID = ""
     }
 
@@ -409,6 +415,7 @@ struct SettingsView: View {
         draftApiKey  = ""
         draftPin     = ""
         draftAckUser = ""
+        draftWebhookSecret = ""
         // Clear @AppStorage — disconnects the current service.
         // If no connections remain, ContentView sets apiService = nil → WelcomeView.
         baseURL  = ""
