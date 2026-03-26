@@ -52,7 +52,7 @@ echo -e "${GREEN}✓ Key loaded and encoded.${NC}"
 # ── Domain ─────────────────────────────────────────
 echo ""
 echo -e "${CYAN}── Domain ────────────────────────────────────────${NC}"
-DOMAIN=$(ask "Domain for this service" "bhnm-apns.hurrikap.org")
+DOMAIN=$(ask "Domain for this service" "bhnm-apns.example.com")
 
 # ── Write .env ─────────────────────────────────────
 cat > .env <<EOF
