@@ -46,7 +46,7 @@ struct BeNeMApp: App {
                     Button("Cancel", role: .cancel) { deepLinkHandler.pendingImport = nil }
                 } message: {
                     if let imp = deepLinkHandler.pendingImport {
-                        let push = imp.pushURL.isEmpty ? "" : "\nPush: \(imp.pushURL)"
+                        let push = imp.pushMiddlewareURL.isEmpty ? "" : "\nPush: \(imp.pushMiddlewareURL)"
                         Text("Server: \(imp.serverURL)\nUser: \(imp.ackUser)\(push)")
                     }
                 }
