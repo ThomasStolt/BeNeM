@@ -18,9 +18,12 @@ app = FastAPI(lifespan=lifespan)
 
 _token_header = APIKeyHeader(name="X-Webhook-Token", auto_error=False)
 
-def require_auth(token: str = Depends(_token_header)) -> None:
-    """Validates the X-Webhook-Token header. No-op when WEBHOOK_SECRET is unset."""
-    if WEBHOOK_SECRET and token != WEBHOOK_SECRET:
+def require_auth(
+    header_token: str = Depends(_token_header),
+    secret: str = "",
+) -> None:
+    """Validates X-Webhook-Token header or ?secret= query param. No-op when WEBHOOK_SECRET is unset."""
+    if WEBHOOK_SECRET and header_token != WEBHOOK_SECRET and secret != WEBHOOK_SECRET:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
