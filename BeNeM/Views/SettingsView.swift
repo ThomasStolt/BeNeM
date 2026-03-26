@@ -165,7 +165,10 @@ struct SettingsView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { switchingToConnection = connection }
                 .swipeActions(edge: .trailing) {
-                    Button { editingConnection = connection } label: {
+                    Button {
+                        editingConnection = connection
+                        showEditNavigation = true
+                    } label: {
                         Label("Edit", systemImage: "pencil")
                     }
                     .tint(.blue)
