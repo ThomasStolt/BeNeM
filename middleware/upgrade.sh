@@ -79,7 +79,7 @@ echo -e "${CYAN}── Health check ──────────────�
 sleep 3
 
 # Health check runs inside the container (port 8889 is not exposed to the host — it's behind Caddy)
-HEALTH=$(docker compose exec -T bhnm-apns curl -s http://localhost:8889/health 2>/dev/null || echo "")
+HEALTH=$(docker compose exec -T bhnm-apns python3 -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8889/health').read().decode())" 2>/dev/null || echo "")
 
 if echo "$HEALTH" | grep -q '"status":"running"'; then
     ok "Service is healthy: $HEALTH"
