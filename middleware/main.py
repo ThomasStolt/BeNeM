@@ -66,7 +66,7 @@ async def receive_webhook(request: Request, secret: str = ""):
         print("[Webhook] No registered devices.")
         return {"status": "no_devices"}
 
-    stale = send_to_all(tokens, title, body)
+    stale = send_to_all(tokens, title, body, incident_id)
     for t in stale:
         delete_token(t)
         print(f"[Cleanup] Removed stale token ...{t[-8:]}")

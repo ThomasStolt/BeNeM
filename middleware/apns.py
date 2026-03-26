@@ -23,7 +23,7 @@ def _get_jwt() -> str:
         _jwt_issued_at = now
     return _jwt_token
 
-def send_notification(device_token: str, title: str, body: str) -> tuple[bool, int]:
+def send_notification(device_token: str, title: str, body: str, incident_id: str = "") -> tuple[bool, int]:
     """Returns (success, http_status_code)."""
     url = f"https://{APNS_HOST}/3/device/{device_token}"
     headers = {
@@ -38,6 +38,8 @@ def send_notification(device_token: str, title: str, body: str) -> tuple[bool, i
             "sound": "default"
         }
     }
+    if incident_id:
+        payload["incident_id"] = incident_id
     try:
         with httpx.Client(http2=True) as client:
             r = client.post(url, json=payload, headers=headers, timeout=10)
@@ -49,11 +51,11 @@ def send_notification(device_token: str, title: str, body: str) -> tuple[bool, i
         print(f"[APNs] Error: {e}")
         return False, 0
 
-def send_to_all(tokens: list[str], title: str, body: str) -> list[str]:
+def send_to_all(tokens: list[str], title: str, body: str, incident_id: str = "") -> list[str]:
     """Send to all tokens. Returns list of tokens to remove (410 Gone = unregistered)."""
     stale_tokens = []
     for token in tokens:
-        success, status = send_notification(token, title, body)
+        success, status = send_notification(token, title, body, incident_id)
         if status == 410:  # Device unregistered — remove token
             stale_tokens.append(token)
         elif success:
