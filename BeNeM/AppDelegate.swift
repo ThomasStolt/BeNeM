@@ -9,6 +9,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     /// Set when a notification tap arrives before SwiftUI is fully mounted (cold launch).
     var pendingIncidentID: String? = nil
 
+    /// Caches the APNs device token for re-registration when switching servers.
+    var cachedDeviceToken: String? = nil
+
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -38,7 +41,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     ) {
         let token = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
         print("[APNs] Device token: \(token)")
-        registerWithMiddleware(token: token)
+        cachedDeviceToken = token
+        let secret = activeWebhookSecret()
+        registerWithMiddleware(token: token, secret: secret)
     }
 
     func application(
@@ -74,19 +79,20 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         completionHandler()
     }
 
-    private func registerWithMiddleware(token: String) {
+    func registerWithMiddleware(token: String, secret: String) {
         let middlewareURL = UserDefaults.standard.string(forKey: "push_middleware_url") ?? ""
         guard !middlewareURL.isEmpty, let url = URL(string: "\(middlewareURL)/register") else {
             print("[APNs] No middleware URL configured — skipping token registration.")
             return
         }
+        guard !secret.isEmpty else {
+            print("[APNs] No webhook secret for active connection — skipping token registration.")
+            return
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let secret = UserDefaults.standard.string(forKey: "push_middleware_secret") ?? ""
-        if !secret.isEmpty {
-            request.setValue(secret, forHTTPHeaderField: "X-Webhook-Token")
-        }
+        request.setValue(secret, forHTTPHeaderField: "X-Webhook-Token")
         let body: [String: String] = [
             "token": token,
             "device_name": UIDevice.current.name
@@ -99,6 +105,14 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 print("[APNs] Middleware responded: \(http.statusCode)")
             }
         }.resume()
+    }
+
+    private func activeWebhookSecret() -> String {
+        let ud = UserDefaults.standard
+        guard let activeID = ud.string(forKey: "netreo_active_connection_id"),
+              !activeID.isEmpty else { return "" }
+        let connections = ud.loadSavedConnections()
+        return connections.first(where: { $0.id.uuidString == activeID })?.webhookSecret ?? ""
     }
 }
 
