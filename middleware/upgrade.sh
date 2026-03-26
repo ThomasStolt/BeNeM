@@ -78,14 +78,13 @@ echo -e "${CYAN}── Health check ──────────────�
 # Give the container a moment to start
 sleep 3
 
-PORT=$(docker compose port bhnm-apns 8889 2>/dev/null | cut -d: -f2 || echo "8889")
-HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${PORT}/health" || echo "000")
+# Health check runs inside the container (port 8889 is not exposed to the host — it's behind Caddy)
+HEALTH=$(docker compose exec -T bhnm-apns curl -s http://localhost:8889/health 2>/dev/null || echo "")
 
-if [ "$HTTP_STATUS" = "200" ]; then
-    HEALTH=$(curl -s "http://localhost:${PORT}/health")
+if echo "$HEALTH" | grep -q '"status":"running"'; then
     ok "Service is healthy: $HEALTH"
 else
-    warn "Health check returned HTTP $HTTP_STATUS — check logs:"
+    warn "Health check failed — check logs:"
     echo ""
     docker compose logs bhnm-apns --tail 20
     exit 1
