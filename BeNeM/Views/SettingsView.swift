@@ -10,6 +10,7 @@ struct SettingsView: View {
     @AppStorage("netreo_retry_count") private var retryCount: Double = 3.0
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
     @AppStorage("maxDevicesCount") private var maxDevicesCount: Int = 20
+    @AppStorage("push_middleware_url") private var pushMiddlewareURL = ""
 
     // Draft state — held locally until Save is tapped
     @State private var draftBaseURL = ""
@@ -47,6 +48,15 @@ struct SettingsView: View {
                         Label("Discover BHNM Server", systemImage: "magnifyingglass.circle.fill")
                     }
                     .disabled(!isClassCWiFiAvailable)
+                }
+
+                Section(
+                    header: Text("Push Notifications"),
+                    footer: Text("URL of the BHNM APNs middleware server (e.g. https://vpn.hurrikap.org:8889). Leave empty to disable push notifications.")
+                ) {
+                    TextField("Middleware URL", text: $pushMiddlewareURL)
+                        .autocapitalization(.none)
+                        .keyboardType(.URL)
                 }
 
                 Section(header: Text("BHNM Server")) {

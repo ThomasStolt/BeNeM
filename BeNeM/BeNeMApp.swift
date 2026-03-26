@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct BeNeMApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var deepLinkHandler = DeepLinkHandler()
     @State private var showSplash = true
 

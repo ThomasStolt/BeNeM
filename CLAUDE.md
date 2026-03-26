@@ -32,7 +32,8 @@ BeNeM/
     ├── AutoRefreshButton.swift       # Reusable countdown ring + refresh button (120 s)
     ├── AutoDiscoveryView.swift       # Wi-Fi server discovery UI
     ├── SettingsView.swift
-    └── BeNeMApp.swift                # App entry point + URL scheme handler
+    ├── BeNeMApp.swift                # App entry point + URL scheme handler
+    └── AppDelegate.swift             # APNs registration, UNUserNotificationCenterDelegate, deep-link tap handler
 ```
 
 ## API – BHNM
@@ -122,6 +123,34 @@ Data refreshes **automatically every 120 seconds** via `AutoRefreshButton` (a Ti
 - Pull-to-refresh on any list view
 
 **Navigation is preserved during refresh** — the loading spinner only shows on the initial load (when the data arrays are empty). Background refreshes update data in place without collapsing the navigation stack.
+
+## Push Notifications
+
+BeNeM receives push notifications via a companion Python middleware (`bhnm-apns`) running on an Ubuntu server in the home network.
+
+### Architecture
+```
+BHNM Incident → Webhook → bhnm-apns middleware → APNs → iPhone
+```
+
+- **Middleware repo:** `github.com/ThomasStolt/bhnm-apns`
+- **Middleware port:** 8889
+- **APNs environment:** sandbox (development builds), production for App Store
+- **AppStorage key:** `push_middleware_url` — configurable in Settings → Push Notifications
+
+### iOS Side
+- `AppDelegate` (`AppDelegate.swift`) handles APNs token registration and `UNUserNotificationCenterDelegate`
+- On app start, the device token is POSTed to `<middleware_url>/register`
+- Notification taps post `Notification.Name.pushNotificationIncidentTapped` via `NotificationCenter`
+- `ContentView` listens and switches to the Incidents tab, passing the `incident_id` to `IncidentListView`
+- `IncidentListView` loads incidents if needed and navigates directly to `IncidentDetailView`
+- Cold-launch (app killed): `AppDelegate.shared.pendingIncidentID` is read in `ContentView.onAppear`
+- `BeNeM.entitlements` contains `aps-environment = development` (required for APNs token delivery)
+
+### Notification Payload (APNs custom data)
+```json
+{ "aps": { "alert": {...}, "sound": "default" }, "incident_id": "<id>" }
+```
 
 ## Versioning
 
