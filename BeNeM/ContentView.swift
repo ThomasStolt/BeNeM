@@ -7,6 +7,7 @@ struct ContentView: View {
     @AppStorage("netreo_api_version") private var apiVersionString = "legacy"
     @AppStorage("netreo_timeout") private var timeout: Double = 30.0
     @AppStorage("netreo_retry_count") private var retryCount: Double = 3.0
+    @AppStorage("netreo_active_connection_id") private var activeConnectionID = ""
 
     @State private var apiService: NetreoAPIService?
     @State private var selectedTab = 0
@@ -39,6 +40,13 @@ struct ContentView: View {
         .onChange(of: apiVersionString) { _, _ in updateAPIService() }
         .onChange(of: timeout) { _, _ in updateAPIService() }
         .onChange(of: retryCount) { _, _ in updateAPIService() }
+        .onChange(of: activeConnectionID) { _, newID in
+            guard !newID.isEmpty,
+                  let token = AppDelegate.shared?.cachedDeviceToken else { return }
+            let connections = UserDefaults.standard.loadSavedConnections()
+            let secret = connections.first(where: { $0.id.uuidString == newID })?.webhookSecret ?? ""
+            AppDelegate.shared?.registerWithMiddleware(token: token, secret: secret)
+        }
         .onChange(of: apiService == nil) { _, isNil in
             if isNil { selectedTab = 3 }
         }
