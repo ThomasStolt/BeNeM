@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
 from config import MIDDLEWARE_PORT, WEBHOOK_SECRET
@@ -9,10 +10,18 @@ from apns import send_to_all
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    print(f"[Startup] BHNM APNs middleware ready on port {MIDDLEWARE_PORT}")
+    auth_status = "enabled" if WEBHOOK_SECRET else "DISABLED (no secret set)"
+    print(f"[Startup] BHNM APNs middleware ready on port {MIDDLEWARE_PORT} — auth: {auth_status}")
     yield
 
 app = FastAPI(lifespan=lifespan)
+
+_token_header = APIKeyHeader(name="X-Webhook-Token", auto_error=False)
+
+def require_auth(token: str = Depends(_token_header)) -> None:
+    """Validates the X-Webhook-Token header. No-op when WEBHOOK_SECRET is unset."""
+    if WEBHOOK_SECRET and token != WEBHOOK_SECRET:
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 # ── Device Token Registration ─────────────────────────────────────────────────
@@ -21,7 +30,7 @@ class TokenRegistration(BaseModel):
     token: str
     device_name: str = "unknown"
 
-@app.post("/register")
+@app.post("/register", dependencies=[Depends(require_auth)])
 def register_token(body: TokenRegistration):
     save_token(body.token, body.device_name)
     print(f"[Register] Token saved for: {body.device_name}")
@@ -30,11 +39,8 @@ def register_token(body: TokenRegistration):
 
 # ── BHNM Webhook ──────────────────────────────────────────────────────────────
 
-@app.post("/webhook")
-async def receive_webhook(request: Request, secret: str = ""):
-    # Optional shared secret check
-    if WEBHOOK_SECRET and secret != WEBHOOK_SECRET:
-        raise HTTPException(status_code=403, detail="Invalid secret")
+@app.post("/webhook", dependencies=[Depends(require_auth)])
+async def receive_webhook(request: Request):
 
     payload = await request.json()
 
