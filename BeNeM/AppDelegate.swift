@@ -83,6 +83,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let secret = UserDefaults.standard.string(forKey: "push_middleware_secret") ?? ""
+        if !secret.isEmpty {
+            request.setValue(secret, forHTTPHeaderField: "X-Webhook-Token")
+        }
         let body: [String: String] = [
             "token": token,
             "device_name": UIDevice.current.name

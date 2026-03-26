@@ -30,7 +30,8 @@ struct BeNeMApp: App {
                     Button("Cancel", role: .cancel) { deepLinkHandler.pendingImport = nil }
                 } message: {
                     if let imp = deepLinkHandler.pendingImport {
-                        Text("Server: \(imp.serverURL)\nUser: \(imp.ackUser)")
+                        let push = imp.pushURL.isEmpty ? "" : "\nPush: \(imp.pushURL)"
+                        Text("Server: \(imp.serverURL)\nUser: \(imp.ackUser)\(push)")
                     }
                 }
                 .alert(

@@ -11,6 +11,7 @@ struct SettingsView: View {
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
     @AppStorage("maxDevicesCount") private var maxDevicesCount: Int = 20
     @AppStorage("push_middleware_url") private var pushMiddlewareURL = ""
+    @AppStorage("push_middleware_secret") private var pushMiddlewareSecret = ""
 
     // Draft state — held locally until Save is tapped
     @State private var draftBaseURL = ""
@@ -30,7 +31,7 @@ struct SettingsView: View {
     private enum TestStatus { case untested, success, failure }
     @State private var testStatus: TestStatus = .untested
     @State private var isTesting = false
-    @State private var alertTitle = ""
+@State private var alertTitle = ""
     @State private var alertMessage = ""
     @State private var showingAlert = false
     @State private var showingDeleteConfirmation = false
@@ -52,11 +53,13 @@ struct SettingsView: View {
 
                 Section(
                     header: Text("Push Notifications"),
-                    footer: Text("URL of the BHNM APNs middleware server (e.g. https://vpn.hurrikap.org:8889). Leave empty to disable push notifications.")
+                    footer: Text("URL of the BHNM APNs middleware server (e.g. https://bhnm-apns.hurrikap.org). Leave empty to disable push notifications. The webhook secret must match the value configured in the middleware.")
                 ) {
                     TextField("Middleware URL", text: $pushMiddlewareURL)
                         .autocapitalization(.none)
                         .keyboardType(.URL)
+                    SecureField("Webhook Secret", text: $pushMiddlewareSecret)
+                        .autocapitalization(.none)
                 }
 
                 Section(header: Text("BHNM Server")) {

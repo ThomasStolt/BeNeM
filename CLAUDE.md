@@ -22,6 +22,8 @@ BeNeM/
 │   ├── DeviceListViewModel.swift
 │   ├── DeviceDetailViewModel.swift  # Concurrent incident + performance loading for one device
 │   └── TacticalViewModel.swift      # Loads GroupSummary for Category/Site/Business Workflow
+├── Services/
+│   └── DeepLinkHandler.swift        # Parses + applies benem:// config URLs (AES-GCM decryption)
 └── Views/
     ├── SplashView.swift              # Animated launch screen with logo shimmer + version
     ├── DashboardView.swift           # Home: StatusCards + Drill Down links + Incident Ticker + H/S/T/A summary cards
@@ -126,7 +128,7 @@ Data refreshes **automatically every 120 seconds** via `AutoRefreshButton` (a Ti
 
 ## Push Notifications
 
-BeNeM receives push notifications via a companion Python middleware (`bhnm-apns`) running on an Ubuntu server in the home network.
+BeNeM receives push notifications via a companion Python middleware (`bhnm-apns`) — a Docker container deployable to any cloud provider or self-hosted server.
 
 ### Architecture
 ```
@@ -134,13 +136,22 @@ BHNM Incident → Webhook → bhnm-apns middleware → APNs → iPhone
 ```
 
 - **Middleware repo:** `github.com/ThomasStolt/bhnm-apns`
-- **Middleware port:** 8889
+- **Deployed at:** `https://bhnm-apns.hurrikap.org` (Linode Nanode, Caddy handles TLS)
 - **APNs environment:** sandbox (development builds), production for App Store
-- **AppStorage key:** `push_middleware_url` — configurable in Settings → Push Notifications
+- **AppStorage keys:**
+  - `push_middleware_url` — middleware base URL, configurable in Settings → Push Notifications
+  - `push_middleware_secret` — shared secret for authenticating requests to the middleware
+
+### Authentication
+All requests to the middleware (`/register` and `/webhook`) require authentication via:
+- **Header:** `X-Webhook-Token: <secret>` (used by BeNeM for `/register`)
+- **Query param:** `?secret=<secret>` (used by BHNM for `/webhook`)
+
+Both are accepted; the secret must match `WEBHOOK_SECRET` in the middleware's `.env`.
 
 ### iOS Side
 - `AppDelegate` (`AppDelegate.swift`) handles APNs token registration and `UNUserNotificationCenterDelegate`
-- On app start, the device token is POSTed to `<middleware_url>/register`
+- On app start, the device token is POSTed to `<middleware_url>/register` with `X-Webhook-Token` header
 - Notification taps post `Notification.Name.pushNotificationIncidentTapped` via `NotificationCenter`
 - `ContentView` listens and switches to the Incidents tab, passing the `incident_id` to `IncidentListView`
 - `IncidentListView` loads incidents if needed and navigates directly to `IncidentDetailView`
@@ -151,6 +162,19 @@ BHNM Incident → Webhook → bhnm-apns middleware → APNs → iPhone
 ```json
 { "aps": { "alert": {...}, "sound": "default" }, "incident_id": "<id>" }
 ```
+
+### Deep Link — Push Notification Config
+`generate_benem_link.py` supports provisioning push settings via the `benem://` URL scheme:
+```bash
+python3 generate_benem_link.py \
+  --bhnm-server https://bhnm.example.com \
+  --api_key YOUR_API_KEY \
+  --push_url https://bhnm-apns.hurrikap.org \   # plain text
+  --push_secret YOUR_WEBHOOK_SECRET              # encrypted
+```
+- `push_url` is included plain text in the link
+- `push_secret` is AES-256-GCM encrypted (same key as `api_key`)
+- `DeepLinkHandler.swift` decrypts and applies both on link open
 
 ## Versioning
 

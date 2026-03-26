@@ -47,6 +47,9 @@ build.local.sh
 # Personal screenshots accidentally committed — stop tracking future changes
 M1BJKI1M3C52.png
 
+# Test / scratch files
+test.json
+
 # Claude Code
 .claude/
 .superpowers/

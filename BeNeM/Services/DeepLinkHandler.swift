@@ -7,9 +7,11 @@ final class DeepLinkHandler: ObservableObject {
     struct PendingImport {
         let serverURL: String
         let apiKey: String
-        let pin: String       // "" if absent
+        let pin: String        // "" if absent
         let ackUser: String
-        let name: String      // "" if absent — falls back to hostname
+        let name: String       // "" if absent — falls back to hostname
+        let pushURL: String    // "" if absent
+        let pushSecret: String // "" if absent
     }
 
     @Published var pendingImport: PendingImport? = nil
@@ -41,20 +43,25 @@ final class DeepLinkHandler: ObservableObject {
             return
         }
 
-        let encryptedPin = param("pin") ?? ""
-        let ackUser = param("ack_user") ?? "enter user name"
-        let name = param("name") ?? ""
+        let encryptedPin    = param("pin") ?? ""
+        let ackUser         = param("ack_user") ?? "enter user name"
+        let name            = param("name") ?? ""
+        let pushURL         = param("push_url") ?? ""
+        let encryptedSecret = param("push_secret") ?? ""
 
         do {
-            let symmetricKey = try loadKey()
-            let decryptedKey = try decrypt(encryptedKey, using: symmetricKey)
-            let decryptedPin = encryptedPin.isEmpty ? "" : try decrypt(encryptedPin, using: symmetricKey)
+            let symmetricKey   = try loadKey()
+            let decryptedKey    = try decrypt(encryptedKey, using: symmetricKey)
+            let decryptedPin    = encryptedPin.isEmpty    ? "" : try decrypt(encryptedPin, using: symmetricKey)
+            let decryptedSecret = encryptedSecret.isEmpty ? "" : try decrypt(encryptedSecret, using: symmetricKey)
             pendingImport = PendingImport(
-                serverURL: server,
-                apiKey: decryptedKey,
-                pin: decryptedPin,
-                ackUser: ackUser,
-                name: name
+                serverURL:  server,
+                apiKey:     decryptedKey,
+                pin:        decryptedPin,
+                ackUser:    ackUser,
+                name:       name,
+                pushURL:    pushURL,
+                pushSecret: decryptedSecret
             )
         } catch {
             fail("The link is invalid or was created with a different key.")
@@ -103,10 +110,18 @@ final class DeepLinkHandler: ObservableObject {
         // 3. Persist active connection ID (same key read by SettingsView @AppStorage)
         ud.set(upsertedID.uuidString, forKey: "netreo_active_connection_id")
 
-        // 4. Clear pending import AFTER all work is done, before notification
+        // 4. Apply push notification settings if present
+        if !imp.pushURL.isEmpty {
+            ud.set(imp.pushURL, forKey: "push_middleware_url")
+        }
+        if !imp.pushSecret.isEmpty {
+            ud.set(imp.pushSecret, forKey: "push_middleware_secret")
+        }
+
+        // 6. Clear pending import AFTER all work is done, before notification
         pendingImport = nil
 
-        // 5. Notify SettingsView to reload if visible
+        // 7. Notify SettingsView to reload if visible
         NotificationCenter.default.post(name: .deepLinkConnectionApplied, object: nil)
     }
 
