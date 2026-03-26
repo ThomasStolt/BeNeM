@@ -1,0 +1,3 @@
+{$DOMAIN} {
+    reverse_proxy bhnm-apns:8889
+}

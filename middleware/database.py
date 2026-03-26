@@ -1,7 +1,9 @@
+import os
 import sqlite3
 from contextlib import contextmanager
 
-DB_PATH = "bhnm_apns.db"
+# /data is a Docker volume — falls back to local dir for bare-metal installs
+DB_PATH = os.environ.get("DB_PATH", "/data/bhnm_apns.db")
 
 def init_db():
     with get_conn() as conn:

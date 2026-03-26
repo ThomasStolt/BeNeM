@@ -1,7 +1,7 @@
 import time
 import jwt
 import httpx
-from config import APNS_KEY_FILE, APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID, APNS_USE_SANDBOX
+from config import APNS_PRIVATE_KEY, APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID, APNS_USE_SANDBOX
 
 APNS_HOST = "api.sandbox.push.apple.com" if APNS_USE_SANDBOX else "api.push.apple.com"
 
@@ -12,11 +12,9 @@ def _get_jwt() -> str:
     global _jwt_token, _jwt_issued_at
     now = int(time.time())
     if _jwt_token is None or (now - _jwt_issued_at) > 3300:  # refresh after 55 min
-        with open(APNS_KEY_FILE, "r") as f:
-            private_key = f.read()
         _jwt_token = jwt.encode(
             {"iss": APNS_TEAM_ID, "iat": now},
-            private_key,
+            APNS_PRIVATE_KEY,
             algorithm="ES256",
             headers={"kid": APNS_KEY_ID}
         )

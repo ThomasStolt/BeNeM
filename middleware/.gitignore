@@ -14,3 +14,6 @@ venv/
 
 # APNs key
 *.p8
+
+# Caddy runtime data (when run outside Docker)
+.caddy/
