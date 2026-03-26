@@ -16,7 +16,3 @@ APNS_PRIVATE_KEY: str = base64.b64decode(os.environ["APNS_PRIVATE_KEY_B64"]).dec
 
 # Server
 MIDDLEWARE_PORT: int = int(os.environ.get("MIDDLEWARE_PORT", "8889"))
-
-# Shared secret — set in .env (never commit that file) or via the system environment.
-# Leave unset or empty to disable authentication (not recommended).
-WEBHOOK_SECRET: str = os.environ.get("WEBHOOK_SECRET", "")

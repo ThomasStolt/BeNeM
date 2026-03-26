@@ -12,9 +12,15 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 token TEXT UNIQUE NOT NULL,
                 device_name TEXT DEFAULT 'unknown',
+                active_secret TEXT NOT NULL DEFAULT '',
                 registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # Migration: add active_secret to existing databases (silently ignored if already present)
+        try:
+            conn.execute("ALTER TABLE device_tokens ADD COLUMN active_secret TEXT NOT NULL DEFAULT ''")
+        except Exception:
+            pass  # Column already exists — safe to ignore
 
 @contextmanager
 def get_conn():
@@ -25,14 +31,24 @@ def get_conn():
     finally:
         conn.close()
 
-def save_token(token: str, device_name: str = "unknown"):
+def save_token(token: str, device_name: str = "unknown", active_secret: str = ""):
     with get_conn() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO device_tokens (token, device_name) VALUES (?, ?)",
-            (token, device_name)
+            "INSERT OR REPLACE INTO device_tokens (token, device_name, active_secret) VALUES (?, ?, ?)",
+            (token, device_name, active_secret)
         )
 
+def get_tokens_for_secret(secret: str) -> list[str]:
+    """Return all device tokens registered for the given webhook secret."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT token FROM device_tokens WHERE active_secret = ?",
+            (secret,)
+        ).fetchall()
+    return [r[0] for r in rows]
+
 def get_all_tokens() -> list[str]:
+    """Return all registered device tokens regardless of secret (used by /health)."""
     with get_conn() as conn:
         rows = conn.execute("SELECT token FROM device_tokens").fetchall()
     return [r[0] for r in rows]

@@ -1,30 +1,20 @@
+VERSION = "2.0.0"
+
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, HTTPException, Depends
-from fastapi.security import APIKeyHeader
+from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
 
-from config import MIDDLEWARE_PORT, WEBHOOK_SECRET
-from database import init_db, save_token, get_all_tokens, delete_token
+from config import MIDDLEWARE_PORT
+from database import init_db, save_token, get_tokens_for_secret, get_all_tokens, delete_token
 from apns import send_to_all
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    auth_status = "enabled" if WEBHOOK_SECRET else "DISABLED (no secret set)"
-    print(f"[Startup] BHNM APNs middleware ready on port {MIDDLEWARE_PORT} — auth: {auth_status}")
+    print(f"[Startup] BHNM APNs middleware v{VERSION} ready on port {MIDDLEWARE_PORT} — per-device secret routing enabled")
     yield
 
 app = FastAPI(lifespan=lifespan)
-
-_token_header = APIKeyHeader(name="X-Webhook-Token", auto_error=False)
-
-def require_auth(
-    header_token: str = Depends(_token_header),
-    secret: str = "",
-) -> None:
-    """Validates X-Webhook-Token header or ?secret= query param. No-op when WEBHOOK_SECRET is unset."""
-    if WEBHOOK_SECRET and header_token != WEBHOOK_SECRET and secret != WEBHOOK_SECRET:
-        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 # ── Device Token Registration ─────────────────────────────────────────────────
@@ -33,17 +23,23 @@ class TokenRegistration(BaseModel):
     token: str
     device_name: str = "unknown"
 
-@app.post("/register", dependencies=[Depends(require_auth)])
-def register_token(body: TokenRegistration):
-    save_token(body.token, body.device_name)
-    print(f"[Register] Token saved for: {body.device_name}")
+@app.post("/register")
+def register_token(body: TokenRegistration, request: Request):
+    active_secret = request.headers.get("X-Webhook-Token", "").strip()
+    if not active_secret:
+        raise HTTPException(status_code=400, detail="X-Webhook-Token header is required")
+    save_token(body.token, body.device_name, active_secret)
+    print(f"[Register] Token saved for: {body.device_name} (secret ...{active_secret[-8:]})")
     return {"status": "ok"}
 
 
 # ── BHNM Webhook ──────────────────────────────────────────────────────────────
 
-@app.post("/webhook", dependencies=[Depends(require_auth)])
+@app.post("/webhook")
 async def receive_webhook(request: Request):
+    secret = request.query_params.get("secret", "").strip()
+    if not secret:
+        raise HTTPException(status_code=400, detail="?secret= query parameter is required")
 
     payload = await request.json()
 
@@ -68,11 +64,11 @@ async def receive_webhook(request: Request):
         title = f"{emoji} {hostname} — {host_state or notification_type}"
         body  = f"{service_desc or output or ''} | Site: {site}".strip(" |")
 
-    print(f"[Webhook] {notification_type} — {hostname} — Incident {incident_id}")
+    print(f"[Webhook] {notification_type} — {hostname} — Incident {incident_id} (secret ...{secret[-8:]})")
 
-    tokens = get_all_tokens()
+    tokens = get_tokens_for_secret(secret)
     if not tokens:
-        print("[Webhook] No registered devices.")
+        print("[Webhook] No registered devices for this secret.")
         return {"status": "no_devices"}
 
     stale = send_to_all(tokens, title, body, incident_id)
@@ -91,6 +87,7 @@ def health():
     import config
     return {
         "status": "running",
+        "version": VERSION,
         "registered_devices": len(tokens),
         "apns_environment": "sandbox" if config.APNS_USE_SANDBOX else "production"
     }
