@@ -15,12 +15,11 @@ struct BeNeMApp: App {
         guard let globalURL = ud.string(forKey: "push_middleware_url"), !globalURL.isEmpty else { return }
         let activeID = ud.string(forKey: "netreo_active_connection_id") ?? ""
         var connections = ud.loadSavedConnections()
-        if let idx = connections.firstIndex(where: { $0.id.uuidString == activeID }),
-           connections[idx].pushMiddlewareURL.isEmpty {
-            connections[idx].pushMiddlewareURL = globalURL
-            ud.saveSavedConnections(connections)
-        }
-        ud.removeObject(forKey: "push_middleware_url")
+        guard let idx = connections.firstIndex(where: { $0.id.uuidString == activeID }),
+              connections[idx].pushMiddlewareURL.isEmpty else { return }
+        connections[idx].pushMiddlewareURL = globalURL
+        ud.saveSavedConnections(connections)
+        ud.removeObject(forKey: "push_middleware_url")   // only reached after successful write
     }
 
     var body: some Scene {

@@ -92,6 +92,9 @@ final class DeepLinkHandler: ObservableObject {
             if !imp.pushSecret.isEmpty {
                 connections[idx].webhookSecret = imp.pushSecret
             }
+            if !imp.pushURL.isEmpty {
+                connections[idx].pushMiddlewareURL = imp.pushURL
+            }
             upsertedID = connections[idx].id
         } else {
             // New entry — use provided name, or fall back to hostname
@@ -103,7 +106,8 @@ final class DeepLinkHandler: ObservableObject {
                 apiKey: imp.apiKey,
                 pin: imp.pin,
                 ackUser: imp.ackUser,
-                webhookSecret: imp.pushSecret
+                webhookSecret: imp.pushSecret,
+                pushMiddlewareURL: imp.pushURL
             )
             connections.append(newConn)
             upsertedID = newConn.id
@@ -114,7 +118,7 @@ final class DeepLinkHandler: ObservableObject {
         // 3. Persist active connection ID (same key read by SettingsView @AppStorage)
         ud.set(upsertedID.uuidString, forKey: "netreo_active_connection_id")
 
-        // Re-register push middleware with the new connection's credentials
+        // 4. Re-register push middleware with the new connection's credentials
         if let token = AppDelegate.shared?.cachedDeviceToken,
            let conn = connections.first(where: { $0.id == upsertedID }) {
             AppDelegate.shared?.registerWithMiddleware(
@@ -124,15 +128,10 @@ final class DeepLinkHandler: ObservableObject {
             )
         }
 
-        // 4. Apply push notification settings if present
-        if !imp.pushURL.isEmpty {
-            ud.set(imp.pushURL, forKey: "push_middleware_url")
-        }
-
-        // 6. Clear pending import AFTER all work is done, before notification
+        // 5. Clear pending import AFTER all work is done, before notification
         pendingImport = nil
 
-        // 7. Notify SettingsView to reload if visible
+        // 6. Notify SettingsView to reload if visible
         NotificationCenter.default.post(name: .deepLinkConnectionApplied, object: nil)
     }
 
