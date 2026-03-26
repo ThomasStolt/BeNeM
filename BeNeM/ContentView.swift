@@ -44,8 +44,13 @@ struct ContentView: View {
             guard !newID.isEmpty,
                   let token = AppDelegate.shared?.cachedDeviceToken else { return }
             let connections = UserDefaults.standard.loadSavedConnections()
-            let secret = connections.first(where: { $0.id.uuidString == newID })?.webhookSecret ?? ""
-            AppDelegate.shared?.registerWithMiddleware(token: token, secret: secret)
+            if let conn = connections.first(where: { $0.id.uuidString == newID }) {
+                AppDelegate.shared?.registerWithMiddleware(
+                    token: token,
+                    secret: conn.webhookSecret,
+                    middlewareURL: conn.pushMiddlewareURL
+                )
+            }
         }
         .onChange(of: apiService == nil) { _, isNil in
             if isNil { selectedTab = 3 }
