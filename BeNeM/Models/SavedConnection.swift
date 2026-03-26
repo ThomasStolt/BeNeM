@@ -9,6 +9,9 @@ struct SavedConnection: Codable, Identifiable {
     var pin: String      // "" = absent
     var ackUser: String  // "" = absent
     var webhookSecret: String = ""  // "" = push notifications disabled for this server
+    var pushMiddlewareURL: String = ""  // per-connection push middleware; replaces global push_middleware_url
+    var symbol: String = "server.rack" // SF Symbol name for list icon
+    var accentColor: String = "#0A84FF" // hex accent colour for icon background
 }
 
 extension UserDefaults {
