@@ -1,0 +1,190 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 730" width="900" height="730"
+     font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <path d="M0,0 L9,3.5 L0,7 Z" fill="#4A5568"/>
+    </marker>
+    <marker id="arr-purple" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <path d="M0,0 L9,3.5 L0,7 Z" fill="#7C3AED"/>
+    </marker>
+    <marker id="arr-up" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <path d="M0,0 L9,3.5 L0,7 Z" fill="#4A5568"/>
+    </marker>
+    <filter id="sh">
+      <feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="#000" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+
+  <!-- Page background -->
+  <rect width="900" height="730" fill="#F0F4F8"/>
+
+  <!-- ── Title ── -->
+  <text x="450" y="32" text-anchor="middle" font-size="17" font-weight="700"
+        fill="#1A202C" letter-spacing="0.5">BeNeM — System Architecture</text>
+
+  <!-- ═══════════════════════════════════════════════
+       iPhone box  (y 45 – 235)
+  ═══════════════════════════════════════════════ -->
+  <rect x="265" y="45" width="370" height="195" rx="14"
+        fill="white" stroke="#3B82F6" stroke-width="2" filter="url(#sh)"/>
+  <!-- header -->
+  <rect x="265" y="45" width="370" height="38" rx="14" fill="#3B82F6"/>
+  <rect x="265" y="65"  width="370" height="18" fill="#3B82F6"/>
+  <text x="450" y="70" text-anchor="middle" font-size="13.5" font-weight="700" fill="white">
+    iPhone · BeNeM App
+  </text>
+
+  <!-- row 1: API calls -->
+  <text x="283" y="101" font-size="10.5" font-weight="700" fill="#1A202C">API Calls  (incidents · devices · ACK · tactical · performance)</text>
+  <text x="283" y="116" font-size="9.5" fill="#4A5568">HTTPS : 443  ·  POST / GET</text>
+  <text x="283" y="129" font-size="9.5" fill="#4A5568">X-Proxy-Token: &lt;webhookSecret&gt;   (middleware auth)</text>
+  <text x="283" y="142" font-size="9.5" fill="#4A5568">password=&lt;apiKey&gt; in body          (BHNM auth, forwarded unchanged)</text>
+
+  <!-- row 2: push registration -->
+  <text x="283" y="163" font-size="10.5" font-weight="700" fill="#1A202C">Push Token Registration  (on launch / server switch)</text>
+  <text x="283" y="178" font-size="9.5" fill="#4A5568">POST /register  ·  HTTPS : 443</text>
+  <text x="283" y="191" font-size="9.5" fill="#4A5568">X-Webhook-Token: &lt;webhookSecret&gt;  ·  JSON { token, device_name }</text>
+
+  <!-- row 3: config -->
+  <text x="283" y="212" font-size="9" fill="#9CA3AF">
+    Config provisioning: benem://configure?p=… (AES-256-GCM deep link, no network)
+  </text>
+
+  <!-- ═══════════════════════════════════════════════
+       Arrow: iPhone ↓ Middleware
+  ═══════════════════════════════════════════════ -->
+  <!-- down arrow -->
+  <line x1="450" y1="240" x2="450" y2="290"
+        stroke="#4A5568" stroke-width="2" marker-end="url(#arr)"/>
+  <!-- up arrow (API responses) -->
+  <line x1="440" y1="290" x2="440" y2="240"
+        stroke="#4A5568" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr-up)"/>
+  <!-- label pill -->
+  <rect x="358" y="252" width="164" height="18" rx="5" fill="#DBEAFE"/>
+  <text x="440" y="265" text-anchor="middle" font-size="9.5" fill="#1D4ED8" font-weight="600">
+    HTTPS : 443  ·  requests / responses
+  </text>
+
+  <!-- ═══════════════════════════════════════════════
+       Middleware box  (y 297 – 502)
+  ═══════════════════════════════════════════════ -->
+  <rect x="150" y="297" width="600" height="208" rx="14"
+        fill="white" stroke="#F59E0B" stroke-width="2" filter="url(#sh)"/>
+  <!-- header -->
+  <rect x="150" y="297" width="600" height="38" rx="14" fill="#F59E0B"/>
+  <rect x="150" y="317" width="600" height="18" fill="#F59E0B"/>
+  <text x="450" y="320" text-anchor="middle" font-size="13.5" font-weight="700" fill="white">
+    Middleware · bhnm-apns
+  </text>
+  <text x="450" y="335" text-anchor="middle" font-size="10" fill="white">
+    bhnm-apns.hurrikap.org  ·  Caddy (TLS termination) + Python app
+  </text>
+
+  <!-- content left col -->
+  <text x="168" y="362" font-size="10.5" font-weight="700" fill="#1A202C">Endpoints</text>
+  <text x="168" y="377" font-size="9.5" fill="#4A5568">POST  /register          ←  iPhone APNs token registration</text>
+  <text x="168" y="391" font-size="9.5" fill="#4A5568">POST  /webhook?secret=…  ←  BHNM incident webhook</text>
+  <text x="168" y="405" font-size="9.5" fill="#4A5568">/fw/*  /api/*            ←  BHNM API proxy (all endpoints)</text>
+
+  <text x="168" y="425" font-size="10.5" font-weight="700" fill="#1A202C">Authentication</text>
+  <text x="168" y="440" font-size="9.5" fill="#4A5568">
+    X-Webhook-Token header / ?secret= query param  →  matched against WEBHOOK_SECRET in .env
+  </text>
+  <text x="168" y="454" font-size="9.5" fill="#4A5568">
+    Single &lt;webhookSecret&gt; serves three roles: proxy auth · registration · inbound webhook
+  </text>
+
+  <text x="168" y="475" font-size="9" fill="#9CA3AF">
+    Forwards BHNM credentials (password / pin) in body unchanged · sends APNs push on webhook receipt
+  </text>
+  <text x="168" y="489" font-size="9" fill="#9CA3AF">
+    APNs environment: sandbox (dev builds) · production (App Store)
+  </text>
+
+  <!-- ═══════════════════════════════════════════════
+       Arrows: Middleware ↔ BHNM
+  ═══════════════════════════════════════════════ -->
+  <!-- proxy: Middleware (265,502) → BHNM (175,545) -->
+  <line x1="265" y1="505" x2="182" y2="545"
+        stroke="#4A5568" stroke-width="2" marker-end="url(#arr)"/>
+  <!-- webhook: BHNM (225,545) → Middleware (315,505) -->
+  <line x1="222" y1="545" x2="315" y2="505"
+        stroke="#4A5568" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr)"/>
+  <!-- labels -->
+  <text x="186" y="522" font-size="9" fill="#374151" font-weight="600">HTTPS · proxy</text>
+  <text x="262" y="534" font-size="9" fill="#374151" font-weight="600">webhook</text>
+
+  <!-- ═══════════════════════════════════════════════
+       Arrow: Middleware → APNs
+  ═══════════════════════════════════════════════ -->
+  <!-- Middleware (635,505) → APNs (700,545) -->
+  <line x1="635" y1="505" x2="702" y2="545"
+        stroke="#4A5568" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="631" y="521" font-size="9" fill="#374151" font-weight="600">HTTPS : 443</text>
+  <text x="638" y="533" font-size="9" fill="#374151" font-weight="600">HTTP/2 push req</text>
+
+  <!-- ═══════════════════════════════════════════════
+       BHNM Server box  (y 552 – 690)
+  ═══════════════════════════════════════════════ -->
+  <rect x="30" y="552" width="295" height="140" rx="14"
+        fill="white" stroke="#10B981" stroke-width="2" filter="url(#sh)"/>
+  <!-- header -->
+  <rect x="30" y="552" width="295" height="35" rx="14" fill="#10B981"/>
+  <rect x="30" y="570" width="295" height="17" fill="#10B981"/>
+  <text x="177" y="575" text-anchor="middle" font-size="12.5" font-weight="700" fill="white">
+    BHNM Server  (self-hosted)
+  </text>
+
+  <text x="48" y="606" font-size="10" font-weight="700" fill="#1A202C">API Endpoints</text>
+  <text x="48" y="620" font-size="9.5" fill="#4A5568">/api/incident_api.php</text>
+  <text x="48" y="633" font-size="9.5" fill="#4A5568">/fw/index.php?r=restful/…</text>
+  <text x="48" y="646" font-size="9.5" fill="#4A5568">Auth: password=apiKey  +  pin (optional)</text>
+  <text x="48" y="660" font-size="9" fill="#9CA3AF">Port: per deployment (typically 443 / 80)</text>
+  <text x="48" y="673" font-size="9" fill="#9CA3AF">Fires POST /webhook on incident change</text>
+
+  <!-- ═══════════════════════════════════════════════
+       Apple APNs box  (y 552 – 690)
+  ═══════════════════════════════════════════════ -->
+  <rect x="575" y="552" width="295" height="140" rx="14"
+        fill="white" stroke="#8B5CF6" stroke-width="2" filter="url(#sh)"/>
+  <!-- header -->
+  <rect x="575" y="552" width="295" height="35" rx="14" fill="#8B5CF6"/>
+  <rect x="575" y="570" width="295" height="17" fill="#8B5CF6"/>
+  <text x="722" y="575" text-anchor="middle" font-size="12.5" font-weight="700" fill="white">
+    Apple APNs
+  </text>
+
+  <text x="593" y="606" font-size="10" font-weight="700" fill="#1A202C">Push Delivery</text>
+  <text x="593" y="620" font-size="9.5" fill="#4A5568">api.push.apple.com : 443</text>
+  <text x="593" y="633" font-size="9.5" fill="#4A5568">HTTP/2  ·  sandbox or production</text>
+  <text x="593" y="646" font-size="9.5" fill="#4A5568">Payload: { aps: { alert, sound }, incident_id }</text>
+  <text x="593" y="660" font-size="9" fill="#9CA3AF">Routes to device via DeviceToken</text>
+  <text x="593" y="673" font-size="9" fill="#9CA3AF">Triggers alert + sound banner on iPhone</text>
+
+  <!-- ═══════════════════════════════════════════════
+       Arrow: APNs → iPhone  (curved arc, right side)
+  ═══════════════════════════════════════════════ -->
+  <path d="M 870,622 C 935,400 690,185 635,135"
+        stroke="#8B5CF6" stroke-width="1.8" fill="none"
+        stroke-dasharray="6,3" marker-end="url(#arr-purple)"/>
+  <!-- label background -->
+  <rect x="848" y="392" width="68" height="34" rx="5" fill="#EDE9FE"/>
+  <text x="882" y="406" text-anchor="middle" font-size="9.5" fill="#6D28D9" font-weight="600">push</text>
+  <text x="882" y="419" text-anchor="middle" font-size="9.5" fill="#6D28D9" font-weight="600">notification</text>
+
+  <!-- ═══════════════════════════════════════════════
+       Legend
+  ═══════════════════════════════════════════════ -->
+  <line x1="30" y1="715" x2="860" y2="715" stroke="#CBD5E0" stroke-width="1"/>
+  <!-- solid arrow -->
+  <line x1="36" y1="725" x2="60" y2="725" stroke="#4A5568" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="67" y="729" font-size="9" fill="#4A5568">HTTPS request / response</text>
+  <!-- dashed arrow -->
+  <line x1="210" y1="725" x2="234" y2="725" stroke="#4A5568" stroke-width="1.5"
+        stroke-dasharray="4,3" marker-end="url(#arr)"/>
+  <text x="241" y="729" font-size="9" fill="#4A5568">Event-driven / async (webhook)</text>
+  <!-- purple dashed arrow -->
+  <line x1="415" y1="725" x2="439" y2="725" stroke="#8B5CF6" stroke-width="1.5"
+        stroke-dasharray="4,3" marker-end="url(#arr-purple)"/>
+  <text x="446" y="729" font-size="9" fill="#4A5568">APNs push delivery</text>
+</svg>
