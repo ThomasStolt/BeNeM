@@ -700,8 +700,9 @@ class NetreoAPIService: ObservableObject {
         request.httpMethod = endpoint.httpMethod(for: configuration.version).rawValue
         addProxyToken(&request)
 
-        let bodyString = parameters.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
-        request.httpBody = bodyString.data(using: .utf8)
+        var comps = URLComponents()
+        comps.queryItems = parameters.map { URLQueryItem(name: $0.key, value: "\($0.value)") }
+        request.httpBody = comps.percentEncodedQuery?.data(using: .utf8)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
         // Retry once on networkConnectionLost using a fresh session — iOS URLSession
