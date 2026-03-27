@@ -19,7 +19,6 @@
 		8C6281312E64D68E00522D09 /* DeviceListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11234567890009B /* DeviceListView.swift */; };
 		8C6281322E64D6A900522D09 /* AddDeviceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1123456789000AB /* AddDeviceView.swift */; };
 		8C6281332E64D6B600522D09 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1123456789000BB /* SettingsView.swift */; };
-		8C6281342E64D6BE00522D09 /* QuickConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1123456789000CB /* QuickConfigView.swift */; };
 		A11234567890001A /* BeNeMApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11234567890001B /* BeNeMApp.swift */; };
 		A11234567890003A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A11234567890003B /* Assets.xcassets */; };
 		A11234567890004A /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A11234567890004B /* Preview Assets.xcassets */; };
@@ -58,7 +57,6 @@
 		A11234567890009B /* DeviceListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceListView.swift; sourceTree = "<group>"; };
 		A1123456789000AB /* AddDeviceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddDeviceView.swift; sourceTree = "<group>"; };
 		A1123456789000BB /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		A1123456789000CB /* QuickConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickConfigView.swift; sourceTree = "<group>"; };
 		AABB0001000000000000001B /* IncidentDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentDetail.swift; sourceTree = "<group>"; };
 		AABB0001000000000000002B /* IncidentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentDetailView.swift; sourceTree = "<group>"; };
 		BB0001000000000000000002 /* GroupSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupSummary.swift; sourceTree = "<group>"; };
@@ -194,7 +192,6 @@
 				A11234567890009B /* DeviceListView.swift */,
 				A1123456789000AB /* AddDeviceView.swift */,
 				A1123456789000BB /* SettingsView.swift */,
-				A1123456789000CB /* QuickConfigView.swift */,
 				BB0001000000000000000006 /* GroupListView.swift */,
 				BB0001000000000000000008 /* AutoRefreshButton.swift */,
 				BB000100000000000000000E /* SplashView.swift */,
@@ -286,7 +283,6 @@
 			files = (
 				A11234567890001A /* BeNeMApp.swift in Sources */,
 				HH0001000000000000000001 /* AppDelegate.swift in Sources */,
-				8C6281342E64D6BE00522D09 /* QuickConfigView.swift in Sources */,
 				8C6281322E64D6A900522D09 /* AddDeviceView.swift in Sources */,
 				8C62812C2E64D59000522D09 /* NetreoAPIService.swift in Sources */,
 				8C6281332E64D6B600522D09 /* SettingsView.swift in Sources */,
