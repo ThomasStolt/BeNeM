@@ -1,4 +1,4 @@
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 
 from contextlib import asynccontextmanager
 import os
@@ -11,7 +11,7 @@ from database import init_db, save_token, get_tokens_for_secret, get_all_tokens,
 from apns import send_to_all
 
 HOP_BY_HOP_REQUEST = {
-    "host", "x-proxy-token", "connection", "keep-alive",
+    "host", "x-proxy-token", "x-bhnm-target", "connection", "keep-alive",
     "proxy-authenticate", "proxy-authorization", "te", "trailers", "upgrade"
 }
 HOP_BY_HOP_RESPONSE = {
@@ -19,14 +19,12 @@ HOP_BY_HOP_RESPONSE = {
     "proxy-authorization", "te", "trailers", "transfer-encoding", "upgrade"
 }
 
-BHNM_URL = os.getenv("BHNM_URL", "").rstrip("/")
 BHNM_TLS_VERIFY = os.getenv("BHNM_TLS_VERIFY", "true").lower() != "false"
-PROXY_SECRET = os.getenv("PROXY_SECRET", "")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    print(f"[Startup] BHNM APNs middleware v{VERSION} ready on port {MIDDLEWARE_PORT} — per-device secret routing enabled")
+    print(f"[Startup] BHNM APNs middleware v{VERSION} ready on port {MIDDLEWARE_PORT} — dynamic multi-server routing enabled")
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -45,6 +43,16 @@ def register_token(body: TokenRegistration, request: Request):
         raise HTTPException(status_code=400, detail="X-Webhook-Token header is required")
     save_token(body.token, body.device_name, active_secret)
     print(f"[Register] Token saved for: {body.device_name} (secret ...{active_secret[-8:]})")
+    return {"status": "ok"}
+
+
+@app.delete("/register")
+def unregister_token(body: TokenRegistration, request: Request):
+    active_secret = request.headers.get("X-Webhook-Token", "").strip()
+    if not active_secret:
+        raise HTTPException(status_code=400, detail="X-Webhook-Token header is required")
+    delete_token(body.token)
+    print(f"[Unregister] Token removed: ...{body.token[-8:]} (secret ...{active_secret[-8:]})")
     return {"status": "ok"}
 
 
@@ -109,17 +117,22 @@ def health():
 
 
 # ── BHNM API Proxy (for BeNeM) ────────────────────────────────────────────────────
+# Target BHNM server is supplied per-request via X-BHNM-Target header.
+# Any non-empty X-Proxy-Token is accepted — the secret itself is the credential.
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 async def proxy(path: str, request: Request):
-    token = request.headers.get("X-Proxy-Token", "")
-    if token != PROXY_SECRET:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    token = request.headers.get("X-Proxy-Token", "").strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="X-Proxy-Token header is required")
 
-    if not BHNM_URL:
-        raise HTTPException(status_code=503, detail="BHNM_URL not configured")
+    target_base = request.headers.get("X-BHNM-Target", "").strip().rstrip("/")
+    if not target_base:
+        raise HTTPException(status_code=400, detail="X-BHNM-Target header is required")
+    if not (target_base.startswith("http://") or target_base.startswith("https://")):
+        raise HTTPException(status_code=400, detail="X-BHNM-Target must be an http/https URL")
 
-    target = f"{BHNM_URL}/{path}"
+    target = f"{target_base}/{path}"
     if request.url.query:
         target += f"?{request.url.query}"
 
