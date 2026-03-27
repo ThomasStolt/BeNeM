@@ -6,14 +6,16 @@ import Foundation
 final class DeepLinkHandler: ObservableObject {
 
     struct PendingImport {
-        let serverURL: String
+        let bhnmURL: String          // direct BHNM server URL (from "bhnm_url" key)
+        let middlewareURL: String    // push middleware URL (from "middleware_url" key); "" if absent
+        let notificationsEnabled: Bool
         let apiKey: String
-        let pin: String               // "" if absent
+        let pin: String              // "" if absent
         let ackUser: String
-        let name: String              // "" if absent — falls back to hostname
-        let pushSecret: String        // "" if absent
-        let symbol: String            // SF Symbol name; default "server.rack"
-        let accentColor: String       // hex colour; default "#0A84FF"
+        let name: String             // "" if absent — falls back to hostname
+        let pushSecret: String       // "" if absent
+        let symbol: String           // SF Symbol name; default "server.rack"
+        let accentColor: String      // hex colour; default "#0A84FF"
     }
 
     @Published var pendingImport: PendingImport? = nil
@@ -62,14 +64,16 @@ final class DeepLinkHandler: ObservableObject {
             let decryptedPin    = encryptedPin.isEmpty    ? "" : try decrypt(encryptedPin, using: symmetricKey)
             let decryptedSecret = encryptedSecret.isEmpty ? "" : try decrypt(encryptedSecret, using: symmetricKey)
             pendingImport = PendingImport(
-                serverURL:         server,
-                apiKey:            decryptedKey,
-                pin:               decryptedPin,
-                ackUser:           ackUser,
-                name:              name,
-                pushSecret:        decryptedSecret,
-                symbol:            "server.rack",
-                accentColor:       "#0A84FF"
+                bhnmURL:              "",         // legacy links don't carry bhnmURL — migration banner will show
+                middlewareURL:        server,
+                notificationsEnabled: false,      // migration default
+                apiKey:               decryptedKey,
+                pin:                  decryptedPin,
+                ackUser:              ackUser,
+                name:                 name,
+                pushSecret:           decryptedSecret,
+                symbol:               "server.rack",
+                accentColor:          "#0A84FF"
             )
         } catch {
             fail("The link is invalid or was created with a different key.")
@@ -79,41 +83,53 @@ final class DeepLinkHandler: ObservableObject {
     func applyPendingImport() {
         guard let imp = pendingImport else { return }
 
-        // 1. Write active AppStorage keys directly to UserDefaults
         let ud = UserDefaults.standard
-        ud.set(imp.serverURL,  forKey: "netreo_base_url")
-        ud.set(imp.apiKey,     forKey: "netreo_api_key")
-        ud.set(imp.pin,        forKey: "netreo_pin")
-        ud.set(imp.ackUser,    forKey: "netreo_ack_user")
+
+        // 1. Write active AppStorage keys
+        ud.set(imp.middlewareURL,  forKey: "netreo_base_url")
+        ud.set(imp.bhnmURL,        forKey: "netreo_bhnm_url")
+        ud.set(imp.apiKey,         forKey: "netreo_api_key")
+        ud.set(imp.pin,            forKey: "netreo_pin")
+        ud.set(imp.ackUser,        forKey: "netreo_ack_user")
         if !imp.pushSecret.isEmpty {
             ud.set(imp.pushSecret, forKey: "netreo_webhook_secret")
         }
 
-        // 2. Upsert SavedConnection (match by server URL, case-insensitive)
+        // 2. Upsert SavedConnection — match by bhnmURL (case-insensitive)
+        //    If bhnmURL is empty (backward compat import), fall back to matching by middlewareURL
         var connections = ud.loadSavedConnections()
-        let serverLower = imp.serverURL.lowercased()
         let upsertedID: UUID
+        let matchIdx: Int?
+        if !imp.bhnmURL.isEmpty {
+            let bhnmLower = imp.bhnmURL.lowercased()
+            matchIdx = connections.firstIndex(where: { $0.bhnmURL.lowercased() == bhnmLower })
+        } else {
+            let mwLower = imp.middlewareURL.lowercased()
+            matchIdx = connections.firstIndex(where: { $0.middlewareURL.lowercased() == mwLower })
+        }
 
-        if let idx = connections.firstIndex(where: { $0.middlewareURL.lowercased() == serverLower }) {
-            // Update credentials in place; update name if provided, otherwise preserve existing
+        if let idx = matchIdx {
             if !imp.name.isEmpty { connections[idx].name = imp.name }
-            connections[idx].apiKey  = imp.apiKey
-            connections[idx].pin     = imp.pin
-            connections[idx].ackUser = imp.ackUser
-            if !imp.pushSecret.isEmpty {
-                connections[idx].webhookSecret = imp.pushSecret
-            }
-            connections[idx].symbol      = imp.symbol
-            connections[idx].accentColor = imp.accentColor
+            connections[idx].bhnmURL              = imp.bhnmURL
+            connections[idx].middlewareURL        = imp.middlewareURL
+            connections[idx].notificationsEnabled = imp.notificationsEnabled
+            connections[idx].apiKey               = imp.apiKey
+            connections[idx].pin                  = imp.pin
+            connections[idx].ackUser              = imp.ackUser
+            if !imp.pushSecret.isEmpty { connections[idx].webhookSecret = imp.pushSecret }
+            connections[idx].symbol               = imp.symbol
+            connections[idx].accentColor          = imp.accentColor
             upsertedID = connections[idx].id
         } else {
-            // New entry — use provided name, or fall back to hostname
-            let name = imp.name.isEmpty ? (URL(string: imp.serverURL)?.host ?? imp.serverURL) : imp.name
+            let name = imp.name.isEmpty
+                ? (URL(string: imp.bhnmURL.isEmpty ? imp.middlewareURL : imp.bhnmURL)?.host ?? imp.bhnmURL)
+                : imp.name
             let newConn = SavedConnection(
                 id: UUID(),
                 name: name,
-                middlewareURL: imp.serverURL,
-                bhnmURL: "",
+                middlewareURL: imp.middlewareURL,
+                bhnmURL: imp.bhnmURL,
+                notificationsEnabled: imp.notificationsEnabled,
                 apiKey: imp.apiKey,
                 pin: imp.pin,
                 ackUser: imp.ackUser,
@@ -126,12 +142,11 @@ final class DeepLinkHandler: ObservableObject {
         }
 
         ud.saveSavedConnections(connections)
-
-        // 3. Persist active connection ID (same key read by SettingsView @AppStorage)
         ud.set(upsertedID.uuidString, forKey: "netreo_active_connection_id")
 
-        // 4. Re-register push middleware with the new connection's credentials
-        if let token = AppDelegate.shared?.cachedDeviceToken,
+        // 3. Re-register push if notificationsEnabled
+        if imp.notificationsEnabled,
+           let token = AppDelegate.shared?.cachedDeviceToken,
            let conn = connections.first(where: { $0.id == upsertedID }) {
             AppDelegate.shared?.registerWithMiddleware(
                 token: token,
@@ -140,10 +155,7 @@ final class DeepLinkHandler: ObservableObject {
             )
         }
 
-        // 5. Clear pending import AFTER all work is done, before notification
         pendingImport = nil
-
-        // 6. Notify SettingsView to reload if visible
         NotificationCenter.default.post(name: .deepLinkConnectionApplied, object: nil)
     }
 
@@ -172,20 +184,36 @@ final class DeepLinkHandler: ObservableObject {
             func str(_ key: String, default def: String = "") -> String {
                 (json[key] as? String) ?? def
             }
-            guard let server = json["server"] as? String, !server.isEmpty,
-                  server.hasPrefix("http://") || server.hasPrefix("https://") else {
+
+            // New keys: bhnm_url + middleware_url
+            // Backward compat: old links have "server" (= middleware URL) but no "bhnm_url"
+            let bhnmURL: String
+            let middlewareURL: String
+            if let newBhnmURL = json["bhnm_url"] as? String, !newBhnmURL.isEmpty {
+                bhnmURL = newBhnmURL
+                middlewareURL = str("middleware_url")
+            } else if let oldServer = json["server"] as? String, !oldServer.isEmpty {
+                // Old format: "server" held the middleware URL; bhnmURL is unknown — leave empty
+                bhnmURL = ""
+                middlewareURL = oldServer
+            } else {
                 fail("The link is missing a valid server URL.")
                 return
             }
+
+            let notificationsEnabled = (json["notifications"] as? Bool) ?? true
+
             pendingImport = PendingImport(
-                serverURL:         server,
-                apiKey:            str("api_key"),
-                pin:               str("pin"),
-                ackUser:           str("user", default: "enter user name"),
-                name:              str("name"),
-                pushSecret:        str("push_secret"),
-                symbol:            str("symbol", default: "server.rack"),
-                accentColor:       str("color", default: "#0A84FF")
+                bhnmURL:              bhnmURL,
+                middlewareURL:        middlewareURL,
+                notificationsEnabled: notificationsEnabled,
+                apiKey:               str("api_key"),
+                pin:                  str("pin"),
+                ackUser:              str("user", default: "enter user name"),
+                name:                 str("name"),
+                pushSecret:           str("push_secret"),
+                symbol:               str("symbol", default: "server.rack"),
+                accentColor:          str("color", default: "#0A84FF")
             )
         } catch {
             fail("The link is invalid or was created with a different key.")
