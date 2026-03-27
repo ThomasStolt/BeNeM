@@ -12,6 +12,85 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [2.2.0] — 2026-03-27
+
+### Changed
+
+- **API Proxy Middleware** — all BHNM API calls now route through the `bhnm-apns` middleware; the "Server URL" field is renamed **"Middleware URL"** and must point to your middleware instance (e.g. `https://bhnm-apns.yourcompany.com`). This allows BHNM servers on private networks to be reached from anywhere
+- **Webhook Secret now required** — the Webhook Secret field is always shown and must be filled in before a connection can be saved; it authenticates both push notification registration and all proxied API requests (`X-Proxy-Token`)
+- **Push Notifications section simplified** — the "Enable Push Notifications" toggle is removed; push and proxy authentication now share a single secret field
+
+### Added
+
+- **`X-Proxy-Token` header** — injected automatically on every outgoing API request using the configured Webhook Secret
+
+### Removed
+
+- **Auto Discovery** — the local Wi-Fi SNMP scanner has been removed; middleware URLs cannot be discovered on the LAN, so the feature no longer applies
+- **`--push-url` flag** — removed from `generate_benem_link.py`; the middleware URL is now the connection's base URL
+
+### Migration
+
+Existing users must:
+1. Pull and redeploy `bhnm-apns` (`./upgrade.sh` on the server), then add `BHNM_URL` and `PROXY_SECRET` to `.env`
+2. Edit each saved connection: set **Middleware URL** to the middleware address and ensure a **Webhook Secret** is set
+3. Regenerate any `benem://` deep links using `--middleware-url` instead of `--bhnm-server`
+
+---
+
+## [2.1.0] — 2026-03-26
+
+### Added
+
+- **Per-server push notification routing** — each saved connection stores its own `pushMiddlewareURL` and `webhookSecret`; switching the active server re-registers the APNs device token with the correct middleware and secret automatically
+- **Server icon customisation** — saved connections have a choosable SF Symbol icon and accent colour, shown in the server list and detail views
+- **Multi-server Settings redesign** — Settings now shows a list of all saved BHNM connections with swipe-to-edit and swipe-to-delete; a dedicated `ServerConfigView` form handles add/edit with an inline icon picker (`IconPickerSheet`)
+- **Compact deep link format** — `benem://configure?p=<blob>` packs all fields (including symbol, colour, and push config) into a single AES-256-GCM + zlib payload; legacy `?server=&api_key=` links continue to work
+- **`generate_benem_link.py` enhancements** — `--symbol`, `--color`, `--qr` flags; interactive mode (`-i`) with prompts for every field; QR code export via `qrcode` library
+
+---
+
+## [2.0.0] — 2026-03-26
+
+### Added
+
+- **Push notifications** — the app receives real-time push alerts for new incidents via the companion `bhnm-apns` middleware (Docker + Caddy, deployable to any cloud or on-prem server)
+- **Middleware authentication** — `/register` and `/webhook` endpoints are protected by `X-Webhook-Token` header or `?secret=` query param; the secret is stored in AppStorage and sent on every registration call
+- **APNs entitlement** — `BeNeM.entitlements` includes `aps-environment = development` for device token delivery
+- **Notification deep linking** — tapping a push notification navigates directly to the incident; handles both background-tap and cold-launch scenarios
+- **Push provisioning via deep link** — `generate_benem_link.py` gains `--push-url` (plain) and `--push-secret` (encrypted) flags; `DeepLinkHandler` parses and applies both on link open
+
+---
+
+## [1.6.0] — 2026-03-26
+
+### Added
+
+- **Push notification foundation** — `AppDelegate` handles APNs token registration and `UNUserNotificationCenterDelegate`; device token is POSTed to `<middleware_url>/register` with `X-Webhook-Token`
+- **Push Notifications section in Settings** — middleware URL and webhook secret can be configured per-connection
+- **Notification tap handling** — background and foreground taps post `pushNotificationIncidentTapped` via `NotificationCenter`; `ContentView` switches to the Incidents tab and navigates to the tapped incident
+
+---
+
+## [1.5.0] — 2026-03-25
+
+### Added
+
+- **Anomalies column** — an Anomalies (A) row appears below H/S/T in Categories, Sites, and Business Workflows, populated from `anom_threshold_*` fields in the tactical overview API
+
+### Changed
+
+- **Alarm filter** — now hides groups where all H/S/T/A counts are green; informational (blue/acknowledged) hosts no longer prevent a group from being filtered out
+- **Value-based navigation** — drill-down links on the Home tab use `NavigationLink(value:)` so tapping the Home tab icon always pops back to the root without losing state
+- **Group name column** — centered and word-wraps for long names; empty group names (blank from API) display as "Unknown"; alternating row backgrounds added for readability
+- **Labels renamed** — "Tactical Overview" → "Home", "Category" → "Categories", "Site" → "Sites", "Business Workflow" → "Business Workflows"
+
+### Fixed
+
+- **Dashboard H/S/T/A counts** — no longer shows 0 when navigating back before the tactical overview finishes loading
+
+---
+
 ## [1.4.2] — 2026-03-25
 
 ### Added
