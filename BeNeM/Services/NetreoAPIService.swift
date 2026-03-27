@@ -704,7 +704,14 @@ class NetreoAPIService: ObservableObject {
         request.httpBody = bodyString.data(using: .utf8)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
-        let (data, response) = try await urlSession.data(for: request)
+        // Retry once on networkConnectionLost — iOS URLSession reuses stale connections
+        // and gets -1005 when the server has already closed them.
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await urlSession.data(for: request)
+        } catch let urlError as URLError where urlError.code == .networkConnectionLost {
+            (data, response) = try await urlSession.data(for: request)
+        }
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.invalidResponse

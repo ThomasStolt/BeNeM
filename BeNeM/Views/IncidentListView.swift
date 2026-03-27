@@ -108,7 +108,14 @@ struct IncidentListView: View {
 
     private var incidentsList: some View {
         List {
-            if viewModel.filteredIncidents.isEmpty {
+            if let err = viewModel.errorMessage {
+                Text("Error: \(err)")
+                    .font(.subheadline)
+                    .foregroundColor(.red)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+            } else if viewModel.filteredIncidents.isEmpty {
                 Text("There are currently no open incidents.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
