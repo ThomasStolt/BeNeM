@@ -145,13 +145,23 @@ async def proxy(path: str, request: Request):
         if k.lower() not in HOP_BY_HOP_REQUEST
     }
 
-    async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=60.0) as client:
-        resp = await client.request(
-            method=request.method,
-            url=target,
-            headers=forward_headers,
-            content=await request.body(),
-        )
+    try:
+        async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=60.0) as client:
+            resp = await client.request(
+                method=request.method,
+                url=target,
+                headers=forward_headers,
+                content=await request.body(),
+            )
+    except httpx.TimeoutException:
+        print(f"[Proxy] Timeout proxying {request.method} {target}")
+        raise HTTPException(status_code=504, detail="Gateway Timeout: BHNM server did not respond in time")
+    except httpx.ConnectError as exc:
+        print(f"[Proxy] Connection error proxying {request.method} {target}: {exc}")
+        raise HTTPException(status_code=502, detail="Bad Gateway: could not connect to BHNM server")
+    except httpx.RequestError as exc:
+        print(f"[Proxy] Request error proxying {request.method} {target}: {exc}")
+        raise HTTPException(status_code=502, detail=f"Bad Gateway: {exc}")
 
     response_headers = {
         k: v for k, v in resp.headers.items()
