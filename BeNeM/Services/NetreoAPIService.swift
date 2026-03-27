@@ -55,10 +55,16 @@ class NetreoAPIService: ObservableObject {
         return comps.percentEncodedQuery?.data(using: .utf8)
     }
 
+    private func addProxyToken(_ request: inout URLRequest) {
+        guard !configuration.proxyToken.isEmpty else { return }
+        request.setValue(configuration.proxyToken, forHTTPHeaderField: "X-Proxy-Token")
+    }
+
     func fetchDevices() async throws -> [NetreoDevice] {
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/list") else { return [] }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        addProxyToken(&request)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         var params = [URLQueryItem(name: "password", value: configuration.apiKey)]
         if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
@@ -88,6 +94,7 @@ class NetreoAPIService: ObservableObject {
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/list") else { return [] }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        addProxyToken(&request)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         var params = [URLQueryItem(name: "password", value: configuration.apiKey)]
         if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
@@ -112,6 +119,7 @@ class NetreoAPIService: ObservableObject {
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/find") else { return nil }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        addProxyToken(&request)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         var params = [
             URLQueryItem(name: "password", value: configuration.apiKey),
@@ -129,6 +137,7 @@ class NetreoAPIService: ObservableObject {
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/performance-category") else { return [] }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        addProxyToken(&request)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         var params = [
             URLQueryItem(name: "password",   value: configuration.apiKey),
@@ -151,6 +160,7 @@ class NetreoAPIService: ObservableObject {
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/performance-instance-per-category") else { return [] }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        addProxyToken(&request)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         var params = [
             URLQueryItem(name: "password",  value: configuration.apiKey),
@@ -216,6 +226,7 @@ class NetreoAPIService: ObservableObject {
         guard let url = URL(string: urlString) else { return [] }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        addProxyToken(&request)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         var params = [
             URLQueryItem(name: "password",               value: configuration.apiKey),
@@ -274,6 +285,7 @@ class NetreoAPIService: ObservableObject {
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        addProxyToken(&request)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = formEncodedBody(params)
 
@@ -309,6 +321,7 @@ class NetreoAPIService: ObservableObject {
         if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        addProxyToken(&request)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = formEncodedBody(params)
         guard let (data, _) = try? await urlSession.data(for: request),
@@ -453,6 +466,7 @@ class NetreoAPIService: ObservableObject {
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/tactical-overview/data") else { return [] }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        addProxyToken(&request)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         var params = [
             URLQueryItem(name: "password",      value: configuration.apiKey),
@@ -506,6 +520,7 @@ class NetreoAPIService: ObservableObject {
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/incident/acknowledge") else { return false }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        addProxyToken(&request)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         var params = [
             URLQueryItem(name: "password", value: configuration.apiKey),
@@ -523,6 +538,7 @@ class NetreoAPIService: ObservableObject {
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/incident/unacknowledge") else { return false }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        addProxyToken(&request)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         var params = [
             URLQueryItem(name: "password", value: configuration.apiKey),
@@ -617,7 +633,8 @@ class NetreoAPIService: ObservableObject {
         let url = URL(string: configuration.endpoint(for: endpoint.path(for: configuration.version)))!
         var request = URLRequest(url: url)
         request.httpMethod = endpoint.httpMethod(for: configuration.version).rawValue
-        
+        addProxyToken(&request)
+
         let bodyString = parameters.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
         request.httpBody = bodyString.data(using: .utf8)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
@@ -643,6 +660,7 @@ class NetreoAPIService: ObservableObject {
         let url = URL(string: configuration.endpoint(for: endpoint.path(for: configuration.version)))!
         var request = URLRequest(url: url)
         request.httpMethod = endpoint.httpMethod(for: configuration.version).rawValue
+        addProxyToken(&request)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
         
@@ -677,21 +695,22 @@ class NetreoAPIService: ObservableObject {
         let url = URL(string: urlString)!
         var request = URLRequest(url: url)
         request.httpMethod = endpoint.httpMethod(for: configuration.version).rawValue
-        
+        addProxyToken(&request)
+
         let bodyString = parameters.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
         request.httpBody = bodyString.data(using: .utf8)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        
+
         let (data, response) = try await urlSession.data(for: request)
-        
+
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
         }
-        
+
         guard 200...299 ~= httpResponse.statusCode else {
             throw APIError.httpError(httpResponse.statusCode, data)
         }
-        
+
         #if DEBUG
         if let responseString = String(data: data, encoding: .utf8) {
             print("Raw incident API response: \(responseString)")
@@ -752,6 +771,7 @@ class NetreoAPIService: ObservableObject {
         let url = URL(string: configuration.endpoint(for: endpoint.path(for: configuration.version)))!
         var request = URLRequest(url: url)
         request.httpMethod = endpoint.httpMethod(for: configuration.version).rawValue
+        addProxyToken(&request)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
         
