@@ -186,10 +186,11 @@ struct SettingsView: View {
 
     private func activateConnection(_ connection: SavedConnection) {
         switchingInProgress = connection.id
-        UserDefaults.standard.set(connection.baseURL, forKey: "netreo_base_url")
-        UserDefaults.standard.set(connection.apiKey,  forKey: "netreo_api_key")
-        UserDefaults.standard.set(connection.pin,     forKey: "netreo_pin")
-        UserDefaults.standard.set(connection.ackUser, forKey: "netreo_ack_user")
+        UserDefaults.standard.set(connection.baseURL,        forKey: "netreo_base_url")
+        UserDefaults.standard.set(connection.apiKey,         forKey: "netreo_api_key")
+        UserDefaults.standard.set(connection.pin,            forKey: "netreo_pin")
+        UserDefaults.standard.set(connection.ackUser,        forKey: "netreo_ack_user")
+        UserDefaults.standard.set(connection.webhookSecret,  forKey: "netreo_webhook_secret")
         activeSavedConnectionID = connection.id.uuidString
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
             switchingInProgress = nil

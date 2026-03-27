@@ -81,10 +81,13 @@ final class DeepLinkHandler: ObservableObject {
 
         // 1. Write active AppStorage keys directly to UserDefaults
         let ud = UserDefaults.standard
-        ud.set(imp.serverURL, forKey: "netreo_base_url")
-        ud.set(imp.apiKey,    forKey: "netreo_api_key")
-        ud.set(imp.pin,       forKey: "netreo_pin")
-        ud.set(imp.ackUser,   forKey: "netreo_ack_user")
+        ud.set(imp.serverURL,  forKey: "netreo_base_url")
+        ud.set(imp.apiKey,     forKey: "netreo_api_key")
+        ud.set(imp.pin,        forKey: "netreo_pin")
+        ud.set(imp.ackUser,    forKey: "netreo_ack_user")
+        if !imp.pushSecret.isEmpty {
+            ud.set(imp.pushSecret, forKey: "netreo_webhook_secret")
+        }
 
         // 2. Upsert SavedConnection (match by server URL, case-insensitive)
         var connections = ud.loadSavedConnections()
