@@ -31,7 +31,7 @@ Replace the current single `baseURL` field (which was the middleware URL) with t
 
 ### Migration
 
-Existing connections have `baseURL` = old middleware URL, which maps to `middlewareURL`. `bhnmURL` defaults to `""`.
+Existing connections have `baseURL` = old middleware URL, which maps to `middlewareURL`. `bhnmURL` defaults to `""`. `notificationsEnabled` defaults to `false` for migrated connections (since `bhnmURL` is unknown, push registration would be incomplete). It defaults to `true` only for newly created connections.
 
 On app load, if the active connection has an empty `bhnmURL`, show an inline warning banner in the BHNM Servers section of Settings: "Tap to complete setup — BHNM URL required". The app must not attempt API calls with an empty `bhnmURL`.
 
@@ -164,8 +164,9 @@ UI redesigned into two sections.
 
 **`applyPendingImport` changes:**
 
-- Write `bhnmURL`, `middlewareURL`, and `notificationsEnabled` to the connection
-- Trigger push registration if `notificationsEnabled` is `true`
+- Upsert match key: match existing connections by `bhnmURL` (case-insensitive). `middlewareURL` is intentionally not used as a match key since multiple connections may share the same middleware.
+- Write `bhnmURL`, `middlewareURL`, and `notificationsEnabled` to the connection.
+- Trigger push registration if `notificationsEnabled` is `true`.
 
 ### `SettingsView.swift`
 
@@ -181,6 +182,8 @@ UI redesigned into two sections.
 Current behaviour: reads `BHNM_URL` env var and `PROXY_SECRET` env var to authenticate and forward requests.
 
 New behaviour: `BHNM_URL` and `PROXY_SECRET` are removed. The target BHNM server is determined per-request from the `X-BHNM-Target` header; any non-empty `X-Proxy-Token` is accepted.
+
+**Security model:** The `X-Proxy-Token` value is a 32-character hex secret (128 bits of entropy) generated per connection. HTTPS provides transport security; the long secret provides authentication. The middleware does not validate the token against a registry — possession of the secret is the credential. This is intentional and sufficient for self-hosted deployments where the middleware is reachable only via HTTPS.
 
 ```python
 HOP_BY_HOP_REQUEST = {
