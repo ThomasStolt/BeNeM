@@ -11,7 +11,6 @@ final class DeepLinkHandler: ObservableObject {
         let pin: String               // "" if absent
         let ackUser: String
         let name: String              // "" if absent — falls back to hostname
-        let pushMiddlewareURL: String // "" if absent; replaces old pushURL field
         let pushSecret: String        // "" if absent
         let symbol: String            // SF Symbol name; default "server.rack"
         let accentColor: String       // hex colour; default "#0A84FF"
@@ -55,7 +54,6 @@ final class DeepLinkHandler: ObservableObject {
         let encryptedPin    = param("pin") ?? ""
         let ackUser         = param("ack_user") ?? "enter user name"
         let name            = param("name") ?? ""
-        let pushURL         = param("push_url") ?? ""
         let encryptedSecret = param("push_secret") ?? ""
 
         do {
@@ -69,7 +67,6 @@ final class DeepLinkHandler: ObservableObject {
                 pin:               decryptedPin,
                 ackUser:           ackUser,
                 name:              name,
-                pushMiddlewareURL: pushURL,
                 pushSecret:        decryptedSecret,
                 symbol:            "server.rack",
                 accentColor:       "#0A84FF"
@@ -103,9 +100,6 @@ final class DeepLinkHandler: ObservableObject {
             if !imp.pushSecret.isEmpty {
                 connections[idx].webhookSecret = imp.pushSecret
             }
-            if !imp.pushMiddlewareURL.isEmpty {
-                connections[idx].pushMiddlewareURL = imp.pushMiddlewareURL
-            }
             connections[idx].symbol      = imp.symbol
             connections[idx].accentColor = imp.accentColor
             upsertedID = connections[idx].id
@@ -120,7 +114,6 @@ final class DeepLinkHandler: ObservableObject {
                 pin: imp.pin,
                 ackUser: imp.ackUser,
                 webhookSecret: imp.pushSecret,
-                pushMiddlewareURL: imp.pushMiddlewareURL,
                 symbol: imp.symbol,
                 accentColor: imp.accentColor
             )
@@ -139,7 +132,7 @@ final class DeepLinkHandler: ObservableObject {
             AppDelegate.shared?.registerWithMiddleware(
                 token: token,
                 secret: conn.webhookSecret,
-                middlewareURL: conn.pushMiddlewareURL
+                middlewareURL: conn.baseURL
             )
         }
 
@@ -186,7 +179,6 @@ final class DeepLinkHandler: ObservableObject {
                 pin:               str("pin"),
                 ackUser:           str("user", default: "enter user name"),
                 name:              str("name"),
-                pushMiddlewareURL: str("push_url"),
                 pushSecret:        str("push_secret"),
                 symbol:            str("symbol", default: "server.rack"),
                 accentColor:       str("color", default: "#0A84FF")

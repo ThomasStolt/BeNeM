@@ -7,7 +7,6 @@ struct BeNeMApp: App {
     @State private var showSplash = true
 
     init() {
-        migrateGlobalPushURLIfNeeded()
         migrateLegacyKeysToSavedConnectionIfNeeded()
     }
 
@@ -38,18 +37,6 @@ struct BeNeMApp: App {
         ud.set(newConn.id.uuidString, forKey: "netreo_active_connection_id")
     }
 
-    private func migrateGlobalPushURLIfNeeded() {
-        let ud = UserDefaults.standard
-        guard let globalURL = ud.string(forKey: "push_middleware_url"), !globalURL.isEmpty else { return }
-        let activeID = ud.string(forKey: "netreo_active_connection_id") ?? ""
-        var connections = ud.loadSavedConnections()
-        guard let idx = connections.firstIndex(where: { $0.id.uuidString == activeID }),
-              connections[idx].pushMiddlewareURL.isEmpty else { return }
-        connections[idx].pushMiddlewareURL = globalURL
-        ud.saveSavedConnections(connections)
-        ud.removeObject(forKey: "push_middleware_url")   // only reached after successful write
-    }
-
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -74,8 +61,7 @@ struct BeNeMApp: App {
                     Button("Cancel", role: .cancel) { deepLinkHandler.pendingImport = nil }
                 } message: {
                     if let imp = deepLinkHandler.pendingImport {
-                        let push = imp.pushMiddlewareURL.isEmpty ? "" : "\nPush: \(imp.pushMiddlewareURL)"
-                        Text("Server: \(imp.serverURL)\nUser: \(imp.ackUser)\(push)")
+                        Text("Server: \(imp.serverURL)\nUser: \(imp.ackUser)")
                     }
                 }
                 .alert(
