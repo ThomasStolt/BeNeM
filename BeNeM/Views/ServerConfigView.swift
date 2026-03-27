@@ -2,24 +2,28 @@
 import SwiftUI
 
 struct ServerConfigView: View {
-    // nil = add mode; non-nil = edit mode
     let existingConnection: SavedConnection?
 
-    @AppStorage("netreo_base_url")              private var baseURL = ""
+    @AppStorage("netreo_base_url")              private var storedMiddlewareURL = ""
+    @AppStorage("netreo_bhnm_url")              private var storedBhnmURL = ""
     @AppStorage("netreo_api_key")               private var apiKey = ""
     @AppStorage("netreo_pin")                   private var pin = ""
     @AppStorage("netreo_ack_user")              private var ackUser = ""
     @AppStorage("netreo_active_connection_id")  private var activeSavedConnectionID = ""
 
-    // Draft state
+    // Draft state — Connection section
     @State private var draftName       = ""
-    @State private var draftBaseURL    = ""
+    @State private var draftBhnmURL    = ""
     @State private var draftApiKey     = ""
     @State private var draftPin        = ""
     @State private var draftAckUser    = ""
     @State private var draftSymbol     = "server.rack"
     @State private var draftColor      = "#0A84FF"
-    @State private var draftPushSecret = ""
+
+    // Draft state — Push Notifications section
+    @State private var draftNotificationsEnabled = true
+    @State private var draftMiddlewareURL        = ""
+    @State private var draftPushSecret           = ""
 
     @State private var showingIconPicker       = false
     @State private var isTesting               = false
@@ -32,13 +36,22 @@ struct ServerConfigView: View {
     @State private var savedConnections: [SavedConnection] = []
 
     private enum TestStatus { case untested, success, failure }
-    private enum Field: Hashable { case name, url, apiKey, pin, ackUser, pushSecret }
+    private enum Field: Hashable { case name, bhnmURL, apiKey, pin, ackUser, middlewareURL, pushSecret }
     @FocusState private var focusedField: Field?
 
     @Environment(\.dismiss) private var dismiss
 
     private var isAddMode: Bool { existingConnection == nil }
-    private var activeID: UUID? { UUID(uuidString: activeSavedConnectionID) }
+
+    // Save button disabled when required fields are empty
+    private var saveDisabled: Bool {
+        isTesting
+        || draftName.isEmpty
+        || draftBhnmURL.isEmpty
+        || draftApiKey.isEmpty
+        || draftAckUser.isEmpty
+        || (draftNotificationsEnabled && (draftMiddlewareURL.isEmpty || draftPushSecret.isEmpty))
+    }
 
     var body: some View {
         Form {
@@ -63,17 +76,17 @@ struct ServerConfigView: View {
                 .listRowBackground(Color.clear)
             }
 
-            // Connection fields
+            // Connection section
             Section("Connection") {
                 LabeledField("Server Name", placeholder: "e.g. Production BHNM") {
                     TextField("", text: $draftName)
                         .focused($focusedField, equals: .name)
                 }
-                LabeledField("Middleware URL", placeholder: "https://bhnm-apns.yourcompany.com") {
-                    TextField("", text: $draftBaseURL)
+                LabeledField("BHNM URL", placeholder: "https://bhnm.yourcompany.com") {
+                    TextField("", text: $draftBhnmURL)
                         .keyboardType(.URL)
                         .autocapitalization(.none)
-                        .focused($focusedField, equals: .url)
+                        .focused($focusedField, equals: .bhnmURL)
                 }
                 LabeledField("API Token", placeholder: "Required") {
                     SecureField("", text: $draftApiKey)
@@ -90,15 +103,25 @@ struct ServerConfigView: View {
                 }
             }
 
-            // Push notifications
+            // Push Notifications section
             Section("Push Notifications") {
-                LabeledField("Webhook Secret", placeholder: "Required for middleware connection") {
+                Toggle("Enable Push Notifications", isOn: $draftNotificationsEnabled)
+
+                LabeledField("Middleware URL", placeholder: "https://bhnm-apns.yourcompany.com") {
+                    TextField("", text: $draftMiddlewareURL)
+                        .keyboardType(.URL)
+                        .autocapitalization(.none)
+                        .focused($focusedField, equals: .middlewareURL)
+                        .disabled(!draftNotificationsEnabled)
+                }
+                .opacity(draftNotificationsEnabled ? 1 : 0.4)
+
+                LabeledField("Webhook Secret", placeholder: "Required for push") {
                     SecureField("", text: $draftPushSecret)
                         .focused($focusedField, equals: .pushSecret)
+                        .disabled(!draftNotificationsEnabled)
                 }
-                Text("Enter the webhook secret configured in your middleware's .env file.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                .opacity(draftNotificationsEnabled ? 1 : 0.4)
             }
 
             // Actions
@@ -113,22 +136,20 @@ struct ServerConfigView: View {
                             Image(systemName: "xmark.circle.fill").foregroundColor(.red)
                         }
                         if isTesting {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
+                            ProgressView().frame(maxWidth: .infinity)
                         } else {
                             Text(isAddMode ? "Test & Save" : "Save")
                                 .frame(maxWidth: .infinity)
                         }
                     }
                 }
-                .disabled(isTesting || draftBaseURL.isEmpty || draftApiKey.isEmpty || draftName.isEmpty || draftAckUser.isEmpty || draftPushSecret.isEmpty)
+                .disabled(saveDisabled)
 
                 if !isAddMode {
                     Button(role: .destructive) {
                         showingDeleteConfirm = true
                     } label: {
-                        Text("Delete Server")
-                            .frame(maxWidth: .infinity)
+                        Text("Delete Server").frame(maxWidth: .infinity)
                     }
                 }
             }
@@ -166,14 +187,16 @@ struct ServerConfigView: View {
     private func populateDrafts() {
         savedConnections = UserDefaults.standard.loadSavedConnections()
         if let conn = existingConnection {
-            draftName       = conn.name
-            draftBaseURL    = conn.middlewareURL
-            draftApiKey     = conn.apiKey
-            draftPin        = conn.pin
-            draftAckUser    = conn.ackUser
-            draftSymbol     = conn.symbol
-            draftColor      = conn.accentColor
-            draftPushSecret = conn.webhookSecret
+            draftName                 = conn.name
+            draftBhnmURL              = conn.bhnmURL
+            draftApiKey               = conn.apiKey
+            draftPin                  = conn.pin
+            draftAckUser              = conn.ackUser
+            draftSymbol               = conn.symbol
+            draftColor                = conn.accentColor
+            draftNotificationsEnabled = conn.notificationsEnabled
+            draftMiddlewareURL        = conn.middlewareURL
+            draftPushSecret           = conn.webhookSecret
         }
     }
 
@@ -183,22 +206,42 @@ struct ServerConfigView: View {
         isTesting = true
         defer { isTesting = false }
 
-        // Auto-prepend https:// if no scheme
-        var urlString = draftBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !urlString.hasPrefix("http://") && !urlString.hasPrefix("https://") {
-            urlString = "https://\(urlString)"
+        // Normalize BHNM URL
+        var bhnmURLString = draftBhnmURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !bhnmURLString.hasPrefix("http://") && !bhnmURLString.hasPrefix("https://") {
+            bhnmURLString = "https://\(bhnmURLString)"
         }
-        draftBaseURL = urlString
+        draftBhnmURL = bhnmURLString
 
-        guard let url = URL(string: urlString), url.host != nil else {
+        // Normalize middleware URL if push is enabled
+        if draftNotificationsEnabled {
+            var mw = draftMiddlewareURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !mw.isEmpty, !mw.hasPrefix("http://"), !mw.hasPrefix("https://") {
+                mw = "https://\(mw)"
+            }
+            draftMiddlewareURL = mw
+        }
+
+        guard let bhnmURLParsed = URL(string: bhnmURLString), bhnmURLParsed.host != nil else {
             testStatus = .failure
             alertTitle = "Invalid URL"
-            alertMessage = "Could not parse \"\(urlString)\" as a URL."
+            alertMessage = "Could not parse \"\(bhnmURLString)\" as a URL."
             showingAlert = true
             return
         }
 
-        guard let testURL = URL(string: "\(urlString.trimmingSuffix("/"))/fw/index.php?r=restful/devices/list") else {
+        // Build test URL and request
+        let testBase: String
+        let addProxyHeaders: Bool
+        if draftNotificationsEnabled && !draftMiddlewareURL.isEmpty {
+            testBase = draftMiddlewareURL.trimmingSuffix("/")
+            addProxyHeaders = true
+        } else {
+            testBase = bhnmURLString.trimmingSuffix("/")
+            addProxyHeaders = false
+        }
+
+        guard let testURL = URL(string: "\(testBase)/fw/index.php?r=restful/devices/list") else {
             testStatus = .failure
             alertTitle = "Invalid URL"
             alertMessage = "Could not construct test endpoint."
@@ -208,8 +251,9 @@ struct ServerConfigView: View {
 
         var request = URLRequest(url: testURL, timeoutInterval: 15)
         request.httpMethod = "POST"
-        if !draftPushSecret.isEmpty {
+        if addProxyHeaders {
             request.setValue(draftPushSecret, forHTTPHeaderField: "X-Proxy-Token")
+            request.setValue(bhnmURLString, forHTTPHeaderField: "X-BHNM-Target")
         }
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
@@ -234,13 +278,14 @@ struct ServerConfigView: View {
                             let arr = nested["devices"] as? [[String: Any]] { deviceCount = arr.count }
                 }
                 if deviceCount > 0 {
-                    saveConnection(urlString: urlString)
+                    saveConnection(bhnmURLString: bhnmURLString)
                     testStatus = .success
                     dismiss()
                 } else {
+                    let preview = String(data: data.prefix(300), encoding: .utf8) ?? "<non-UTF8>"
                     testStatus = .failure
                     alertTitle = "Connected — no devices found"
-                    alertMessage = "Server responded but returned no devices. Check API key permissions."
+                    alertMessage = "Server responded but returned no devices.\n\nRaw response:\n\(preview)"
                     showingAlert = true
                 }
             case 401, 403:
@@ -249,7 +294,7 @@ struct ServerConfigView: View {
                 showingAlert = true
             case 404:
                 testStatus = .failure; alertTitle = "Endpoint not found"
-                alertMessage = "HTTP 404: Check the base URL."
+                alertMessage = "HTTP 404: Check the BHNM URL."
                 showingAlert = true
             default:
                 testStatus = .failure; alertTitle = "Unexpected response"
@@ -261,8 +306,10 @@ struct ServerConfigView: View {
             alertTitle = "Connection failed"
             switch urlError.code {
             case .notConnectedToInternet: alertMessage = "No internet connection."
-            case .cannotFindHost: alertMessage = "Host not found: \"\(url.host ?? urlString)\"."
-            case .cannotConnectToHost: alertMessage = "Cannot connect to \"\(url.host ?? urlString)\"."
+            case .cannotFindHost:
+                alertMessage = "Host not found: \"\(bhnmURLParsed.host ?? bhnmURLString)\"."
+            case .cannotConnectToHost:
+                alertMessage = "Cannot connect to \"\(bhnmURLParsed.host ?? bhnmURLString)\"."
             case .timedOut: alertMessage = "Timed out after 15 seconds."
             default: alertMessage = urlError.localizedDescription
             }
@@ -273,38 +320,46 @@ struct ServerConfigView: View {
         }
     }
 
-    private func saveConnection(urlString: String) {
+    private func saveConnection(bhnmURLString: String) {
         let trimmedName = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let middlewareURL = draftNotificationsEnabled
+            ? draftMiddlewareURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            : ""
+        let webhookSecret = draftNotificationsEnabled
+            ? draftPushSecret.trimmingCharacters(in: .whitespacesAndNewlines)
+            : ""
+
         let now = SavedConnection(
             id: existingConnection?.id ?? UUID(),
             name: trimmedName.isEmpty ? "Unnamed" : trimmedName,
-            middlewareURL: urlString,
-            bhnmURL: "",
+            middlewareURL: middlewareURL,
+            bhnmURL: bhnmURLString,
+            notificationsEnabled: draftNotificationsEnabled,
             apiKey: draftApiKey,
             pin: draftPin,
             ackUser: draftAckUser,
-            webhookSecret: draftPushSecret.trimmingCharacters(in: .whitespacesAndNewlines),
+            webhookSecret: webhookSecret,
             symbol: draftSymbol,
             accentColor: draftColor
         )
+
         if let idx = savedConnections.firstIndex(where: { $0.id == now.id }) {
             savedConnections[idx] = now
         } else {
             savedConnections.append(now)
         }
         UserDefaults.standard.saveSavedConnections(savedConnections)
-        // Keep netreo_webhook_secret in sync so ContentView.updateAPIService() fires
-        if isAddMode || existingConnection?.id.uuidString == activeSavedConnectionID {
-            UserDefaults.standard.set(now.webhookSecret, forKey: "netreo_webhook_secret")
-        }
-        // Only set as active if: adding a new server, OR editing the currently active server.
+
+        // Sync to active AppStorage keys if this is the active server
         let isCurrentlyActive = existingConnection?.id.uuidString == activeSavedConnectionID
         if isAddMode || isCurrentlyActive {
             activeSavedConnectionID = now.id.uuidString
-            baseURL  = now.middlewareURL
-            apiKey   = now.apiKey
-            pin      = now.pin
-            ackUser  = now.ackUser
+            storedMiddlewareURL = now.middlewareURL
+            storedBhnmURL       = now.bhnmURL
+            apiKey              = now.apiKey
+            pin                 = now.pin
+            ackUser             = now.ackUser
+            UserDefaults.standard.set(now.webhookSecret, forKey: "netreo_webhook_secret")
         }
     }
 
@@ -314,7 +369,9 @@ struct ServerConfigView: View {
         UserDefaults.standard.saveSavedConnections(savedConnections)
         if activeSavedConnectionID == conn.id.uuidString {
             activeSavedConnectionID = ""
-            baseURL = ""; apiKey = ""; pin = ""; ackUser = ""
+            storedMiddlewareURL = ""
+            storedBhnmURL = ""
+            apiKey = ""; pin = ""; ackUser = ""
         }
         dismiss()
     }
