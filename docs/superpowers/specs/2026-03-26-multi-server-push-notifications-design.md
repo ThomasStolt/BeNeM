@@ -51,14 +51,19 @@ struct SavedConnection: Codable, Identifiable {
 }
 ```
 
-The global `push_middleware_secret` AppStorage key is deprecated. Existing installations migrate gracefully: if a connection has no `webhookSecret`, it defaults to `""` (no push notifications) until the user enters one.
+The global `push_middleware_secret` AppStorage key is deprecated. Existing installations migrate gracefully: if a connection has no `webhookSecret`, it defaults to `""` (no push notifications) until the user enters one. Existing users who previously configured a global secret will need to re-enter it per-connection.
 
 ### 2. `SettingsView` (iOS — `SettingsView.swift`)
 
-- Remove the global "Webhook Secret" field from the Push Notifications section.
-- Add a "Webhook Secret" field inside the BHNM Server section, below ACK User.
-- The field loads/saves from `draftWebhookSecret` draft state, persisted into `SavedConnection.webhookSecret` on successful test/save.
+- Add `@State private var draftWebhookSecret = ""` draft state.
+- Remove the global "Webhook Secret" `SecureField` from the Push Notifications section.
+- Add a "Webhook Secret" `SecureField` inside the BHNM Server section, below ACK User, bound to `draftWebhookSecret`.
 - The Push Notifications section retains only the Middleware URL field.
+- Update all four methods that touch `SavedConnection`:
+  - `testConnection()`: include `draftWebhookSecret` when constructing the `SavedConnection` literal (the primary write path).
+  - `selectConnection(_:)`: populate `draftWebhookSecret` from `connection.webhookSecret`.
+  - `selectNewConnection()`: clear `draftWebhookSecret` to `""`.
+  - `deleteActiveConnection()`: clear `draftWebhookSecret` to `""`.
 
 ### 3. `AppDelegate` (iOS — `AppDelegate.swift`)
 
@@ -68,21 +73,30 @@ Update `registerWithMiddleware(token:)` to accept a secret parameter:
 func registerWithMiddleware(token: String, secret: String)
 ```
 
-- If `secret` is empty, skip registration (log a message).
-- Pass the secret as `X-Webhook-Token` header (existing behaviour, now per-connection).
-- Cache the most recently received APNs device token in a property so it can be used when re-registering after a server switch.
+- Cache the APNs device token in `var cachedDeviceToken: String?` when `didRegisterForRemoteNotificationsWithDeviceToken` fires.
+- In `didRegisterForRemoteNotificationsWithDeviceToken`: load the active `SavedConnection` from UserDefaults using `netreo_active_connection_id`, read its `webhookSecret`, and call `registerWithMiddleware(token:secret:)` — do **not** read from the deprecated `push_middleware_secret` key.
+- If `secret` is empty, skip registration and log a message.
+- Pass the secret as `X-Webhook-Token` header.
+- If `AppDelegate.shared` is nil at the call site in `ContentView`, skip registration silently (do not crash).
 
-### 4. Server-Switch Re-Registration (iOS — `ContentView` or new `PushRegistrationService`)
+### 4. Server-Switch Re-Registration (iOS — `ContentView`)
 
-Observe `netreo_active_connection_id` changes. On change:
+Add an `onChange` observer on `netreo_active_connection_id` in `ContentView`. On change:
 
-1. Load the new `SavedConnection` from UserDefaults.
+1. Load the new `SavedConnection` from UserDefaults using the updated ID.
 2. Read its `webhookSecret`.
-3. Call `AppDelegate.shared.registerWithMiddleware(token: cachedToken, secret: newSecret)`.
+3. Call `AppDelegate.shared?.registerWithMiddleware(token: cachedToken, secret: newSecret)`.
 
-This ensures the middleware is updated immediately when the user switches servers.
+Using `ContentView` is consistent with how the rest of connection switching already works in that file (`onChange` on `baseURL`, `apiKey`, etc.). No separate `PushRegistrationService` is needed.
 
-### 5. Middleware — `/register` endpoint (`bhnm-apns`)
+### 5. `DeepLinkHandler` (iOS — `DeepLinkHandler.swift`)
+
+The deep link provisioning path (`benem://` URL scheme) currently writes the decrypted `push_secret` to the global `push_middleware_secret` AppStorage key. This must be updated:
+
+- When `applyPendingImport()` upserts or creates a `SavedConnection`, write `imp.pushSecret` into `connection.webhookSecret` instead of into `push_middleware_secret`.
+- After saving, trigger re-registration so push routing updates immediately without requiring an app restart.
+
+### 6. Middleware — `/register` endpoint (`bhnm-apns`)
 
 **Current behaviour:** stores `{token, device_name}`.
 
@@ -97,7 +111,7 @@ Body: { "token": "...", "device_name": "..." }
 - If a record for this token already exists → update `active_secret` and `device_name`.
 - If not → insert new record.
 
-### 6. Middleware — `/webhook` endpoint (`bhnm-apns`)
+### 7. Middleware — `/webhook` endpoint (`bhnm-apns`)
 
 **Current behaviour:** forward to all registered tokens.
 
@@ -123,7 +137,7 @@ ContentView.onChange(netreo_active_connection_id)
 Load SavedConnection for Server B → webhookSecret = secret_B
         │
         ▼
-AppDelegate.registerWithMiddleware(token: cachedToken, secret: secret_B)
+AppDelegate.shared?.registerWithMiddleware(token: cachedToken, secret: secret_B)
         │
         ▼
 POST /register  (X-Webhook-Token: secret_B)
@@ -143,13 +157,15 @@ Server B webhooks → forwarded ✓
 - **Registration fails (network error):** Log the error. The app does not retry automatically — the next app launch will re-register. This is acceptable: the user has switched servers and is actively using it; a missed registration is a rare edge case.
 - **Empty webhookSecret:** Skip registration silently. No push notifications for that server. The user can add a secret later in Settings.
 - **Middleware returns non-200:** Log the status code. No user-facing error (push notifications are non-critical).
+- **`AppDelegate.shared` is nil:** Skip registration silently at the `ContentView` call site (use optional chaining `AppDelegate.shared?.registerWithMiddleware(...)`).
 
 ---
 
 ## Migration
 
-- Existing `SavedConnection` records decode without `webhookSecret` → Swift default value `""` → no push notifications until user configures a secret.
-- The global `push_middleware_secret` AppStorage key is ignored after this change. No active migration needed; the key simply becomes unused.
+- Existing `SavedConnection` records decode without `webhookSecret` → Swift default value `""` → no push notifications until user configures a secret per connection.
+- Existing users who had `push_middleware_secret` populated (via Settings or deep link) will need to re-enter their secret per connection after updating the app.
+- The global `push_middleware_secret` AppStorage key is ignored after this change. No active data migration needed; the key simply becomes unused.
 
 ---
 

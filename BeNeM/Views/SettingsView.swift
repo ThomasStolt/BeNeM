@@ -14,24 +14,9 @@ struct SettingsView: View {
     @State private var editingConnection: SavedConnection? = nil   // drives swipe-to-edit navigation
     @State private var showEditNavigation = false                   // paired with editingConnection
     @State private var navigateToAdd = false                        // drives + toolbar navigation
-    @State private var isClassCWiFiAvailable = NetworkDiscovery.isOnClassCWiFi
-
     var body: some View {
         NavigationStack {
             Form {
-                // MARK: Discovery
-                Section(
-                    header: Text("Discovery"),
-                    footer: Text(isClassCWiFiAvailable
-                        ? "Scans your Wi‑Fi network for BHNM servers."
-                        : "Requires a Wi‑Fi connection with a /24 (Class C) subnet.")
-                ) {
-                    NavigationLink(destination: AutoDiscoveryView()) {
-                        Label("Discover BHNM Server", systemImage: "magnifyingglass.circle.fill")
-                    }
-                    .disabled(!isClassCWiFiAvailable)
-                }
-
                 // MARK: BHNM Servers list
                 Section(header: Text("BHNM Servers")) {
                     if savedConnections.isEmpty {
@@ -115,7 +100,6 @@ struct SettingsView: View {
                 }
             }
             .onAppear {
-                isClassCWiFiAvailable = NetworkDiscovery.isOnClassCWiFi
                 reload()
             }
             .onReceive(NotificationCenter.default.publisher(for: .deepLinkConnectionApplied)) { _ in

@@ -29,8 +29,6 @@
 		BB0001000000000000000003 /* TacticalViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001000000000000000004 /* TacticalViewModel.swift */; };
 		BB0001000000000000000005 /* GroupListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001000000000000000006 /* GroupListView.swift */; };
 		BB0001000000000000000007 /* AutoRefreshButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001000000000000000008 /* AutoRefreshButton.swift */; };
-		BB0001000000000000000009 /* NetworkDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000100000000000000000A /* NetworkDiscovery.swift */; };
-		BB000100000000000000000B /* AutoDiscoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000100000000000000000C /* AutoDiscoveryView.swift */; };
 		BB000100000000000000000D /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000100000000000000000E /* SplashView.swift */; };
 		CC0001000000000000000001 /* DeviceDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0001000000000000000002 /* DeviceDetailViewModel.swift */; };
 		DD0001000000000000000001 /* DeviceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0001000000000000000002 /* DeviceDetailView.swift */; };
@@ -67,8 +65,6 @@
 		BB0001000000000000000004 /* TacticalViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TacticalViewModel.swift; sourceTree = "<group>"; };
 		BB0001000000000000000006 /* GroupListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupListView.swift; sourceTree = "<group>"; };
 		BB0001000000000000000008 /* AutoRefreshButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoRefreshButton.swift; sourceTree = "<group>"; };
-		BB000100000000000000000A /* NetworkDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkDiscovery.swift; sourceTree = "<group>"; };
-		BB000100000000000000000C /* AutoDiscoveryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoDiscoveryView.swift; sourceTree = "<group>"; };
 		BB000100000000000000000E /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		CC0001000000000000000002 /* DeviceDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDetailViewModel.swift; sourceTree = "<group>"; };
 		DD0001000000000000000002 /* DeviceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDetailView.swift; sourceTree = "<group>"; };
@@ -173,7 +169,6 @@
 			children = (
 				A11234567890006B /* NetreoAPIService.swift */,
 				A11234567890007B /* NetreoAPIConfiguration.swift */,
-				BB000100000000000000000A /* NetworkDiscovery.swift */,
 				GG0001000000000000000002 /* DeepLinkHandler.swift */,
 			);
 			path = Services;
@@ -202,7 +197,6 @@
 				A1123456789000CB /* QuickConfigView.swift */,
 				BB0001000000000000000006 /* GroupListView.swift */,
 				BB0001000000000000000008 /* AutoRefreshButton.swift */,
-				BB000100000000000000000C /* AutoDiscoveryView.swift */,
 				BB000100000000000000000E /* SplashView.swift */,
 				DD0001000000000000000002 /* DeviceDetailView.swift */,
 				II0001000000000000000002 /* IconPickerSheet.swift */,
@@ -312,8 +306,6 @@
 				BB0001000000000000000003 /* TacticalViewModel.swift in Sources */,
 				BB0001000000000000000005 /* GroupListView.swift in Sources */,
 				BB0001000000000000000007 /* AutoRefreshButton.swift in Sources */,
-				BB0001000000000000000009 /* NetworkDiscovery.swift in Sources */,
-				BB000100000000000000000B /* AutoDiscoveryView.swift in Sources */,
 				BB000100000000000000000D /* SplashView.swift in Sources */,
 				DD0001000000000000000001 /* DeviceDetailView.swift in Sources */,
 				EE0001000000000000000001 /* SavedConnection.swift in Sources */,
