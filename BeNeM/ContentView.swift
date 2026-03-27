@@ -51,7 +51,7 @@ struct ContentView: View {
                 AppDelegate.shared?.registerWithMiddleware(
                     token: token,
                     secret: conn.webhookSecret,
-                    middlewareURL: conn.baseURL
+                    middlewareURL: conn.middlewareURL
                 )
             }
         }

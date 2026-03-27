@@ -167,7 +167,7 @@ struct ServerConfigView: View {
         savedConnections = UserDefaults.standard.loadSavedConnections()
         if let conn = existingConnection {
             draftName       = conn.name
-            draftBaseURL    = conn.baseURL
+            draftBaseURL    = conn.middlewareURL
             draftApiKey     = conn.apiKey
             draftPin        = conn.pin
             draftAckUser    = conn.ackUser
@@ -278,7 +278,8 @@ struct ServerConfigView: View {
         let now = SavedConnection(
             id: existingConnection?.id ?? UUID(),
             name: trimmedName.isEmpty ? "Unnamed" : trimmedName,
-            baseURL: urlString,
+            middlewareURL: urlString,
+            bhnmURL: "",
             apiKey: draftApiKey,
             pin: draftPin,
             ackUser: draftAckUser,
@@ -300,7 +301,7 @@ struct ServerConfigView: View {
         let isCurrentlyActive = existingConnection?.id.uuidString == activeSavedConnectionID
         if isAddMode || isCurrentlyActive {
             activeSavedConnectionID = now.id.uuidString
-            baseURL  = now.baseURL
+            baseURL  = now.middlewareURL
             apiKey   = now.apiKey
             pin      = now.pin
             ackUser  = now.ackUser

@@ -19,14 +19,16 @@ struct BeNeMApp: App {
               let key = ud.string(forKey: "netreo_api_key"), !key.isEmpty else { return }
         var connections = ud.loadSavedConnections()
         // Only migrate if there is no connection matching this URL already
-        guard !connections.contains(where: { $0.baseURL.lowercased() == url.lowercased() }) else { return }
+        guard !connections.contains(where: { $0.middlewareURL.lowercased() == url.lowercased() }) else { return }
         let pin     = ud.string(forKey: "netreo_pin") ?? ""
         let ackUser = ud.string(forKey: "netreo_ack_user") ?? ""
         let name    = URL(string: url)?.host ?? url
         let newConn = SavedConnection(
             id: UUID(),
             name: name,
-            baseURL: url,
+            middlewareURL: url,
+            bhnmURL: "",
+            notificationsEnabled: false,   // migration default
             apiKey: key,
             pin: pin,
             ackUser: ackUser

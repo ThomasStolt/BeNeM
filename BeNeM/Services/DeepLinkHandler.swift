@@ -94,7 +94,7 @@ final class DeepLinkHandler: ObservableObject {
         let serverLower = imp.serverURL.lowercased()
         let upsertedID: UUID
 
-        if let idx = connections.firstIndex(where: { $0.baseURL.lowercased() == serverLower }) {
+        if let idx = connections.firstIndex(where: { $0.middlewareURL.lowercased() == serverLower }) {
             // Update credentials in place; update name if provided, otherwise preserve existing
             if !imp.name.isEmpty { connections[idx].name = imp.name }
             connections[idx].apiKey  = imp.apiKey
@@ -112,7 +112,8 @@ final class DeepLinkHandler: ObservableObject {
             let newConn = SavedConnection(
                 id: UUID(),
                 name: name,
-                baseURL: imp.serverURL,
+                middlewareURL: imp.serverURL,
+                bhnmURL: "",
                 apiKey: imp.apiKey,
                 pin: imp.pin,
                 ackUser: imp.ackUser,
@@ -135,7 +136,7 @@ final class DeepLinkHandler: ObservableObject {
             AppDelegate.shared?.registerWithMiddleware(
                 token: token,
                 secret: conn.webhookSecret,
-                middlewareURL: conn.baseURL
+                middlewareURL: conn.middlewareURL
             )
         }
 
