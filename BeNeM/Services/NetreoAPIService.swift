@@ -58,6 +58,9 @@ class NetreoAPIService: ObservableObject {
     private func addProxyToken(_ request: inout URLRequest) {
         guard !configuration.proxyToken.isEmpty else { return }
         request.setValue(configuration.proxyToken, forHTTPHeaderField: "X-Proxy-Token")
+        if !configuration.bhnmURL.isEmpty {
+            request.setValue(configuration.bhnmURL, forHTTPHeaderField: "X-BHNM-Target")
+        }
     }
 
     func fetchDevices() async throws -> [NetreoDevice] {
