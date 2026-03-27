@@ -704,13 +704,17 @@ class NetreoAPIService: ObservableObject {
         request.httpBody = bodyString.data(using: .utf8)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
-        // Retry once on networkConnectionLost — iOS URLSession reuses stale connections
-        // and gets -1005 when the server has already closed them.
+        // Retry once on networkConnectionLost using a fresh session — iOS URLSession
+        // reuses pooled connections that the server has already closed (-1005).
+        // A fresh session forces a new TCP connection rather than reusing the stale one.
         let (data, response): (Data, URLResponse)
         do {
             (data, response) = try await urlSession.data(for: request)
         } catch let urlError as URLError where urlError.code == .networkConnectionLost {
-            (data, response) = try await urlSession.data(for: request)
+            let freshConfig = URLSessionConfiguration.ephemeral
+            freshConfig.timeoutIntervalForRequest = configuration.timeout
+            let freshSession = URLSession(configuration: freshConfig)
+            (data, response) = try await freshSession.data(for: request)
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {
