@@ -112,7 +112,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
               !activeID.isEmpty else { return ("", "") }
         let connections = ud.loadSavedConnections()
         guard let conn = connections.first(where: { $0.id.uuidString == activeID }) else { return ("", "") }
-        return (conn.webhookSecret, conn.pushMiddlewareURL)
+        return (conn.webhookSecret, conn.baseURL)
     }
 }
 
