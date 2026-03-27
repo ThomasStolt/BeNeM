@@ -9,6 +9,7 @@ struct ContentView: View {
     @AppStorage("netreo_retry_count") private var retryCount: Double = 3.0
     @AppStorage("netreo_active_connection_id") private var activeConnectionID = ""
     @AppStorage("netreo_webhook_secret") private var webhookSecret = ""
+    @AppStorage("netreo_bhnm_url") private var bhnmURL = ""
 
     @State private var apiService: NetreoAPIService?
     @State private var selectedTab = 0
@@ -18,7 +19,7 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            if !baseURL.isEmpty && !apiKey.isEmpty, let service = apiService {
+            if !bhnmURL.isEmpty && !apiKey.isEmpty, let service = apiService {
                 DashboardView(apiService: service, selectedTab: $selectedTab, navResetID: homeNavResetID)
                     .tag(0)
                 IncidentListView(apiService: service, navResetID: incidentNavResetID, pendingIncidentID: $pendingIncidentID)
@@ -36,24 +37,38 @@ struct ContentView: View {
             }
         }
         .onChange(of: baseURL) { _, _ in updateAPIService() }
+        .onChange(of: bhnmURL) { _, _ in updateAPIService() }
         .onChange(of: apiKey) { _, _ in updateAPIService() }
         .onChange(of: pin) { _, _ in updateAPIService() }
         .onChange(of: apiVersionString) { _, _ in updateAPIService() }
         .onChange(of: timeout) { _, _ in updateAPIService() }
         .onChange(of: retryCount) { _, _ in updateAPIService() }
         .onChange(of: webhookSecret) { _, _ in updateAPIService() }
-        .onChange(of: activeConnectionID) { _, newID in
-            guard !newID.isEmpty,
-                  let token = AppDelegate.shared?.cachedDeviceToken else { return }
+        .onChange(of: activeConnectionID) { oldID, newID in
             let connections = UserDefaults.standard.loadSavedConnections()
-            if let conn = connections.first(where: { $0.id.uuidString == newID }) {
-                UserDefaults.standard.set(conn.webhookSecret, forKey: "netreo_webhook_secret")
-                AppDelegate.shared?.registerWithMiddleware(
+            // Unregister old connection's push if it had notifications enabled
+            if !oldID.isEmpty,
+               let oldConn = connections.first(where: { $0.id.uuidString == oldID }),
+               oldConn.notificationsEnabled,
+               !oldConn.middlewareURL.isEmpty,
+               let token = AppDelegate.shared?.cachedDeviceToken {
+                AppDelegate.shared?.unregisterWithMiddleware(
                     token: token,
-                    secret: conn.webhookSecret,
-                    middlewareURL: conn.middlewareURL
+                    secret: oldConn.webhookSecret,
+                    middlewareURL: oldConn.middlewareURL
                 )
             }
+            // Register new connection's push if it has notifications enabled
+            guard !newID.isEmpty,
+                  let conn = connections.first(where: { $0.id.uuidString == newID }),
+                  conn.notificationsEnabled,
+                  let token = AppDelegate.shared?.cachedDeviceToken else { return }
+            UserDefaults.standard.set(conn.webhookSecret, forKey: "netreo_webhook_secret")
+            AppDelegate.shared?.registerWithMiddleware(
+                token: token,
+                secret: conn.webhookSecret,
+                middlewareURL: conn.middlewareURL
+            )
         }
         .onChange(of: apiService == nil) { _, isNil in
             if isNil { selectedTab = 3 }
@@ -76,16 +91,21 @@ struct ContentView: View {
     }
 
     private func updateAPIService() {
-        guard !baseURL.isEmpty && !apiKey.isEmpty else {
+        guard !bhnmURL.isEmpty && !apiKey.isEmpty else {
             apiService = nil
             return
         }
         let apiVersion = NetreoAPIConfiguration.APIVersion(rawValue: apiVersionString) ?? .legacy
+        // Route through middleware when configured; connect directly to BHNM otherwise
+        let serviceBaseURL = baseURL.isEmpty ? bhnmURL : baseURL
+        let serviceProxyToken = baseURL.isEmpty ? "" : webhookSecret
+        let serviceBhnmURL = baseURL.isEmpty ? "" : bhnmURL
         let configuration = NetreoAPIConfiguration(
-            baseURL: baseURL,
+            baseURL: serviceBaseURL,
+            bhnmURL: serviceBhnmURL,
             apiKey: apiKey,
             pin: pin.isEmpty ? nil : pin,
-            proxyToken: webhookSecret,
+            proxyToken: serviceProxyToken,
             version: apiVersion,
             timeout: timeout,
             retryCount: Int(retryCount)
