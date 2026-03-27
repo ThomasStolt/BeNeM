@@ -42,8 +42,14 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         let token = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
         print("[APNs] Device token: \(token)")
         cachedDeviceToken = token
-        let (secret, middlewareURL) = activeConnectionPushCredentials()
-        registerWithMiddleware(token: token, secret: secret, middlewareURL: middlewareURL)
+        let ud = UserDefaults.standard
+        guard let activeID = ud.string(forKey: "netreo_active_connection_id"), !activeID.isEmpty,
+              let conn = ud.loadSavedConnections().first(where: { $0.id.uuidString == activeID }),
+              conn.notificationsEnabled else {
+            print("[APNs] notificationsEnabled is false for active connection — skipping registration.")
+            return
+        }
+        registerWithMiddleware(token: token, secret: conn.webhookSecret, middlewareURL: conn.middlewareURL)
     }
 
     func application(
@@ -77,6 +83,30 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             )
         }
         completionHandler()
+    }
+
+    func unregisterWithMiddleware(token: String, secret: String, middlewareURL: String) {
+        guard !middlewareURL.isEmpty, let url = URL(string: "\(middlewareURL)/register") else {
+            print("[APNs] No middleware URL — skipping token unregistration.")
+            return
+        }
+        guard !secret.isEmpty else {
+            print("[APNs] No webhook secret — skipping token unregistration.")
+            return
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(secret, forHTTPHeaderField: "X-Webhook-Token")
+        let body: [String: String] = ["token": token]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        URLSession.shared.dataTask(with: request) { _, response, error in
+            if let error = error {
+                print("[APNs] Middleware unregistration error: \(error)")
+            } else if let http = response as? HTTPURLResponse {
+                print("[APNs] Middleware unregister responded: \(http.statusCode)")
+            }
+        }.resume()
     }
 
     func registerWithMiddleware(token: String, secret: String, middlewareURL: String) {
