@@ -19,8 +19,6 @@ struct ServerConfigView: View {
     @State private var draftAckUser    = ""
     @State private var draftSymbol     = "server.rack"
     @State private var draftColor      = "#0A84FF"
-    @State private var pushEnabled     = false
-    @State private var draftPushURL    = ""
     @State private var draftPushSecret = ""
 
     @State private var showingIconPicker       = false
@@ -34,7 +32,7 @@ struct ServerConfigView: View {
     @State private var savedConnections: [SavedConnection] = []
 
     private enum TestStatus { case untested, success, failure }
-    private enum Field: Hashable { case name, url, apiKey, pin, ackUser, pushURL, pushSecret }
+    private enum Field: Hashable { case name, url, apiKey, pin, ackUser, pushSecret }
     @FocusState private var focusedField: Field?
 
     @Environment(\.dismiss) private var dismiss
@@ -71,7 +69,7 @@ struct ServerConfigView: View {
                     TextField("", text: $draftName)
                         .focused($focusedField, equals: .name)
                 }
-                LabeledField("Server URL", placeholder: "bhnm.example.com") {
+                LabeledField("Middleware URL", placeholder: "https://bhnm-apns.yourcompany.com") {
                     TextField("", text: $draftBaseURL)
                         .keyboardType(.URL)
                         .autocapitalization(.none)
@@ -94,19 +92,13 @@ struct ServerConfigView: View {
 
             // Push notifications
             Section("Push Notifications") {
-                Toggle("Enable Push Notifications", isOn: $pushEnabled)
-                if pushEnabled {
-                    LabeledField("Middleware URL", placeholder: "https://bhnm-apns.example.com") {
-                        TextField("", text: $draftPushURL)
-                            .keyboardType(.URL)
-                            .autocapitalization(.none)
-                            .focused($focusedField, equals: .pushURL)
-                    }
-                    LabeledField("Webhook Secret", placeholder: "Required") {
-                        SecureField("", text: $draftPushSecret)
-                            .focused($focusedField, equals: .pushSecret)
-                    }
+                LabeledField("Webhook Secret", placeholder: "Required for middleware connection") {
+                    SecureField("", text: $draftPushSecret)
+                        .focused($focusedField, equals: .pushSecret)
                 }
+                Text("Enter the webhook secret configured in your middleware's .env file.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
 
             // Actions
@@ -129,7 +121,7 @@ struct ServerConfigView: View {
                         }
                     }
                 }
-                .disabled(isTesting || draftBaseURL.isEmpty || draftApiKey.isEmpty || draftName.isEmpty || draftAckUser.isEmpty)
+                .disabled(isTesting || draftBaseURL.isEmpty || draftApiKey.isEmpty || draftName.isEmpty || draftAckUser.isEmpty || draftPushSecret.isEmpty)
 
                 if !isAddMode {
                     Button(role: .destructive) {
@@ -181,9 +173,7 @@ struct ServerConfigView: View {
             draftAckUser    = conn.ackUser
             draftSymbol     = conn.symbol
             draftColor      = conn.accentColor
-            draftPushURL    = conn.pushMiddlewareURL
             draftPushSecret = conn.webhookSecret
-            pushEnabled     = !conn.pushMiddlewareURL.isEmpty || !conn.webhookSecret.isEmpty
         }
     }
 
@@ -218,6 +208,9 @@ struct ServerConfigView: View {
 
         var request = URLRequest(url: testURL, timeoutInterval: 15)
         request.httpMethod = "POST"
+        if !draftPushSecret.isEmpty {
+            request.setValue(draftPushSecret, forHTTPHeaderField: "X-Proxy-Token")
+        }
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
         var bodyItems = [URLQueryItem(name: "password", value: draftApiKey)]
@@ -289,8 +282,7 @@ struct ServerConfigView: View {
             apiKey: draftApiKey,
             pin: draftPin,
             ackUser: draftAckUser,
-            webhookSecret: pushEnabled ? draftPushSecret.trimmingCharacters(in: .whitespacesAndNewlines) : "",
-            pushMiddlewareURL: pushEnabled ? draftPushURL.trimmingCharacters(in: .whitespacesAndNewlines) : "",
+            webhookSecret: draftPushSecret.trimmingCharacters(in: .whitespacesAndNewlines),
             symbol: draftSymbol,
             accentColor: draftColor
         )
@@ -300,6 +292,10 @@ struct ServerConfigView: View {
             savedConnections.append(now)
         }
         UserDefaults.standard.saveSavedConnections(savedConnections)
+        // Keep netreo_webhook_secret in sync so ContentView.updateAPIService() fires
+        if isAddMode || existingConnection?.id.uuidString == activeSavedConnectionID {
+            UserDefaults.standard.set(now.webhookSecret, forKey: "netreo_webhook_secret")
+        }
         // Only set as active if: adding a new server, OR editing the currently active server.
         let isCurrentlyActive = existingConnection?.id.uuidString == activeSavedConnectionID
         if isAddMode || isCurrentlyActive {
