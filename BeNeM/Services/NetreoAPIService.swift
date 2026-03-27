@@ -502,7 +502,6 @@ class NetreoAPIService: ObservableObject {
             let s = statusCounts(status, prefix: "service_")
             let t = statusCounts(status, prefix: "threshold_")
             let a = statusCounts(status, prefix: "anom_threshold_")
-            guard h.green + h.blue + h.yellow + h.orange + h.red > 0 else { continue }
             let displayName = name.trimmingCharacters(in: .whitespaces).isEmpty ? "Unknown" : name
             result.append(GroupSummary(
                 id: name, name: displayName,
@@ -533,7 +532,11 @@ class NetreoAPIService: ObservableObject {
         ]
         if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
         request.httpBody = formEncodedBody(params)
-        let (_, response) = try await urlSession.data(for: request)
+        let (data, response) = try await urlSession.data(for: request)
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let success = json["success"] as? Bool, !success {
+            return false
+        }
         return (response as? HTTPURLResponse)?.statusCode ?? 0 < 400
     }
 
@@ -552,22 +555,28 @@ class NetreoAPIService: ObservableObject {
         ]
         if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
         request.httpBody = formEncodedBody(params)
-        let (_, response) = try await urlSession.data(for: request)
+        let (data, response) = try await urlSession.data(for: request)
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let success = json["success"] as? Bool, !success {
+            return false
+        }
         return (response as? HTTPURLResponse)?.statusCode ?? 0 < 400
     }
 
     func fetchIncidentDetail(incidentID: String) async throws -> IncidentDetail? {
-        guard var components = URLComponents(string: "\(configuration.baseURL)/api/incident_api.php") else { return nil }
-        components.queryItems = [
+        guard let url = URL(string: "\(configuration.baseURL)/api/incident_api.php") else { return nil }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        addProxyToken(&request)
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var params = [
             URLQueryItem(name: "pwd",         value: configuration.apiKey),
             URLQueryItem(name: "method",      value: "getincidentdetail"),
             URLQueryItem(name: "incident_id", value: incidentID)
         ]
-        if let pin = configuration.pin {
-            components.queryItems?.append(URLQueryItem(name: "pin", value: pin))
-        }
-        guard let url = components.url else { return nil }
-        let (data, _) = try await urlSession.data(from: url)
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
+        let (data, _) = try await urlSession.data(for: request)
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         return IncidentDetail.parse(from: json)
     }
@@ -575,17 +584,19 @@ class NetreoAPIService: ObservableObject {
     /// Fetches incident detail and returns both the alert_type and alarm color counts.
     /// alert_type values from BHNM: "Host", "Service", "Threshold" (case-insensitive).
     private func fetchIncidentAlarmData(incidentID: String) async -> (alertType: String, counts: [AlarmColor: Int]) {
-        guard var components = URLComponents(string: "\(configuration.baseURL)/api/incident_api.php") else { return ("host", [:]) }
-        components.queryItems = [
+        guard let url = URL(string: "\(configuration.baseURL)/api/incident_api.php") else { return ("host", [:]) }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        addProxyToken(&request)
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var params = [
             URLQueryItem(name: "pwd",         value: configuration.apiKey),
             URLQueryItem(name: "method",      value: "getincidentdetail"),
             URLQueryItem(name: "incident_id", value: incidentID)
         ]
-        if let pin = configuration.pin {
-            components.queryItems?.append(URLQueryItem(name: "pin", value: pin))
-        }
-        guard let url = components.url,
-              let (data, _) = try? await urlSession.data(from: url),
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
+        guard let (data, _) = try? await urlSession.data(for: request),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let incident = json["incident"] as? [String: Any],
               let detail = incident["detail"] as? [String: Any] else { return ("host", [:]) }
@@ -638,8 +649,8 @@ class NetreoAPIService: ObservableObject {
         request.httpMethod = endpoint.httpMethod(for: configuration.version).rawValue
         addProxyToken(&request)
 
-        let bodyString = parameters.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
-        request.httpBody = bodyString.data(using: .utf8)
+        let bodyItems = parameters.map { URLQueryItem(name: $0.key, value: "\($0.value)") }
+        request.httpBody = formEncodedBody(bodyItems)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
         let (data, response) = try await urlSession.data(for: request)

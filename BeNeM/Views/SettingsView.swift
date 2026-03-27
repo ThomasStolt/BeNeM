@@ -15,117 +15,120 @@ struct SettingsView: View {
     @State private var showEditNavigation = false                   // paired with editingConnection
     @State private var navigateToAdd = false                        // drives + toolbar navigation
     var body: some View {
-        NavigationStack {
-            Form {
-                // MARK: BHNM Servers list
-                Section(header: Text("BHNM Servers")) {
-                    // Migration banner: shown when active connection has no bhnmURL set
-                    if let active = savedConnections.first(where: { $0.id.uuidString == activeSavedConnectionID }),
-                       active.bhnmURL.isEmpty {
+        ZStack {
+            NavigationStack {
+                Form {
+                    // MARK: BHNM Servers list
+                    Section(header: Text("BHNM Servers")) {
+                        // Migration banner: shown when active connection has no bhnmURL set
+                        if let active = savedConnections.first(where: { $0.id.uuidString == activeSavedConnectionID }),
+                           active.bhnmURL.isEmpty {
+                            Button {
+                                editingConnection = active
+                                showEditNavigation = true
+                            } label: {
+                                Label("Tap to complete setup — BHNM URL required", systemImage: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                    .font(.subheadline)
+                            }
+                        }
+                        ForEach(savedConnections) { connection in
+                            serverRow(connection)
+                        }
                         Button {
-                            editingConnection = active
-                            showEditNavigation = true
+                            navigateToAdd = true
                         } label: {
-                            Label("Tap to complete setup — BHNM URL required", systemImage: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
-                                .font(.subheadline)
+                            Label("Add BHNM Server", systemImage: "plus.circle.fill")
+                                .foregroundColor(.accentColor)
                         }
                     }
-                    ForEach(savedConnections) { connection in
-                        serverRow(connection)
-                    }
-                    Button {
-                        navigateToAdd = true
-                    } label: {
-                        Label("Add BHNM Server", systemImage: "plus.circle.fill")
-                            .foregroundColor(.accentColor)
-                    }
-                }
 
-                // MARK: Refresh
-                Section(header: Text("Refresh")) {
-                    VStack(alignment: .leading) {
-                        Text("Auto-Refresh: \(Int(refreshInterval))s")
-                        Slider(value: $refreshInterval, in: 30...300, step: 10)
-                    }
-                }
-
-                // MARK: Devices
-                Section(header: Text("Devices")) {
-                    Stepper("Load up to \(maxDevicesCount) devices",
-                            value: $maxDevicesCount, in: 10...100, step: 10)
-                    Text("Limits how many devices are loaded in the Devices tab.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                // MARK: API Configuration
-                Section(header: Text("API Configuration")) {
-                    Picker("API Version", selection: Binding(
-                        get: { NetreoAPIConfiguration.APIVersion(rawValue: apiVersionString) ?? .legacy },
-                        set: { apiVersionString = $0.rawValue }
-                    )) {
-                        ForEach(NetreoAPIConfiguration.APIVersion.allCases, id: \.self) { v in
-                            Text(v.displayName).tag(v)
+                    // MARK: Refresh
+                    Section(header: Text("Refresh")) {
+                        VStack(alignment: .leading) {
+                            Text("Auto-Refresh: \(Int(refreshInterval))s")
+                            Slider(value: $refreshInterval, in: 30...300, step: 10)
                         }
                     }
-                    .pickerStyle(MenuPickerStyle())
 
-                    VStack(alignment: .leading) {
-                        Text("Timeout: \(Int(timeout))s")
-                        Slider(value: $timeout, in: 10...120, step: 5)
+                    // MARK: Devices
+                    Section(header: Text("Devices")) {
+                        Stepper("Load up to \(maxDevicesCount) devices",
+                                value: $maxDevicesCount, in: 10...100, step: 10)
+                        Text("Limits how many devices are loaded in the Devices tab.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-                    VStack(alignment: .leading) {
-                        Text("Retry Count: \(Int(retryCount))")
-                        Slider(value: $retryCount, in: 1...10, step: 1)
-                    }
-                }
 
-                // MARK: About
-                Section(header: Text("About")) {
-                    HStack {
-                        Text("Version")
-                        Spacer()
-                        Text(appVersionString).foregroundColor(.secondary)
+                    // MARK: API Configuration
+                    Section(header: Text("API Configuration")) {
+                        Picker("API Version", selection: Binding(
+                            get: { NetreoAPIConfiguration.APIVersion(rawValue: apiVersionString) ?? .legacy },
+                            set: { apiVersionString = $0.rawValue }
+                        )) {
+                            ForEach(NetreoAPIConfiguration.APIVersion.allCases, id: \.self) { v in
+                                Text(v.displayName).tag(v)
+                            }
+                        }
+                        .pickerStyle(MenuPickerStyle())
+
+                        VStack(alignment: .leading) {
+                            Text("Timeout: \(Int(timeout))s")
+                            Slider(value: $timeout, in: 10...120, step: 5)
+                        }
+                        VStack(alignment: .leading) {
+                            Text("Retry Count: \(Int(retryCount))")
+                            Slider(value: $retryCount, in: 1...10, step: 1)
+                        }
+                    }
+
+                    // MARK: About
+                    Section(header: Text("About")) {
+                        HStack {
+                            Text("Version")
+                            Spacer()
+                            Text(appVersionString).foregroundColor(.secondary)
+                        }
                     }
                 }
-            }
-            .navigationTitle("Settings")
-            // NavigationLink inside swipeActions is not supported in SwiftUI.
-            // Use @State + navigationDestination instead for both swipe-edit and + button navigation.
-            .navigationDestination(isPresented: $showEditNavigation) {
-                if let conn = editingConnection {
-                    ServerConfigView(existingConnection: conn)
-                }
-            }
-            .navigationDestination(isPresented: $navigateToAdd) {
-                ServerConfigView(existingConnection: nil)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button { navigateToAdd = true } label: {
-                        Image(systemName: "plus")
+                .navigationTitle("Settings")
+                .navigationDestination(isPresented: $showEditNavigation) {
+                    if let conn = editingConnection {
+                        ServerConfigView(existingConnection: conn)
                     }
                 }
-            }
-            .onAppear {
-                reload()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .deepLinkConnectionApplied)) { _ in
-                reload()
-            }
-            .confirmationDialog(
-                "Switch to \"\(switchingToConnection?.name ?? "")\"?",
-                isPresented: Binding(get: { switchingToConnection != nil }, set: { if !$0 { switchingToConnection = nil } }),
-                titleVisibility: .visible
-            ) {
-                Button("Switch") {
-                    if let conn = switchingToConnection { activateConnection(conn) }
-                    switchingToConnection = nil
+                .navigationDestination(isPresented: $navigateToAdd) {
+                    ServerConfigView(existingConnection: nil)
                 }
-                Button("Cancel", role: .cancel) { switchingToConnection = nil }
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button { navigateToAdd = true } label: {
+                            Image(systemName: "plus")
+                        }
+                    }
+                }
+                .onAppear { reload() }
+                .onReceive(NotificationCenter.default.publisher(for: .deepLinkConnectionApplied)) { _ in
+                    reload()
+                }
+            }
+
+            // MARK: Centered switch-server popup
+            if let conn = switchingToConnection {
+                Color.black.opacity(0.45)
+                    .ignoresSafeArea()
+                    .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { switchingToConnection = nil } }
+
+                SwitchServerPopup(connection: conn) {
+                    activateConnection(conn)
+                    withAnimation(.easeInOut(duration: 0.2)) { switchingToConnection = nil }
+                } onCancel: {
+                    withAnimation(.easeInOut(duration: 0.2)) { switchingToConnection = nil }
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.92)))
             }
         }
+        .animation(.easeInOut(duration: 0.2), value: switchingToConnection?.id)
     }
 
     // MARK: - Server row
@@ -154,36 +157,66 @@ struct SettingsView: View {
                 .tint(.blue)
             }
         } else {
-            rowContent
-                .contentShape(Rectangle())
-                .onTapGesture { switchingToConnection = connection }
-                .swipeActions(edge: .trailing) {
-                    Button {
-                        editingConnection = connection
-                        showEditNavigation = true
-                    } label: {
-                        Label("Edit", systemImage: "pencil")
-                    }
-                    .tint(.blue)
+            HStack(spacing: 0) {
+                rowContent
+                    .contentShape(Rectangle())
+                    .onTapGesture { switchingToConnection = connection }
+
+                Button {
+                    editingConnection = connection
+                    showEditNavigation = true
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Color(.systemGray3))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
+            }
+            .swipeActions(edge: .trailing) {
+                Button {
+                    editingConnection = connection
+                    showEditNavigation = true
+                } label: {
+                    Label("Edit", systemImage: "pencil")
+                }
+                .tint(.blue)
+            }
         }
     }
 
     private func serverRowContent(_ connection: SavedConnection, isActive: Bool, isSwitching: Bool) -> some View {
         let displayHost = connection.bhnmURL.isEmpty ? connection.middlewareURL : connection.bhnmURL
-        return HStack(spacing: 12) {
-            ServerIconView(symbol: connection.symbol, accentColor: connection.accentColor, size: 36)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(connection.name).font(.body)
+        return HStack(spacing: 10) {
+            // Active indicator — space reserved for all rows so icons stay aligned
+            ZStack {
                 if isActive {
-                    Text("Active · \(hostname(displayHost))")
-                        .font(.caption).foregroundColor(.green)
-                } else {
-                    Text(hostname(displayHost))
-                        .font(.caption).foregroundColor(.secondary)
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [Color(red: 0.55, green: 1.0, blue: 0.55),
+                                         Color(red: 0.0,  green: 0.65, blue: 0.15)],
+                                center: UnitPoint(x: 0.35, y: 0.3),
+                                startRadius: 0,
+                                endRadius: 8
+                            )
+                        )
+                        .frame(width: 14, height: 14)
+                        .shadow(color: .green.opacity(0.55), radius: 4, x: 0, y: 2)
+                        .shadow(color: .black.opacity(0.25), radius: 1, x: 0, y: 1)
                 }
             }
+            .frame(width: 14)
+
+            ServerIconView(symbol: connection.symbol, accentColor: connection.accentColor, size: 36)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(connection.name).font(.body)
+                Text(hostname(displayHost))
+                    .font(.caption).foregroundColor(isActive ? .green : .secondary)
+            }
             .frame(maxWidth: .infinity, alignment: .leading)
+
             if isSwitching { ProgressView() }
         }
     }
@@ -223,6 +256,65 @@ struct SettingsView: View {
         let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
         let b = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
         return "\(v) (\(b))"
+    }
+}
+
+// MARK: - SwitchServerPopup
+
+private struct SwitchServerPopup: View {
+    let connection: SavedConnection
+    let onSwitch: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            VStack(spacing: 12) {
+                ServerIconView(symbol: connection.symbol, accentColor: connection.accentColor, size: 60)
+                VStack(spacing: 4) {
+                    Text(connection.name)
+                        .font(.title3).fontWeight(.semibold)
+                    Text(hostname(connection.bhnmURL.isEmpty ? connection.middlewareURL : connection.bhnmURL))
+                        .font(.subheadline).foregroundColor(.secondary)
+                }
+                Text("Switch to this server?")
+                    .font(.footnote).foregroundColor(.secondary)
+            }
+            .padding(.top, 28)
+            .padding(.bottom, 24)
+            .padding(.horizontal, 24)
+
+            Divider()
+
+            // Buttons
+            HStack(spacing: 0) {
+                Button(action: onCancel) {
+                    Text("Cancel")
+                        .font(.body)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                }
+                .foregroundColor(.secondary)
+
+                Divider().frame(height: 52)
+
+                Button(action: onSwitch) {
+                    Text("Switch")
+                        .font(.body).fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                }
+                .foregroundColor(.accentColor)
+            }
+        }
+        .background(Color(.systemBackground))
+        .cornerRadius(18)
+        .shadow(color: .black.opacity(0.25), radius: 30, x: 0, y: 10)
+        .padding(.horizontal, 40)
+    }
+
+    private func hostname(_ urlString: String) -> String {
+        URL(string: urlString)?.host ?? urlString
     }
 }
 

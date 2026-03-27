@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct IncidentListView: View {
-    @StateObject private var viewModel: IncidentListViewModel
+    @ObservedObject private var viewModel: IncidentListViewModel
     @State private var showingFilters = false
     @State private var connectionStatus: ConnectionStatus = .unknown
     @State private var navPath = NavigationPath()
@@ -11,8 +11,8 @@ struct IncidentListView: View {
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
     private let apiService: NetreoAPIService
 
-    init(apiService: NetreoAPIService, navResetID: UUID, pendingIncidentID: Binding<String?>) {
-        self._viewModel = StateObject(wrappedValue: IncidentListViewModel(apiService: apiService))
+    init(viewModel: IncidentListViewModel, apiService: NetreoAPIService, navResetID: UUID, pendingIncidentID: Binding<String?>) {
+        self.viewModel = viewModel
         self.apiService = apiService
         self.navResetID = navResetID
         self._pendingIncidentID = pendingIncidentID
@@ -91,9 +91,6 @@ struct IncidentListView: View {
             }
         }
         .onChange(of: navResetID) { _, _ in withAnimation { navPath = NavigationPath() } }
-        .onChange(of: ObjectIdentifier(apiService)) { _, _ in
-            viewModel.updateAPIService(apiService)
-        }
     }
     
     private func navigateToPendingIncident() {
@@ -438,5 +435,6 @@ struct FiltersView: View {
 
 
 #Preview {
-    IncidentListView(apiService: NetreoAPIService(baseURL: "http://demo.netreo.com", apiKey: "test"), navResetID: UUID(), pendingIncidentID: .constant(nil))
+    let service = NetreoAPIService(baseURL: "http://demo.netreo.com", apiKey: "test")
+    IncidentListView(viewModel: IncidentListViewModel(apiService: service), apiService: service, navResetID: UUID(), pendingIncidentID: .constant(nil))
 }

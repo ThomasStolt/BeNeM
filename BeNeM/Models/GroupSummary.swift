@@ -41,10 +41,11 @@ struct GroupSummary: Identifiable {
     var totalAnomalies: Int { anomaliesGreen + anomaliesBlue + anomaliesYellow + anomaliesOrange + anomaliesRed }
     var hasDevices: Bool { totalHosts > 0 }
 
-    /// True if any H/S/T metric has a non-green (alarm) value.
+    /// True if any H/S/T/A metric has a non-green (alarm) value.
     var hasAlarms: Bool {
         hostsBlue + hostsYellow + hostsOrange + hostsRed > 0 ||
         servicesBlue + servicesYellow + servicesOrange + servicesRed > 0 ||
-        thresholdsBlue + thresholdsYellow + thresholdsOrange + thresholdsRed > 0
+        thresholdsBlue + thresholdsYellow + thresholdsOrange + thresholdsRed > 0 ||
+        anomaliesBlue + anomaliesYellow + anomaliesOrange + anomaliesRed > 0
     }
 }

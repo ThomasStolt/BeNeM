@@ -12,6 +12,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [2.3.1] — 2026-03-27
+
+### Fixed
+
+- **Form encoding in device add/rename/delete** — `addDevice`, `renameDevice`, and `deleteDevice` now use `URLQueryItem`-based percent-encoding (same as all other endpoints) instead of naive string interpolation; API keys or device names containing `+`, `=`, `&`, or `%` no longer get corrupted on the wire
+- **Tactical overview drops service/threshold-only groups** — groups with zero host counts but non-zero service, threshold, or anomaly alarms were silently filtered out; they now appear correctly
+- **`loadAlarmCounts` fired on network error** — alarm color counts were re-fetched even when the preceding incident fetch failed, amplifying errors under poor connectivity; counts are now only refreshed after a successful fetch
+- **ACK/UnACK ignores API-level failures** — a BHNM response of HTTP 200 with `"success": false` was treated as a successful acknowledgement; the body is now inspected and the failure is correctly surfaced to the UI
+- **Alarm filter missing anomaly alarms** — the funnel filter in Categories / Sites / Business Workflows hid groups whose only non-green counts were in the Anomalies (A) column; anomalies are now included in the `hasAlarms` check per spec
+- **Deep link buffer truncation** — `zlibDecompress` allocated a fixed 8× output buffer; if the decompressed payload exceeded that size the output was silently truncated and the link failed with an opaque error; the function now detects buffer exhaustion and throws a clear error
+
+---
+
 ## [2.2.0] — 2026-03-27
 
 ### Changed
@@ -274,7 +287,14 @@ Initial release.
 
 ---
 
-[Unreleased]: https://github.com/thomasstolt/BeNeM/compare/v1.4.2...HEAD
+[Unreleased]: https://github.com/thomasstolt/BeNeM/compare/v2.3.1...HEAD
+[2.3.1]: https://github.com/thomasstolt/BeNeM/compare/v2.3.0...v2.3.1
+[2.3.0]: https://github.com/thomasstolt/BeNeM/compare/v2.2.0...v2.3.0
+[2.2.0]: https://github.com/thomasstolt/BeNeM/compare/v2.1.0...v2.2.0
+[2.1.0]: https://github.com/thomasstolt/BeNeM/compare/v2.0.0...v2.1.0
+[2.0.0]: https://github.com/thomasstolt/BeNeM/compare/v1.6.0...v2.0.0
+[1.6.0]: https://github.com/thomasstolt/BeNeM/compare/v1.5.0...v1.6.0
+[1.5.0]: https://github.com/thomasstolt/BeNeM/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/thomasstolt/BeNeM/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/thomasstolt/BeNeM/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/thomasstolt/BeNeM/compare/v1.3.0...v1.4.0

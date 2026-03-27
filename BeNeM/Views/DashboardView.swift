@@ -13,9 +13,11 @@ enum TacticalDestination: Hashable {
 }
 
 struct DashboardView: View {
-    @StateObject private var incidentViewModel: IncidentListViewModel
+    @ObservedObject private var incidentViewModel: IncidentListViewModel
     @StateObject private var deviceViewModel: DeviceListViewModel
     @StateObject private var categoryViewModel: TacticalViewModel
+    @StateObject private var siteViewModel: TacticalViewModel
+    @StateObject private var bwViewModel: TacticalViewModel
     @State private var connectionStatus: ConnectionStatus = .unknown
     @Binding var selectedTab: Int
     let navResetID: UUID
@@ -24,13 +26,15 @@ struct DashboardView: View {
 
     private let apiService: NetreoAPIService
 
-    init(apiService: NetreoAPIService, selectedTab: Binding<Int>, navResetID: UUID) {
+    init(apiService: NetreoAPIService, incidentViewModel: IncidentListViewModel, selectedTab: Binding<Int>, navResetID: UUID) {
         self.apiService = apiService
+        self.incidentViewModel = incidentViewModel
         self._selectedTab = selectedTab
         self.navResetID = navResetID
-        self._incidentViewModel  = StateObject(wrappedValue: IncidentListViewModel(apiService: apiService))
         self._deviceViewModel    = StateObject(wrappedValue: DeviceListViewModel(apiService: apiService))
         self._categoryViewModel  = StateObject(wrappedValue: TacticalViewModel(apiService: apiService, type: .category))
+        self._siteViewModel      = StateObject(wrappedValue: TacticalViewModel(apiService: apiService, type: .site))
+        self._bwViewModel        = StateObject(wrappedValue: TacticalViewModel(apiService: apiService, type: .businessWorkflow))
     }
 
     var body: some View {
@@ -100,19 +104,21 @@ struct DashboardView: View {
             .navigationDestination(for: TacticalDestination.self) { dest in
                 switch dest {
                 case .categories:
-                    GroupListView(title: "Categories", apiService: apiService, type: .category)
+                    GroupListView(title: "Categories", viewModel: categoryViewModel)
                 case .sites:
-                    GroupListView(title: "Sites", apiService: apiService, type: .site)
+                    GroupListView(title: "Sites", viewModel: siteViewModel)
                 case .businessWorkflows:
-                    GroupListView(title: "Business Workflows", apiService: apiService, type: .businessWorkflow)
+                    GroupListView(title: "Business Workflows", viewModel: bwViewModel)
                 }
             }
         }
         .onChange(of: navResetID) { _, _ in withAnimation { navPath = NavigationPath() } }
         .onChange(of: ObjectIdentifier(apiService)) { _, _ in
-            incidentViewModel.updateAPIService(apiService)
+            // incidentViewModel is owned by ContentView — it handles its own updateAPIService.
             deviceViewModel.updateAPIService(apiService)
             categoryViewModel.updateAPIService(apiService)
+            siteViewModel.updateAPIService(apiService)
+            bwViewModel.updateAPIService(apiService)
         }
     }
 
@@ -327,12 +333,20 @@ struct DashboardView: View {
     // MARK: Helpers
 
     private func loadData() async {
+        // Phase 1: incidents + devices — awaited, user-visible content first
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await incidentViewModel.loadIncidents() }
             group.addTask { await deviceViewModel.loadDevices() }
-            group.addTask { await categoryViewModel.load() }
         }
         connectionStatus = deviceViewModel.errorMessage == nil ? .connected : .disconnected
+        // Phase 2: tactical drill-downs — fire in background, don't block UI
+        Task {
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await categoryViewModel.load() }
+                group.addTask { await siteViewModel.load() }
+                group.addTask { await bwViewModel.load() }
+            }
+        }
     }
 }
 
@@ -677,5 +691,6 @@ struct IncidentTickerBanner: View {
 }
 
 #Preview {
-    DashboardView(apiService: NetreoAPIService(baseURL: "http://demo.netreo.com", apiKey: "test"), selectedTab: .constant(0), navResetID: UUID())
+    let service = NetreoAPIService(baseURL: "http://demo.netreo.com", apiKey: "test")
+    DashboardView(apiService: service, incidentViewModel: IncidentListViewModel(apiService: service), selectedTab: .constant(0), navResetID: UUID())
 }

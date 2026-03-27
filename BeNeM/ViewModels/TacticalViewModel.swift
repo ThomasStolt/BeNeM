@@ -16,6 +16,8 @@ class TacticalViewModel: ObservableObject {
 
     private var apiService: NetreoAPIService
     private let type: GroupType
+    /// Incremented on each server switch; stale in-flight tasks compare before writing results.
+    private var generation: Int = 0
 
     enum GroupType {
         case category, site, businessWorkflow
@@ -36,19 +38,28 @@ class TacticalViewModel: ObservableObject {
 
     func load() async {
         guard !isLoading else { return }
+        let myGeneration = generation
         isLoading = true
         errorMessage = nil
         do {
-            groups = try await apiService.fetchTacticalOverviewSummaries(groupingType: type.groupingType)
+            let result = try await apiService.fetchTacticalOverviewSummaries(groupingType: type.groupingType)
+            guard generation == myGeneration else { return }
+            groups = result
+        } catch is CancellationError {
+            // Task cancelled by server switch — discard silently.
         } catch {
+            guard generation == myGeneration else { return }
             errorMessage = error.localizedDescription
         }
+        guard generation == myGeneration else { return }
         isLoading = false
     }
 
     func updateAPIService(_ newService: NetreoAPIService) {
+        generation += 1
         apiService = newService
         groups = []
+        isLoading = false
         Task { await load() }
     }
 

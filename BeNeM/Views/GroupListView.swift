@@ -9,12 +9,12 @@ private let kGap: CGFloat = 8            // gap between count and name
 
 struct GroupListView: View {
     let title: String
-    @StateObject private var viewModel: TacticalViewModel
+    @ObservedObject private var viewModel: TacticalViewModel
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
 
-    init(title: String, apiService: NetreoAPIService, type: TacticalViewModel.GroupType) {
+    init(title: String, viewModel: TacticalViewModel) {
         self.title = title
-        _viewModel = StateObject(wrappedValue: TacticalViewModel(apiService: apiService, type: type))
+        self.viewModel = viewModel
     }
 
     var body: some View {
@@ -101,9 +101,9 @@ struct GroupListView: View {
             }
         }
         .task {
-            if viewModel.groups.isEmpty && viewModel.errorMessage == nil {
-                await viewModel.load()
-            }
+            // Pre-populated from DashboardView — refresh silently in background.
+            // If groups is empty (direct navigation), this triggers the full load.
+            await viewModel.load()
         }
         .refreshable { await viewModel.load() }
     }

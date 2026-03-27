@@ -126,16 +126,17 @@ class IncidentListViewModel: ObservableObject {
                 print("IncidentListViewModel: incidents.count is now \(incidents.count)")
                 print("IncidentListViewModel: incidents.isEmpty is now \(incidents.isEmpty)")
             }
+            print("IncidentListViewModel: Load incidents completed")
+            await loadAlarmCounts()
         } catch {
-            print("IncidentListViewModel: Error loading incidents: \(error)")
+            let detail = "\(error)"
+            print("IncidentListViewModel: Error loading incidents: \(detail)")
+            UserDefaults.standard.set(detail, forKey: "debug_incident_error")
             await MainActor.run {
                 errorMessage = error.localizedDescription
                 isLoading = false
             }
         }
-        
-        print("IncidentListViewModel: Load incidents completed")
-        await loadAlarmCounts()
     }
     
     func refreshIncidents() async {

@@ -235,6 +235,7 @@ final class DeepLinkHandler: ObservableObject {
             )
         }
         guard resultSize > 0 else { throw CryptoError.invalidUTF8 }
+        guard resultSize < outputBuffer.count else { throw CryptoError.invalidBase64 } // buffer exhausted → truncated output
         return Data(outputBuffer.prefix(resultSize))
     }
 

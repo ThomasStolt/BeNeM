@@ -11,6 +11,10 @@ struct ContentView: View {
     @AppStorage("netreo_webhook_secret") private var webhookSecret = ""
     @AppStorage("netreo_bhnm_url") private var bhnmURL = ""
 
+    @StateObject private var incidentViewModel = IncidentListViewModel(
+        apiService: NetreoAPIService(baseURL: "https://placeholder.invalid", apiKey: "placeholder")
+    )
+
     @State private var apiService: NetreoAPIService?
     @State private var selectedTab = 0
     @State private var homeNavResetID = UUID()
@@ -20,9 +24,9 @@ struct ContentView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             if !bhnmURL.isEmpty && !apiKey.isEmpty, let service = apiService {
-                DashboardView(apiService: service, selectedTab: $selectedTab, navResetID: homeNavResetID)
+                DashboardView(apiService: service, incidentViewModel: incidentViewModel, selectedTab: $selectedTab, navResetID: homeNavResetID)
                     .tag(0)
-                IncidentListView(apiService: service, navResetID: incidentNavResetID, pendingIncidentID: $pendingIncidentID)
+                IncidentListView(viewModel: incidentViewModel, apiService: service, navResetID: incidentNavResetID, pendingIncidentID: $pendingIncidentID)
                     .tag(1)
                 DeviceListView(apiService: service)
                     .tag(2)
@@ -110,7 +114,9 @@ struct ContentView: View {
             timeout: timeout,
             retryCount: Int(retryCount)
         )
-        apiService = NetreoAPIService(configuration: configuration)
+        let service = NetreoAPIService(configuration: configuration)
+        apiService = service
+        incidentViewModel.updateAPIService(service)
     }
 }
 
