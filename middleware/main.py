@@ -1,4 +1,4 @@
-VERSION = "2.1.0"
+VERSION = "2.1.1"
 
 from contextlib import asynccontextmanager
 import os
@@ -95,10 +95,10 @@ async def receive_webhook(request: Request):
 
     tokens = get_tokens_for_secret(secret)
     if not tokens:
-        print("[Webhook] No registered devices for this secret.")
-        return {"status": "no_devices"}
+        print(f"[Webhook] Rejected: no registered devices for secret ...{secret[-8:]}.")
+        raise HTTPException(status_code=403, detail="Forbidden: unknown secret")
 
-    stale = send_to_all(tokens, title, body, incident_id)
+    stale = await send_to_all(tokens, title, body, incident_id)
     for t in stale:
         delete_token(t)
         print(f"[Cleanup] Removed stale token ...{t[-8:]}")

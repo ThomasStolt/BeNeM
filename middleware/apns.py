@@ -21,7 +21,7 @@ def _get_jwt() -> str:
         _jwt_issued_at = now
     return _jwt_token
 
-def send_notification(device_token: str, title: str, body: str, incident_id: str = "") -> tuple[bool, int]:
+async def send_notification(device_token: str, title: str, body: str, incident_id: str = "") -> tuple[bool, int]:
     """Returns (success, http_status_code)."""
     url = f"https://{APNS_HOST}/3/device/{device_token}"
     headers = {
@@ -39,8 +39,8 @@ def send_notification(device_token: str, title: str, body: str, incident_id: str
     if incident_id:
         payload["incident_id"] = incident_id
     try:
-        with httpx.Client(http2=True) as client:
-            r = client.post(url, json=payload, headers=headers, timeout=10)
+        async with httpx.AsyncClient(http2=True) as client:
+            r = await client.post(url, json=payload, headers=headers, timeout=10)
         success = r.status_code == 200
         if not success:
             print(f"[APNs] Failed ({r.status_code}): {r.text}")
@@ -49,13 +49,13 @@ def send_notification(device_token: str, title: str, body: str, incident_id: str
         print(f"[APNs] Error: {e}")
         return False, 0
 
-def send_to_all(tokens: list[str], title: str, body: str, incident_id: str = "") -> list[str]:
+async def send_to_all(tokens: list[str], title: str, body: str, incident_id: str = "") -> list[str]:
     """Send to all tokens. Returns list of tokens to remove (410 Gone = unregistered)."""
     stale_tokens = []
     for token in tokens:
-        success, status = send_notification(token, title, body, incident_id)
+        success, status = await send_notification(token, title, body, incident_id)
         if status in (400, 410):  # BadDeviceToken or Unregistered — remove token
             stale_tokens.append(token)
         elif success:
-            print(f"[APNs] ✓ Sent to ...{token[-8:]}")
+            print(f"[APNs] Sent to ...{token[-8:]}")
     return stale_tokens

@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.1.1] - 2026-03-27
+
+### Fixed
+
+- **Event loop blocking during APNs delivery** — `send_notification` used a synchronous `httpx.Client` inside the async `receive_webhook` route handler, blocking FastAPI's event loop for the full APNs round-trip (up to 10 s per token). Converted to `httpx.AsyncClient` with `async`/`await` throughout `send_notification` and `send_to_all`.
+- **Webhook accepts any non-empty secret** — `/webhook` checked only that `?secret=` was present, not that it matched any registered device; an unknown secret now returns HTTP 403 instead of HTTP 200 with `{"status": "no_devices"}`, preventing endpoint probing.
+
+---
+
+## [2.1.0] - 2026-03-26
+
+### Added
+
+- **BHNM API proxy** — catch-all `/{path}` route forwards all BHNM API requests from BeNeM through the middleware, enabling access to BHNM servers on private networks. Authenticated via `X-Proxy-Token` header; target server supplied per-request via `X-BHNM-Target` header.
+
+### Fixed
+
+- Proxy now returns a proper `Response` object to avoid FastAPI tuple serialisation error
+- Proxy timeout increased to 60 s to accommodate slow BHNM responses
+- `content-encoding` and `content-length` hop-by-hop headers stripped from proxied responses so Starlette correctly sets `Content-Length` from the decompressed body
+- Proxy returns HTTP 504 on timeout and HTTP 502 on connection/request errors with descriptive messages
+
+---
+
 ## [2.0.0] - 2026-03-26
 
 ### Changed
