@@ -1,12 +1,27 @@
 VERSION = "2.0.0"
 
 from contextlib import asynccontextmanager
+import os
+import httpx
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
 
 from config import MIDDLEWARE_PORT
 from database import init_db, save_token, get_tokens_for_secret, get_all_tokens, delete_token
 from apns import send_to_all
+
+HOP_BY_HOP_REQUEST = {
+    "host", "x-proxy-token", "connection", "keep-alive",
+    "proxy-authenticate", "proxy-authorization", "te", "trailers", "upgrade"
+}
+HOP_BY_HOP_RESPONSE = {
+    "connection", "keep-alive", "proxy-authenticate",
+    "proxy-authorization", "te", "trailers", "transfer-encoding", "upgrade"
+}
+
+BHNM_URL = os.getenv("BHNM_URL", "").rstrip("/")
+BHNM_TLS_VERIFY = os.getenv("BHNM_TLS_VERIFY", "true").lower() != "false"
+PROXY_SECRET = os.getenv("PROXY_SECRET", "")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -91,3 +106,39 @@ def health():
         "registered_devices": len(tokens),
         "apns_environment": "sandbox" if config.APNS_USE_SANDBOX else "production"
     }
+
+
+# ── BHNM API Proxy (for BeNeM) ────────────────────────────────────────────────────
+
+@app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+async def proxy(path: str, request: Request):
+    token = request.headers.get("X-Proxy-Token", "")
+    if token != PROXY_SECRET:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    if not BHNM_URL:
+        raise HTTPException(status_code=503, detail="BHNM_URL not configured")
+
+    target = f"{BHNM_URL}/{path}"
+    if request.url.query:
+        target += f"?{request.url.query}"
+
+    forward_headers = {
+        k: v for k, v in request.headers.items()
+        if k.lower() not in HOP_BY_HOP_REQUEST
+    }
+
+    async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY) as client:
+        resp = await client.request(
+            method=request.method,
+            url=target,
+            headers=forward_headers,
+            content=await request.body(),
+        )
+
+    response_headers = {
+        k: v for k, v in resp.headers.items()
+        if k.lower() not in HOP_BY_HOP_RESPONSE
+    }
+
+    return resp.content, resp.status_code, response_headers
