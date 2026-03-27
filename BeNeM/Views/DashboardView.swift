@@ -333,20 +333,15 @@ struct DashboardView: View {
     // MARK: Helpers
 
     private func loadData() async {
-        // Phase 1: incidents + devices — awaited, user-visible content first
+        // Load incidents, devices, and category data concurrently.
+        // Category is needed for the Dashboard stat boxes (H/S/T/A).
+        // Sites and Business Workflows load on demand when the user navigates there.
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await incidentViewModel.loadIncidents() }
             group.addTask { await deviceViewModel.loadDevices() }
+            group.addTask { await categoryViewModel.load() }
         }
         connectionStatus = deviceViewModel.errorMessage == nil ? .connected : .disconnected
-        // Phase 2: tactical drill-downs — fire in background, don't block UI
-        Task {
-            await withTaskGroup(of: Void.self) { group in
-                group.addTask { await categoryViewModel.load() }
-                group.addTask { await siteViewModel.load() }
-                group.addTask { await bwViewModel.load() }
-            }
-        }
     }
 }
 

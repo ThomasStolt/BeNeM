@@ -145,17 +145,9 @@ class IncidentListViewModel: ObservableObject {
 
     func loadAlarmCounts() async {
         let currentIncidents = await MainActor.run { incidents }
-        await withTaskGroup(of: (String, [AlarmColor: Int]).self) { group in
-            for incident in currentIncidents {
-                group.addTask { [weak self] in
-                    guard let self else { return (incident.incidentID, [:]) }
-                    let counts = (try? await self.apiService.fetchIncidentAlarmCounts(incidentID: incident.incidentID)) ?? [:]
-                    return (incident.incidentID, counts)
-                }
-            }
-            for await (id, counts) in group {
-                await MainActor.run { alarmCounts[id] = counts }
-            }
+        for incident in currentIncidents {
+            let counts = (try? await apiService.fetchIncidentAlarmCounts(incidentID: incident.incidentID)) ?? [:]
+            await MainActor.run { alarmCounts[incident.incidentID] = counts }
         }
     }
     

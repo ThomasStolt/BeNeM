@@ -12,6 +12,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [2.3.2] — 2026-03-27
+
+### Changed
+
+- **Tactical pre-loading reduced** — Sites and Business Workflows no longer pre-load in the background on every Dashboard refresh; they load on demand when the user navigates to them. Categories still pre-loads alongside incidents and devices (required for the Dashboard H/S/T/A stat boxes).
+- **Alarm count fetching serialised** — incident alarm counts are now fetched one at a time instead of all concurrently, preventing large bursts of parallel requests to the proxy when there are many active incidents.
+
+---
+
 ## [2.3.1] — 2026-03-27
 
 ### Fixed
