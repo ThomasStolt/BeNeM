@@ -197,18 +197,6 @@ struct SettingsView: View {
     private func activateConnection(_ new: SavedConnection) {
         switchingInProgress = new.id
 
-        // Unregister push for the connection we're leaving
-        if let old = savedConnections.first(where: { $0.id.uuidString == activeSavedConnectionID }),
-           old.notificationsEnabled,
-           !old.middlewareURL.isEmpty,
-           let token = AppDelegate.shared?.cachedDeviceToken {
-            AppDelegate.shared?.unregisterWithMiddleware(
-                token: token,
-                secret: old.webhookSecret,
-                middlewareURL: old.middlewareURL
-            )
-        }
-
         // Sync all credentials for the new connection
         UserDefaults.standard.set(new.middlewareURL,  forKey: "netreo_base_url")
         UserDefaults.standard.set(new.bhnmURL,        forKey: "netreo_bhnm_url")

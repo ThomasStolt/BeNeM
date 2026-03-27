@@ -136,14 +136,6 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         }.resume()
     }
 
-    private func activeConnectionPushCredentials() -> (secret: String, middlewareURL: String) {
-        let ud = UserDefaults.standard
-        guard let activeID = ud.string(forKey: "netreo_active_connection_id"),
-              !activeID.isEmpty else { return ("", "") }
-        let connections = ud.loadSavedConnections()
-        guard let conn = connections.first(where: { $0.id.uuidString == activeID }) else { return ("", "") }
-        return (conn.webhookSecret, conn.middlewareURL)
-    }
 }
 
 extension Notification.Name {

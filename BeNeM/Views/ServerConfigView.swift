@@ -267,7 +267,13 @@ struct ServerConfigView: View {
             let sessionConfig = URLSessionConfiguration.default
             sessionConfig.timeoutIntervalForRequest = 15
             let (data, response) = try await URLSession(configuration: sessionConfig).data(for: request)
-            let statusCode = (response as! HTTPURLResponse).statusCode
+            guard let httpResponse = response as? HTTPURLResponse else {
+                testStatus = .failure; alertTitle = "Error"
+                alertMessage = "Unexpected response type."
+                showingAlert = true
+                return
+            }
+            let statusCode = httpResponse.statusCode
 
             switch statusCode {
             case 200:
@@ -352,6 +358,19 @@ struct ServerConfigView: View {
 
         // Sync to active AppStorage keys if this is the active server
         let isCurrentlyActive = existingConnection?.id.uuidString == activeSavedConnectionID
+
+        // Unregister push if the active connection is switching notifications off
+        let wasNotificationsEnabled = existingConnection?.notificationsEnabled ?? false
+        if isCurrentlyActive && wasNotificationsEnabled && !draftNotificationsEnabled,
+           let token = AppDelegate.shared?.cachedDeviceToken,
+           let oldConn = existingConnection {
+            AppDelegate.shared?.unregisterWithMiddleware(
+                token: token,
+                secret: oldConn.webhookSecret,
+                middlewareURL: oldConn.middlewareURL
+            )
+        }
+
         if isAddMode || isCurrentlyActive {
             activeSavedConnectionID = now.id.uuidString
             storedMiddlewareURL = now.middlewareURL
@@ -365,6 +384,19 @@ struct ServerConfigView: View {
 
     private func deleteConnection() {
         guard let conn = existingConnection else { return }
+
+        // Unregister push before deleting if this is the active notifications-enabled connection
+        if conn.id.uuidString == activeSavedConnectionID,
+           conn.notificationsEnabled,
+           !conn.middlewareURL.isEmpty,
+           let token = AppDelegate.shared?.cachedDeviceToken {
+            AppDelegate.shared?.unregisterWithMiddleware(
+                token: token,
+                secret: conn.webhookSecret,
+                middlewareURL: conn.middlewareURL
+            )
+        }
+
         savedConnections.removeAll { $0.id == conn.id }
         UserDefaults.standard.saveSavedConnections(savedConnections)
         if activeSavedConnectionID == conn.id.uuidString {
