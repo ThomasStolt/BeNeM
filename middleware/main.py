@@ -17,7 +17,10 @@ HOP_BY_HOP_REQUEST = {
 }
 HOP_BY_HOP_RESPONSE = {
     "connection", "keep-alive", "proxy-authenticate",
-    "proxy-authorization", "te", "trailers", "transfer-encoding", "upgrade"
+    "proxy-authorization", "te", "trailers", "transfer-encoding", "upgrade",
+    # httpx decompresses gzip automatically; strip these so Starlette sets
+    # Content-Length from the actual (decompressed) body length.
+    "content-encoding", "content-length",
 }
 
 BHNM_TLS_VERIFY = os.getenv("BHNM_TLS_VERIFY", "true").lower() != "false"
