@@ -19,17 +19,26 @@ struct SettingsView: View {
             Form {
                 // MARK: BHNM Servers list
                 Section(header: Text("BHNM Servers")) {
-                    if savedConnections.isEmpty {
+                    // Migration banner: shown when active connection has no bhnmURL set
+                    if let active = savedConnections.first(where: { $0.id.uuidString == activeSavedConnectionID }),
+                       active.bhnmURL.isEmpty {
                         Button {
-                            navigateToAdd = true
+                            editingConnection = active
+                            showEditNavigation = true
                         } label: {
-                            Label("Add BHNM Server", systemImage: "plus.circle.fill")
-                                .foregroundColor(.accentColor)
+                            Label("Tap to complete setup — BHNM URL required", systemImage: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                                .font(.subheadline)
                         }
-                    } else {
-                        ForEach(savedConnections) { connection in
-                            serverRow(connection)
-                        }
+                    }
+                    ForEach(savedConnections) { connection in
+                        serverRow(connection)
+                    }
+                    Button {
+                        navigateToAdd = true
+                    } label: {
+                        Label("Add BHNM Server", systemImage: "plus.circle.fill")
+                            .foregroundColor(.accentColor)
                     }
                 }
 
@@ -161,15 +170,16 @@ struct SettingsView: View {
     }
 
     private func serverRowContent(_ connection: SavedConnection, isActive: Bool, isSwitching: Bool) -> some View {
-        HStack(spacing: 12) {
+        let displayHost = connection.bhnmURL.isEmpty ? connection.middlewareURL : connection.bhnmURL
+        return HStack(spacing: 12) {
             ServerIconView(symbol: connection.symbol, accentColor: connection.accentColor, size: 36)
             VStack(alignment: .leading, spacing: 2) {
                 Text(connection.name).font(.body)
                 if isActive {
-                    Text("Active · \(hostname(connection.middlewareURL))")
+                    Text("Active · \(hostname(displayHost))")
                         .font(.caption).foregroundColor(.green)
                 } else {
-                    Text(hostname(connection.middlewareURL))
+                    Text(hostname(displayHost))
                         .font(.caption).foregroundColor(.secondary)
                 }
             }
@@ -184,14 +194,31 @@ struct SettingsView: View {
         savedConnections = UserDefaults.standard.loadSavedConnections()
     }
 
-    private func activateConnection(_ connection: SavedConnection) {
-        switchingInProgress = connection.id
-        UserDefaults.standard.set(connection.middlewareURL,   forKey: "netreo_base_url")
-        UserDefaults.standard.set(connection.apiKey,         forKey: "netreo_api_key")
-        UserDefaults.standard.set(connection.pin,            forKey: "netreo_pin")
-        UserDefaults.standard.set(connection.ackUser,        forKey: "netreo_ack_user")
-        UserDefaults.standard.set(connection.webhookSecret,  forKey: "netreo_webhook_secret")
-        activeSavedConnectionID = connection.id.uuidString
+    private func activateConnection(_ new: SavedConnection) {
+        switchingInProgress = new.id
+
+        // Unregister push for the connection we're leaving
+        if let old = savedConnections.first(where: { $0.id.uuidString == activeSavedConnectionID }),
+           old.notificationsEnabled,
+           !old.middlewareURL.isEmpty,
+           let token = AppDelegate.shared?.cachedDeviceToken {
+            AppDelegate.shared?.unregisterWithMiddleware(
+                token: token,
+                secret: old.webhookSecret,
+                middlewareURL: old.middlewareURL
+            )
+        }
+
+        // Sync all credentials for the new connection
+        UserDefaults.standard.set(new.middlewareURL,  forKey: "netreo_base_url")
+        UserDefaults.standard.set(new.bhnmURL,        forKey: "netreo_bhnm_url")
+        UserDefaults.standard.set(new.apiKey,         forKey: "netreo_api_key")
+        UserDefaults.standard.set(new.pin,            forKey: "netreo_pin")
+        UserDefaults.standard.set(new.ackUser,        forKey: "netreo_ack_user")
+        UserDefaults.standard.set(new.webhookSecret,  forKey: "netreo_webhook_secret")
+        activeSavedConnectionID = new.id.uuidString
+        // Push registration for the new connection fires via ContentView.onChange(of: activeConnectionID)
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
             switchingInProgress = nil
             reload()
