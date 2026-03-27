@@ -278,10 +278,21 @@ struct ServerConfigView: View {
             switch statusCode {
             case 200:
                 var deviceCount = 0
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    if let arr = json["devices"] as? [[String: Any]] { deviceCount = arr.count }
-                    else if let nested = json["data"] as? [String: Any],
-                            let arr = nested["devices"] as? [[String: Any]] { deviceCount = arr.count }
+                if let raw = try? JSONSerialization.jsonObject(with: data) {
+                    // Response may be a plain object or wrapped in an outer array
+                    let obj: [String: Any]?
+                    if let dict = raw as? [String: Any] {
+                        obj = dict
+                    } else if let arr = raw as? [[String: Any]] {
+                        obj = arr.first
+                    } else {
+                        obj = nil
+                    }
+                    if let json = obj {
+                        if let arr = json["devices"] as? [[String: Any]] { deviceCount = arr.count }
+                        else if let nested = json["data"] as? [String: Any],
+                                let arr = nested["devices"] as? [[String: Any]] { deviceCount = arr.count }
+                    }
                 }
                 if deviceCount > 0 {
                     saveConnection(bhnmURLString: bhnmURLString)
