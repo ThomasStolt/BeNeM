@@ -720,8 +720,17 @@ class NetreoAPIService: ObservableObject {
         }
         #endif
         
-        // Try to parse response
-        if let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+        // Try to parse response — response may be a plain object or wrapped in an outer array
+        let rawJSON = try? JSONSerialization.jsonObject(with: data)
+        let jsonObject: [String: Any]?
+        if let dict = rawJSON as? [String: Any] {
+            jsonObject = dict
+        } else if let arr = rawJSON as? [[String: Any]] {
+            jsonObject = arr.first
+        } else {
+            jsonObject = nil
+        }
+        if let jsonObject = jsonObject {
             #if DEBUG
             print("Parsed incident JSON object: \(jsonObject)")
             let topLevelKeys = Array(jsonObject.keys).sorted().joined(separator: ", ")
