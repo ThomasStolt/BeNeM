@@ -142,7 +142,7 @@ async def proxy(path: str, request: Request):
         if k.lower() not in HOP_BY_HOP_REQUEST
     }
 
-    async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY) as client:
+    async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=60.0) as client:
         resp = await client.request(
             method=request.method,
             url=target,
