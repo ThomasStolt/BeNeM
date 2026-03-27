@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 import os
 import httpx
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from config import MIDDLEWARE_PORT
@@ -154,4 +155,4 @@ async def proxy(path: str, request: Request):
         if k.lower() not in HOP_BY_HOP_RESPONSE
     }
 
-    return resp.content, resp.status_code, response_headers
+    return Response(content=resp.content, status_code=resp.status_code, headers=response_headers)
