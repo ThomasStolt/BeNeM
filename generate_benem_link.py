@@ -64,17 +64,16 @@ def prompt(label: str, default: str = "", secret: bool = False) -> str:
 
 
 def interactive_mode() -> dict:
-    """Walk the user through each field interactively."""
     print("\nBeNeM Link Generator — Interactive Mode")
     print("=" * 42)
     print("Press Enter to accept the default shown in [brackets].\n")
 
-    server = prompt("Middleware URL")
-    if not server:
-        print("Error: Server URL is required.")
+    bhnm_url = prompt("BHNM URL (direct server, e.g. https://bhnm.corp.com)")
+    if not bhnm_url:
+        print("Error: BHNM URL is required.")
         sys.exit(1)
-    if not server.startswith("http://") and not server.startswith("https://"):
-        server = "https://" + server
+    if not bhnm_url.startswith("http://") and not bhnm_url.startswith("https://"):
+        bhnm_url = "https://" + bhnm_url
 
     api_key = prompt("API Token", secret=True)
     if not api_key:
@@ -84,25 +83,33 @@ def interactive_mode() -> dict:
     pin = prompt("PIN / License ID (leave blank for none)", secret=True)
     user = prompt("User Name", default="enter user name")
 
-    # Default server name to hostname
     from urllib.parse import urlparse
-    default_name = urlparse(server).hostname or server
+    default_name = urlparse(bhnm_url).hostname or bhnm_url
     name = prompt("Server Name", default=default_name)
 
     symbol = prompt("SF Symbol", default="server.rack")
     color = prompt("Accent colour (hex)", default="#0A84FF")
 
-    push_secret = prompt("Webhook Secret", secret=True)
+    enable_push = prompt("Enable push notifications? [Y/n]").lower() != "n"
+    middleware_url = ""
+    push_secret = ""
+    if enable_push:
+        middleware_url = prompt("Middleware URL (e.g. https://bhnm-apns.corp.com)")
+        if middleware_url and not middleware_url.startswith("http://") and not middleware_url.startswith("https://"):
+            middleware_url = "https://" + middleware_url
+        push_secret = prompt("Webhook Secret", secret=True)
 
     return {
-        "server": server,
-        "api_key": api_key,
-        "pin": pin,
-        "user": user,
-        "name": name,
-        "push_secret": push_secret,
-        "symbol": symbol,
-        "color": color,
+        "bhnm_url":       bhnm_url,
+        "middleware_url": middleware_url,
+        "notifications":  enable_push,
+        "api_key":        api_key,
+        "pin":            pin,
+        "user":           user,
+        "name":           name,
+        "push_secret":    push_secret,
+        "symbol":         symbol,
+        "color":          color,
     }
 
 
@@ -121,8 +128,10 @@ def main():
     parser = argparse.ArgumentParser(description="Generate a benem:// configuration URL.")
     parser.add_argument("-i", "--interactive", action="store_true",
                         help="Interactive mode: prompt for each field")
-    parser.add_argument("--middleware-url", dest="server",
-                        help="Middleware URL (e.g. https://bhnm-apns.yourcompany.com)")
+    parser.add_argument("--bhnm-url", dest="bhnm_url",
+                        help="Direct BHNM server URL (e.g. https://bhnm.yourcompany.com) — required unless -i")
+    parser.add_argument("--middleware-url", dest="middleware_url", default="",
+                        help="Push middleware URL (optional; omit if push not needed)")
     parser.add_argument("--api_key", help="API token")
     parser.add_argument("--pin", default="", help="PIN / License ID (SaaS only, optional)")
     parser.add_argument("--user", default="enter user name", help="ACK user name")
@@ -132,6 +141,12 @@ def main():
     parser.add_argument("--color", default="#0A84FF", help="Accent colour (hex)")
     parser.add_argument("--push-secret", dest="push_secret", default="",
                         help="Push webhook secret (encrypted in payload)")
+    parser.add_argument("--notifications", dest="notifications",
+                        action="store_true", default=True,
+                        help="Enable push notifications for this connection (default)")
+    parser.add_argument("--no-notifications", dest="notifications",
+                        action="store_false",
+                        help="Disable push notifications for this connection")
     parser.add_argument("--qr", action="store_true",
                         help="Also save a QR code PNG (benem-link.png)")
     args = parser.parse_args()
@@ -140,20 +155,25 @@ def main():
         payload = interactive_mode()
         generate_qr = prompt("\nGenerate QR code? [y/N]").lower() == "y"
     else:
-        if not args.server or not args.api_key:
-            parser.error("--middleware-url and --api_key are required (or use -i for interactive mode)")
-        server = args.server
-        if not server.startswith("http://") and not server.startswith("https://"):
-            server = "https://" + server
+        if not args.bhnm_url or not args.api_key:
+            parser.error("--bhnm-url and --api_key are required (or use -i for interactive mode)")
+        bhnm_url = args.bhnm_url
+        if not bhnm_url.startswith("http://") and not bhnm_url.startswith("https://"):
+            bhnm_url = "https://" + bhnm_url
+        middleware_url = args.middleware_url
+        if middleware_url and not middleware_url.startswith("http://") and not middleware_url.startswith("https://"):
+            middleware_url = "https://" + middleware_url
         payload = {
-            "server":      server,
-            "api_key":     args.api_key,
-            "pin":         args.pin,
-            "user":        args.user,
-            "name":        args.name,
-            "push_secret": args.push_secret,
-            "symbol":      args.symbol,
-            "color":       args.color,
+            "bhnm_url":       bhnm_url,
+            "middleware_url": middleware_url,
+            "notifications":  args.notifications,
+            "api_key":        args.api_key,
+            "pin":            args.pin,
+            "user":           args.user,
+            "name":           args.name,
+            "push_secret":    args.push_secret,
+            "symbol":         args.symbol,
+            "color":          args.color,
         }
         generate_qr = args.qr
 
