@@ -4,6 +4,7 @@ struct NetreoAPIConfiguration {
     let baseURL: String
     let apiKey: String
     let pin: String?
+    let proxyToken: String
     let version: APIVersion
     let timeout: TimeInterval
     let retryCount: Int
@@ -28,7 +29,7 @@ struct NetreoAPIConfiguration {
         }
     }
     
-    init(baseURL: String, apiKey: String, pin: String? = nil, version: APIVersion = .legacy, timeout: TimeInterval = 30, retryCount: Int = 3) {
+    init(baseURL: String, apiKey: String, pin: String? = nil, proxyToken: String = "", version: APIVersion = .legacy, timeout: TimeInterval = 30, retryCount: Int = 3) {
         let normalizedURL = baseURL.trimmingSuffix("/")
         
         // Ensure URL has protocol
@@ -40,6 +41,7 @@ struct NetreoAPIConfiguration {
         
         self.apiKey = apiKey
         self.pin = pin
+        self.proxyToken = proxyToken
         self.version = version
         self.timeout = timeout
         self.retryCount = retryCount
