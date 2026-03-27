@@ -69,7 +69,7 @@ def interactive_mode() -> dict:
     print("=" * 42)
     print("Press Enter to accept the default shown in [brackets].\n")
 
-    server = prompt("BHNM Server URL")
+    server = prompt("Middleware URL")
     if not server:
         print("Error: Server URL is required.")
         sys.exit(1)
@@ -92,12 +92,7 @@ def interactive_mode() -> dict:
     symbol = prompt("SF Symbol", default="server.rack")
     color = prompt("Accent colour (hex)", default="#0A84FF")
 
-    push_url = ""
-    push_secret = ""
-    enable_push = prompt("Enable push notifications? [y/N]").lower() == "y"
-    if enable_push:
-        push_url = prompt("  Middleware URL")
-        push_secret = prompt("  Webhook Secret", secret=True)
+    push_secret = prompt("Webhook Secret", secret=True)
 
     return {
         "server": server,
@@ -105,7 +100,6 @@ def interactive_mode() -> dict:
         "pin": pin,
         "user": user,
         "name": name,
-        "push_url": push_url,
         "push_secret": push_secret,
         "symbol": symbol,
         "color": color,
@@ -127,8 +121,8 @@ def main():
     parser = argparse.ArgumentParser(description="Generate a benem:// configuration URL.")
     parser.add_argument("-i", "--interactive", action="store_true",
                         help="Interactive mode: prompt for each field")
-    parser.add_argument("--bhnm-server", dest="server",
-                        help="BHNM server URL (e.g. https://bhnm.example.com)")
+    parser.add_argument("--middleware-url", dest="server",
+                        help="Middleware URL (e.g. https://bhnm-apns.yourcompany.com)")
     parser.add_argument("--api_key", help="API token")
     parser.add_argument("--pin", default="", help="PIN / License ID (SaaS only, optional)")
     parser.add_argument("--user", default="enter user name", help="ACK user name")
@@ -136,8 +130,6 @@ def main():
                         help="Connection display name (--name accepted for backwards compat)")
     parser.add_argument("--symbol", default="server.rack", help="SF Symbol name")
     parser.add_argument("--color", default="#0A84FF", help="Accent colour (hex)")
-    parser.add_argument("--push-url", dest="push_url", default="",
-                        help="Push middleware URL (encrypted in payload)")
     parser.add_argument("--push-secret", dest="push_secret", default="",
                         help="Push webhook secret (encrypted in payload)")
     parser.add_argument("--qr", action="store_true",
@@ -149,7 +141,7 @@ def main():
         generate_qr = prompt("\nGenerate QR code? [y/N]").lower() == "y"
     else:
         if not args.server or not args.api_key:
-            parser.error("--bhnm-server and --api_key are required (or use -i for interactive mode)")
+            parser.error("--middleware-url and --api_key are required (or use -i for interactive mode)")
         server = args.server
         if not server.startswith("http://") and not server.startswith("https://"):
             server = "https://" + server
@@ -159,7 +151,6 @@ def main():
             "pin":         args.pin,
             "user":        args.user,
             "name":        args.name,
-            "push_url":    args.push_url,
             "push_secret": args.push_secret,
             "symbol":      args.symbol,
             "color":       args.color,
