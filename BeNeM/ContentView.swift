@@ -8,6 +8,7 @@ struct ContentView: View {
     @AppStorage("netreo_timeout") private var timeout: Double = 30.0
     @AppStorage("netreo_retry_count") private var retryCount: Double = 3.0
     @AppStorage("netreo_active_connection_id") private var activeConnectionID = ""
+    @AppStorage("netreo_webhook_secret") private var webhookSecret = ""
 
     @State private var apiService: NetreoAPIService?
     @State private var selectedTab = 0
@@ -40,15 +41,17 @@ struct ContentView: View {
         .onChange(of: apiVersionString) { _, _ in updateAPIService() }
         .onChange(of: timeout) { _, _ in updateAPIService() }
         .onChange(of: retryCount) { _, _ in updateAPIService() }
+        .onChange(of: webhookSecret) { _, _ in updateAPIService() }
         .onChange(of: activeConnectionID) { _, newID in
             guard !newID.isEmpty,
                   let token = AppDelegate.shared?.cachedDeviceToken else { return }
             let connections = UserDefaults.standard.loadSavedConnections()
             if let conn = connections.first(where: { $0.id.uuidString == newID }) {
+                UserDefaults.standard.set(conn.webhookSecret, forKey: "netreo_webhook_secret")
                 AppDelegate.shared?.registerWithMiddleware(
                     token: token,
                     secret: conn.webhookSecret,
-                    middlewareURL: conn.pushMiddlewareURL
+                    middlewareURL: conn.baseURL
                 )
             }
         }
@@ -82,6 +85,7 @@ struct ContentView: View {
             baseURL: baseURL,
             apiKey: apiKey,
             pin: pin.isEmpty ? nil : pin,
+            proxyToken: webhookSecret,
             version: apiVersion,
             timeout: timeout,
             retryCount: Int(retryCount)
