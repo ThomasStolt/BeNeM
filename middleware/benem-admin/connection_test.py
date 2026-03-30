@@ -34,7 +34,8 @@ def run_test(url: str, api_key: str, pin: str = "") -> list[TestResult]:
         results.append(TestResult("HTTPS Reachability", False, f"Connection refused: {e}"))
         return results
     except httpx.HTTPError as e:
-        results.append(TestResult("HTTPS Reachability", True, f"HTTP error (server is up): {e}"))
+        results.append(TestResult("HTTPS Reachability", False, f"HTTP error: {e}"))
+        return results
 
     # Step 3: API authentication
     try:
