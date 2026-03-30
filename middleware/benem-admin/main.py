@@ -3,8 +3,12 @@ VERSION = "1.0.0"
 import base64
 import io
 import os
+import re
 from dataclasses import dataclass
+from html import escape
+from urllib.parse import urlparse
 
+import httpx
 import qrcode
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -125,11 +129,12 @@ def server_url_fragment(request: Request, server_id: str = ""):
             '<input type="text" value="" readonly '
             'class="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-600">'
         )
-    url = server.url
+    url_attr = escape(server.url, quote=True)
+    url_js = server.url.replace("\\", "\\\\").replace("'", "\\'")
     return HTMLResponse(
-        f'<input type="text" value="{url}" readonly '
+        f'<input type="text" value="{url_attr}" readonly '
         f'class="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-600">'
-        f'<button type="button" onclick="testReachability(\'{url}\', \'bhnm-test-result\')" '
+        f'<button type="button" onclick="testReachability(\'{url_js}\', \'bhnm-test-result\')" '
         f'class="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200 text-gray-600">Test</button>'
     )
 
@@ -140,13 +145,31 @@ async def reachability_check(request: Request, url: str = ""):
         return JSONResponse({"ok": False, "detail": "Not authenticated"}, status_code=401)
     if not url:
         return JSONResponse({"ok": False, "detail": "No URL provided"})
+
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return JSONResponse({"ok": False, "detail": "Only http/https URLs are allowed"})
+
+    # Restrict to hosts already configured in servers.json or MIDDLEWARE_URL
     try:
-        import httpx
+        allowed_hosts = {urlparse(s.url).hostname for s in load_servers()}
+    except FileNotFoundError:
+        allowed_hosts = set()
+    if MIDDLEWARE_URL:
+        allowed_hosts.add(urlparse(MIDDLEWARE_URL).hostname)
+    allowed_hosts.discard(None)
+
+    if parsed.hostname not in allowed_hosts:
+        return JSONResponse({"ok": False, "detail": f"Host '{parsed.hostname}' is not in the configured server list"})
+
+    try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(url)
         return JSONResponse({"ok": True, "detail": f"HTTP {resp.status_code}"})
-    except Exception as e:
+    except httpx.HTTPError as e:
         return JSONResponse({"ok": False, "detail": str(e)})
+    except Exception as e:
+        return JSONResponse({"ok": False, "detail": f"Error: {str(e)}"})
 
 
 @app.post("/admin/generate", response_class=HTMLResponse)
@@ -160,11 +183,14 @@ def generate_link(
     if not auth.is_authenticated(request):
         return auth.redirect_to_login()
 
+    if not re.fullmatch(r"#[0-9A-Fa-f]{6}", color):
+        color = "#0A84FF"
+
     try:
         servers = load_servers()
     except FileNotFoundError:
         servers = []
-    server = get_server(server_id)
+    server = next((s for s in servers if s.id == server_id), None)
     if not server:
         return RedirectResponse("/admin/", status_code=302)
 
