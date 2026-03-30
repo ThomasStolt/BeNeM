@@ -17,11 +17,10 @@ def get_registered_devices() -> list[DeviceToken]:
     if not os.path.exists(path):
         return []
     try:
-        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-        rows = conn.execute(
-            "SELECT token, device_name, registered_at FROM device_tokens ORDER BY registered_at DESC"
-        ).fetchall()
-        conn.close()
+        with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as conn:
+            rows = conn.execute(
+                "SELECT token, device_name, registered_at FROM device_tokens ORDER BY registered_at DESC"
+            ).fetchall()
         return [DeviceToken(token=r[0], device_name=r[1], registered_at=r[2] or "") for r in rows]
     except Exception:
         return []

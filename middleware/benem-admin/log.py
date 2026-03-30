@@ -42,4 +42,21 @@ def read_entries(server_id: Optional[str] = None, page: int = 1, per_page: int =
 
 
 def count_entries(server_id: Optional[str] = None) -> int:
-    return len(read_entries(server_id=server_id, page=1, per_page=999999))
+    path = os.environ.get("LOG_PATH", "/app/log/admin.jsonl")
+    if not os.path.exists(path):
+        return 0
+    count = 0
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            if server_id is None:
+                count += 1
+            else:
+                try:
+                    if json.loads(line).get("server_id") == server_id:
+                        count += 1
+                except json.JSONDecodeError:
+                    pass
+    return count
