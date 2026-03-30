@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-2xl font-bold text-gray-800 mb-6">Settings</h1>
+
+<div class="max-w-xl space-y-6">
+
+  <div class="bg-white rounded-xl shadow p-6 space-y-4">
+    <h2 class="text-sm font-semibold text-gray-500 uppercase">Authenticator Setup</h2>
+    <p class="text-sm text-gray-600">
+      Scan this QR code in Google Authenticator, 1Password, or Authy.
+      The TOTP secret is read from <code class="bg-gray-100 px-1 rounded">TOTP_SECRET</code> in your <code class="bg-gray-100 px-1 rounded">.env</code> file.
+    </p>
+    {% if totp_qr_b64 %}
+    <div class="flex justify-center">
+      <img src="data:image/png;base64,{{ totp_qr_b64 }}" alt="TOTP QR Code"
+           class="w-48 h-48 border border-gray-200 rounded-lg">
+    </div>
+    {% else %}
+    <p class="text-sm text-amber-600">TOTP_SECRET is not configured. Set it in .env and restart.</p>
+    {% endif %}
+    <p class="text-xs text-gray-400 text-center">
+      To rotate: edit <code>.env</code>, set a new <code>TOTP_SECRET</code>, restart the container, then re-scan.
+    </p>
+  </div>
+
+  <div class="bg-white rounded-xl shadow p-6">
+    <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">App Info</h2>
+    <dl class="text-sm space-y-1">
+      <div class="flex gap-4">
+        <dt class="text-gray-500 w-32">Version</dt>
+        <dd class="font-mono text-gray-800">{{ version }}</dd>
+      </div>
+    </dl>
+  </div>
+
+  <div class="bg-white rounded-xl shadow p-6">
+    <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Container</h2>
+    {% if can_restart %}
+    <p class="text-sm text-gray-600 mb-3">
+      Restart the <code>benem-admin</code> container.
+    </p>
+    <form method="post" action="/admin/restart"
+          onsubmit="return confirm('Restart container? You will be disconnected briefly.')">
+      <button type="submit"
+              class="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-sm border border-red-200">
+        Restart Container
+      </button>
+    </form>
+    {% else %}
+    <p class="text-sm text-gray-500">
+      Restart manually via SSH: <code class="bg-gray-100 px-1 rounded text-xs">docker restart benem-admin</code>
+    </p>
+    {% endif %}
+    {% if restart_initiated %}
+    <p class="mt-3 text-sm text-green-600">Restart initiated. Reconnect in a few seconds.</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

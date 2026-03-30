@@ -221,3 +221,136 @@ def generate_link(
         "form_data": _FormData(user=user, symbol=symbol, color=color),
         "result": _GenResult(url=url, qr_b64=qr_b64),
     })
+
+
+# ── Connection Test ───────────────────────────────────────────────────────────
+
+import subprocess
+
+from connection_test import run_test
+from log import read_entries, count_entries
+from push_db import get_registered_devices
+
+LOG_PER_PAGE = 50
+
+
+@app.get("/admin/test", response_class=HTMLResponse)
+def test_page(request: Request):
+    if not auth.is_authenticated(request):
+        return auth.redirect_to_login()
+    try:
+        servers = load_servers()
+    except FileNotFoundError:
+        servers = []
+    return templates.TemplateResponse(request, "test.html", {
+        "active": "test",
+        "servers": servers,
+        "selected_id": None,
+        "results": None,
+    })
+
+
+@app.post("/admin/test", response_class=HTMLResponse)
+def test_submit(request: Request, server_id: str = Form(...)):
+    if not auth.is_authenticated(request):
+        return auth.redirect_to_login()
+    try:
+        servers = load_servers()
+    except FileNotFoundError:
+        servers = []
+    server = next((s for s in servers if s.id == server_id), None)
+    results = run_test(server.url, server.api_key, server.pin) if server else []
+    return templates.TemplateResponse(request, "test.html", {
+        "active": "test",
+        "servers": servers,
+        "selected_id": server_id,
+        "results": results,
+    })
+
+
+# ── Push Config ───────────────────────────────────────────────────────────────
+
+@app.get("/admin/push", response_class=HTMLResponse)
+def push_page(request: Request):
+    if not auth.is_authenticated(request):
+        return auth.redirect_to_login()
+    webhook_url = f"{MIDDLEWARE_URL}/webhook?secret=<your-secret>" if MIDDLEWARE_URL else ""
+    return templates.TemplateResponse(request, "push.html", {
+        "active": "push",
+        "middleware_url": MIDDLEWARE_URL,
+        "webhook_url": webhook_url,
+        "devices": get_registered_devices(),
+    })
+
+
+# ── Log ───────────────────────────────────────────────────────────────────────
+
+@app.get("/admin/log", response_class=HTMLResponse)
+def log_page(request: Request, server_id: str = "", page: int = 1):
+    if not auth.is_authenticated(request):
+        return auth.redirect_to_login()
+    filter_id = server_id or None
+    entries = read_entries(server_id=filter_id, page=page, per_page=LOG_PER_PAGE)
+    total = count_entries(server_id=filter_id)
+    total_pages = max(1, (total + LOG_PER_PAGE - 1) // LOG_PER_PAGE)
+    try:
+        servers = load_servers()
+    except FileNotFoundError:
+        servers = []
+    return templates.TemplateResponse(request, "log.html", {
+        "active": "log",
+        "servers": servers,
+        "server_id": server_id,
+        "entries": entries,
+        "page": page,
+        "total_pages": total_pages,
+    })
+
+
+# ── Settings ──────────────────────────────────────────────────────────────────
+
+def _totp_qr_b64() -> str:
+    import pyotp
+    secret = os.environ.get("TOTP_SECRET", "")
+    if not secret:
+        return ""
+    totp = pyotp.TOTP(secret)
+    uri = totp.provisioning_uri(name="admin", issuer_name="BeNeM Admin")
+    img = qrcode.make(uri)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+def _can_restart() -> bool:
+    return os.path.exists("/var/run/docker.sock")
+
+
+@app.get("/admin/settings", response_class=HTMLResponse)
+def settings_page(request: Request):
+    if not auth.is_authenticated(request):
+        return auth.redirect_to_login()
+    return templates.TemplateResponse(request, "settings.html", {
+        "active": "settings",
+        "totp_qr_b64": _totp_qr_b64(),
+        "version": VERSION,
+        "can_restart": _can_restart(),
+        "restart_initiated": False,
+    })
+
+
+@app.post("/admin/restart")
+def restart_container(request: Request):
+    if not auth.is_authenticated(request):
+        return auth.redirect_to_login()
+    if not _can_restart():
+        return RedirectResponse("/admin/settings", status_code=302)
+    # Runs in background — this process will be killed momentarily
+    subprocess.Popen(["docker", "restart", "benem-admin"])
+    return templates.TemplateResponse(request, "settings.html", {
+        "active": "settings",
+        "totp_qr_b64": _totp_qr_b64(),
+        "version": VERSION,
+        "can_restart": True,
+        "restart_initiated": True,
+    })
