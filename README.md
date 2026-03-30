@@ -6,7 +6,7 @@ An open source native iOS app for **BMC Helix Network Management** (BHNM). Monit
 
 ## Demo
 
-Here are a few examples of how the app looks and feels like. You can see the home dashboard, active incidents, acknowledgement of incidents, device list and a device performanc view.
+Here are a few examples of how the app looks and feels like. You can see the home dashboard, active incidents, acknowledgement of incidents, device list and a device performance view.
 
 <div align="center">
   <img src="images/demo1.gif" width="260" alt="Demo part 1 — dashboard and incidents">
