@@ -7,6 +7,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Run as non-root
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser \
+    && mkdir -p /app/log \
+    && chown -R appuser:appgroup /app/log
+USER appuser
+
 # /app/log is a Docker volume for the audit log
 # /data is the bhnm-apns db volume, mounted read-only
 VOLUME ["/app/log"]
