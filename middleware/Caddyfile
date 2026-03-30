@@ -3,7 +3,7 @@
     # TOTP is the second factor enforced by the app itself.
     # Generate bcrypt hash: docker run --rm caddy:2-alpine caddy hash-password --plaintext 'yourpassword'
     handle /admin* {
-        basicauth {
+        basic_auth {
             {$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
         }
         reverse_proxy benem-admin:8001
