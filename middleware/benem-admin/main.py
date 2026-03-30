@@ -1,15 +1,27 @@
 VERSION = "1.0.0"
 
+import base64
+import io
 import os
+from dataclasses import dataclass
+
+import qrcode
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
 
 import auth
 from auth import SESSION_COOKIE
+from crypto import load_key, encrypt_payload
+from log import append_entry
+from servers import load_servers, get_server
+from sf_symbols import SF_SYMBOLS
 
 load_dotenv()
+
+MIDDLEWARE_URL = os.environ.get("MIDDLEWARE_URL", "")
+PUSH_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 
 app = FastAPI(docs_url=None, redoc_url=None)
 templates = Jinja2Templates(directory="templates")
@@ -60,11 +72,126 @@ def logout():
     return resp
 
 
-# ── Generate Link (placeholder — full implementation in Task 8) ───────────────
+# ── Generate Link ─────────────────────────────────────────────────────────────
+
+@dataclass
+class _GenResult:
+    url: str
+    qr_b64: str
+
+
+@dataclass
+class _FormData:
+    user: str
+    symbol: str
+    color: str
+
+
+def _make_qr_b64(url: str) -> str:
+    img = qrcode.make(url)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode()
+
 
 @app.get("/admin/", response_class=HTMLResponse)
 def generate_page(request: Request):
     if not auth.is_authenticated(request):
         return auth.redirect_to_login()
-    # Placeholder — full implementation added in Task 8
-    return HTMLResponse("<html><body><h1>Generate Link — coming soon</h1></body></html>")
+    try:
+        servers = load_servers()
+    except FileNotFoundError:
+        servers = []
+    selected = servers[0] if servers else None
+    return templates.TemplateResponse(request, "generate.html", {
+        "active": "generate",
+        "servers": servers,
+        "selected_server": selected,
+        "middleware_url": MIDDLEWARE_URL,
+        "sf_symbols": SF_SYMBOLS,
+        "form_data": None,
+        "result": None,
+    })
+
+
+@app.get("/admin/server-url", response_class=HTMLResponse)
+def server_url_fragment(request: Request, server_id: str = ""):
+    """HTMX endpoint — returns updated URL field HTML for the selected server."""
+    if not auth.is_authenticated(request):
+        return HTMLResponse("", status_code=401)
+    server = get_server(server_id)
+    if not server:
+        return HTMLResponse(
+            '<input type="text" value="" readonly '
+            'class="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-600">'
+        )
+    url = server.url
+    return HTMLResponse(
+        f'<input type="text" value="{url}" readonly '
+        f'class="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-600">'
+        f'<button type="button" onclick="testReachability(\'{url}\', \'bhnm-test-result\')" '
+        f'class="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200 text-gray-600">Test</button>'
+    )
+
+
+@app.get("/admin/reachability-check")
+async def reachability_check(request: Request, url: str = ""):
+    if not auth.is_authenticated(request):
+        return JSONResponse({"ok": False, "detail": "Not authenticated"}, status_code=401)
+    if not url:
+        return JSONResponse({"ok": False, "detail": "No URL provided"})
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(url)
+        return JSONResponse({"ok": True, "detail": f"HTTP {resp.status_code}"})
+    except Exception as e:
+        return JSONResponse({"ok": False, "detail": str(e)})
+
+
+@app.post("/admin/generate", response_class=HTMLResponse)
+def generate_link(
+    request: Request,
+    server_id: str = Form(...),
+    user: str = Form(""),
+    symbol: str = Form("server.rack"),
+    color: str = Form("#0A84FF"),
+):
+    if not auth.is_authenticated(request):
+        return auth.redirect_to_login()
+
+    try:
+        servers = load_servers()
+    except FileNotFoundError:
+        servers = []
+    server = get_server(server_id)
+    if not server:
+        return RedirectResponse("/admin/", status_code=302)
+
+    key = load_key()
+    payload = {
+        "bhnm_url":       server.url,
+        "middleware_url": MIDDLEWARE_URL,
+        "notifications":  bool(MIDDLEWARE_URL),
+        "api_key":        server.api_key,
+        "pin":            server.pin,
+        "user":           user,
+        "name":           server.name,
+        "push_secret":    PUSH_SECRET,
+        "symbol":         symbol,
+        "color":          color,
+    }
+    blob = encrypt_payload(payload, key)
+    url = f"benem://configure?p={blob}"
+    qr_b64 = _make_qr_b64(url)
+    append_entry(user, server.id, server.name, url)
+
+    return templates.TemplateResponse(request, "generate.html", {
+        "active": "generate",
+        "servers": servers,
+        "selected_server": server,
+        "middleware_url": MIDDLEWARE_URL,
+        "sf_symbols": SF_SYMBOLS,
+        "form_data": _FormData(user=user, symbol=symbol, color=color),
+        "result": _GenResult(url=url, qr_b64=qr_b64),
+    })

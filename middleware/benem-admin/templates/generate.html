@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-2xl font-bold text-gray-800 mb-6">Generate Link</h1>
+
+<div class="max-w-xl bg-white rounded-xl shadow p-6 space-y-5">
+  <form method="post" action="/admin/generate" id="gen-form">
+
+    <!-- Server selector -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">Server</label>
+      <select name="server_id" id="server-select"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              hx-get="/admin/server-url"
+              hx-trigger="change"
+              hx-target="#bhnm-url-field"
+              hx-include="[name='server_id']">
+        {% for s in servers %}
+        <option value="{{ s.id }}" {{ 'selected' if selected_server and selected_server.id == s.id }}>
+          {{ s.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- BHNM URL (read-only, updated by HTMX) -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">BHNM URL</label>
+      <div id="bhnm-url-field" class="flex gap-2">
+        <input type="text" value="{{ selected_server.url if selected_server else '' }}"
+               readonly
+               class="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-600">
+        <button type="button" id="test-bhnm"
+                onclick="testReachability('{{ selected_server.url if selected_server else '' }}', 'bhnm-test-result')"
+                class="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200 text-gray-600">
+          Test
+        </button>
+      </div>
+      <div id="bhnm-test-result" class="mt-1 text-xs"></div>
+    </div>
+
+    <!-- Push Middleware URL (read-only) -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">Push Middleware URL</label>
+      <div class="flex gap-2">
+        <input type="text" value="{{ middleware_url }}" readonly
+               class="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-600">
+        <button type="button"
+                onclick="testReachability('{{ middleware_url }}', 'mw-test-result')"
+                class="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200 text-gray-600">
+          Test
+        </button>
+      </div>
+      <div id="mw-test-result" class="mt-1 text-xs"></div>
+    </div>
+
+    <!-- Username -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+      <input type="text" name="user" value="{{ form_data.user if form_data else '' }}"
+             placeholder="e.g. Thomas"
+             class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+    </div>
+
+    <!-- SF Symbol -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">SF Symbol</label>
+      <input type="text" name="symbol" list="symbol-list"
+             value="{{ form_data.symbol if form_data else 'server.rack' }}"
+             class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono">
+      <datalist id="symbol-list">
+        {% for sym in sf_symbols %}
+        <option value="{{ sym }}">
+        {% endfor %}
+      </datalist>
+    </div>
+
+    <!-- Accent Colour -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">Accent Colour</label>
+      <div class="flex gap-3 items-center flex-wrap">
+        {% set swatches = ["#0A84FF","#30D158","#FF9F0A","#FF453A","#BF5AF2","#64D2FF","#FFD60A","#FF6961"] %}
+        {% for c in swatches %}
+        <button type="button" onclick="setColor('{{ c }}')"
+                class="w-8 h-8 rounded-full border-2 border-white shadow-md focus:outline-none"
+                style="background-color: {{ c }};" title="{{ c }}"></button>
+        {% endfor %}
+        <input type="color" id="color-picker" value="{{ form_data.color if form_data else '#0A84FF' }}"
+               onchange="document.getElementById('color-hex').value=this.value"
+               class="w-8 h-8 rounded cursor-pointer border border-gray-300">
+        <input type="text" id="color-hex" name="color"
+               value="{{ form_data.color if form_data else '#0A84FF' }}"
+               pattern="#[0-9A-Fa-f]{6}" maxlength="7"
+               oninput="document.getElementById('color-picker').value=this.value"
+               class="w-28 border border-gray-300 rounded-lg px-2 py-1 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+    </div>
+
+    <button type="submit"
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition">
+      Generate Link
+    </button>
+  </form>
+
+  <!-- Result -->
+  {% if result %}
+  <div class="border-t border-gray-100 pt-5 space-y-4">
+    <div>
+      <label class="block text-xs font-medium text-gray-500 uppercase mb-1">benem:// URL</label>
+      <div class="flex gap-2">
+        <code id="result-url" class="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs font-mono break-all text-gray-800">{{ result.url }}</code>
+        <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('result-url').textContent)"
+                class="px-3 py-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200 whitespace-nowrap">
+          Copy
+        </button>
+      </div>
+    </div>
+    <div class="flex justify-center">
+      <img src="data:image/png;base64,{{ result.qr_b64 }}" alt="QR Code" class="w-56 h-56 border border-gray-200 rounded-lg">
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function setColor(hex) {
+  document.getElementById('color-hex').value = hex;
+  document.getElementById('color-picker').value = hex;
+}
+async function testReachability(url, resultId) {
+  if (!url) return;
+  const el = document.getElementById(resultId);
+  el.textContent = 'Testing…';
+  el.className = 'mt-1 text-xs text-gray-500';
+  try {
+    const resp = await fetch('/admin/reachability-check?url=' + encodeURIComponent(url));
+    const data = await resp.json();
+    el.textContent = data.ok ? '✓ Reachable' : '✗ ' + data.detail;
+    el.className = 'mt-1 text-xs ' + (data.ok ? 'text-green-600' : 'text-red-600');
+  } catch (e) {
+    el.textContent = '✗ Error';
+    el.className = 'mt-1 text-xs text-red-600';
+  }
+}
+</script>
+{% endblock %}
