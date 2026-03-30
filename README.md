@@ -4,6 +4,12 @@ An open source native iOS app for **BMC Helix Network Management** (BHNM). Monit
 
 > **Note:** BMC Helix Network Management (BHNM) was formerly known as **Netreo**. Internal code identifiers (class names, AppStorage keys) still use the legacy `Netreo` prefix for backwards compatibility and will be migrated in a future release.
 
+## Demo
+
+A quick walkthrough of the app — incident monitoring, acknowledging alerts, device detail with performance charts, and the tactical overview:
+
+<video src="images/BHNM run through.mp4" autoplay loop muted playsinline width="320"></video>
+
 ## Features
 
 - **Dashboard (Home)** — at-a-glance summary with active incident count, total device count, an animated incident ticker (open incidents only), and HOSTS / SERVICES / THRESHOLDS / ANOMALIES alarm summaries with drill-down links to Categories, Sites, and Business Workflows
@@ -23,6 +29,10 @@ An open source native iOS app for **BMC Helix Network Management** (BHNM). Monit
 - **Discover BHNM Server** — scans your local Wi-Fi subnet for BHNM servers (Settings → Discover BHNM Server)
 - **Connection Test** — built-in connectivity test with detailed diagnostics; green dot on success, red dot + alert on failure
 - **Multiple API versions** — supports Legacy (PHP), API v1, API v2, and OpenAPI 3.0 endpoints
+
+The Dashboard gives you an at-a-glance picture of your infrastructure health — active incident count, total device count, an animated incident ticker, and HOSTS / SERVICES / THRESHOLDS / ANOMALIES alarm summaries with drill-down links to Categories, Sites, and Business Workflows:
+
+![BeNeM Dashboard — BHNM home screen showing alarm summaries and incident ticker](images/BHNM%20Home%20Screen.jpeg)
 
 ## Requirements
 
@@ -142,6 +152,16 @@ The app uses a mix of BHNM's legacy PHP endpoints and RESTful endpoints:
 The tactical overview endpoint accepts a `grouping_type` body parameter (`category`, `site`, or `app` for Business Workflows) and returns pre-aggregated host, service, and threshold counts per group directly from BHNM's monitoring core — the same data source as BHNM's own web dashboard.
 
 > **Note on alarm status:** H/S/T counts come directly from `restful/tactical-overview/data`, which returns `host_*_count`, `service_*_count`, and `threshold_*_count` fields per group. Status values map to badge colors as follows: `ok` → green, `ack` → blue, `warn` → yellow, `un` (unvalidated) → orange, `crit` → red.
+
+## Push Notifications
+
+BeNeM supports real-time push notifications for new incidents via a lightweight companion middleware ([bhnm-apns](https://github.com/ThomasStolt/bhnm-apns)) that bridges BHNM's webhook output to Apple Push Notification service (APNs).
+
+![Push notification architecture: BHNM incident triggers a webhook to the bhnm-apns middleware, which forwards the alert to APNs and then to the iPhone](images/BHNM%20Push%20Notification%20Architecture%20-%202026%2003%2030.png)
+
+When a new incident is raised in BHNM, a webhook fires to the middleware. The middleware authenticates the request, enriches the payload, and delivers it to the registered device via APNs. Tapping the notification navigates directly to the incident detail screen — even from a cold launch.
+
+The middleware URL and shared secret are configurable in **Settings → Push Notifications** and can also be provisioned via the `benem://` deep-link URL scheme.
 
 ## Versioning
 
