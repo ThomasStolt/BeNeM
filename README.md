@@ -30,14 +30,12 @@ A quick walkthrough of the app — incident monitoring, acknowledging alerts, de
 - **Connection Test** — built-in connectivity test with detailed diagnostics; green dot on success, red dot + alert on failure
 - **Multiple API versions** — supports Legacy (PHP), API v1, API v2, and OpenAPI 3.0 endpoints
 
-Here are two key screens — the Dashboard with its alarm summary cards, and the Incident List with severity badges and swipe-to-ACK:
+Here are two screenshots — the Dashboard with its alarm summary cards (left), and the Active Incidents dashboard with severity and alarm indicators (right):
 
 <div align="center">
   <img src="images/BHNM%20Home%20Screen.jpeg" alt="Dashboard — alarm summaries and incident ticker" width="240">
   &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;
-  <img src="images/BHNM_Incidents.jpeg" alt="Incident List — severity badges and swipe to ACK" width="240">
-  <br>
-  <sub><b>Dashboard &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp; Incident List</b></sub>
+  <img src="images/BHNM_Incidents.jpeg" alt="Active Incidents — severity badges and alarm indicators" width="240">
 </div>
 
 ## Requirements
