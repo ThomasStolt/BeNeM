@@ -42,7 +42,7 @@ def read_entries(server_id: Optional[str] = None, page: int = 1, per_page: int =
 
 
 def count_entries(server_id: Optional[str] = None) -> int:
-    path = os.environ.get("LOG_PATH", "/app/log/admin.jsonl")
+    path = os.environ.get("LOG_PATH", LOG_PATH)
     if not os.path.exists(path):
         return 0
     count = 0

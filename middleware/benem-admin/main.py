@@ -4,11 +4,13 @@ import base64
 import io
 import os
 import re
+import subprocess
 from dataclasses import dataclass
 from html import escape
 from urllib.parse import urlparse
 
 import httpx
+import pyotp
 import qrcode
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -17,8 +19,10 @@ from dotenv import load_dotenv
 
 import auth
 from auth import SESSION_COOKIE
+from connection_test import run_test
 from crypto import load_key, encrypt_payload
-from log import append_entry
+from log import append_entry, read_entries, count_entries
+from push_db import get_registered_devices
 from servers import load_servers, get_server
 from sf_symbols import SF_SYMBOLS
 
@@ -225,12 +229,6 @@ def generate_link(
 
 # ── Connection Test ───────────────────────────────────────────────────────────
 
-import subprocess
-
-from connection_test import run_test
-from log import read_entries, count_entries
-from push_db import get_registered_devices
-
 LOG_PER_PAGE = 50
 
 
@@ -310,7 +308,6 @@ def log_page(request: Request, server_id: str = "", page: int = 1):
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 def _totp_qr_b64() -> str:
-    import pyotp
     secret = os.environ.get("TOTP_SECRET", "")
     if not secret:
         return ""

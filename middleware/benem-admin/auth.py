@@ -9,9 +9,14 @@ SESSION_MAX_AGE = 86400  # 24 hours
 
 
 def _serializer() -> URLSafeTimedSerializer:
-    # Use BENEM_SECRET_KEY (not TOTP_SECRET) so the session signing key
-    # is independent of the TOTP seed.
-    secret = os.environ.get("BENEM_SECRET_KEY", "fallback-not-for-production")
+    # SESSION_SECRET is preferred. BENEM_SECRET_KEY is accepted as a fallback for
+    # deployments that haven't yet added a dedicated SESSION_SECRET to .env.
+    secret = os.environ.get("SESSION_SECRET") or os.environ.get("BENEM_SECRET_KEY")
+    if not secret:
+        raise RuntimeError(
+            "Neither SESSION_SECRET nor BENEM_SECRET_KEY is set. "
+            "Set SESSION_SECRET in .env to enable session signing."
+        )
     return URLSafeTimedSerializer(secret, salt="benem-admin-session")
 
 
