@@ -35,6 +35,11 @@ def test_post_login_valid_code_redirects_to_generate():
         resp = client.post("/admin/login", data={"code": valid_code})
     assert resp.status_code == 302
     assert resp.headers["location"] == "/admin/"
+    # Verify session cookie attributes
+    set_cookie = resp.headers.get("set-cookie", "")
+    assert "benem_admin_session" in set_cookie
+    assert "HttpOnly" in set_cookie
+    assert "SameSite=strict" in set_cookie.lower() or "samesite=strict" in set_cookie.lower()
 
 
 def test_protected_generate_route_redirects_unauthenticated():

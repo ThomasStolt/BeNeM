@@ -51,7 +51,12 @@ def login_submit(request: Request, code: str = Form(...)):
 @app.post("/admin/logout")
 def logout():
     resp = RedirectResponse("/admin/login", status_code=302)
-    resp.delete_cookie(SESSION_COOKIE)
+    resp.delete_cookie(
+        SESSION_COOKIE,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+    )
     return resp
 
 
@@ -61,4 +66,5 @@ def logout():
 def generate_page(request: Request):
     if not auth.is_authenticated(request):
         return auth.redirect_to_login()
-    return RedirectResponse("/admin/login", status_code=302)  # placeholder
+    # Placeholder — full implementation added in Task 8
+    return HTMLResponse("<html><body><h1>Generate Link — coming soon</h1></body></html>")
