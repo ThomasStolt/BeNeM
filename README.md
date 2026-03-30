@@ -8,7 +8,7 @@ An open source native iOS app for **BMC Helix Network Management** (BHNM). Monit
 
 A quick walkthrough of the app — incident monitoring, acknowledging alerts, device detail with performance charts, and the tactical overview:
 
-<video src="images/BHNM run through.mp4" autoplay loop muted playsinline width="320"></video>
+<video src="images/BHNM%20run%20through.mp4" autoplay loop muted playsinline width="320"></video>
 
 ## Features
 
@@ -32,7 +32,7 @@ A quick walkthrough of the app — incident monitoring, acknowledging alerts, de
 
 The Dashboard gives you an at-a-glance picture of your infrastructure health — active incident count, total device count, an animated incident ticker, and HOSTS / SERVICES / THRESHOLDS / ANOMALIES alarm summaries with drill-down links to Categories, Sites, and Business Workflows:
 
-![BeNeM Dashboard — BHNM home screen showing alarm summaries and incident ticker](images/BHNM%20Home%20Screen.jpeg)
+<img src="images/BHNM%20Home%20Screen.jpeg" alt="BeNeM Dashboard — BHNM home screen showing alarm summaries and incident ticker" width="250">
 
 ## Requirements
 
