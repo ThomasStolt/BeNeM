@@ -1,0 +1,16 @@
+[
+  {
+    "id": "prod",
+    "name": "Production",
+    "url": "https://bhnm.corp.com",
+    "api_key": "your-api-key-here",
+    "pin": ""
+  },
+  {
+    "id": "demo",
+    "name": "Demo",
+    "url": "https://bhnm.demo.netreo.com",
+    "api_key": "your-api-key-here",
+    "pin": "1234"
+  }
+]

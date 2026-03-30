@@ -6,6 +6,23 @@ services:
       - db-data:/data
     restart: unless-stopped
 
+  benem-admin:
+    build: ./benem-admin
+    env_file: .env
+    environment:
+      - SERVERS_JSON_PATH=/app/servers.json
+      - LOG_PATH=/app/log/admin.jsonl
+      - APNS_DB_PATH=/data/bhnm_apns.db
+    volumes:
+      - ./servers.json:/app/servers.json:ro
+      - benem-admin-log:/app/log
+      - db-data:/data:ro
+      # Optional: uncomment to enable the "Restart Container" button in Settings
+      # - /var/run/docker.sock:/var/run/docker.sock:ro
+    expose:
+      - "8001"
+    restart: unless-stopped
+
   caddy:
     image: caddy:2-alpine
     env_file: .env
@@ -20,5 +37,6 @@ services:
 
 volumes:
   db-data:
+  benem-admin-log:
   caddy-data:
   caddy-config:
