@@ -8,7 +8,7 @@ An open source native iOS app for **BMC Helix Network Management** (BHNM). Monit
 
 A quick walkthrough of the app — incident monitoring, acknowledging alerts, device detail with performance charts, and the tactical overview:
 
-<video src="images/BHNM%20run%20through.mp4" autoplay loop muted playsinline width="320"></video>
+<video src="https://github.com/ThomasStolt/BeNeM/releases/download/media-assets/BHNM.run.through.mp4" autoplay loop muted playsinline width="320"></video>
 
 ## Features
 
@@ -30,9 +30,21 @@ A quick walkthrough of the app — incident monitoring, acknowledging alerts, de
 - **Connection Test** — built-in connectivity test with detailed diagnostics; green dot on success, red dot + alert on failure
 - **Multiple API versions** — supports Legacy (PHP), API v1, API v2, and OpenAPI 3.0 endpoints
 
-The Dashboard gives you an at-a-glance picture of your infrastructure health — active incident count, total device count, an animated incident ticker, and HOSTS / SERVICES / THRESHOLDS / ANOMALIES alarm summaries with drill-down links to Categories, Sites, and Business Workflows:
+Here are two key screens — the Dashboard with its alarm summary cards, and the Incident List with severity badges and swipe-to-ACK:
 
-<img src="images/BHNM%20Home%20Screen.jpeg" alt="BeNeM Dashboard — BHNM home screen showing alarm summaries and incident ticker" width="250">
+<table>
+  <tr>
+    <td align="center" width="260">
+      <img src="images/BHNM%20Home%20Screen.jpeg" alt="Dashboard — alarm summaries and incident ticker" width="240"><br>
+      <sub><b>Dashboard</b></sub>
+    </td>
+    <td width="40"></td>
+    <td align="center" width="260">
+      <img src="images/BHNM_Incidents.jpeg" alt="Incident List — severity badges and swipe to ACK" width="240"><br>
+      <sub><b>Incident List</b></sub>
+    </td>
+  </tr>
+</table>
 
 ## Requirements
 
