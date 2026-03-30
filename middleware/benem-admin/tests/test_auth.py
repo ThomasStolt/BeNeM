@@ -25,18 +25,18 @@ def test_verify_totp_missing_secret():
 
 
 def test_session_token_roundtrip():
-    with patch.dict(os.environ, {"TOTP_SECRET": SECRET}):
+    with patch.dict(os.environ, {"TOTP_SECRET": SECRET, "BENEM_SECRET_KEY": "a" * 64}):
         token = create_session_token()
         assert verify_session_token(token) is True
 
 
 def test_session_token_tampered():
-    with patch.dict(os.environ, {"TOTP_SECRET": SECRET}):
+    with patch.dict(os.environ, {"TOTP_SECRET": SECRET, "BENEM_SECRET_KEY": "a" * 64}):
         token = create_session_token()
         tampered = token[:-4] + "xxxx"
         assert verify_session_token(tampered) is False
 
 
 def test_session_token_empty():
-    with patch.dict(os.environ, {"TOTP_SECRET": SECRET}):
+    with patch.dict(os.environ, {"TOTP_SECRET": SECRET, "BENEM_SECRET_KEY": "a" * 64}):
         assert verify_session_token("") is False

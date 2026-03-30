@@ -52,3 +52,14 @@ def test_logout_redirects_to_login():
     resp = client.post("/admin/logout")
     assert resp.status_code == 302
     assert "/admin/login" in resp.headers["location"]
+
+
+def test_authenticated_generate_route_returns_200():
+    valid_code = pyotp.TOTP(SECRET).now()
+    with patch.dict(os.environ, {"TOTP_SECRET": SECRET, "BENEM_SECRET_KEY": "a" * 64}):
+        login_resp = client.post("/admin/login", data={"code": valid_code})
+    assert login_resp.status_code == 302
+    session_cookie = login_resp.cookies.get("benem_admin_session")
+    assert session_cookie is not None
+    resp = client.get("/admin/", cookies={"benem_admin_session": session_cookie})
+    assert resp.status_code == 200
