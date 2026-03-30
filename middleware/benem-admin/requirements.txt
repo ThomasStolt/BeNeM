@@ -1,0 +1,12 @@
+fastapi[standard]
+uvicorn
+jinja2
+python-multipart
+pyotp
+itsdangerous
+qrcode[pil]
+cryptography
+httpx
+python-dotenv
+pytest
+pytest-mock
