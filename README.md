@@ -2,6 +2,8 @@
 
 An open source native iOS app for **BMC Helix Network Management** (BHNM). Monitor your infrastructure, manage incidents, and acknowledge alerts directly from your iPhone.
 
+**When a new incident is created in BHNM, a push notification is instantly delivered to every registered iPhone** — no polling, no delay. Tap the notification to jump straight to the incident detail. This is a first-class feature of BeNeM, powered by a lightweight companion middleware ([bhnm-apns](https://github.com/ThomasStolt/bhnm-apns)) that bridges BHNM webhooks to Apple Push Notification service (APNs).
+
 > **Note:** BMC Helix Network Management (BHNM) was formerly known as **Netreo**. Internal code identifiers (class names, AppStorage keys) still use the legacy `Netreo` prefix for backwards compatibility and will be migrated in a future release.
 
 ## Demo
@@ -18,6 +20,7 @@ Here are a few examples of how the app looks and feels like. You can see the hom
 
 ## Features
 
+- **Push Notifications** — instant incident alerts delivered to all registered iPhones the moment a new incident is raised in BHNM; tap to navigate directly to the incident detail screen
 - **Dashboard (Home)** — at-a-glance summary with active incident count, total device count, an animated incident ticker (open incidents only), and HOSTS / SERVICES / THRESHOLDS / ANOMALIES alarm summaries with drill-down links to Categories, Sites, and Business Workflows
 - **Categories / Sites / Business Workflows** — group lists showing each group's device count and color-coded alarm status rows (H / S / T / A) across Green / Blue / Yellow / Orange / Red; alternating row backgrounds for readability; filter to show only groups with active alarms; empty group names shown as "Unknown"
 - **Incident List** — live view of active, acknowledged, and closed incidents with severity badges and per-incident alarm counts; sorted newest-first by Incident ID
