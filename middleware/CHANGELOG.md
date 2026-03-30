@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.1.2] - 2026-03-31
+
+### Security
+
+- **Webhook secret no longer written to logs** — partial secret suffix was previously included in `[Webhook]`, `[Register]`, and `[Unregister]` log lines; removed to prevent secrets appearing in server access logs or log aggregators.
+- **Reachability check returns generic error messages** — the `/admin/reachability-check` endpoint previously reflected raw `httpx` exception strings back to the browser (leaking internal hostnames or network details); errors are now logged server-side and a generic `"Connection failed"` message is returned to the client.
+- **XSS fix in Generate Link page** — BHNM and middleware URLs were previously injected into JavaScript `onclick` string literals; replaced with `data-url`/`data-result` HTML attributes read by JavaScript via `dataset`, eliminating the injection vector.
+- **Login brute-force protection** — added `slowapi` rate limiting (5 attempts/minute per IP) to `POST /admin/login`; exceeding the limit renders the login page with a friendly error rather than a raw 429 response.
+- **`servers.json` added to `.gitignore`** — this file stores server URLs, API keys, and PINs and must never be committed; it was previously untracked but not explicitly excluded.
+
+### Changed
+
+- **benem-admin dark mode UI** (benem-admin v1.1.0) — complete visual redesign of all 7 admin portal templates. Replaced Tailwind CDN with a custom CSS design system using CSS variables. New typography stack: Syne (headings), IBM Plex Sans (body), JetBrains Mono (code/tokens). Dark colour palette (`#0c0c14` base, `#131320` cards), electric blue accent (`#4f8ef7`) with glow, pulsing green operational status dot in sidebar, active nav item shown via left-border glow instead of background fill, glowing success/fail icons on connection test results.
+- **HTMX server-URL fragment updated** — the dynamically injected HTML returned by `GET /admin/server-url` now uses the new dark CSS classes and the `data-url` attribute pattern consistent with the XSS fix above.
+- `slowapi` added to `benem-admin/requirements.txt`.
+
+---
+
 ## [2.1.1] - 2026-03-27
 
 ### Fixed

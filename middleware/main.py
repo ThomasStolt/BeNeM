@@ -1,4 +1,4 @@
-VERSION = "2.1.1"
+VERSION = "2.1.2"
 
 from contextlib import asynccontextmanager
 import os
@@ -46,7 +46,7 @@ def register_token(body: TokenRegistration, request: Request):
     if not active_secret:
         raise HTTPException(status_code=400, detail="X-Webhook-Token header is required")
     save_token(body.token, body.device_name, active_secret)
-    print(f"[Register] Token saved for: {body.device_name} (secret ...{active_secret[-8:]})")
+    print(f"[Register] Token saved for: {body.device_name}")
     return {"status": "ok"}
 
 
@@ -56,7 +56,7 @@ def unregister_token(body: TokenRegistration, request: Request):
     if not active_secret:
         raise HTTPException(status_code=400, detail="X-Webhook-Token header is required")
     delete_token(body.token)
-    print(f"[Unregister] Token removed: ...{body.token[-8:]} (secret ...{active_secret[-8:]})")
+    print(f"[Unregister] Token removed: ...{body.token[-8:]}")
     return {"status": "ok"}
 
 
@@ -91,11 +91,11 @@ async def receive_webhook(request: Request):
         title = f"{emoji} {hostname} — {host_state or notification_type}"
         body  = f"{service_desc or output or ''} | Site: {site}".strip(" |")
 
-    print(f"[Webhook] {notification_type} — {hostname} — Incident {incident_id} (secret ...{secret[-8:]})")
+    print(f"[Webhook] {notification_type} — {hostname} — Incident {incident_id}")
 
     tokens = get_tokens_for_secret(secret)
     if not tokens:
-        print(f"[Webhook] Rejected: no registered devices for secret ...{secret[-8:]}.")
+        print(f"[Webhook] Rejected: no registered devices for this secret.")
         raise HTTPException(status_code=403, detail="Forbidden: unknown secret")
 
     stale = await send_to_all(tokens, title, body, incident_id)

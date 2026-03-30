@@ -20,3 +20,9 @@ venv/
 
 # Logs
 *.log
+
+# Admin portal server config (contains API keys and credentials)
+servers.json
+
+# Design mockups
+mockup.html

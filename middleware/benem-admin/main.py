@@ -1,4 +1,4 @@
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 import base64
 import io
@@ -15,6 +15,10 @@ import qrcode
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from dotenv import load_dotenv
 
 import auth
@@ -31,8 +35,21 @@ load_dotenv()
 MIDDLEWARE_URL = os.environ.get("MIDDLEWARE_URL", "")
 PUSH_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 
+limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(docs_url=None, redoc_url=None)
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
 templates = Jinja2Templates(directory="templates")
+
+
+@app.exception_handler(RateLimitExceeded)
+def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return templates.TemplateResponse(
+        request,
+        "login.html",
+        {"error": "Too many attempts — please wait a minute and try again."},
+        status_code=429,
+    )
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
@@ -50,6 +67,7 @@ def login_page(request: Request):
 
 
 @app.post("/admin/login")
+@limiter.limit("5/minute")
 def login_submit(request: Request, code: str = Form(...)):
     if not auth.verify_totp(code):
         return templates.TemplateResponse(
@@ -130,16 +148,16 @@ def server_url_fragment(request: Request, server_id: str = ""):
     server = get_server(server_id)
     if not server:
         return HTMLResponse(
-            '<input type="text" value="" readonly '
-            'class="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-600">'
+            '<input type="text" value="" readonly class="flex-1">'
         )
     url_attr = escape(server.url, quote=True)
-    url_js = server.url.replace("\\", "\\\\").replace("'", "\\'")
     return HTMLResponse(
-        f'<input type="text" value="{url_attr}" readonly '
-        f'class="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-600">'
-        f'<button type="button" onclick="testReachability(\'{url_js}\', \'bhnm-test-result\')" '
-        f'class="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200 text-gray-600">Test</button>'
+        f'<input type="text" value="{url_attr}" readonly class="flex-1">'
+        f'<button type="button"'
+        f' data-url="{url_attr}"'
+        f' data-result="bhnm-test-result"'
+        f' onclick="testReachability(this)"'
+        f' class="btn btn-ghost btn-sm">Test</button>'
     )
 
 
@@ -171,9 +189,11 @@ async def reachability_check(request: Request, url: str = ""):
             resp = await client.get(url)
         return JSONResponse({"ok": True, "detail": f"HTTP {resp.status_code}"})
     except httpx.HTTPError as e:
-        return JSONResponse({"ok": False, "detail": str(e)})
+        print(f"[ReachabilityCheck] HTTP error for {parsed.hostname}: {e}")
+        return JSONResponse({"ok": False, "detail": "Connection failed"})
     except Exception as e:
-        return JSONResponse({"ok": False, "detail": f"Error: {str(e)}"})
+        print(f"[ReachabilityCheck] Unexpected error for {parsed.hostname}: {e}")
+        return JSONResponse({"ok": False, "detail": "Connection failed"})
 
 
 @app.post("/admin/generate", response_class=HTMLResponse)

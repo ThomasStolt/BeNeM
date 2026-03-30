@@ -20,6 +20,8 @@ BHNM Server  ──webhook──►  bhnm-apns  ──APNs──►  iPhone (BeN
 
 - Push notifications for BHNM incidents delivered to iPhone in real time
 - Per-server routing: each BHNM server uses its own unique webhook secret, so only matching registered devices receive notifications
+- **BeNeM Admin portal** — dark-mode web UI for generating BeNeM registration QR codes / deep-links, testing server connectivity, viewing registered devices, and managing settings. Protected by TOTP authentication with brute-force rate limiting.
+- BHNM API proxy — forwards BeNeM app requests to BHNM servers on private networks via `X-BHNM-Target` header
 - Automatic TLS via Caddy (Let's Encrypt — no manual certificate management)
 - SQLite persistence via Docker named volume — device tokens survive container restarts
 - HTTP/2 APNs delivery with automatic cleanup of expired or invalid device tokens
@@ -220,6 +222,31 @@ git pull
 docker compose build
 docker compose up -d
 ```
+
+---
+
+## Admin Portal
+
+The `benem-admin` service provides a dark-mode web UI accessible at `https://your-domain.example.com/admin/`. It is protected by TOTP authentication (Google Authenticator, 1Password, Authy).
+
+**Pages:**
+- **Generate Link** — select a server, enter a username and customise the app icon and accent colour, then generate a `benem://` deep-link and QR code for BeNeM registration
+- **Connection Test** — verify DNS, HTTPS reachability, and API authentication for each configured BHNM server
+- **Push Config** — view middleware endpoints and all registered devices
+- **Log** — audit trail of every generated registration link
+- **Settings** — TOTP QR code setup, app version, container restart
+
+**Required environment variables for benem-admin:**
+
+| Variable | Description |
+|---|---|
+| `MIDDLEWARE_URL` | Public URL of this bhnm-apns instance |
+| `WEBHOOK_SECRET` | Default webhook secret embedded in generated links |
+| `TOTP_SECRET` | Base32 TOTP secret (generate: `python -c "import pyotp; print(pyotp.random_base32())"`) |
+| `SESSION_SECRET` | Random string for signing session cookies (generate: `openssl rand -hex 32`) |
+| `BENEM_ENCRYPT_KEY` | 32-byte hex key for encrypting benem:// payloads (generate: `openssl rand -hex 32`) |
+
+`servers.json` (in the benem-admin working directory) defines available BHNM servers. This file contains API keys and must never be committed to version control — it is listed in `.gitignore`.
 
 ---
 

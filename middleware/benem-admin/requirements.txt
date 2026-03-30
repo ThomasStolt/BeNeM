@@ -8,3 +8,4 @@ qrcode[pil]
 cryptography
 httpx
 python-dotenv
+slowapi
