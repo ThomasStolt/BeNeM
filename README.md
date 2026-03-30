@@ -33,15 +33,11 @@ A quick walkthrough of the app — incident monitoring, acknowledging alerts, de
 Here are two key screens — the Dashboard with its alarm summary cards, and the Incident List with severity badges and swipe-to-ACK:
 
 <div align="center">
-  <span align="center">
-    <img src="images/BHNM%20Home%20Screen.jpeg" alt="Dashboard — alarm summaries and incident ticker" width="240"><br>
-    <sub><b>Dashboard</b></sub>
-  </span>
+  <img src="images/BHNM%20Home%20Screen.jpeg" alt="Dashboard — alarm summaries and incident ticker" width="240">
   &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;
-  <span align="center">
-    <img src="images/BHNM_Incidents.jpeg" alt="Incident List — severity badges and swipe to ACK" width="240"><br>
-    <sub><b>Incident List</b></sub>
-  </span>
+  <img src="images/BHNM_Incidents.jpeg" alt="Incident List — severity badges and swipe to ACK" width="240">
+  <br>
+  <sub><b>Dashboard &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp; Incident List</b></sub>
 </div>
 
 ## Requirements
