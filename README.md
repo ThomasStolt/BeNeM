@@ -8,7 +8,13 @@ An open source native iOS app for **BMC Helix Network Management** (BHNM). Monit
 
 A quick walkthrough of the app — incident monitoring, acknowledging alerts, device detail with performance charts, and the tactical overview:
 
-<video src="https://github.com/user-attachments/assets/1a68cd57-0322-4428-bca2-4008d9e2fee3" autoplay loop muted playsinline width="320"></video>
+<div align="center">
+  <img src="images/demo1.gif" width="260" alt="Demo part 1 — dashboard and incidents">
+  &emsp;&emsp;
+  <img src="images/demo2.gif" width="260" alt="Demo part 2 — device detail and performance charts">
+  &emsp;&emsp;
+  <img src="images/demo3.gif" width="260" alt="Demo part 3 — tactical overview and settings">
+</div>
 
 ## Features
 
