@@ -1,7 +1,9 @@
 VERSION = "2.1.2"
 
 from contextlib import asynccontextmanager
+import json
 import os
+from urllib.parse import parse_qs
 import httpx
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import Response
@@ -24,6 +26,19 @@ HOP_BY_HOP_RESPONSE = {
 }
 
 BHNM_TLS_VERIFY = os.getenv("BHNM_TLS_VERIFY", "true").lower() != "false"
+SERVERS_JSON_PATH = os.getenv("SERVERS_JSON_PATH", "/data/servers.json")
+
+
+def _target_for_api_key(api_key: str) -> str:
+    """Look up BHNM server URL by api_key from servers.json."""
+    try:
+        with open(SERVERS_JSON_PATH) as f:
+            for s in json.load(f):
+                if s.get("api_key") == api_key:
+                    return s.get("url", "").rstrip("/")
+    except Exception:
+        pass
+    return ""
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -131,7 +146,16 @@ async def proxy(path: str, request: Request):
     # if not token:
     #     raise HTTPException(status_code=401, detail="X-Proxy-Token header is required")
 
+    body = await request.body()
+
     target_base = request.headers.get("X-BHNM-Target", "").strip().rstrip("/")
+    if not target_base:
+        content_type = request.headers.get("content-type", "")
+        if "application/x-www-form-urlencoded" in content_type:
+            api_key = parse_qs(body.decode("utf-8", errors="replace")).get("password", [""])[0]
+            if api_key:
+                target_base = _target_for_api_key(api_key)
+
     if not target_base:
         raise HTTPException(status_code=400, detail="X-BHNM-Target header is required")
     if not (target_base.startswith("http://") or target_base.startswith("https://")):
@@ -152,7 +176,7 @@ async def proxy(path: str, request: Request):
                 method=request.method,
                 url=target,
                 headers=forward_headers,
-                content=await request.body(),
+                content=body,
             )
     except httpx.TimeoutException:
         print(f"[Proxy] Timeout proxying {request.method} {target}")
