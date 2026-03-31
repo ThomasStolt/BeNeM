@@ -126,9 +126,10 @@ def health():
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 async def proxy(path: str, request: Request):
-    token = request.headers.get("X-Proxy-Token", "").strip()
-    if not token:
-        raise HTTPException(status_code=401, detail="X-Proxy-Token header is required")
+    # TODO: re-enable once BeNeM app sends X-Proxy-Token from the configured proxy_token
+    # token = request.headers.get("X-Proxy-Token", "").strip()
+    # if not token:
+    #     raise HTTPException(status_code=401, detail="X-Proxy-Token header is required")
 
     target_base = request.headers.get("X-BHNM-Target", "").strip().rstrip("/")
     if not target_base:
