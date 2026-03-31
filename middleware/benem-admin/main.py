@@ -34,6 +34,7 @@ load_dotenv()
 
 MIDDLEWARE_URL = os.environ.get("MIDDLEWARE_URL", "")
 PUSH_SECRET = os.environ.get("WEBHOOK_SECRET", "")
+PROXY_TOKEN = os.environ.get("PROXY_TOKEN", "")
 
 limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(docs_url=None, redoc_url=None)
@@ -228,6 +229,7 @@ def generate_link(
         "user":           user,
         "name":           server.name,
         "push_secret":    PUSH_SECRET,
+        "proxy_token":    PROXY_TOKEN,
         "symbol":         symbol,
         "color":          color,
     }
