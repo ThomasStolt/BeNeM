@@ -40,6 +40,18 @@ def _target_for_api_key(api_key: str) -> str:
         pass
     return ""
 
+
+def _single_server_url() -> str:
+    """Return the URL of the only configured server, or '' if 0 or >1 servers."""
+    try:
+        with open(SERVERS_JSON_PATH) as f:
+            servers = json.load(f)
+        if len(servers) == 1:
+            return servers[0].get("url", "").rstrip("/")
+    except Exception:
+        pass
+    return ""
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -155,6 +167,16 @@ async def proxy(path: str, request: Request):
             api_key = parse_qs(body.decode("utf-8", errors="replace")).get("password", [""])[0]
             if api_key:
                 target_base = _target_for_api_key(api_key)
+    if not target_base:
+        # Also check query params (some BHNM API calls pass password as ?password=...)
+        api_key = request.query_params.get("password", "")
+        if api_key:
+            target_base = _target_for_api_key(api_key)
+    if not target_base:
+        # Fallback: if exactly one server is configured, use it (covers session-based requests)
+        target_base = _single_server_url()
+        if target_base:
+            print(f"[Proxy] No target header/key found — falling back to single configured server")
 
     if not target_base:
         raise HTTPException(status_code=400, detail="X-BHNM-Target header is required")
