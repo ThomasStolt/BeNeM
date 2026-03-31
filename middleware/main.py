@@ -164,9 +164,13 @@ async def proxy(path: str, request: Request):
     if not target_base:
         content_type = request.headers.get("content-type", "")
         if "application/x-www-form-urlencoded" in content_type:
-            api_key = parse_qs(body.decode("utf-8", errors="replace")).get("password", [""])[0]
+            parsed_body = parse_qs(body.decode("utf-8", errors="replace"))
+            print(f"[Proxy] form keys for /{path}: {list(parsed_body.keys())}")
+            api_key = parsed_body.get("password", [""])[0]
             if api_key:
                 target_base = _target_for_api_key(api_key)
+        else:
+            print(f"[Proxy] content-type for /{path}: {content_type!r}, body[:200]: {body[:200]!r}")
     if not target_base:
         # Also check query params (some BHNM API calls pass password as ?password=...)
         api_key = request.query_params.get("password", "")
