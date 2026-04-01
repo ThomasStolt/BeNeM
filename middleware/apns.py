@@ -1,9 +1,12 @@
 import time
 import jwt
 import httpx
-from config import APNS_PRIVATE_KEY, APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID, APNS_USE_SANDBOX
+from config import APNS_PRIVATE_KEY, APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID
 
-APNS_HOST = "api.sandbox.push.apple.com" if APNS_USE_SANDBOX else "api.push.apple.com"
+APNS_HOSTS = {
+    "sandbox": "api.sandbox.push.apple.com",
+    "production": "api.push.apple.com",
+}
 
 _jwt_token = None
 _jwt_issued_at = 0
@@ -21,9 +24,10 @@ def _get_jwt() -> str:
         _jwt_issued_at = now
     return _jwt_token
 
-async def send_notification(device_token: str, title: str, body: str, incident_id: str = "") -> tuple[bool, int]:
+async def send_notification(device_token: str, title: str, body: str, incident_id: str = "", environment: str = "production") -> tuple[bool, int]:
     """Returns (success, http_status_code)."""
-    url = f"https://{APNS_HOST}/3/device/{device_token}"
+    host = APNS_HOSTS.get(environment, APNS_HOSTS["production"])
+    url = f"https://{host}/3/device/{device_token}"
     headers = {
         "authorization": f"bearer {_get_jwt()}",
         "apns-topic": APNS_BUNDLE_ID,
@@ -43,19 +47,19 @@ async def send_notification(device_token: str, title: str, body: str, incident_i
             r = await client.post(url, json=payload, headers=headers, timeout=10)
         success = r.status_code == 200
         if not success:
-            print(f"[APNs] Failed ({r.status_code}): {r.text}")
+            print(f"[APNs] Failed ({r.status_code}) via {environment}: {r.text}")
         return success, r.status_code
     except Exception as e:
         print(f"[APNs] Error: {e}")
         return False, 0
 
-async def send_to_all(tokens: list[str], title: str, body: str, incident_id: str = "") -> list[str]:
-    """Send to all tokens. Returns list of tokens to remove (410 Gone = unregistered)."""
+async def send_to_all(tokens: list[tuple[str, str]], title: str, body: str, incident_id: str = "") -> list[str]:
+    """Send to all (token, environment) pairs. Returns list of tokens to remove (410 Gone = unregistered)."""
     stale_tokens = []
-    for token in tokens:
-        success, status = await send_notification(token, title, body, incident_id)
-        if status in (410,):  # TEMP: only remove on 410 Gone — keeping 400 for manual token testing
+    for token, environment in tokens:
+        success, status = await send_notification(token, title, body, incident_id, environment)
+        if status in (410,):
             stale_tokens.append(token)
         elif success:
-            print(f"[APNs] Sent to ...{token[-8:]}")
+            print(f"[APNs] Sent to ...{token[-8:]} via {environment}")
     return stale_tokens

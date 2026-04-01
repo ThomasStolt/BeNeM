@@ -1,4 +1,4 @@
-VERSION = "2.1.2"
+VERSION = "2.2.0"
 
 from contextlib import asynccontextmanager
 import json
@@ -66,14 +66,16 @@ app = FastAPI(lifespan=lifespan)
 class TokenRegistration(BaseModel):
     token: str
     device_name: str = "unknown"
+    environment: str = "production"
 
 @app.post("/register")
 def register_token(body: TokenRegistration, request: Request):
     active_secret = request.headers.get("X-Webhook-Token", "").strip()
     if not active_secret:
         raise HTTPException(status_code=400, detail="X-Webhook-Token header is required")
-    save_token(body.token, body.device_name, active_secret)
-    print(f"[Register] Token saved for: {body.device_name}")
+    env = body.environment if body.environment in ("sandbox", "production") else "production"
+    save_token(body.token, body.device_name, active_secret, env)
+    print(f"[Register] Token saved for: {body.device_name} (APNs: {env})")
     return {"status": "ok"}
 
 
@@ -138,12 +140,11 @@ async def receive_webhook(request: Request):
 @app.get("/health")
 def health():
     tokens = get_all_tokens()
-    import config
     return {
         "status": "running",
         "version": VERSION,
         "registered_devices": len(tokens),
-        "apns_environment": "sandbox" if config.APNS_USE_SANDBOX else "production"
+        "apns_environment": "per-device"
     }
 
 
