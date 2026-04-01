@@ -387,7 +387,8 @@
     <div class="arrow-col-wrap">
       <div class="arrow-tooltip" id="arrow-tooltip">Please enter a username first</div>
       <button class="generate-arrow-btn {% if not form_data or not form_data.user %}disabled{% endif %}"
-              id="gen-btn" onclick="handleGenerate()" title="Generate Link" type="button">
+              id="gen-btn" onclick="handleGenerate()" title="Generate Link" type="button"
+              aria-disabled="{% if not form_data or not form_data.user %}true{% else %}false{% endif %}">
         <div class="arrow-btn-content">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
             <line x1="5" y1="12" x2="19" y2="12"/><polyline points="14 7 19 12 14 17"/>
@@ -438,7 +439,7 @@
           <label>benem:// URL</label>
           <div class="url-row">
             <div class="url-display" id="url-display">
-              {{ result.url[:40] }}...
+              {{ result.url }}
               <div class="url-tooltip">{{ result.url }}</div>
             </div>
             <button type="button" class="copy-btn" title="Copy full URL"
@@ -484,7 +485,6 @@
     {hex:'#5AC8FA', name:'Sky'}, {hex:'#FFD60A', name:'Yellow'}
   ];
   var SVG_NS = 'http://www.w3.org/2000/svg';
-  var XLINK = 'http://www.w3.org/1999/xlink';
 
   var selectedIcon = document.getElementById('symbol-input').value;
   var selectedColour = document.getElementById('color-input').value;
@@ -496,7 +496,7 @@
       div.className = 'select-option' + (ic.id === selectedIcon ? ' selected' : '');
       var svg = document.createElementNS(SVG_NS, 'svg');
       var use = document.createElementNS(SVG_NS, 'use');
-      use.setAttributeNS(XLINK, 'href', '#s-' + ic.id);
+      use.setAttribute('href', '#s-' + ic.id);
       svg.appendChild(use);
       var span = document.createElement('span');
       span.textContent = ic.name;
@@ -508,7 +508,7 @@
         document.getElementById('symbol-input').value = ic.id;
         dd.querySelectorAll('.select-option').forEach(function(o) { o.classList.remove('selected'); });
         div.classList.add('selected');
-        document.querySelector('#icon-select .trigger-icon use').setAttributeNS(XLINK, 'href', '#s-' + ic.id);
+        document.querySelector('#icon-select .trigger-icon use').setAttribute('href', '#s-' + ic.id);
         document.getElementById('icon-trigger-label').textContent = ic.name;
         closeAllDropdowns();
         updatePreview();
@@ -570,7 +570,7 @@
 
   function updatePreview() {
     document.getElementById('preview-icon').style.background = selectedColour;
-    document.querySelector('#preview-svg use').setAttributeNS(XLINK, 'href', '#s-' + selectedIcon);
+    document.querySelector('#preview-svg use').setAttribute('href', '#s-' + selectedIcon);
   }
 
   function validateUsername() {
@@ -578,8 +578,13 @@
     var btn = document.getElementById('gen-btn');
     input.classList.remove('input-error');
     document.getElementById('username-error').classList.remove('visible');
-    if (input.value.trim().length > 0) btn.classList.remove('disabled');
-    else btn.classList.add('disabled');
+    if (input.value.trim().length > 0) {
+      btn.classList.remove('disabled');
+      btn.setAttribute('aria-disabled', 'false');
+    } else {
+      btn.classList.add('disabled');
+      btn.setAttribute('aria-disabled', 'true');
+    }
   }
 
   function handleGenerate() {
