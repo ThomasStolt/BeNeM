@@ -54,7 +54,7 @@ async def send_to_all(tokens: list[str], title: str, body: str, incident_id: str
     stale_tokens = []
     for token in tokens:
         success, status = await send_notification(token, title, body, incident_id)
-        if status in (400, 410):  # BadDeviceToken or Unregistered — remove token
+        if status in (410,):  # TEMP: only remove on 410 Gone — keeping 400 for manual token testing
             stale_tokens.append(token)
         elif success:
             print(f"[APNs] Sent to ...{token[-8:]}")
