@@ -246,7 +246,7 @@ The `benem-admin` service provides a dark-mode web UI accessible at `https://you
 | `WEBHOOK_SECRET` | Default webhook secret embedded in generated links |
 | `TOTP_SECRET` | Base32 TOTP secret (generate: `python -c "import pyotp; print(pyotp.random_base32())"`) |
 | `SESSION_SECRET` | Random string for signing session cookies (generate: `openssl rand -hex 32`) |
-| `BENEM_ENCRYPT_KEY` | 32-byte hex key for encrypting benem:// payloads (generate: `openssl rand -hex 32`) |
+| `BENEM_SECRET_KEY` | 32-byte hex key for encrypting benem:// payloads (generate: `openssl rand -hex 32`) |
 
 `servers.json` (in the benem-admin working directory) defines available BHNM servers. This file contains API keys and must never be committed to version control — it is listed in `.gitignore`.
 
