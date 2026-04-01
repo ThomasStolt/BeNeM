@@ -1,4 +1,4 @@
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 import base64
 import io
@@ -14,6 +14,7 @@ import pyotp
 import qrcode
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -41,6 +42,7 @@ app = FastAPI(docs_url=None, redoc_url=None)
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 templates = Jinja2Templates(directory="templates")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 @app.exception_handler(RateLimitExceeded)

@@ -232,7 +232,7 @@ docker compose up -d
 The `benem-admin` service provides a dark-mode web UI accessible at `https://your-domain.example.com/admin/`. It is protected by TOTP authentication (Google Authenticator, 1Password, Authy).
 
 **Pages:**
-- **Generate Link** — select a server, enter a username and customise the app icon and accent colour, then generate a `benem://` deep-link and QR code for BeNeM registration
+- **Generate Link** — two-column layout: select a server, enter a username and customise the app icon (SVG dropdown) and accent colour (swatch dropdown) on the left; the right panel always shows the result — a truncated `benem://` deep-link with copy button and QR code. A glass-shimmer arrow button connects the panels and requires a username before generation.
 - **Connection Test** — verify DNS, HTTPS reachability, and API authentication for each configured BHNM server
 - **Push Config** — view middleware endpoints and all registered devices
 - **Log** — audit trail of every generated registration link

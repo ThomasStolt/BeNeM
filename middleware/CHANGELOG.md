@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.3.0] - 2026-04-01
+
+### Added
+
+- **Generate Link page redesign** (benem-admin v1.2.0) — two-column layout with a form panel on the left and an always-visible result panel on the right, connected by a fat arrow-shaped Generate button with glass shimmer animation. Icon and colour selectors replaced with custom dropdowns showing actual SVG icons and colour swatches. Username is now required before generation (disabled button with tooltip). Result URL is truncated with CSS ellipsis and a copy button; full URL shown on hover after 0.5 s delay. Accessibility improvements (`aria-disabled`), safe DOM construction (no `innerHTML`), and SVG 2.0 standard `href` attributes throughout.
+- **Favicon** — BMC red hexagon logo served as SVG via `/static/` mount, displayed on all admin portal pages.
+
+---
+
 ## [2.2.0] - 2026-04-01
 
 ### Added
