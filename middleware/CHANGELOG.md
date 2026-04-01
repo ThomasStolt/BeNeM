@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.2.0] - 2026-04-01
+
+### Added
+
+- **Per-device APNs environment routing** — each device token is now stored with its own `apns_environment` (`sandbox` or `production`). The middleware routes notifications to the correct APNs host per token, allowing Xcode debug builds (sandbox) and TestFlight/App Store builds (production) to coexist on a single middleware instance.
+- `POST /register` accepts a new `environment` field (`"sandbox"` or `"production"`, defaults to `"production"`). Invalid values are silently normalised to `"production"`.
+- Database migration: `apns_environment TEXT NOT NULL DEFAULT 'production'` column added to `device_tokens`. Existing tokens are treated as production (safe default).
+
+### Changed
+
+- `send_notification` and `send_to_all` now select the APNs host per token instead of using a global setting.
+- `/health` response `apns_environment` field now returns `"per-device"` instead of the former global value.
+
+### Removed
+
+- **`APNS_USE_SANDBOX`** environment variable — no longer needed. Removed from `config.py`, `.env.example`, `setup.sh`, and documentation. The APNs environment is now determined per device at registration time.
+
+---
+
 ## [2.1.2] - 2026-03-31
 
 ### Security
