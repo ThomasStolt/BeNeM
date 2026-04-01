@@ -31,12 +31,6 @@ APNS_KEY_ID=$(ask   "APNs Key ID   (10 chars, from Apple Developer)" "")
 APNS_TEAM_ID=$(ask  "APNs Team ID  (10 chars, from Apple Developer)" "")
 APNS_BUNDLE_ID=$(ask "Bundle ID" "com.tstolt.benem")
 
-echo ""
-read -rp "APNs environment — sandbox or production? [sandbox]: " _env
-_env="${_env:-sandbox}"
-APNS_USE_SANDBOX="true"
-[ "$_env" = "production" ] && APNS_USE_SANDBOX="false"
-
 # ── Private key ────────────────────────────────────
 echo ""
 echo -e "${CYAN}── APNs Private Key (.p8) ────────────────────────${NC}"
@@ -63,7 +57,6 @@ cat > .env <<EOF
 APNS_KEY_ID=$APNS_KEY_ID
 APNS_TEAM_ID=$APNS_TEAM_ID
 APNS_BUNDLE_ID=$APNS_BUNDLE_ID
-APNS_USE_SANDBOX=$APNS_USE_SANDBOX
 APNS_PRIVATE_KEY_B64=$APNS_PRIVATE_KEY_B64
 
 # Server
