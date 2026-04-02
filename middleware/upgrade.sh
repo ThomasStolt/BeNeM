@@ -60,7 +60,7 @@ fi
 
 echo ""
 echo -e "${CYAN}── Rebuilding Docker image ───────────────────────${NC}"
-docker compose build --no-cache 2>&1 | grep -v "^#" || die "docker compose build failed."
+docker compose build --no-cache 2>&1 | grep -v -e "^#" -e "^$" || die "docker compose build failed."
 ok "Image built."
 
 # ── Restart service ────────────────────────────────
