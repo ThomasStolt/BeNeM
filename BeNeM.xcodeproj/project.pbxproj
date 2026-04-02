@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		F1F10DD12CE00004 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00003 /* QRScannerView.swift */; };
 		F1F10DD12CE00002 /* FloppyDiskIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00001 /* FloppyDiskIcon.swift */; };
+		F1F10DD12CE00100 /* DeviceTypeIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00099 /* DeviceTypeIcon.swift */; };
 		8C6281232E64CF2300522D09 /* NetreoIncident.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6281222E64CF2300522D09 /* NetreoIncident.swift */; };
 		8C6281282E64CF6D00522D09 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6281262E64CF6D00522D09 /* DashboardView.swift */; };
 		8C6281292E64CF6D00522D09 /* IncidentListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6281272E64CF6D00522D09 /* IncidentListView.swift */; };
@@ -77,6 +78,7 @@
 		II0001000000000000000004 /* ServerConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConfigView.swift; sourceTree = "<group>"; };
 		F1F10DD12CE00003 /* QRScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScannerView.swift; sourceTree = "<group>"; };
 		F1F10DD12CE00001 /* FloppyDiskIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloppyDiskIcon.swift; sourceTree = "<group>"; };
+		F1F10DD12CE00099 /* DeviceTypeIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceTypeIcon.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -204,6 +206,7 @@
 				II0001000000000000000004 /* ServerConfigView.swift */,
 				F1F10DD12CE00003 /* QRScannerView.swift */,
 				F1F10DD12CE00001 /* FloppyDiskIcon.swift */,
+				F1F10DD12CE00099 /* DeviceTypeIcon.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -318,6 +321,7 @@
 				II0001000000000000000003 /* ServerConfigView.swift in Sources */,
 				F1F10DD12CE00004 /* QRScannerView.swift in Sources */,
 				F1F10DD12CE00002 /* FloppyDiskIcon.swift in Sources */,
+				F1F10DD12CE00100 /* DeviceTypeIcon.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

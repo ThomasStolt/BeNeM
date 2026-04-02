@@ -14,12 +14,25 @@ struct DeviceListView: View {
     var body: some View {
         NavigationView {
             List {
-                ForEach(viewModel.devices) { device in
+                ForEach(viewModel.displayedDevices) { device in
                     NavigationLink(destination: DeviceDetailView(device: device, apiService: apiService)) {
                         DeviceRowView(device: device)
                     }
                 }
-                if viewModel.hasMore {
+
+                if !viewModel.searchQuery.isEmpty && viewModel.searchQuery.count >= 2 {
+                    // Search mode — no pagination
+                    if viewModel.isSearching {
+                        HStack { Spacer(); ProgressView(); Spacer() }
+                            .listRowSeparator(.hidden)
+                    } else if viewModel.searchResults.isEmpty {
+                        Text("No devices found")
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .listRowSeparator(.hidden)
+                    }
+                } else if viewModel.hasMore {
+                    // Browse mode — load more
                     HStack {
                         Spacer()
                         if viewModel.isLoadingMore {
@@ -32,6 +45,17 @@ struct DeviceListView: View {
                         Spacer()
                     }
                     .listRowSeparator(.hidden)
+                    .onAppear {
+                        Task { await viewModel.loadMoreDevices() }
+                    }
+                }
+            }
+            .searchable(text: $viewModel.searchQuery, prompt: "Search devices...")
+            .onChange(of: viewModel.searchQuery) { query in
+                Task {
+                    try? await Task.sleep(nanoseconds: 300_000_000) // 300ms debounce
+                    guard viewModel.searchQuery == query else { return }
+                    await viewModel.search(query: query)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -47,8 +71,13 @@ struct DeviceListView: View {
                             .resizable()
                             .scaledToFit()
                             .frame(width: 24, height: 24)
-                        Text("Devices")
-                            .font(.system(size: 18, weight: .bold, design: .default))
+                        if viewModel.totalRecords > 0 {
+                            Text("Devices (\(viewModel.totalRecords))")
+                                .font(.system(size: 18, weight: .bold))
+                        } else {
+                            Text("Devices")
+                                .font(.system(size: 18, weight: .bold))
+                        }
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -74,12 +103,6 @@ struct DeviceListView: View {
                 guard !loading else { return }
                 connectionStatus = viewModel.errorMessage == nil ? .connected : .disconnected
             }
-            .task(id: connectionStatus) {
-                guard connectionStatus == .disconnected else { return }
-                try? await Task.sleep(nanoseconds: 15_000_000_000)
-                guard !Task.isCancelled, connectionStatus == .disconnected else { return }
-                Task { await viewModel.loadDevices() }
-            }
         }
         .task {
             guard viewModel.devices.isEmpty && viewModel.errorMessage == nil else { return }
@@ -93,51 +116,39 @@ struct DeviceListView: View {
 
 struct DeviceRowView: View {
     let device: NetreoDevice
-    
+
     var body: some View {
-        HStack {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 12, height: 12)
-            
-            VStack(alignment: .leading) {
+        HStack(spacing: 12) {
+            DeviceTypeIcon(typeClass: device.typeClass, size: 36, color: statusColor)
+
+            VStack(alignment: .leading, spacing: 2) {
                 Text(device.name)
                     .font(.headline)
                 HStack(spacing: 4) {
                     Text(device.ip)
-                    Text("·").foregroundColor(.secondary)
+                    Text("·")
                     Text(device.category)
+                    Text("·")
+                    Text(device.site)
                 }
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            Text(device.status.rawValue.capitalized)
                 .font(.caption)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(statusColor.opacity(0.2))
-                .cornerRadius(8)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+            }
+
+            Spacer()
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 4)
     }
-    
+
     private var statusColor: Color {
         switch device.status {
-        case .up:
-            return .green
-        case .down:
-            return .red
-        case .warning:
-            return .orange
-        case .critical:
-            return .red
-        case .maintenance:
-            return .blue
-        case .unknown:
-            return .gray
+        case .up:          return .green
+        case .down:        return .red
+        case .warning:     return .orange
+        case .critical:    return .red
+        case .maintenance: return .blue
+        case .unknown:     return .gray
         }
     }
 }
