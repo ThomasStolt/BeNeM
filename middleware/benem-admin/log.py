@@ -60,3 +60,55 @@ def count_entries(server_id: Optional[str] = None) -> int:
                 except json.JSONDecodeError:
                     pass
     return count
+
+
+def _read_all_lines() -> list[str]:
+    path = os.environ.get("LOG_PATH", LOG_PATH)
+    if not os.path.exists(path):
+        return []
+    with open(path) as f:
+        return [l for l in f if l.strip()]
+
+
+def _write_all_lines(lines: list[str]) -> None:
+    path = os.environ.get("LOG_PATH", LOG_PATH)
+    with open(path, "w") as f:
+        for line in lines:
+            if not line.endswith("\n"):
+                line += "\n"
+            f.write(line)
+
+
+def delete_entry(ts: str) -> bool:
+    lines = _read_all_lines()
+    new_lines = []
+    removed = False
+    for line in lines:
+        try:
+            entry = json.loads(line.strip())
+            if not removed and entry.get("ts") == ts:
+                removed = True
+                continue
+        except json.JSONDecodeError:
+            pass
+        new_lines.append(line)
+    if removed:
+        _write_all_lines(new_lines)
+    return removed
+
+
+def update_entry_user(ts: str, new_user: str) -> bool:
+    lines = _read_all_lines()
+    updated = False
+    for i, line in enumerate(lines):
+        try:
+            entry = json.loads(line.strip())
+            if not updated and entry.get("ts") == ts:
+                entry["user"] = new_user
+                lines[i] = json.dumps(entry) + "\n"
+                updated = True
+        except json.JSONDecodeError:
+            pass
+    if updated:
+        _write_all_lines(lines)
+    return updated

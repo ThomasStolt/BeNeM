@@ -2,7 +2,7 @@
 {% block content %}
 <h1>Log</h1>
 
-<div style="max-width: 780px;">
+<div style="max-width: 880px;">
 
   <form method="get" action="/admin/log"
         style="display:flex;gap:10px;align-items:flex-end;margin-bottom:16px;">
@@ -32,21 +32,62 @@
           <th>User</th>
           <th>Server</th>
           <th>Link (prefix)</th>
+          <th style="width:90px;"></th>
         </tr>
       </thead>
       <tbody>
         {% for e in entries %}
-        <tr>
+        <tr data-ts="{{ e.ts }}">
           <td class="cell-mono" style="padding-left:20px;white-space:nowrap;">{{ e.ts }}</td>
-          <td class="cell-strong">{{ e.user }}</td>
+          <td class="cell-strong">
+            <span class="log-user-display">{{ e.user }}</span>
+            <form class="log-user-edit" style="display:none;margin:0;" method="post" action="/admin/log/edit">
+              <input type="hidden" name="ts" value="{{ e.ts }}">
+              <input type="hidden" name="page" value="{{ page }}">
+              <input type="hidden" name="server_id" value="{{ server_id }}">
+              <div style="display:flex;gap:4px;align-items:center;">
+                <input type="text" name="user" value="{{ e.user }}" style="width:120px;padding:3px 6px;font-size:12px;background:var(--bg-input,#1a1a2e);color:var(--text-primary);border:1px solid var(--border-color,#2a2a3e);border-radius:4px;">
+                <button type="submit" class="btn btn-ghost btn-sm" style="padding:3px 8px;">✓</button>
+                <button type="button" class="btn btn-ghost btn-sm log-edit-cancel" style="padding:3px 8px;">✗</button>
+              </div>
+            </form>
+          </td>
           <td>{{ e.server_name }}</td>
-          <td class="cell-mono" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+          <td class="cell-mono" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
             {{ e.link_prefix }}…
+          </td>
+          <td style="white-space:nowrap;text-align:right;padding-right:12px;">
+            <button type="button" class="btn btn-ghost btn-sm log-edit-btn" style="padding:3px 8px;font-size:11px;">Edit</button>
+            <form method="post" action="/admin/log/delete" style="display:inline;margin:0;"
+                  onsubmit="return confirm('Delete this log entry?')">
+              <input type="hidden" name="ts" value="{{ e.ts }}">
+              <input type="hidden" name="page" value="{{ page }}">
+              <input type="hidden" name="server_id" value="{{ server_id }}">
+              <button type="submit" class="btn btn-danger btn-sm" style="padding:3px 8px;font-size:11px;">Del</button>
+            </form>
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+
+    <script>
+    document.querySelectorAll('.log-edit-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const row = btn.closest('tr');
+        row.querySelector('.log-user-display').style.display = 'none';
+        row.querySelector('.log-user-edit').style.display = 'block';
+        row.querySelector('.log-user-edit input[name="user"]').focus();
+      });
+    });
+    document.querySelectorAll('.log-edit-cancel').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const row = btn.closest('tr');
+        row.querySelector('.log-user-display').style.display = '';
+        row.querySelector('.log-user-edit').style.display = 'none';
+      });
+    });
+    </script>
     {% endif %}
   </div>
 

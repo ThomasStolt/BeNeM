@@ -1,4 +1,4 @@
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 
 import base64
 import io
@@ -26,7 +26,7 @@ import auth
 from auth import SESSION_COOKIE
 from connection_test import run_test
 from crypto import load_key, encrypt_payload
-from log import append_entry, read_entries, count_entries
+from log import append_entry, read_entries, count_entries, delete_entry, update_entry_user
 from push_db import get_registered_devices
 from servers import load_servers, get_server
 from sf_symbols import SF_SYMBOLS
@@ -327,6 +327,28 @@ def log_page(request: Request, server_id: str = "", page: int = 1):
         "page": page,
         "total_pages": total_pages,
     })
+
+
+@app.post("/admin/log/edit", response_class=RedirectResponse)
+def log_edit(request: Request, ts: str = Form(...), user: str = Form(...), page: int = Form(1), server_id: str = Form("")):
+    if not auth.is_authenticated(request):
+        return auth.redirect_to_login()
+    update_entry_user(ts, user.strip())
+    url = f"/admin/log?page={page}"
+    if server_id:
+        url += f"&server_id={server_id}"
+    return RedirectResponse(url, status_code=303)
+
+
+@app.post("/admin/log/delete", response_class=RedirectResponse)
+def log_delete(request: Request, ts: str = Form(...), page: int = Form(1), server_id: str = Form("")):
+    if not auth.is_authenticated(request):
+        return auth.redirect_to_login()
+    delete_entry(ts)
+    url = f"/admin/log?page={page}"
+    if server_id:
+        url += f"&server_id={server_id}"
+    return RedirectResponse(url, status_code=303)
 
 
 # ── Settings ──────────────────────────────────────────────────────────────────
