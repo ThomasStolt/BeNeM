@@ -50,6 +50,9 @@ M1BJKI1M3C52.png
 # Test / scratch files
 test.json
 
+# Internal / non-public docs (local only)
+docs/internal/
+
 # Claude Code
 .claude/
 .superpowers/
