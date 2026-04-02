@@ -219,6 +219,13 @@ uvicorn main:app --reload --port 8889
 
 ## Updating
 
+The included `upgrade.sh` script handles the full upgrade cycle — pulls latest code, rebuilds all containers (bhnm-apns, benem-admin, Caddy), restarts services, and verifies health of both the middleware and the admin portal:
+
+```bash
+./upgrade.sh
+```
+
+If you prefer to upgrade manually:
 ```bash
 git pull
 docker compose build

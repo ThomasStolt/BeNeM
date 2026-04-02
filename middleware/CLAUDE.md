@@ -13,12 +13,13 @@ bhnm-apns is a Python FastAPI middleware that bridges BMC Helix Network Manageme
 | `database.py` | SQLite helpers: `init_db`, `save_token`, `get_tokens_for_secret`, `get_all_tokens`, `delete_token`. |
 | `apns.py` | APNs delivery: JWT generation, HTTP/2 POST via `httpx`, stale token detection. |
 | `Dockerfile` | Builds the FastAPI app image. Uses `uvicorn` as the server. |
-| `docker-compose.yml` | Runs `bhnm-apns` + `caddy:2-alpine` together. Named volumes for SQLite and Caddy data. |
+| `docker-compose.yml` | Runs `bhnm-apns` + `benem-admin` + `caddy:2-alpine` together. Named volumes for SQLite and Caddy data. |
 | `Caddyfile` | Reverse proxy config: Caddy listens on 443, proxies to the FastAPI container, handles TLS automatically. |
 | `requirements.txt` | Python dependencies: `fastapi`, `uvicorn`, `httpx[http2]`, `PyJWT`, `cryptography`, `python-dotenv`. |
+| `upgrade.sh` | Upgrade script: pulls latest code, rebuilds all containers, restarts services, health-checks bhnm-apns and benem-admin. |
 | `setup.sh` | Interactive shell wizard that generates `.env` from user prompts. |
 | `.env.example` | Template for `.env`. Committed to the repo — never commit `.env` itself. |
-| `VERSION` | Plain text file containing the current version (`2.0.0`). |
+| `VERSION` | Plain text file containing the current version (`2.3.0`). |
 | `bhnm-apns.service` | Systemd unit file (legacy, not used in Docker deployments). |
 
 ---
