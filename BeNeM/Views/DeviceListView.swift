@@ -2,10 +2,8 @@ import SwiftUI
 
 struct DeviceListView: View {
     @StateObject private var viewModel: DeviceListViewModel
-    @State private var showingAddDevice = false
     @State private var connectionStatus: ConnectionStatus = .unknown
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
-    @AppStorage("maxDevicesCount") private var maxDevicesCount: Int = 20
     private let apiService: NetreoAPIService
 
     init(apiService: NetreoAPIService) {
@@ -40,7 +38,7 @@ struct DeviceListView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     ConnectionBadgeButton(status: connectionStatus) {
-                        Task { await viewModel.loadDevices(limit: maxDevicesCount) }
+                        Task { await viewModel.loadDevices() }
                     }
                 }
                 ToolbarItem(placement: .principal) {
@@ -53,19 +51,15 @@ struct DeviceListView: View {
                             .font(.system(size: 18, weight: .bold, design: .default))
                     }
                 }
-                ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    Button("Add") { showingAddDevice = true }
+                ToolbarItem(placement: .navigationBarTrailing) {
                     AutoRefreshButton(
                         interval: refreshInterval,
                         isLoading: viewModel.isLoading,
-                        action: { await viewModel.loadDevices(limit: maxDevicesCount) }
+                        action: { await viewModel.loadDevices() }
                     )
                 }
             }
-            .sheet(isPresented: $showingAddDevice) {
-                AddDeviceView(viewModel: viewModel)
-            }
-            .refreshable { await viewModel.loadDevices(limit: maxDevicesCount) }
+            .refreshable { await viewModel.loadDevices() }
             .overlay {
                 if viewModel.isLoading && viewModel.devices.isEmpty {
                     ProgressView("Loading devices...")
@@ -80,19 +74,16 @@ struct DeviceListView: View {
                 guard !loading else { return }
                 connectionStatus = viewModel.errorMessage == nil ? .connected : .disconnected
             }
-            .onChange(of: maxDevicesCount) { newLimit in
-                Task { await viewModel.loadDevices(limit: newLimit) }
-            }
             .task(id: connectionStatus) {
                 guard connectionStatus == .disconnected else { return }
                 try? await Task.sleep(nanoseconds: 15_000_000_000)
                 guard !Task.isCancelled, connectionStatus == .disconnected else { return }
-                Task { await viewModel.loadDevices(limit: maxDevicesCount) }
+                Task { await viewModel.loadDevices() }
             }
         }
         .task {
             guard viewModel.devices.isEmpty && viewModel.errorMessage == nil else { return }
-            await viewModel.loadDevices(limit: maxDevicesCount)
+            await viewModel.loadDevices()
         }
         .onChange(of: ObjectIdentifier(apiService)) { _, _ in
             viewModel.updateAPIService(apiService)
@@ -110,11 +101,15 @@ struct DeviceRowView: View {
                 .frame(width: 12, height: 12)
             
             VStack(alignment: .leading) {
-                Text(device.name ?? device.ip)
+                Text(device.name)
                     .font(.headline)
-                Text(device.ip)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                HStack(spacing: 4) {
+                    Text(device.ip)
+                    Text("·").foregroundColor(.secondary)
+                    Text(device.category)
+                }
+                .font(.subheadline)
+                .foregroundColor(.secondary)
             }
             
             Spacer()

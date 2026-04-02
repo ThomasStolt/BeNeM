@@ -467,29 +467,24 @@ struct DeviceDetailCard: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(device.name ?? device.ip).font(.title3).fontWeight(.semibold)
+                Text(device.name).font(.title3).fontWeight(.semibold)
 
                 HStack {
                     Text("IP:").font(.subheadline).foregroundColor(.secondary)
                     Text(device.ip).font(.subheadline).fontWeight(.medium)
                 }
 
-                if let hostname = device.hostname {
-                    HStack {
-                        Text("Hostname:").font(.subheadline).foregroundColor(.secondary)
-                        Text(hostname).font(.subheadline).fontWeight(.medium)
-                    }
-                }
-
-                if let deviceType = device.deviceType {
+                if !device.description.isEmpty {
                     HStack {
                         Text("Type:").font(.subheadline).foregroundColor(.secondary)
-                        Text(deviceType.capitalized).font(.subheadline).fontWeight(.medium)
+                        Text(device.description).font(.subheadline).fontWeight(.medium)
                     }
                 }
 
-                Text("Last Updated: \(device.lastUpdated, style: .relative) ago")
-                    .font(.caption).foregroundColor(.secondary)
+                HStack {
+                    Text("Category:").font(.subheadline).foregroundColor(.secondary)
+                    Text(device.category).font(.subheadline).fontWeight(.medium)
+                }
             }
         }
         .padding()

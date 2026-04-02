@@ -72,7 +72,7 @@ class DeviceDetailViewModel: ObservableObject {
         incidentsError = nil
         do {
             let all = try await apiService.fetchIncidents()
-            let deviceName = device.name ?? device.ip
+            let deviceName = device.name
             incidents = all.filter { incident in
                 let incName = incident.deviceName ?? ""
                 let incIP   = incident.deviceIP   ?? ""
@@ -93,7 +93,7 @@ class DeviceDetailViewModel: ObservableObject {
     private func loadPerformanceStructure() async {
         isLoadingCategories = true
         categoriesError = nil
-        let name = device.name ?? device.ip
+        let name = device.name
 
         guard let index = try? await apiService.findDeviceIndex(name: name) else {
             categoriesError = "Could not resolve device index for \"\(name)\""
@@ -159,7 +159,7 @@ class DeviceDetailViewModel: ObservableObject {
         }
 
         cardStates[instanceKey]?.isLoading = true
-        let name = device.name ?? device.ip
+        let name = device.name
         do {
             let data = try await apiService.fetchTimeSeries(
                 deviceName: name,

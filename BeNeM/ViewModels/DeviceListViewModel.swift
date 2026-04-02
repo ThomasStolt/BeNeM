@@ -5,25 +5,34 @@ class DeviceListViewModel: ObservableObject {
     @Published var devices: [NetreoDevice] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
-
+    @Published var totalRecords: Int = 0
     @Published var hasMore = false
     @Published var isLoadingMore = false
 
+    // Search
+    @Published var searchQuery: String = ""
+    @Published var isSearching = false
+    @Published var searchResults: [NetreoDevice] = []
+
     private var apiService: NetreoAPIService
-    private var currentLimit: Int? = nil
+    private let pageSize = 50
+
+    var displayedDevices: [NetreoDevice] {
+        searchQuery.count >= 2 ? searchResults : devices
+    }
 
     init(apiService: NetreoAPIService) {
         self.apiService = apiService
     }
 
-    func loadDevices(limit: Int? = nil) async {
-        if let limit { currentLimit = limit }
+    func loadDevices() async {
         isLoading = true
         errorMessage = nil
         do {
-            let page = try await apiService.fetchDevicesPage(limit: currentLimit, offset: 0)
-            devices = page
-            hasMore = currentLimit.map { page.count >= $0 } ?? false
+            let page = try await apiService.fetchDevices(recordStart: 0, recordCount: pageSize)
+            devices = page.devices
+            totalRecords = page.totalRecords
+            hasMore = page.devices.count < page.totalRecords
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -31,60 +40,38 @@ class DeviceListViewModel: ObservableObject {
     }
 
     func loadMoreDevices() async {
-        guard let limit = currentLimit, hasMore, !isLoadingMore else { return }
+        guard hasMore, !isLoadingMore else { return }
         isLoadingMore = true
         do {
-            let page = try await apiService.fetchDevicesPage(limit: limit, offset: devices.count)
-            devices.append(contentsOf: page)
-            hasMore = page.count >= limit
+            let page = try await apiService.fetchDevices(recordStart: devices.count, recordCount: pageSize)
+            devices.append(contentsOf: page.devices)
+            hasMore = devices.count < page.totalRecords
         } catch {
             errorMessage = error.localizedDescription
         }
         isLoadingMore = false
     }
-    
-    func addDevice(ip: String, snmpPublic: String, name: String? = nil) async {
+
+    func search(query: String) async {
+        guard query.count >= 2 else {
+            searchResults = []
+            isSearching = false
+            return
+        }
+        isSearching = true
         do {
-            let success = try await apiService.addDevice(ip: ip, snmpPublic: snmpPublic, name: name)
-            if success {
-                await loadDevices()
-            } else {
-                errorMessage = "Failed to add device"
-            }
+            searchResults = try await apiService.searchDevices(query: query)
         } catch {
             errorMessage = error.localizedDescription
         }
-    }
-    
-    func deleteDevice(_ device: NetreoDevice) async {
-        do {
-            let success = try await apiService.deleteDevice(identifier: device.ip)
-            if success {
-                await loadDevices()
-            } else {
-                errorMessage = "Failed to delete device"
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        isSearching = false
     }
 
     func updateAPIService(_ newService: NetreoAPIService) {
         apiService = newService
         devices = []
-        Task { await loadDevices(limit: currentLimit) }
-    }
-
-    func renameDevice(_ device: NetreoDevice, newName: String) async {
-        do {
-            let success = try await apiService.renameDevice(identifier: device.ip, newName: newName)
-            if success {
-                await loadDevices()
-            } else {
-                errorMessage = "Failed to rename device"
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        searchResults = []
+        searchQuery = ""
+        Task { await loadDevices() }
     }
 }

@@ -18,7 +18,7 @@ struct DeviceDetailView: View {
                 performanceSection
             }
         }
-        .navigationTitle(device.name ?? device.ip)
+        .navigationTitle(device.name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.load() }
     }
@@ -35,12 +35,13 @@ struct DeviceDetailView: View {
                 .cornerRadius(10)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(device.name ?? device.ip)
+                Text(device.name)
                     .font(.title3).fontWeight(.bold)
                 Text(device.ip)
                     .font(.caption).foregroundColor(.secondary)
-                if let type = device.deviceType, !type.isEmpty {
-                    Text(type).font(.caption).foregroundColor(.secondary)
+                if !device.description.isEmpty {
+                    Text(device.description).font(.caption).foregroundColor(.secondary)
+                        .lineLimit(1)
                 }
             }
             Spacer()
@@ -54,16 +55,13 @@ struct DeviceDetailView: View {
     }
 
     private func deviceIcon(for device: NetreoDevice) -> String {
-        let type = (device.deviceType ?? "").lowercased()
-        if type.contains("raspberry") { return "cpu" }
-        if type.contains("firewall") { return "shield.lefthalf.filled" }
-        if type.contains("switch") { return "network" }
-        if type.contains("router") { return "network" }
-        if type.contains("server") { return "server.rack" }
-        if type.contains("access point") || type.contains("ap ") { return "wifi.router" }
-        if type.contains("windows") { return "pc" }
-        if type.contains("linux") { return "terminal" }
-        return "desktopcomputer"
+        switch device.typeClass {
+        case .linux:        return "terminal"
+        case .windows:      return "pc"
+        case .router:       return "network"
+        case .switchDevice: return "network"
+        case .unknown:      return "desktopcomputer"
+        }
     }
 
     // MARK: - Latency Section (always expanded, compact)
