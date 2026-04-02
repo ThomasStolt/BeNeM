@@ -160,13 +160,14 @@
   .generate-arrow-btn {
     position: relative; display: flex; align-items: center; justify-content: center; gap: 8px;
     width: 80px; height: var(--panel-h, 520px); border: none; cursor: pointer;
-    background: linear-gradient(160deg, rgba(15,15,28,0.95) 0%, rgba(22,22,40,0.9) 50%, rgba(15,15,28,0.95) 100%);
+    background: var(--surface, #131320);
     clip-path: polygon(0% 0%, 0% 100%, 100% 50%);
     transition: all 0.3s cubic-bezier(0.4,0,0.2,1); overflow: hidden;
+    z-index: 2;
   }
   .generate-arrow-btn::before {
     content: ''; position: absolute; inset: 0;
-    background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 50%, rgba(255,255,255,0.03) 100%);
+    background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, transparent 50%, rgba(255,255,255,0.02) 100%);
     pointer-events: none;
   }
   .generate-arrow-btn::after {
@@ -178,32 +179,41 @@
     0%, 100% { transform: translateX(-30%) translateY(-30%) rotate(15deg); }
     50%      { transform: translateX(30%) translateY(30%) rotate(15deg); }
   }
-  .generate-arrow-btn:hover { filter: brightness(1.3); transform: translateX(4px); }
+  .generate-arrow-btn:hover { filter: brightness(1.2); transform: translateX(4px); }
   .generate-arrow-btn:active { transform: scale(0.96); }
   .arrow-btn-content {
     display: flex; flex-direction: column; align-items: center; gap: 6px;
     position: relative; z-index: 1; margin-right: 20px;
   }
-  .arrow-btn-content svg { width: 26px; height: 26px; color: white; filter: drop-shadow(0 0 8px rgba(79,142,247,0.6)); }
+  .arrow-btn-content svg { width: 26px; height: 26px; color: #4f8ef7; filter: drop-shadow(0 0 8px rgba(79,142,247,0.7)); }
   .arrow-btn-content span {
     font-family: 'IBM Plex Sans', sans-serif; font-size: 9px; font-weight: 700;
-    letter-spacing: 0.1em; text-transform: uppercase; color: white;
-    text-shadow: 0 0 10px rgba(79,142,247,0.5), 0 0 20px rgba(79,142,247,0.3);
+    letter-spacing: 0.1em; text-transform: uppercase; color: #4f8ef7;
+    text-shadow: 0 0 8px rgba(79,142,247,0.6), 0 0 16px rgba(79,142,247,0.3);
   }
   @keyframes arrow-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
   .generate-arrow-btn:not(:hover) .arrow-btn-content svg { animation: arrow-nudge 2.5s ease-in-out infinite; }
-  .generate-arrow-btn.disabled { opacity: 0.3; cursor: not-allowed; filter: grayscale(0.6); }
-  .generate-arrow-btn.disabled:hover { transform: none; filter: grayscale(0.6); }
+  .generate-arrow-btn.disabled { opacity: 0.35; cursor: not-allowed; filter: grayscale(0.5); }
+  .generate-arrow-btn.disabled:hover { transform: none; filter: grayscale(0.5); }
   .generate-arrow-btn.disabled:active { transform: none; }
   .generate-arrow-btn.disabled .arrow-btn-content svg { animation: none; }
-  .arrow-glow {
-    position: absolute; inset: -5px;
-    background: linear-gradient(160deg, rgba(79,142,247,0.8), rgba(139,92,246,0.7));
+  /* Bright border: a slightly larger triangle behind the button */
+  .arrow-border {
+    position: absolute; inset: -2px; inset-inline-end: -3px;
+    background: linear-gradient(160deg, #4f8ef7, #8b5cf6);
     clip-path: polygon(0% 0%, 0% 100%, 100% 50%);
-    filter: blur(14px); z-index: -1; transition: all 0.3s; opacity: 0.8;
+    z-index: 1; transition: opacity 0.3s;
   }
-  .arrow-col-wrap:hover .arrow-glow { opacity: 1; filter: blur(18px); }
-  .generate-arrow-btn.disabled ~ .arrow-glow { opacity: 0.15; }
+  /* Soft glow behind everything */
+  .arrow-glow {
+    position: absolute; inset: -8px;
+    background: linear-gradient(160deg, rgba(79,142,247,0.7), rgba(139,92,246,0.6));
+    clip-path: polygon(0% 0%, 0% 100%, 100% 50%);
+    filter: blur(16px); z-index: 0; transition: all 0.3s; opacity: 0.7;
+  }
+  .arrow-col-wrap:hover .arrow-glow { opacity: 1; filter: blur(20px); }
+  .generate-arrow-btn.disabled ~ .arrow-border { opacity: 0.2; }
+  .generate-arrow-btn.disabled ~ .arrow-glow { opacity: 0.1; }
   .arrow-tooltip {
     position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
     background: var(--surface-hi); border: 1px solid var(--red); border-radius: 6px;
@@ -396,6 +406,7 @@
           <span>Generate</span>
         </div>
       </button>
+      <div class="arrow-border"></div>
       <div class="arrow-glow"></div>
     </div>
   </div>
