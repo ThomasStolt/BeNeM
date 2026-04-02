@@ -156,64 +156,61 @@
 
   /* ── Triangle generate button ── */
   .arrow-col { display: flex; align-items: center; justify-content: center; padding: 0 6px; flex-shrink: 0; }
-  .arrow-col-wrap { position: relative; }
+  .arrow-col-wrap { position: relative; width: 80px; height: var(--panel-h, 520px); }
   .generate-arrow-btn {
-    position: relative; display: flex; align-items: center; justify-content: center; gap: 8px;
-    width: 80px; height: var(--panel-h, 520px); border: none; cursor: pointer;
-    background: var(--surface, #131320);
-    clip-path: polygon(0% 0%, 0% 100%, 100% 50%);
-    transition: all 0.3s cubic-bezier(0.4,0,0.2,1); overflow: hidden;
+    position: absolute; inset: 0; border: none; cursor: pointer;
+    background: transparent; transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+    display: flex; align-items: center; justify-content: center;
     z-index: 2;
   }
-  .generate-arrow-btn::before {
-    content: ''; position: absolute; inset: 0;
-    background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, transparent 50%, rgba(255,255,255,0.02) 100%);
+  /* SVG triangle background with white stroke */
+  .arrow-triangle-svg {
+    position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0;
+  }
+  .arrow-triangle-svg polygon {
+    fill: var(--surface, #131320);
+    stroke: rgba(255,255,255,0.8);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    transition: stroke 0.3s, filter 0.3s;
+    filter: drop-shadow(0 0 6px rgba(255,255,255,0.3));
+  }
+  .arrow-col-wrap:hover .arrow-triangle-svg polygon {
+    stroke: white;
+    filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));
+  }
+  /* Shimmer sweep over the triangle */
+  .arrow-shimmer {
+    position: absolute; inset: 0; overflow: hidden; z-index: 1;
+    clip-path: polygon(0% 0%, 0% 100%, 100% 50%);
     pointer-events: none;
   }
-  .generate-arrow-btn::after {
+  .arrow-shimmer::after {
     content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
-    background: linear-gradient(115deg, transparent 40%, rgba(255,255,255,0.12) 45%, rgba(255,255,255,0.22) 50%, rgba(255,255,255,0.12) 55%, transparent 60%);
-    animation: shimmer-sweep 3.5s ease-in-out infinite; pointer-events: none;
+    background: linear-gradient(115deg, transparent 40%, rgba(255,255,255,0.1) 45%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.1) 55%, transparent 60%);
+    animation: shimmer-sweep 3.5s ease-in-out infinite;
   }
   @keyframes shimmer-sweep {
     0%, 100% { transform: translateX(-30%) translateY(-30%) rotate(15deg); }
     50%      { transform: translateX(30%) translateY(30%) rotate(15deg); }
   }
-  .generate-arrow-btn:hover { filter: brightness(1.2); transform: translateX(4px); }
+  .generate-arrow-btn:hover { transform: translateX(4px); }
   .generate-arrow-btn:active { transform: scale(0.96); }
   .arrow-btn-content {
     display: flex; flex-direction: column; align-items: center; gap: 6px;
-    position: relative; z-index: 1; margin-right: 20px;
+    position: relative; z-index: 3; margin-right: 20px;
   }
-  .arrow-btn-content svg { width: 26px; height: 26px; color: #4f8ef7; filter: drop-shadow(0 0 8px rgba(79,142,247,0.7)); }
+  .arrow-btn-content svg { width: 26px; height: 26px; color: white; }
   .arrow-btn-content span {
     font-family: 'IBM Plex Sans', sans-serif; font-size: 9px; font-weight: 700;
-    letter-spacing: 0.1em; text-transform: uppercase; color: #4f8ef7;
-    text-shadow: 0 0 8px rgba(79,142,247,0.6), 0 0 16px rgba(79,142,247,0.3);
+    letter-spacing: 0.1em; text-transform: uppercase; color: white;
   }
   @keyframes arrow-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
   .generate-arrow-btn:not(:hover) .arrow-btn-content svg { animation: arrow-nudge 2.5s ease-in-out infinite; }
-  .generate-arrow-btn.disabled { opacity: 0.35; cursor: not-allowed; filter: grayscale(0.5); }
-  .generate-arrow-btn.disabled:hover { transform: none; filter: grayscale(0.5); }
+  .generate-arrow-btn.disabled { opacity: 0.35; cursor: not-allowed; }
+  .generate-arrow-btn.disabled:hover { transform: none; }
   .generate-arrow-btn.disabled:active { transform: none; }
   .generate-arrow-btn.disabled .arrow-btn-content svg { animation: none; }
-  /* Bright border: a slightly larger triangle behind the button */
-  .arrow-border {
-    position: absolute; inset: -2px; inset-inline-end: -3px;
-    background: linear-gradient(160deg, #4f8ef7, #8b5cf6);
-    clip-path: polygon(0% 0%, 0% 100%, 100% 50%);
-    z-index: 1; transition: opacity 0.3s;
-  }
-  /* Soft glow behind everything */
-  .arrow-glow {
-    position: absolute; inset: -8px;
-    background: linear-gradient(160deg, rgba(79,142,247,0.7), rgba(139,92,246,0.6));
-    clip-path: polygon(0% 0%, 0% 100%, 100% 50%);
-    filter: blur(16px); z-index: 0; transition: all 0.3s; opacity: 0.7;
-  }
-  .arrow-col-wrap:hover .arrow-glow { opacity: 1; filter: blur(20px); }
-  .generate-arrow-btn.disabled ~ .arrow-border { opacity: 0.2; }
-  .generate-arrow-btn.disabled ~ .arrow-glow { opacity: 0.1; }
   .arrow-tooltip {
     position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
     background: var(--surface-hi); border: 1px solid var(--red); border-radius: 6px;
@@ -392,22 +389,24 @@
     </div>
   </div>
 
-  {# ─── CENTER: Fat Arrow Generate Button ─── #}
+  {# ─── CENTER: Triangle Generate Button ─── #}
   <div class="arrow-col">
     <div class="arrow-col-wrap">
       <div class="arrow-tooltip" id="arrow-tooltip">Please enter a username first</div>
+      <svg class="arrow-triangle-svg" viewBox="0 0 80 520" preserveAspectRatio="none">
+        <polygon points="4,4 4,516 76,260"/>
+      </svg>
+      <div class="arrow-shimmer"></div>
       <button class="generate-arrow-btn {% if not form_data or not form_data.user %}disabled{% endif %}"
               id="gen-btn" onclick="handleGenerate()" title="Generate Link" type="button"
               aria-disabled="{% if not form_data or not form_data.user %}true{% else %}false{% endif %}">
         <div class="arrow-btn-content">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="6,3 6,21 20,12" fill="currentColor" stroke="none"/>
+          <svg viewBox="0 0 24 24">
+            <polygon points="6,3 6,21 20,12" fill="white"/>
           </svg>
           <span>Generate</span>
         </div>
       </button>
-      <div class="arrow-border"></div>
-      <div class="arrow-glow"></div>
     </div>
   </div>
 
