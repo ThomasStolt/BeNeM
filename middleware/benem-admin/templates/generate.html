@@ -1,6 +1,5 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Generate Link</h1>
 
 {# ── SVG symbol library (20 icons, zero HTTP requests) ── #}
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -200,17 +199,14 @@
     display: flex; flex-direction: column; align-items: center; gap: 6px;
     position: relative; z-index: 3; margin-right: 20px;
   }
-  .arrow-btn-content svg { width: 26px; height: 26px; color: white; }
   .arrow-btn-content span {
-    font-family: 'IBM Plex Sans', sans-serif; font-size: 9px; font-weight: 700;
-    letter-spacing: 0.1em; text-transform: uppercase; color: white;
+    font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700;
+    letter-spacing: 0.05em; text-transform: uppercase; color: white;
+    transform: rotate(-90deg); white-space: nowrap;
   }
-  @keyframes arrow-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
-  .generate-arrow-btn:not(:hover) .arrow-btn-content svg { animation: arrow-nudge 2.5s ease-in-out infinite; }
   .generate-arrow-btn.disabled { opacity: 0.35; cursor: not-allowed; }
   .generate-arrow-btn.disabled:hover { transform: none; }
   .generate-arrow-btn.disabled:active { transform: none; }
-  .generate-arrow-btn.disabled .arrow-btn-content svg { animation: none; }
   .arrow-tooltip {
     position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
     background: var(--surface-hi); border: 1px solid var(--red); border-radius: 6px;
@@ -401,9 +397,6 @@
               id="gen-btn" onclick="handleGenerate()" title="Generate Link" type="button"
               aria-disabled="{% if not form_data or not form_data.user %}true{% else %}false{% endif %}">
         <div class="arrow-btn-content">
-          <svg viewBox="0 0 24 24">
-            <polygon points="6,3 6,21 20,12" fill="white"/>
-          </svg>
           <span>Generate</span>
         </div>
       </button>
