@@ -57,7 +57,10 @@ The app communicates with a self-hosted BHNM instance.
 | Acknowledge incident | POST | `/fw/index.php?r=restful/incident/acknowledge` |
 | Unacknowledge incident | POST | `/fw/index.php?r=restful/incident/unacknowledge` |
 | Incident detail | GET | `/api/incident_api.php` (method=getincidentdetail) |
-| Device list | POST | `/fw/index.php?r=restful/devices/list` |
+| Device list (paginated) | POST | `/fw/index.php?r=restful/devices/list` (body: `recordStart=<n>&recordCount=<n>`) → returns `{totalRecords, displayRecords, devices:[]}` |
+| Device search | POST | `/fw/index.php?r=restful/devices/find` (body: `name=<query>`) → substring match, returns array |
+| Category devices | POST | `/fw/index.php?r=restful/category/device-list` (body: `id=<categoryId>`) |
+| Site devices | POST | `/fw/index.php?r=restful/site/device-list` (body: `id=<siteId>`) |
 | Tactical overview (H/S/T) | POST | `/fw/index.php?r=restful/tactical-overview/data` (body: `grouping_type=category\|site\|app`) |
 | Find device by name | POST | `/fw/index.php?r=restful/devices/find` (body: `name=<deviceName>`) → returns `dev_index` |
 | Performance categories | POST | `/fw/index.php?r=restful/devices/performance-category` (body: `device_id=<id>`) |
@@ -72,7 +75,7 @@ groupFilterValue=<deviceName>
 metricFilterStatGroup=<statGroup>   # e.g. "CPU", "Memory", interface category name
 metricFilterUnits=<units>           # e.g. "%", "Bytes/s"
 timeFrameFilterBy=time_offset
-timeFrameFilterValue=<timeFrame>    # e.g. "Last 24 Hours", "Last 7 Days"
+timeFrameFilterValue=<timeFrame>    # "Last Hour", "Last 2 Hours", "Last 5 Hours", or "Last 24 Hours"
 returnFormatFilterBy=average
 pin=<pin>                           # optional
 ```
@@ -118,7 +121,7 @@ Status field → badge color mapping:
 - `*_ok_count` → Green
 - `*_ack_count` → Blue
 - `*_warn_count` → Yellow
-- `*_un_count` → Orange (unvalidated)
+- `*_un_count` → Orange (unknown)
 - `*_crit_count` → Red
 
 ## Data Refresh
@@ -219,6 +222,8 @@ xcrun devicectl list devices
 
 ## Important Notes
 
+- **Minimum BHNM version:** 26.1.02. The app uses UID-based device identity, pagination, model/serial fields, and interface details — all require 26.1.01+.
+- **Device identity** uses `UID` (root_id from BHNM) as the primary identifier, not IP. The `GUID` field provides globally unique cross-deployment identification.
 - `NetreoAPIService` still has legacy code paths (`configuration.version == .legacy`). Incidents and ACK/UnACK use the RESTful endpoints directly (no `version` switch).
 - The device list API returns **no alarm color field**. For per-incident alarm colors (used in `IncidentDetailView` and `IncidentListView` badge counts), `getincidentdetail` is still called — it returns `primary_alarm_log` + `relatedalarms` entries whose `state` field is authoritative. Severity fields in the incident list API are unreliable.
 - The **Tactical Overview** (H/S/T aggregates) no longer uses incident or device data — it calls `restful/tactical-overview/data` directly.
