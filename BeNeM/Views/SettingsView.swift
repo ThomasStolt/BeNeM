@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct SettingsView: View {
+    var navResetID: UUID = UUID()
+
     @AppStorage("netreo_api_version")   private var apiVersionString = "legacy"
     @AppStorage("netreo_timeout")       private var timeout: Double = 30.0
     @AppStorage("netreo_retry_count")   private var retryCount: Double = 3.0
@@ -14,6 +16,8 @@ struct SettingsView: View {
     @State private var editingConnection: SavedConnection? = nil   // drives swipe-to-edit navigation
     @State private var showEditNavigation = false                   // paired with editingConnection
     @State private var navigateToAdd = false                        // drives + toolbar navigation
+    @State private var showQRScanner = false                        // drives QR scanner sheet
+    @EnvironmentObject private var deepLinkHandler: DeepLinkHandler
     var body: some View {
         ZStack {
             NavigationStack {
@@ -35,11 +39,32 @@ struct SettingsView: View {
                         ForEach(savedConnections) { connection in
                             serverRow(connection)
                         }
-                        Button {
-                            navigateToAdd = true
-                        } label: {
-                            Label("Add BHNM Server", systemImage: "plus.circle.fill")
+                        HStack(spacing: 0) {
+                            Button {
+                                navigateToAdd = true
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "plus.circle.fill")
+                                    Text("Add Manually")
+                                }
+                                .frame(maxWidth: .infinity)
                                 .foregroundColor(.accentColor)
+                            }
+                            .buttonStyle(.plain)
+
+                            Divider().frame(height: 24)
+
+                            Button {
+                                showQRScanner = true
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "qrcode.viewfinder")
+                                    Text("Scan QR")
+                                }
+                                .frame(maxWidth: .infinity)
+                                .foregroundColor(.accentColor)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
 
@@ -112,6 +137,7 @@ struct SettingsView: View {
                     reload()
                 }
             }
+            .id(navResetID)
 
             // MARK: Centered switch-server popup
             if let conn = switchingToConnection {
@@ -129,6 +155,12 @@ struct SettingsView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: switchingToConnection?.id)
+        .fullScreenCover(isPresented: $showQRScanner) {
+            QRScannerView { scannedCode in
+                guard let url = URL(string: scannedCode), url.scheme == "benem" else { return }
+                deepLinkHandler.handle(url: url)
+            }
+        }
     }
 
     // MARK: - Server row

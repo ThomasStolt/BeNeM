@@ -118,15 +118,22 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             print("[APNs] No webhook secret for active connection — skipping token registration.")
             return
         }
+        #if DEBUG
+        let apnsEnvironment = "sandbox"
+        #else
+        let apnsEnvironment = "production"
+        #endif
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(secret, forHTTPHeaderField: "X-Webhook-Token")
         let body: [String: String] = [
             "token": token,
-            "device_name": UIDevice.current.name
+            "device_name": UIDevice.current.name,
+            "environment": apnsEnvironment
         ]
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        print("[APNs] Registering with middleware (environment: \(apnsEnvironment))")
         URLSession.shared.dataTask(with: request) { _, response, error in
             if let error = error {
                 print("[APNs] Middleware registration error: \(error)")

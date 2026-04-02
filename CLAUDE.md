@@ -34,6 +34,9 @@ BeNeM/
     ├── AutoRefreshButton.swift       # Reusable countdown ring + refresh button (120 s)
     ├── AutoDiscoveryView.swift       # Wi-Fi server discovery UI
     ├── SettingsView.swift
+    ├── ServerConfigView.swift        # Add/edit server: connection fields, push config, test & save
+    ├── FloppyDiskIcon.swift          # Custom floppy disk icon drawn as SwiftUI Canvas
+    ├── QRScannerView.swift           # Full-screen camera QR scanner for benem:// URLs
     ├── BeNeMApp.swift                # App entry point + URL scheme handler
     └── AppDelegate.swift             # APNs registration, UNUserNotificationCenterDelegate, deep-link tap handler
 ```

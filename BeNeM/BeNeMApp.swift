@@ -42,6 +42,7 @@ struct BeNeMApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(deepLinkHandler)
                 .overlay {
                     if showSplash {
                         SplashView {

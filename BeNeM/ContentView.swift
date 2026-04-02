@@ -19,79 +19,114 @@ struct ContentView: View {
     @State private var selectedTab = 0
     @State private var homeNavResetID = UUID()
     @State private var incidentNavResetID = UUID()
+    @State private var settingsNavResetID = UUID()
     @State private var pendingIncidentID: String? = nil
+    @State private var keyboardVisible = false
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            if !bhnmURL.isEmpty && !apiKey.isEmpty, let service = apiService {
-                DashboardView(apiService: service, incidentViewModel: incidentViewModel, selectedTab: $selectedTab, navResetID: homeNavResetID)
-                    .tag(0)
-                IncidentListView(viewModel: incidentViewModel, apiService: service, navResetID: incidentNavResetID, pendingIncidentID: $pendingIncidentID)
-                    .tag(1)
-                DeviceListView(apiService: service)
-                    .tag(2)
-            }
-            SettingsView()
-                .tag(3)
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            CustomTabBar(selectedTab: $selectedTab, isConfigured: apiService != nil) { tappedTag in
-                if tappedTag == 0 { homeNavResetID = UUID() }
-                if tappedTag == 1 { incidentNavResetID = UUID() }
-            }
-        }
-        .onChange(of: baseURL) { _, _ in updateAPIService() }
-        .onChange(of: bhnmURL) { _, _ in updateAPIService() }
-        .onChange(of: apiKey) { _, _ in updateAPIService() }
-        .onChange(of: pin) { _, _ in updateAPIService() }
-        .onChange(of: apiVersionString) { _, _ in updateAPIService() }
-        .onChange(of: timeout) { _, _ in updateAPIService() }
-        .onChange(of: retryCount) { _, _ in updateAPIService() }
-        .onChange(of: webhookSecret) { _, _ in updateAPIService() }
-        .onChange(of: activeConnectionID) { oldID, newID in
-            let connections = UserDefaults.standard.loadSavedConnections()
-            // Unregister old connection's push if it had notifications enabled
-            if !oldID.isEmpty,
-               let oldConn = connections.first(where: { $0.id.uuidString == oldID }),
-               oldConn.notificationsEnabled,
-               !oldConn.middlewareURL.isEmpty,
-               let token = AppDelegate.shared?.cachedDeviceToken {
-                AppDelegate.shared?.unregisterWithMiddleware(
-                    token: token,
-                    secret: oldConn.webhookSecret,
-                    middlewareURL: oldConn.middlewareURL
-                )
-            }
-            // Register new connection's push if it has notifications enabled
-            guard !newID.isEmpty,
-                  let conn = connections.first(where: { $0.id.uuidString == newID }),
-                  conn.notificationsEnabled,
-                  let token = AppDelegate.shared?.cachedDeviceToken else { return }
-            UserDefaults.standard.set(conn.webhookSecret, forKey: "netreo_webhook_secret")
-            AppDelegate.shared?.registerWithMiddleware(
-                token: token,
-                secret: conn.webhookSecret,
-                middlewareURL: conn.middlewareURL
-            )
-        }
-        .onChange(of: apiService == nil) { _, isNil in
-            if isNil { selectedTab = 3 }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .pushNotificationIncidentTapped)) { notification in
-            guard let id = notification.userInfo?["incident_id"] as? String else { return }
-            if selectedTab == 1 { incidentNavResetID = UUID() }
-            selectedTab = 1
-            pendingIncidentID = id
-        }
-        .onAppear {
-            updateAPIService()
-            if apiService == nil { selectedTab = 3 }
-            if let id = AppDelegate.shared?.pendingIncidentID {
-                AppDelegate.shared?.pendingIncidentID = nil
+        tabContentWithHandlers
+            .onReceive(NotificationCenter.default.publisher(for: .pushNotificationIncidentTapped)) { notification in
+                guard let id = notification.userInfo?["incident_id"] as? String else { return }
+                if selectedTab == 1 { incidentNavResetID = UUID() }
                 selectedTab = 1
                 pendingIncidentID = id
             }
+            .onAppear {
+                updateAPIService()
+                if apiService == nil { selectedTab = 3 }
+                if let id = AppDelegate.shared?.pendingIncidentID {
+                    AppDelegate.shared?.pendingIncidentID = nil
+                    selectedTab = 1
+                    pendingIncidentID = id
+                }
+            }
+    }
+
+    private var tabContentWithHandlers: some View {
+        tabContent
+            .onChange(of: selectedTab) { _, newTab in
+                if newTab == 3 { settingsNavResetID = UUID() }
+            }
+            .onChange(of: baseURL) { _, _ in updateAPIService() }
+            .onChange(of: bhnmURL) { _, _ in updateAPIService() }
+            .onChange(of: apiKey) { _, _ in updateAPIService() }
+            .onChange(of: pin) { _, _ in updateAPIService() }
+            .onChange(of: apiVersionString) { _, _ in updateAPIService() }
+            .onChange(of: timeout) { _, _ in updateAPIService() }
+            .onChange(of: retryCount) { _, _ in updateAPIService() }
+            .onChange(of: webhookSecret) { _, _ in updateAPIService() }
+            .onChange(of: activeConnectionID) { oldID, newID in
+                handleConnectionChange(from: oldID, to: newID)
+            }
+            .onChange(of: apiService == nil) { _, isNil in
+                if isNil { selectedTab = 3 }
+            }
+    }
+
+    @ViewBuilder
+    private var mainTabs: some View {
+        if !bhnmURL.isEmpty && !apiKey.isEmpty, let service = apiService {
+            DashboardView(apiService: service, incidentViewModel: incidentViewModel, selectedTab: $selectedTab, navResetID: homeNavResetID)
+                .tag(0)
+            IncidentListView(viewModel: incidentViewModel, apiService: service, navResetID: incidentNavResetID, pendingIncidentID: $pendingIncidentID)
+                .tag(1)
+            DeviceListView(apiService: service)
+                .tag(2)
         }
+        SettingsView(navResetID: settingsNavResetID)
+            .tag(3)
+    }
+
+    private var tabBar: some View {
+        CustomTabBar(selectedTab: $selectedTab, isConfigured: apiService != nil) { tappedTag in
+            if tappedTag == 0 { homeNavResetID = UUID() }
+            if tappedTag == 1 { incidentNavResetID = UUID() }
+            if tappedTag == 3 { settingsNavResetID = UUID() }
+        }
+    }
+
+    private var tabContent: some View {
+        TabView(selection: $selectedTab) {
+            mainTabs
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !keyboardVisible {
+                tabBar
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: keyboardVisible)
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            keyboardVisible = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardVisible = false
+        }
+    }
+
+    private func handleConnectionChange(from oldID: String, to newID: String) {
+        let connections = UserDefaults.standard.loadSavedConnections()
+        if !oldID.isEmpty,
+           let oldConn = connections.first(where: { $0.id.uuidString == oldID }),
+           oldConn.notificationsEnabled,
+           !oldConn.middlewareURL.isEmpty,
+           let token = AppDelegate.shared?.cachedDeviceToken {
+            AppDelegate.shared?.unregisterWithMiddleware(
+                token: token,
+                secret: oldConn.webhookSecret,
+                middlewareURL: oldConn.middlewareURL
+            )
+        }
+        guard !newID.isEmpty,
+              let conn = connections.first(where: { $0.id.uuidString == newID }),
+              conn.notificationsEnabled,
+              let token = AppDelegate.shared?.cachedDeviceToken else { return }
+        UserDefaults.standard.set(conn.webhookSecret, forKey: "netreo_webhook_secret")
+        AppDelegate.shared?.registerWithMiddleware(
+            token: token,
+            secret: conn.webhookSecret,
+            middlewareURL: conn.middlewareURL
+        )
     }
 
     private func updateAPIService() {
@@ -117,6 +152,10 @@ struct ContentView: View {
         let service = NetreoAPIService(configuration: configuration)
         apiService = service
         incidentViewModel.updateAPIService(service)
+        // Reset all navigation stacks so stale data from the old server is never shown
+        homeNavResetID = UUID()
+        incidentNavResetID = UUID()
+        settingsNavResetID = UUID()
     }
 }
 

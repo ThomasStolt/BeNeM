@@ -43,7 +43,7 @@ struct ServerConfigView: View {
 
     private var isAddMode: Bool { existingConnection == nil }
 
-    // Save button disabled when required fields are empty
+    // Save button disabled when required fields are empty or nothing changed
     private var saveDisabled: Bool {
         isTesting
         || draftName.isEmpty
@@ -51,6 +51,21 @@ struct ServerConfigView: View {
         || draftApiKey.isEmpty
         || draftAckUser.isEmpty
         || (draftNotificationsEnabled && (draftMiddlewareURL.isEmpty || draftPushSecret.isEmpty))
+        || (!isAddMode && !hasChanges)
+    }
+
+    private var hasChanges: Bool {
+        guard let conn = existingConnection else { return true }
+        return draftName != conn.name
+            || draftBhnmURL != conn.bhnmURL
+            || draftApiKey != conn.apiKey
+            || draftPin != conn.pin
+            || draftAckUser != conn.ackUser
+            || draftSymbol != conn.symbol
+            || draftColor != conn.accentColor
+            || draftNotificationsEnabled != conn.notificationsEnabled
+            || draftMiddlewareURL != conn.middlewareURL
+            || draftPushSecret != conn.webhookSecret
     }
 
     var body: some View {
@@ -124,36 +139,71 @@ struct ServerConfigView: View {
                 .opacity(draftNotificationsEnabled ? 1 : 0.4)
             }
 
-            // Actions
-            Section {
-                Button {
-                    Task { await testAndSave() }
-                } label: {
+            // Status row
+            if testStatus != .untested {
+                Section {
                     HStack {
+                        Spacer()
                         if testStatus == .success {
                             Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
-                        } else if testStatus == .failure {
-                            Image(systemName: "xmark.circle.fill").foregroundColor(.red)
-                        }
-                        if isTesting {
-                            ProgressView().frame(maxWidth: .infinity)
+                            Text("Connection successful").foregroundColor(.green)
                         } else {
-                            Text(isAddMode ? "Test & Save" : "Save")
-                                .frame(maxWidth: .infinity)
+                            Image(systemName: "xmark.circle.fill").foregroundColor(.red)
+                            Text("Connection failed").foregroundColor(.red)
                         }
+                        Spacer()
                     }
+                    .font(.subheadline)
                 }
-                .disabled(saveDisabled)
+            }
 
-                if !isAddMode {
-                    Button(role: .destructive) {
-                        showingDeleteConfirm = true
-                    } label: {
-                        Text("Delete Server").frame(maxWidth: .infinity)
+            // Actions
+            Section {
+                if isTesting {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                            .padding(.vertical, 4)
+                        Spacer()
+                    }
+                } else {
+                    HStack(spacing: 0) {
+                        // Save button
+                        Button {
+                            Task { await testAndSave() }
+                        } label: {
+                            HStack(spacing: 6) {
+                                FloppyDiskIcon()
+                                    .frame(width: 18, height: 18)
+                                Text(isAddMode ? "Test & Save" : "Save")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .foregroundColor(saveDisabled ? .gray : .green)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(saveDisabled)
+
+                        // Delete button
+                        if !isAddMode {
+                            Divider().frame(height: 28)
+
+                            Button {
+                                showingDeleteConfirm = true
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "trash.fill")
+                                    Text("Delete")
+                                }
+                                .frame(maxWidth: .infinity)
+                                .foregroundColor(.red)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
             }
         }
+        .onTapGesture { focusedField = nil }
         .navigationTitle(isAddMode ? "Add Server" : draftName)
         .navigationBarTitleDisplayMode(.inline)
         .scrollDismissesKeyboard(.immediately)
