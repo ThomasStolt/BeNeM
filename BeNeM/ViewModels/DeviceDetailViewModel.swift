@@ -64,10 +64,38 @@ class DeviceDetailViewModel: ObservableObject {
     }
 
     func load() async {
+        loadPinnedInterfaces()
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.loadIncidents() }
             group.addTask { await self.loadPerformanceStructure() }
         }
+    }
+
+    // MARK: - Pinned Interfaces
+
+    @Published var pinnedKeys: [String] = []
+
+    private var pinnedDefaultsKey: String {
+        "pinned_interfaces_\(device.uid)"
+    }
+
+    func loadPinnedInterfaces() {
+        pinnedKeys = UserDefaults.standard.stringArray(forKey: pinnedDefaultsKey) ?? []
+    }
+
+    func pinInterface(key: String) {
+        guard !pinnedKeys.contains(key) else { return }
+        pinnedKeys.append(key)
+        UserDefaults.standard.set(pinnedKeys, forKey: pinnedDefaultsKey)
+    }
+
+    func unpinInterface(key: String) {
+        pinnedKeys.removeAll { $0 == key }
+        UserDefaults.standard.set(pinnedKeys, forKey: pinnedDefaultsKey)
+    }
+
+    func isInterfacePinned(key: String) -> Bool {
+        pinnedKeys.contains(key)
     }
 
     // MARK: - Incidents

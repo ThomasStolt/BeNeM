@@ -16,6 +16,9 @@ struct DeviceDetailView: View {
                 alarmBar
                 hostInfoSection(device)
                 issuesSection
+                if device.typeClass.isNetworkDevice {
+                    pinnedInterfacesSection
+                }
                 performanceSection
             }
             .padding(.bottom, 24)
@@ -221,6 +224,51 @@ struct DeviceDetailView: View {
         }
     }
 
+    // MARK: - Pinned Interfaces
+
+    private var pinnedInterfacesSection: some View {
+        let pinnedStates = viewModel.pinnedKeys.compactMap { key in
+            viewModel.cardStates[key]
+        }
+
+        return Group {
+            if !pinnedStates.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("PINNED INTERFACES")
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal)
+                        .padding(.bottom, 4)
+
+                    VStack(spacing: 0) {
+                        ForEach(pinnedStates, id: \.instance.key) { state in
+                            MetricCard(
+                                state: Binding(
+                                    get: { viewModel.cardStates[state.instance.key] ?? state },
+                                    set: { viewModel.cardStates[state.instance.key] = $0 }
+                                ),
+                                onTap: {
+                                    Task { await viewModel.tapCard(instanceKey: state.instance.key) }
+                                }
+                            )
+                            .contextMenu {
+                                Button(role: .destructive) {
+                                    viewModel.unpinInterface(key: state.instance.key)
+                                } label: {
+                                    Label("Unpin", systemImage: "pin.slash")
+                                }
+                            }
+                            Divider().padding(.leading)
+                        }
+                    }
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                }
+            }
+        }
+    }
+
     private func categoryGroup(category: PerformanceCategory, instances: [MetricCardState]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(category.name.uppercased())
@@ -237,6 +285,22 @@ struct DeviceDetailView: View {
                         Task { await viewModel.tapCard(instanceKey: state.instance.key) }
                     }
                 )
+                .contextMenu {
+                    if viewModel.device.typeClass.isNetworkDevice {
+                        Button {
+                            if viewModel.isInterfacePinned(key: state.instance.key) {
+                                viewModel.unpinInterface(key: state.instance.key)
+                            } else {
+                                viewModel.pinInterface(key: state.instance.key)
+                            }
+                        } label: {
+                            Label(
+                                viewModel.isInterfacePinned(key: state.instance.key) ? "Unpin" : "Pin",
+                                systemImage: viewModel.isInterfacePinned(key: state.instance.key) ? "pin.slash" : "pin"
+                            )
+                        }
+                    }
+                }
                 Divider().padding(.leading)
             }
         }
