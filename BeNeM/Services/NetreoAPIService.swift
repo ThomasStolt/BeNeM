@@ -63,18 +63,28 @@ class NetreoAPIService: ObservableObject {
         }
     }
 
-    func fetchDevices() async throws -> [NetreoDevice] {
-        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/list") else { return [] }
+    struct DevicePage {
+        let devices: [NetreoDevice]
+        let totalRecords: Int
+    }
+
+    func fetchDevices(recordStart: Int = 0, recordCount: Int = 50) async throws -> DevicePage {
+        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/list") else {
+            return DevicePage(devices: [], totalRecords: 0)
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         addProxyToken(&request)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         var params = [URLQueryItem(name: "password", value: configuration.apiKey)]
         if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        params.append(URLQueryItem(name: "recordStart", value: String(recordStart)))
+        params.append(URLQueryItem(name: "recordCount", value: String(recordCount)))
         request.httpBody = formEncodedBody(params)
         let (data, _) = try await urlSession.data(for: request)
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
-        // API returns either {"devices":[...]} or {"data":{"devices":[...]}}
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return DevicePage(devices: [], totalRecords: 0)
+        }
         let devicesArray: [[String: Any]]
         if let arr = json["devices"] as? [[String: Any]] {
             devicesArray = arr
@@ -82,40 +92,73 @@ class NetreoAPIService: ObservableObject {
                   let arr = nested["devices"] as? [[String: Any]] {
             devicesArray = arr
         } else {
-            return []
+            return DevicePage(devices: [], totalRecords: 0)
         }
+        // totalRecords comes as String from API, displayRecords as Int
+        let total: Int
+        if let t = json["totalRecords"] as? Int { total = t }
+        else if let t = json["totalRecords"] as? String, let n = Int(t) { total = n }
+        else { total = devicesArray.count }
+
         #if DEBUG
         if let first = devicesArray.first {
             let debugLines = first.map { "\($0.key) = \($0.value)" }.sorted()
             UserDefaults.standard.set(debugLines.joined(separator: "\n"), forKey: "debug_device_fields")
         }
         #endif
-        return devicesArray.compactMap { parseRESTfulDevice(from: $0) }
+        return DevicePage(devices: devicesArray.compactMap { parseDevice(from: $0) }, totalRecords: total)
     }
 
-    func fetchDevicesPage(limit: Int? = nil, offset: Int = 0) async throws -> [NetreoDevice] {
-        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/list") else { return [] }
+    func searchDevices(query: String) async throws -> [NetreoDevice] {
+        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/find") else { return [] }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         addProxyToken(&request)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        var params = [URLQueryItem(name: "password", value: configuration.apiKey)]
+        var params = [
+            URLQueryItem(name: "password", value: configuration.apiKey),
+            URLQueryItem(name: "name", value: query),
+        ]
         if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
-        params.append(URLQueryItem(name: "recordStart", value: String(offset)))
-        if let limit { params.append(URLQueryItem(name: "recordCount", value: String(limit))) }
         request.httpBody = formEncodedBody(params)
         let (data, _) = try await urlSession.data(for: request)
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
-        let devicesArray: [[String: Any]]
-        if let arr = json["devices"] as? [[String: Any]] {
-            devicesArray = arr
-        } else if let nested = json["data"] as? [String: Any],
-                  let arr = nested["devices"] as? [[String: Any]] {
-            devicesArray = arr
-        } else {
-            return []
-        }
-        return devicesArray.compactMap { parseRESTfulDevice(from: $0) }
+        // Response is a plain array, or a string error
+        guard let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+        return arr.compactMap { parseDevice(from: $0) }
+    }
+
+    func fetchDevicesForCategory(categoryId: String) async throws -> [NetreoDevice] {
+        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/category/device-list") else { return [] }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        addProxyToken(&request)
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var params = [
+            URLQueryItem(name: "password", value: configuration.apiKey),
+            URLQueryItem(name: "id", value: categoryId),
+        ]
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
+        let (data, _) = try await urlSession.data(for: request)
+        guard let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+        return arr.compactMap { parseDevice(from: $0) }
+    }
+
+    func fetchDevicesForSite(siteId: String) async throws -> [NetreoDevice] {
+        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/site/device-list") else { return [] }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        addProxyToken(&request)
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var params = [
+            URLQueryItem(name: "password", value: configuration.apiKey),
+            URLQueryItem(name: "id", value: siteId),
+        ]
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
+        let (data, _) = try await urlSession.data(for: request)
+        guard let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+        return arr.compactMap { parseDevice(from: $0) }
     }
 
     func findDeviceIndex(name: String) async throws -> String? {
@@ -334,31 +377,38 @@ class NetreoAPIService: ObservableObject {
         UserDefaults.standard.set(truncated, forKey: "debug_raw_metrics_response")
     }
 
-    private func parseRESTfulDevice(from dict: [String: Any]) -> NetreoDevice? {
-        guard let ip = dict["ip"] as? String else { return nil }
-        let isActive  = (dict["poll"]    as? String) == "1"
-        let isMonitor = (dict["monitor"] as? String) == "1"
-        let lastUpdated: Date = {
-            if let ts = dict["create_time"] as? String, let unix = Double(ts) {
-                return Date(timeIntervalSince1970: unix)
-            }
-            return Date()
-        }()
+    private func parseDevice(from dict: [String: Any]) -> NetreoDevice? {
+        // UID is required — this is the primary identifier
+        let uid: String
+        if let u = dict["UID"] as? String { uid = u }
+        else if let u = dict["UID"] as? Int { uid = String(u) }
+        else { return nil }
 
-        // Determine real alarm status from API fields.
-        // BHNM returns alarm color in "alarm_color" (string or int), "up_status", "status", etc.
+        guard let ip = dict["ip"] as? String else { return nil }
+
+        let guid = dict["GUID"] as? String ?? ""
+        let devIndex = (dict["dev_index"] as? String) ?? (dict["dev_index"] as? Int).map(String.init) ?? ""
+        let name = dict["name"] as? String ?? ip
+        let description = dict["description"] as? String ?? ""
+        let category = dict["category"] as? String ?? ""
+        let site = dict["site"] as? String ?? ""
+        let model = dict["model"] as? String
+        let serialNumber = dict["serial_number"] as? String
+        let poll = (dict["poll"] as? String) == "1"
+        let monitor = (dict["monitor"] as? String) == "1"
+        let snmpVersion = dict["snmp_version"] as? String
+        let createTime = dict["create_time"] as? String
+
         let status: NetreoDevice.DeviceStatus = {
-            // Try "alarm_color" as string: "red", "orange", "yellow", "green"
             if let color = (dict["alarm_color"] as? String)?.lowercased() {
                 switch color {
-                case "red":                  return .critical
-                case "orange":               return .warning
-                case "yellow":               return .warning
-                case "green":                return .up
+                case "red":    return .critical
+                case "orange": return .warning
+                case "yellow": return .warning
+                case "green":  return .up
                 default: break
                 }
             }
-            // Try "alarm_color" as int: 0=green,1=yellow,2=orange,3=red (common BHNM convention)
             if let colorInt = dict["alarm_color"] as? Int {
                 switch colorInt {
                 case 3:  return .critical
@@ -368,7 +418,6 @@ class NetreoAPIService: ObservableObject {
                 default: break
                 }
             }
-            // Try string that may contain the int
             if let colorStr = dict["alarm_color"] as? String, let colorInt = Int(colorStr) {
                 switch colorInt {
                 case 3:  return .critical
@@ -378,7 +427,6 @@ class NetreoAPIService: ObservableObject {
                 default: break
                 }
             }
-            // Try "status" field
             if let s = (dict["status"] as? String)?.lowercased() {
                 switch s {
                 case "critical", "down": return .critical
@@ -387,80 +435,24 @@ class NetreoAPIService: ObservableObject {
                 default: break
                 }
             }
-            // Try "up_status" / "up" (1 = up, 0 = down)
             if let upStatus = dict["up_status"] as? Int {
                 return upStatus == 1 ? .up : .down
             }
-            // Fallback: if monitored and polling → up, else unknown
-            return (isActive && isMonitor) ? .up : .unknown
+            return (poll && monitor) ? .up : .unknown
         }()
 
         return NetreoDevice(
-            ip: ip,
-            name: dict["name"] as? String,
-            hostname: dict["description"] as? String,
-            status: status,
-            deviceType: dict["model"] as? String,
-            lastUpdated: lastUpdated,
-            siteID: dict["site"] as? String,
-            categoryID: dict["category"] as? String,
-            snmpCommunity: nil,
-            isActive: isActive,
-            additionalProperties: [:]
+            id: uid, uid: uid, guid: guid, devIndex: devIndex,
+            name: name, ip: ip, description: description,
+            category: category, site: site,
+            model: (model?.isEmpty == true) ? nil : model,
+            serialNumber: (serialNumber?.isEmpty == true) ? nil : serialNumber,
+            poll: poll, monitor: monitor,
+            snmpVersion: snmpVersion, createTime: createTime,
+            status: status
         )
     }
     
-    func addDevice(ip: String, snmpPublic: String, name: String? = nil) async throws -> Bool {
-        let endpoint = NetreoEndpoint.deviceAdd
-        var parameters = baseParameters()
-        parameters["ip"] = ip
-        parameters["snmp_pub"] = snmpPublic
-        if let name = name {
-            parameters["name"] = name
-        }
-        
-        switch configuration.version {
-        case .legacy:
-            return try await performLegacyBoolRequest(endpoint: endpoint, parameters: parameters)
-        case .v1, .v2, .openapi:
-            let deviceData: [String: Any] = [
-                "ip": ip,
-                "snmp_community": snmpPublic,
-                "name": name ?? ip
-            ]
-            return try await performModernBoolRequest(endpoint: endpoint, body: deviceData)
-        }
-    }
-    
-    func deleteDevice(identifier: String) async throws -> Bool {
-        let endpoint = NetreoEndpoint.deviceDelete(identifier)
-        
-        switch configuration.version {
-        case .legacy:
-            var parameters = baseParameters()
-            parameters["name"] = identifier
-            return try await performLegacyBoolRequest(endpoint: endpoint, parameters: parameters)
-        case .v1, .v2, .openapi:
-            return try await performModernBoolRequest(endpoint: endpoint)
-        }
-    }
-    
-    func renameDevice(identifier: String, newName: String) async throws -> Bool {
-        let endpoint = NetreoEndpoint.deviceRename(identifier, newName)
-        
-        switch configuration.version {
-        case .legacy:
-            var parameters = baseParameters()
-            parameters["device_id"] = identifier
-            parameters["new_name"] = newName
-            return try await performLegacyBoolRequest(endpoint: endpoint, parameters: parameters)
-        case .v1, .v2, .openapi:
-            let renameData = ["name": newName]
-            return try await performModernBoolRequest(endpoint: endpoint, body: renameData)
-        }
-    }
-    
-
     // MARK: - Tactical Group Summaries
 
     /// Single endpoint replacing all incident-derived summary logic.
