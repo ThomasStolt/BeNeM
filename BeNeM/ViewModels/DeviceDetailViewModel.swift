@@ -49,6 +49,11 @@ class DeviceDetailViewModel: ObservableObject {
     @Published var isLoadingCategories = false
     @Published var categoriesError: String?
 
+    @Published var healthyCount: Int = 0
+    @Published var ackCount: Int = 0
+    @Published var warningCount: Int = 0
+    @Published var criticalCount: Int = 0
+
     private var devIndex: String?
     private let apiService: NetreoAPIService
     let device: NetreoDevice
@@ -82,6 +87,24 @@ class DeviceDetailViewModel: ObservableObject {
                     || incName.lowercased().components(separatedBy: ".").first
                        == deviceName.lowercased().components(separatedBy: ".").first
             }
+            // Compute alarm counts from incidents
+            var healthy = 0, ack = 0, warn = 0, crit = 0
+            for incident in incidents {
+                if incident.status == .acknowledged {
+                    ack += 1
+                } else {
+                    switch incident.severity {
+                    case .critical, .major: crit += 1
+                    case .warning, .minor:  warn += 1
+                    case .informational: break
+                    }
+                }
+            }
+            if incidents.isEmpty { healthy = 1 }
+            healthyCount = healthy
+            ackCount = ack
+            warningCount = warn
+            criticalCount = crit
         } catch {
             incidentsError = error.localizedDescription
         }
