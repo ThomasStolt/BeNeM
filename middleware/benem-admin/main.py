@@ -26,7 +26,7 @@ import auth
 from auth import SESSION_COOKIE
 from connection_test import run_test
 from crypto import load_key, encrypt_payload
-from log import append_entry, read_entries, count_entries, delete_entry, update_entry_user
+from log import append_entry, read_entries, count_entries, delete_entry, update_entry_user, get_entry
 from push_db import get_registered_devices
 from servers import load_servers, get_server
 from sf_symbols import SF_SYMBOLS
@@ -326,6 +326,21 @@ def log_page(request: Request, server_id: str = "", page: int = 1):
         "entries": entries,
         "page": page,
         "total_pages": total_pages,
+    })
+
+
+@app.get("/admin/log/show")
+def log_show(request: Request, ts: str = ""):
+    if not auth.is_authenticated(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    entry = get_entry(ts)
+    if not entry or not entry.get("link"):
+        return JSONResponse({"error": "not found or no full link stored"}, status_code=404)
+    return JSONResponse({
+        "url": entry["link"],
+        "qr_b64": _make_qr_b64(entry["link"]),
+        "user": entry.get("user", ""),
+        "server_name": entry.get("server_name", ""),
     })
 
 

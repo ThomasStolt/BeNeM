@@ -15,6 +15,7 @@ def append_entry(user: str, server_id: str, server_name: str, link: str) -> None
         "server_id": server_id,
         "server_name": server_name,
         "link_prefix": link[:40],
+        "link": link,
     }
     with open(path, "a") as f:
         f.write(json.dumps(entry) + "\n")
@@ -60,6 +61,24 @@ def count_entries(server_id: Optional[str] = None) -> int:
                 except json.JSONDecodeError:
                     pass
     return count
+
+
+def get_entry(ts: str) -> Optional[dict]:
+    path = os.environ.get("LOG_PATH", LOG_PATH)
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+                if entry.get("ts") == ts:
+                    return entry
+            except json.JSONDecodeError:
+                pass
+    return None
 
 
 def _read_all_lines() -> list[str]:
