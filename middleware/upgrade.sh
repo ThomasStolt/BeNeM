@@ -78,16 +78,30 @@ echo -e "${CYAN}── Health check ──────────────�
 # Give the container a moment to start
 sleep 3
 
-# Health check runs inside the container (port 8889 is not exposed to the host — it's behind Caddy)
-HEALTH=$(docker compose exec -T bhnm-apns python3 -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8889/health').read().decode())" 2>/dev/null || echo "")
+# Health checks run inside the containers (ports are not exposed to the host — they're behind Caddy)
+FAILED=0
 
-if echo "$HEALTH" | grep -q '"status":"running"'; then
-    ok "Service is healthy: $HEALTH"
+HEALTH_APNS=$(docker compose exec -T bhnm-apns python3 -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8889/health').read().decode())" 2>/dev/null || echo "")
+if echo "$HEALTH_APNS" | grep -q '"status":"running"'; then
+    ok "bhnm-apns is healthy: $HEALTH_APNS"
 else
-    warn "Health check failed — check logs:"
-    echo ""
+    warn "bhnm-apns health check failed — check logs:"
     docker compose logs bhnm-apns --tail 20
-    exit 1
+    FAILED=1
+fi
+
+HEALTH_ADMIN=$(docker compose exec -T benem-admin python3 -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8001/admin/health').read().decode())" 2>/dev/null || echo "")
+if echo "$HEALTH_ADMIN" | grep -q '"status":"running"'; then
+    ok "benem-admin is healthy: $HEALTH_ADMIN"
+else
+    warn "benem-admin health check failed — check logs:"
+    docker compose logs benem-admin --tail 20
+    FAILED=1
+fi
+
+if [ "$FAILED" -ne 0 ]; then
+    echo ""
+    die "One or more health checks failed."
 fi
 
 # ── Done ───────────────────────────────────────────
