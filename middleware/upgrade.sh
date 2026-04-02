@@ -67,7 +67,7 @@ ok "Image built."
 
 echo ""
 echo -e "${CYAN}── Restarting service ────────────────────────────${NC}"
-docker compose up -d
+docker compose up -d --force-recreate
 ok "Service restarted."
 
 # ── Health check ───────────────────────────────────
