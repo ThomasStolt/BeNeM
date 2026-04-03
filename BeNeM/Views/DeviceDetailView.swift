@@ -777,6 +777,9 @@ struct DeviceDetailView: View {
                                 ),
                                 onTap: {
                                     Task { await viewModel.tapCard(instanceKey: state.instance.key) }
+                                },
+                                onRetry: {
+                                    Task { await viewModel.retryCard(instanceKey: state.instance.key) }
                                 }
                             )
                             .contextMenu {
@@ -823,6 +826,9 @@ struct DeviceDetailView: View {
                     ),
                     onTap: {
                         Task { await viewModel.tapCard(instanceKey: state.instance.key) }
+                    },
+                    onRetry: {
+                        Task { await viewModel.retryCard(instanceKey: state.instance.key) }
                     }
                 )
                 .contextMenu {
@@ -1015,6 +1021,7 @@ private struct StatusBadge: View {
 private struct MetricCard: View {
     @Binding var state: MetricCardState
     let onTap: () -> Void
+    var onRetry: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1038,8 +1045,22 @@ private struct MetricCard: View {
             if state.isExpanded {
                 VStack(spacing: 8) {
                     if state.data.isEmpty {
-                        Text(state.error != nil ? "Failed to load data" : "No data available")
-                            .font(.caption).foregroundColor(.secondary).padding()
+                        if state.isLoading {
+                            HStack { Spacer(); ProgressView(); Spacer() }.padding()
+                        } else {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(state.error != nil ? "Failed to load data" : "No data available")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .contentShape(Rectangle())
+                            .onTapGesture { onRetry?() }
+                        }
                     } else {
                         Chart(state.data, id: \.timestamp) { point in
                             AreaMark(
