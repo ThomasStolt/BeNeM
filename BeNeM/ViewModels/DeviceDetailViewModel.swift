@@ -268,6 +268,11 @@ class DeviceDetailViewModel: ObservableObject {
                 if let root = states.first(where: { $0.instance.instanceDescr == "/" }) {
                     return (category: cat, states: [root])
                 }
+                // Still return first instance so placeholder can render
+                if let first = states.first {
+                    return (category: cat, states: [first])
+                }
+                return nil
             }
             // Take only the first instance per category
             let limited = Array(states.prefix(1))
