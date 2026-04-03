@@ -36,29 +36,48 @@ struct DeviceDetailView: View {
 
     private func headerSection(_ device: NetreoDevice) -> some View {
         HStack(spacing: 0) {
-            // Left half — device type icon
+            // Left column — device type icon (compact)
             DeviceTypeIcon(
                 typeClass: device.typeClass,
-                size: 90,
+                size: 56,
                 color: statusColor(device.status)
             )
-            .frame(maxWidth: .infinity)
+            .frame(width: 70)
 
-            // Right half — name, IP, category, site
-            VStack(alignment: .leading, spacing: 6) {
+            // Middle column — name, IP, category, site
+            VStack(alignment: .leading, spacing: 4) {
                 MarqueeText(text: device.name, font: .headline, fontWeight: .bold, color: .primary)
                 MarqueeText(text: device.ip, font: .subheadline, color: .secondary)
                 MarqueeText(text: device.category, font: .subheadline, color: .secondary)
                 MarqueeText(text: device.site, font: .subheadline, color: .secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.trailing, 16)
+
+            // Right column — mini latency histogram (only if data available)
+            if let firstLatency = viewModel.latencyStates.first, !firstLatency.data.isEmpty {
+                miniLatencyHistogram(data: firstLatency.data)
+                    .frame(width: 100)
+            }
         }
         .padding(.vertical, 16)
+        .padding(.horizontal, 12)
         .background(Color(.secondarySystemGroupedBackground))
         .cornerRadius(12)
         .padding(.horizontal, 16)
         .padding(.top, 16)
+    }
+
+    private func miniLatencyHistogram(data: [PerformanceDataPoint]) -> some View {
+        let bars = downsample(data, targetPoints: 16)
+        let maxVal = bars.map(\.value).max() ?? 1
+        return HStack(alignment: .bottom, spacing: 2) {
+            ForEach(Array(bars.enumerated()), id: \.offset) { _, point in
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(Color(red: 0.2, green: 0.8, blue: 0.4))
+                    .frame(height: max(2, CGFloat(point.value / maxVal) * 40))
+            }
+        }
+        .frame(height: 44)
     }
 
     // MARK: - Alarm Summary Bar
