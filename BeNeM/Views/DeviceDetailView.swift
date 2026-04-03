@@ -56,7 +56,7 @@ struct DeviceDetailView: View {
             // Right column — mini latency histogram (only if data available)
             if let firstLatency = viewModel.latencyStates.first, !firstLatency.data.isEmpty {
                 miniLatencyHistogram(data: firstLatency.data)
-                    .frame(width: 100)
+                    .frame(minWidth: 64, maxWidth: 100)
             }
         }
         .padding(.vertical, 16)
@@ -68,12 +68,13 @@ struct DeviceDetailView: View {
     }
 
     private func miniLatencyHistogram(data: [PerformanceDataPoint]) -> some View {
+        let barColor = Color(red: 0.2, green: 0.8, blue: 0.4)
         let bars = downsample(data, targetPoints: 16)
         let maxVal = bars.map(\.value).max() ?? 1
         return HStack(alignment: .bottom, spacing: 2) {
             ForEach(Array(bars.enumerated()), id: \.offset) { _, point in
                 RoundedRectangle(cornerRadius: 1.5)
-                    .fill(Color(red: 0.2, green: 0.8, blue: 0.4))
+                    .fill(barColor)
                     .frame(height: max(2, CGFloat(point.value / maxVal) * 40))
             }
         }
