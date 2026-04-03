@@ -316,6 +316,15 @@ class DeviceDetailViewModel: ObservableObject {
         }
     }
 
+    /// Retry a failed or empty metric fetch — resets state and re-fetches
+    func retryCard(instanceKey: String) async {
+        guard let state = cardStates[instanceKey], !state.isLoading else { return }
+        cardStates[instanceKey]?.hasBeenFetched = false
+        cardStates[instanceKey]?.error = nil
+        cardStates[instanceKey]?.data = []
+        await fetchCard(instanceKey: instanceKey)
+    }
+
     func tapCard(instanceKey: String) async {
         guard let state = cardStates[instanceKey] else { return }
         guard !state.isLoading else { return }
