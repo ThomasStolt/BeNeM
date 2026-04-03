@@ -248,20 +248,9 @@ struct DeviceDetailView: View {
                         HStack { Spacer(); ProgressView(); Spacer() }.padding()
                     } else {
                         ForEach(states, id: \.instance.key) { state in
-                            if state.isLoading && !state.hasBeenFetched {
-                                VStack(spacing: 8) {
-                                    Text(state.instance.title)
-                                        .font(.caption2).fontWeight(.medium)
-                                        .foregroundColor(.secondary)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.horizontal, 16)
-                                        .padding(.top, 10)
-                                    HStack { Spacer(); ProgressView(); Spacer() }
-                                        .padding(.vertical, 40)
-                                }
-                            } else if !state.data.isEmpty {
+                            if !state.data.isEmpty {
                                 latencyChart(state: state)
-                            } else if state.hasBeenFetched {
+                            } else {
                                 retryPlaceholder(
                                     title: state.instance.title,
                                     isLoading: state.isLoading
@@ -429,20 +418,9 @@ struct DeviceDetailView: View {
                     } else {
                         ForEach(groups, id: \.category.id) { group in
                             ForEach(group.states, id: \.instance.key) { state in
-                                if state.isLoading && !state.hasBeenFetched {
-                                    VStack(spacing: 8) {
-                                        Text(state.instance.title)
-                                            .font(.caption2).fontWeight(.medium)
-                                            .foregroundColor(.secondary)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                            .padding(.horizontal, 16)
-                                            .padding(.top, 10)
-                                        HStack { Spacer(); ProgressView(); Spacer() }
-                                            .padding(.vertical, 20)
-                                    }
-                                } else if !state.data.isEmpty {
+                                if !state.data.isEmpty {
                                     utilizationChart(state: state, categoryName: group.category.name)
-                                } else if state.hasBeenFetched {
+                                } else {
                                     retryPlaceholder(
                                         title: state.instance.title,
                                         isLoading: state.isLoading
@@ -450,10 +428,9 @@ struct DeviceDetailView: View {
                                         Task { await viewModel.retryCard(instanceKey: state.instance.key) }
                                     }
                                 }
-                                if state.instance.key != group.states.last?.instance.key
-                                    || group.category.id != groups.last?.category.id {
-                                    Divider().padding(.leading, 16)
-                                }
+                            }
+                            if group.category.id != groups.last?.category.id {
+                                Divider().padding(.leading, 16)
                             }
                         }
                     }
