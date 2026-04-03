@@ -16,6 +16,10 @@ struct DeviceDetailView: View {
                 alarmBar
                 hostInfoSection(device)
                 issuesSection
+                latencySection
+                if device.typeClass.isServer {
+                    serverUtilizationSection
+                }
                 if device.typeClass.isNetworkDevice {
                     pinnedInterfacesSection
                 }
@@ -31,29 +35,29 @@ struct DeviceDetailView: View {
     // MARK: - Header
 
     private func headerSection(_ device: NetreoDevice) -> some View {
-        VStack(spacing: 8) {
+        HStack(spacing: 0) {
+            // Left half — device type icon
             DeviceTypeIcon(
                 typeClass: device.typeClass,
-                size: 80,
+                size: 90,
                 color: statusColor(device.status)
             )
+            .frame(maxWidth: .infinity)
 
-            Text(device.name)
-                .font(.title2).fontWeight(.bold)
-                .foregroundColor(.green)
-
-            HStack(spacing: 6) {
-                Label(device.description.isEmpty ? device.typeClass.rawValue : String(device.description.prefix(30)),
-                      systemImage: "info.circle")
-                Label(device.ip, systemImage: "network")
-                Label(device.category, systemImage: "folder")
-                Label(device.site, systemImage: "mappin")
+            // Right half — name, IP, category, site
+            VStack(alignment: .leading, spacing: 6) {
+                MarqueeText(text: device.name, font: .headline, fontWeight: .bold, color: .primary)
+                MarqueeText(text: device.ip, font: .subheadline, color: .secondary)
+                MarqueeText(text: device.category, font: .subheadline, color: .secondary)
+                MarqueeText(text: device.site, font: .subheadline, color: .secondary)
             }
-            .font(.caption2)
-            .foregroundColor(.secondary)
-            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.trailing, 16)
         }
-        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(12)
+        .padding(.horizontal, 16)
         .padding(.top, 16)
     }
 
@@ -81,30 +85,55 @@ struct DeviceDetailView: View {
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: - Host Information (collapsible)
+    // MARK: - Host Information (collapsible card)
+
+    @State private var hostInfoExpanded = false
 
     private func hostInfoSection(_ device: NetreoDevice) -> some View {
-        DisclosureGroup("HOST INFORMATION") {
-            VStack(spacing: 0) {
-                infoRow("Current State", value: device.status.rawValue.uppercased(),
-                        valueColor: statusColor(device.status))
-                infoRow("Type of Device", value: device.description)
-                infoRow("Category", value: device.category)
-                infoRow("Site", value: device.site)
-                if let model = device.model {
-                    infoRow("Model", value: model)
+        VStack(spacing: 0) {
+            HStack {
+                Text("HOST INFORMATION")
+                    .font(.caption).fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Image(systemName: hostInfoExpanded ? "chevron.up" : "chevron.down")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    hostInfoExpanded.toggle()
                 }
-                if let serial = device.serialNumber {
-                    infoRow("Serial Number", value: serial)
+            }
+
+            if hostInfoExpanded {
+                Divider().padding(.leading, 16)
+                VStack(spacing: 0) {
+                    infoRow("Current State", value: device.status.rawValue.uppercased(),
+                            valueColor: statusColor(device.status))
+                    infoRow("Type of Device", value: device.description)
+                    infoRow("Category", value: device.category)
+                    infoRow("Site", value: device.site)
+                    if let model = device.model {
+                        infoRow("Model", value: model)
+                    }
+                    if let serial = device.serialNumber {
+                        infoRow("Serial Number", value: serial)
+                    }
+                    if let snmp = device.snmpVersion {
+                        infoRow("SNMP Version", value: snmp)
+                    }
+                    infoRow("UID", value: device.uid)
                 }
-                if let snmp = device.snmpVersion {
-                    infoRow("SNMP Version", value: snmp)
-                }
-                infoRow("UID", value: device.uid)
+                .padding(.bottom, 8)
             }
         }
-        .padding(.horizontal)
-        .tint(.secondary)
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(12)
+        .padding(.horizontal, 16)
     }
 
     private func infoRow(_ label: String, value: String, valueColor: Color = .primary) -> some View {
@@ -123,10 +152,12 @@ struct DeviceDetailView: View {
         .padding(.horizontal, 8)
     }
 
-    // MARK: - Current Issues
+    // MARK: - Current Issues (collapsible card, open by default)
+
+    @State private var issuesExpanded = true
 
     private var issuesSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: 0) {
             HStack {
                 Text("HOST CURRENT ISSUES")
                     .font(.caption).fontWeight(.semibold)
@@ -140,72 +171,553 @@ struct DeviceDetailView: View {
                         .background(Color.red)
                         .cornerRadius(8)
                 }
+                Image(systemName: issuesExpanded ? "chevron.up" : "chevron.down")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
             }
-            .padding(.horizontal)
-
-            if viewModel.isLoadingIncidents {
-                HStack { Spacer(); ProgressView(); Spacer() }.padding()
-            } else if viewModel.incidents.isEmpty {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                    Text("No current issues")
-                        .font(.subheadline).foregroundColor(.secondary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    issuesExpanded.toggle()
                 }
-                .padding()
-            } else {
-                VStack(spacing: 0) {
-                    HStack {
-                        Text("TYPE").frame(width: 70, alignment: .leading)
-                        Text("DESCRIPTION").frame(maxWidth: .infinity, alignment: .leading)
-                        Text("DURATION").frame(width: 80, alignment: .trailing)
+            }
+
+            if issuesExpanded {
+                Divider().padding(.leading, 16)
+
+                if viewModel.isLoadingIncidents {
+                    HStack { Spacer(); ProgressView(); Spacer() }.padding()
+                } else if viewModel.incidents.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("No current issues")
+                            .font(.subheadline).foregroundColor(.secondary)
                     }
-                    .font(.caption2).foregroundColor(.secondary)
-                    .padding(.horizontal).padding(.top, 6).padding(.bottom, 4)
-                    Divider()
-                    ForEach(viewModel.incidents) { incident in
-                        HStack(alignment: .top) {
-                            Text(incident.category ?? incident.severity.rawValue.capitalized)
-                                .font(.caption).foregroundColor(incident.severity.color)
-                                .frame(width: 70, alignment: .leading)
-                            Text(incident.summary)
-                                .font(.caption)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .lineLimit(2)
-                            Text(durationString(from: incident.startTime))
-                                .font(.caption2).foregroundColor(.secondary)
-                                .frame(width: 80, alignment: .trailing)
+                    .padding()
+                } else {
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text("TYPE").frame(width: 70, alignment: .leading)
+                            Text("DESCRIPTION").frame(maxWidth: .infinity, alignment: .leading)
+                            Text("DURATION").frame(width: 80, alignment: .trailing)
                         }
-                        .padding(.horizontal).padding(.vertical, 6)
-                        Divider().padding(.leading)
+                        .font(.caption2).foregroundColor(.secondary)
+                        .padding(.horizontal, 16).padding(.top, 6).padding(.bottom, 4)
+                        Divider()
+                        ForEach(viewModel.incidents) { incident in
+                            HStack(alignment: .top) {
+                                Text(incident.category ?? incident.severity.rawValue.capitalized)
+                                    .font(.caption).foregroundColor(incident.severity.color)
+                                    .frame(width: 70, alignment: .leading)
+                                Text(incident.summary)
+                                    .font(.caption)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .lineLimit(2)
+                                Text(durationString(from: incident.startTime))
+                                    .font(.caption2).foregroundColor(.secondary)
+                                    .frame(width: 80, alignment: .trailing)
+                            }
+                            .padding(.horizontal, 16).padding(.vertical, 6)
+                            Divider().padding(.leading, 16)
+                        }
+                    }
+                }
+            }
+        }
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(12)
+        .padding(.horizontal, 16)
+    }
+
+    // MARK: - Latency (premium chart)
+
+    @State private var latencyChartAppeared = false
+
+    private var latencySection: some View {
+        let states = viewModel.latencyStates
+        let isLoading = viewModel.isLoadingCategories || states.contains(where: { $0.isLoading })
+        let hasAnyState = !states.isEmpty
+
+        return Group {
+            if hasAnyState || viewModel.isLoadingCategories {
+                VStack(spacing: 0) {
+                    if isLoading && !hasAnyState {
+                        HStack { Spacer(); ProgressView(); Spacer() }.padding()
+                    } else {
+                        ForEach(states, id: \.instance.key) { state in
+                            if state.isLoading && !state.hasBeenFetched {
+                                VStack(spacing: 8) {
+                                    Text(state.instance.title)
+                                        .font(.caption2).fontWeight(.medium)
+                                        .foregroundColor(.secondary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, 16)
+                                        .padding(.top, 10)
+                                    HStack { Spacer(); ProgressView(); Spacer() }
+                                        .padding(.vertical, 40)
+                                }
+                            } else if !state.data.isEmpty {
+                                latencyChart(state: state)
+                            } else if state.hasBeenFetched {
+                                retryPlaceholder(
+                                    title: state.instance.title,
+                                    isLoading: state.isLoading
+                                ) {
+                                    Task { await viewModel.retryCard(instanceKey: state.instance.key) }
+                                }
+                            }
+                        }
                     }
                 }
                 .background(Color(.secondarySystemGroupedBackground))
                 .cornerRadius(12)
-                .padding(.horizontal)
+                .padding(.horizontal, 16)
+                .onAppear {
+                    withAnimation(.easeOut(duration: 0.8).delay(0.3)) {
+                        latencyChartAppeared = true
+                    }
+                }
             }
         }
     }
 
-    // MARK: - Performance
+    private func latencyChart(state: MetricCardState) -> some View {
+        let raw = state.data
+        let chartData = downsample(raw)
+        let minVal = raw.map(\.value).min() ?? 0
+        let maxVal = raw.map(\.value).max() ?? 1
+        let avgVal = raw.map(\.value).reduce(0, +) / Double(max(raw.count, 1))
+        let currentVal = raw.last?.value
+
+        return VStack(spacing: 0) {
+            // Instance label
+            Text(state.instance.title)
+                .font(.caption2).fontWeight(.medium)
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+
+            // Chart
+            Chart(chartData, id: \.timestamp) { point in
+                AreaMark(
+                    x: .value("Time", point.timestamp),
+                    y: .value("ms", point.value * 1000)
+                )
+                .foregroundStyle(
+                    LinearGradient(
+                        stops: [
+                            .init(color: chartAccentColor(avgVal).opacity(0.5), location: 0),
+                            .init(color: chartAccentColor(avgVal).opacity(0.15), location: 0.7),
+                            .init(color: chartAccentColor(avgVal).opacity(0), location: 1)
+                        ],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
+                .interpolationMethod(.linear)
+
+                LineMark(
+                    x: .value("Time", point.timestamp),
+                    y: .value("ms", point.value * 1000)
+                )
+                .foregroundStyle(chartAccentColor(avgVal))
+                .interpolationMethod(.linear)
+                .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round))
+            }
+            .chartYScale(domain: max(0, (minVal * 1000) - 0.5) ... (maxVal * 1000) * 1.1)
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .hour, count: 6)) { value in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 5]))
+                        .foregroundStyle(Color.secondary.opacity(0.15))
+                    AxisValueLabel {
+                        if let date = value.as(Date.self) {
+                            Text(date, format: .dateTime.hour(.defaultDigits(amPM: .abbreviated)))
+                                .font(.system(size: 9))
+                                .foregroundStyle(Color.secondary.opacity(0.6))
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { _ in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 5]))
+                        .foregroundStyle(Color.secondary.opacity(0.15))
+                    AxisValueLabel()
+                        .foregroundStyle(Color.secondary.opacity(0.6))
+                        .font(.system(size: 9))
+                }
+            }
+            .chartPlotStyle { plotArea in
+                plotArea.background(Color.clear)
+            }
+            .frame(height: 160)
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .opacity(latencyChartAppeared ? 1 : 0)
+            .scaleEffect(y: latencyChartAppeared ? 1 : 0.3, anchor: .bottom)
+
+            // Stats strip
+            HStack(spacing: 0) {
+                latencyStat(label: "CURRENT", value: currentVal, color: currentVal.map { latencyColor($0) } ?? .secondary)
+                latencyDivider
+                latencyStat(label: "AVG", value: avgVal, color: latencyColor(avgVal))
+                latencyDivider
+                latencyStat(label: "MIN", value: minVal, color: .green)
+                latencyDivider
+                latencyStat(label: "MAX", value: maxVal, color: latencyColor(maxVal))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+        }
+        .padding(.bottom, 4)
+    }
+
+    private var latencyDivider: some View {
+        Rectangle()
+            .fill(Color.secondary.opacity(0.15))
+            .frame(width: 1, height: 32)
+    }
+
+    private func latencyStat(label: String, value: Double?, color: Color) -> some View {
+        VStack(spacing: 2) {
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(.secondary.opacity(0.7))
+            Text(value.map { formatLatency($0) } ?? "—")
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundColor(color)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func formatLatency(_ seconds: Double) -> String {
+        if seconds < 0.001 { return "\(Int(seconds * 1_000_000)) µs" }
+        if seconds < 1 { return String(format: "%.1f ms", seconds * 1000) }
+        return String(format: "%.2f s", seconds)
+    }
+
+    private func latencyColor(_ seconds: Double) -> Color {
+        if seconds < 0.005 { return Color(red: 0.2, green: 0.8, blue: 0.4) }
+        if seconds < 0.02 { return Color(red: 0.3, green: 0.7, blue: 0.9) }
+        if seconds < 0.1 { return .orange }
+        return .red
+    }
+
+    private func chartAccentColor(_ avgSeconds: Double) -> Color {
+        if avgSeconds < 0.005 { return Color(red: 0.2, green: 0.8, blue: 0.4) }
+        if avgSeconds < 0.02 { return Color(red: 0.3, green: 0.7, blue: 0.9) }
+        if avgSeconds < 0.1 { return .orange }
+        return .red
+    }
+
+    // MARK: - Server Utilization (CPU / Memory / Disk)
+
+    @State private var serverUtilChartAppeared = false
+
+    private var serverUtilizationSection: some View {
+        let groups = viewModel.serverUtilizationStates
+        let isLoading = viewModel.isLoadingCategories
+        let hasData = groups.contains(where: { $0.states.contains(where: { !$0.data.isEmpty }) })
+
+        return Group {
+            if !groups.isEmpty || isLoading {
+                VStack(spacing: 0) {
+                    if isLoading && !hasData {
+                        HStack { Spacer(); ProgressView(); Spacer() }.padding()
+                    } else {
+                        ForEach(groups, id: \.category.id) { group in
+                            let loadedStates = group.states.filter { !$0.data.isEmpty }
+                            if !loadedStates.isEmpty {
+                                ForEach(loadedStates, id: \.instance.key) { state in
+                                    utilizationChart(state: state, categoryName: group.category.name)
+                                    if state.instance.key != loadedStates.last?.instance.key
+                                        || group.category.id != groups.last?.category.id {
+                                        Divider().padding(.leading, 16)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .background(Color(.secondarySystemGroupedBackground))
+                .cornerRadius(12)
+                .padding(.horizontal, 16)
+                .onAppear {
+                    withAnimation(.easeOut(duration: 0.8).delay(0.3)) {
+                        serverUtilChartAppeared = true
+                    }
+                }
+            }
+        }
+    }
+
+    private func utilizationChart(state: MetricCardState, categoryName: String) -> some View {
+        let raw = state.data
+        let chartData = downsample(raw)
+        let maxVal = raw.map(\.value).max() ?? 100
+        let avgVal = raw.map(\.value).reduce(0, +) / Double(max(raw.count, 1))
+        let currentVal = raw.last?.value
+
+        return VStack(spacing: 0) {
+            // Title row with current value
+            HStack {
+                Text(state.instance.title)
+                    .font(.caption2).fontWeight(.medium)
+                    .foregroundColor(.secondary)
+                Spacer()
+                if let current = currentVal {
+                    Text(formatUtil(current, unit: state.instance.displayUnit))
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundColor(utilColor(current, unit: state.instance.displayUnit))
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+
+            // Chart
+            Chart(chartData, id: \.timestamp) { point in
+                AreaMark(
+                    x: .value("Time", point.timestamp),
+                    y: .value(state.instance.displayUnit, point.value)
+                )
+                .foregroundStyle(
+                    LinearGradient(
+                        stops: [
+                            .init(color: utilColor(avgVal, unit: state.instance.displayUnit).opacity(0.5), location: 0),
+                            .init(color: utilColor(avgVal, unit: state.instance.displayUnit).opacity(0.2), location: 0.8),
+                            .init(color: utilColor(avgVal, unit: state.instance.displayUnit).opacity(0), location: 1)
+                        ],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
+                .interpolationMethod(.linear)
+
+                LineMark(
+                    x: .value("Time", point.timestamp),
+                    y: .value(state.instance.displayUnit, point.value)
+                )
+                .foregroundStyle(utilColor(avgVal, unit: state.instance.displayUnit))
+                .interpolationMethod(.linear)
+                .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round))
+            }
+            .chartYScale(domain: 0 ... (state.instance.displayUnit == "%" ? 100 : maxVal * 1.15))
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .hour, count: 6)) { value in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 5]))
+                        .foregroundStyle(Color.secondary.opacity(0.15))
+                    AxisValueLabel {
+                        if let date = value.as(Date.self) {
+                            Text(date, format: .dateTime.hour(.defaultDigits(amPM: .abbreviated)))
+                                .font(.system(size: 9))
+                                .foregroundStyle(Color.secondary.opacity(0.6))
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 5]))
+                        .foregroundStyle(Color.secondary.opacity(0.15))
+                    AxisValueLabel()
+                        .foregroundStyle(Color.secondary.opacity(0.6))
+                        .font(.system(size: 9))
+                }
+            }
+            .frame(height: 120)
+            .padding(.horizontal, 12)
+            .padding(.top, 6)
+            .opacity(serverUtilChartAppeared ? 1 : 0)
+            .scaleEffect(y: serverUtilChartAppeared ? 1 : 0.3, anchor: .bottom)
+
+            // Stats strip
+            HStack(spacing: 0) {
+                utilStat(label: "CURRENT", value: currentVal, unit: state.instance.displayUnit,
+                         color: currentVal.map { utilColor($0, unit: state.instance.displayUnit) } ?? .secondary)
+                latencyDivider
+                utilStat(label: "AVG", value: avgVal, unit: state.instance.displayUnit,
+                         color: utilColor(avgVal, unit: state.instance.displayUnit))
+                latencyDivider
+                utilStat(label: "MAX", value: maxVal, unit: state.instance.displayUnit,
+                         color: utilColor(maxVal, unit: state.instance.displayUnit))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+    }
+
+    private static let coreColors: [Color] = [
+        Color(red: 0.3, green: 0.7, blue: 0.9),   // blue
+        Color(red: 0.9, green: 0.5, blue: 0.2),   // orange
+        Color(red: 0.5, green: 0.8, blue: 0.3),   // green
+        Color(red: 0.8, green: 0.3, blue: 0.6),   // pink
+    ]
+
+    private func cpuCoresChart(cores: [MetricCardState]) -> some View {
+        // Build a flat array of (coreIndex, dataPoint) for the chart
+        struct CorePoint: Identifiable {
+            let id = UUID()
+            let core: String
+            let timestamp: Date
+            let value: Double
+            let color: Color
+        }
+
+        let allPoints: [CorePoint] = cores.enumerated().flatMap { (idx, state) in
+            let color = Self.coreColors[idx % Self.coreColors.count]
+            let label = "Core \(idx)"
+            return downsample(state.data).map { CorePoint(core: label, timestamp: $0.timestamp, value: $0.value, color: color) }
+        }
+
+        let currentValues: [(String, Double, Color)] = cores.enumerated().compactMap { (idx, state) in
+            guard let current = state.data.last?.value else { return nil }
+            return ("Core \(idx)", current, Self.coreColors[idx % Self.coreColors.count])
+        }
+
+        return VStack(spacing: 0) {
+            HStack {
+                Text("CPU Cores")
+                    .font(.caption2).fontWeight(.medium)
+                    .foregroundColor(.secondary)
+                Spacer()
+                // Show current values as colored labels
+                ForEach(currentValues, id: \.0) { label, value, color in
+                    Text(String(format: "%.0f%%", value))
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundColor(color)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+
+            Chart(allPoints) { point in
+                LineMark(
+                    x: .value("Time", point.timestamp),
+                    y: .value("%", point.value)
+                )
+                .foregroundStyle(point.color)
+                .interpolationMethod(.linear)
+                .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round))
+            }
+            .chartYScale(domain: 0 ... 100)
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .hour, count: 6)) { value in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 5]))
+                        .foregroundStyle(Color.secondary.opacity(0.15))
+                    AxisValueLabel {
+                        if let date = value.as(Date.self) {
+                            Text(date, format: .dateTime.hour(.defaultDigits(amPM: .abbreviated)))
+                                .font(.system(size: 9))
+                                .foregroundStyle(Color.secondary.opacity(0.6))
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 5]))
+                        .foregroundStyle(Color.secondary.opacity(0.15))
+                    AxisValueLabel()
+                        .foregroundStyle(Color.secondary.opacity(0.6))
+                        .font(.system(size: 9))
+                }
+            }
+            .chartLegend(.hidden)
+            .frame(height: 120)
+            .padding(.horizontal, 12)
+            .padding(.top, 6)
+
+            // Legend row
+            HStack(spacing: 12) {
+                ForEach(Array(cores.prefix(4).enumerated()), id: \.offset) { idx, _ in
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Self.coreColors[idx % Self.coreColors.count])
+                            .frame(width: 6, height: 6)
+                        Text("Core \(idx)")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+    }
+
+    private func utilStat(label: String, value: Double?, unit: String, color: Color) -> some View {
+        VStack(spacing: 2) {
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(.secondary.opacity(0.7))
+            Text(value.map { formatUtil($0, unit: unit) } ?? "—")
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundColor(color)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func formatUtil(_ value: Double, unit: String) -> String {
+        if unit == "%" { return String(format: "%.1f%%", value) }
+        if value >= 1_000_000 { return String(format: "%.1fM", value / 1_000_000) }
+        if value >= 1_000 { return String(format: "%.1fK", value / 1_000) }
+        return String(format: "%.1f \(unit)", value)
+    }
+
+    private func utilColor(_ value: Double, unit: String) -> Color {
+        guard unit == "%" else { return Color(red: 0.3, green: 0.7, blue: 0.9) }
+        if value < 50 { return Color(red: 0.2, green: 0.8, blue: 0.4) }
+        if value < 75 { return .orange }
+        return .red
+    }
+
+    // MARK: - Performance (collapsible card, closed by default)
+
+    @State private var performanceExpanded = false
 
     private var performanceSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("PERFORMANCE")
-                .font(.caption).fontWeight(.semibold)
-                .foregroundColor(.secondary)
-                .padding(.horizontal)
-                .padding(.bottom, 4)
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("PERFORMANCE")
+                    .font(.caption).fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+                Spacer()
+                if !viewModel.isLoadingCategories && viewModel.performanceMetricCount > 0 {
+                    Text("\(viewModel.performanceMetricCount)")
+                        .font(.caption2).fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8).padding(.vertical, 2)
+                        .background(Color.accentColor)
+                        .cornerRadius(8)
+                }
+                Image(systemName: performanceExpanded ? "chevron.up" : "chevron.down")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    performanceExpanded.toggle()
+                }
+            }
 
-            if viewModel.isLoadingCategories {
-                HStack { Spacer(); ProgressView(); Spacer() }.padding()
-            } else if let err = viewModel.categoriesError {
-                Text(err).font(.caption).foregroundColor(.secondary).padding()
-            } else if viewModel.categories.isEmpty {
-                Text("No performance data available")
-                    .font(.subheadline).foregroundColor(.secondary).padding()
-            } else {
-                VStack(spacing: 0) {
+            if performanceExpanded {
+                Divider().padding(.leading, 16)
+
+                if viewModel.isLoadingCategories {
+                    HStack { Spacer(); ProgressView(); Spacer() }.padding()
+                } else if let err = viewModel.categoriesError {
+                    Text(err).font(.caption).foregroundColor(.secondary).padding()
+                } else if viewModel.categories.isEmpty {
+                    Text("No performance data available")
+                        .font(.subheadline).foregroundColor(.secondary).padding()
+                } else {
                     ForEach(viewModel.categories, id: \.id) { category in
                         if !category.name.lowercased().contains("latency") {
                             let instances = viewModel.cardStates.values
@@ -217,11 +729,11 @@ struct DeviceDetailView: View {
                         }
                     }
                 }
-                .background(Color(.secondarySystemGroupedBackground))
-                .cornerRadius(12)
-                .padding(.horizontal)
             }
         }
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(12)
+        .padding(.horizontal, 16)
     }
 
     // MARK: - Pinned Interfaces
@@ -269,13 +781,25 @@ struct DeviceDetailView: View {
         }
     }
 
+    @State private var cpuCoresExpanded = false
+
     private func categoryGroup(category: PerformanceCategory, instances: [MetricCardState]) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        // Separate CPU Core instances from regular ones
+        let coreInstances = instances
+            .filter { $0.instance.title.lowercased().contains("core") }
+            .prefix(4)
+            .map { $0 }
+        let regularInstances = instances
+            .filter { !$0.instance.title.lowercased().contains("core") }
+
+        return VStack(alignment: .leading, spacing: 0) {
             Text(category.name.uppercased())
                 .font(.caption2).fontWeight(.semibold)
                 .foregroundColor(.secondary)
                 .padding(.horizontal).padding(.top, 10).padding(.bottom, 2)
-            ForEach(instances, id: \.instance.key) { state in
+
+            // Regular metric cards
+            ForEach(regularInstances, id: \.instance.key) { state in
                 MetricCard(
                     state: Binding(
                         get: { viewModel.cardStates[state.instance.key] ?? state },
@@ -303,10 +827,90 @@ struct DeviceDetailView: View {
                 }
                 Divider().padding(.leading)
             }
+
+            // Combined CPU Cores card (replaces individual core cards)
+            if !coreInstances.isEmpty {
+                cpuCoresCard(cores: coreInstances)
+                Divider().padding(.leading)
+            }
+        }
+    }
+
+    private func cpuCoresCard(cores: [MetricCardState]) -> some View {
+        let anyLoading = cores.contains(where: { $0.isLoading })
+        let allFetched = cores.allSatisfy(\.hasBeenFetched)
+        let loadedCores = cores.filter { !$0.data.isEmpty }
+
+        return VStack(spacing: 0) {
+            // Tappable header
+            HStack {
+                Text("CPU Cores")
+                    .font(.subheadline)
+                Spacer()
+                if anyLoading {
+                    ProgressView().scaleEffect(0.7)
+                } else if allFetched && !loadedCores.isEmpty {
+                    // Show current values
+                    ForEach(Array(loadedCores.enumerated()), id: \.offset) { idx, state in
+                        Text(String(format: "%.0f%%", state.data.last?.value ?? 0))
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundColor(Self.coreColors[idx % Self.coreColors.count])
+                    }
+                }
+                Image(systemName: cpuCoresExpanded ? "chevron.up" : "chevron.down")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if !allFetched {
+                    // Fetch all cores on first tap
+                    for core in cores {
+                        Task { await viewModel.fetchCard(instanceKey: core.instance.key) }
+                    }
+                }
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    cpuCoresExpanded.toggle()
+                }
+            }
+
+            if cpuCoresExpanded && !loadedCores.isEmpty {
+                cpuCoresChart(cores: loadedCores)
+            }
         }
     }
 
     // MARK: - Helpers
+
+    private func retryPlaceholder(title: String, isLoading: Bool, onRetry: @escaping () -> Void) -> some View {
+        VStack(spacing: 8) {
+            Text(title)
+                .font(.caption2).fontWeight(.medium)
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+            if isLoading {
+                HStack { Spacer(); ProgressView(); Spacer() }
+                    .padding(.vertical, 30)
+            } else {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("No data available")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 30)
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+                .onTapGesture { onRetry() }
+            }
+        }
+    }
 
     private func statusColor(_ status: NetreoDevice.DeviceStatus) -> Color {
         switch status {
@@ -317,6 +921,42 @@ struct DeviceDetailView: View {
         case .maintenance: return .blue
         case .unknown:     return .gray
         }
+    }
+
+    /// Downsample data points by averaging into fixed time buckets.
+    private func downsample(_ data: [PerformanceDataPoint], targetPoints: Int = 120) -> [PerformanceDataPoint] {
+        guard data.count > targetPoints, let first = data.first, let last = data.last else { return data }
+        let totalDuration = last.timestamp.timeIntervalSince(first.timestamp)
+        guard totalDuration > 0 else { return data }
+        let bucketSize = totalDuration / Double(targetPoints)
+        var result: [PerformanceDataPoint] = []
+        var bucketStart = first.timestamp.timeIntervalSince1970
+        var bucketValues: [Double] = []
+        for point in data {
+            let ts = point.timestamp.timeIntervalSince1970
+            if ts < bucketStart + bucketSize {
+                bucketValues.append(point.value)
+            } else {
+                if !bucketValues.isEmpty {
+                    let avg = bucketValues.reduce(0, +) / Double(bucketValues.count)
+                    result.append(PerformanceDataPoint(
+                        timestamp: Date(timeIntervalSince1970: bucketStart + bucketSize / 2),
+                        value: avg
+                    ))
+                }
+                bucketStart += bucketSize
+                while ts >= bucketStart + bucketSize { bucketStart += bucketSize }
+                bucketValues = [point.value]
+            }
+        }
+        if !bucketValues.isEmpty {
+            let avg = bucketValues.reduce(0, +) / Double(bucketValues.count)
+            result.append(PerformanceDataPoint(
+                timestamp: Date(timeIntervalSince1970: bucketStart + bucketSize / 2),
+                value: avg
+            ))
+        }
+        return result
     }
 
     private func durationString(from start: Date) -> String {
@@ -388,7 +1028,7 @@ private struct MetricCard: View {
                         Chart(state.data, id: \.timestamp) { point in
                             AreaMark(
                                 x: .value("Time", point.timestamp),
-                                y: .value(state.instance.unit, point.value)
+                                y: .value(state.instance.displayUnit, point.value)
                             )
                             .foregroundStyle(
                                 LinearGradient(
@@ -399,7 +1039,7 @@ private struct MetricCard: View {
                             .interpolationMethod(.catmullRom)
                             LineMark(
                                 x: .value("Time", point.timestamp),
-                                y: .value(state.instance.unit, point.value)
+                                y: .value(state.instance.displayUnit, point.value)
                             )
                             .foregroundStyle(Color.accentColor)
                             .interpolationMethod(.catmullRom)
@@ -422,11 +1062,11 @@ private struct MetricCard: View {
                         .padding(.trailing, 12)
 
                         HStack(spacing: 0) {
-                            statTile(label: "CURRENT", value: formatValue(state.current, unit: state.instance.unit))
+                            statTile(label: "CURRENT", value: formatValue(state.current, unit: state.instance.displayUnit))
                             Divider()
-                            statTile(label: "AVG", value: formatValue(state.average, unit: state.instance.unit))
+                            statTile(label: "AVG", value: formatValue(state.average, unit: state.instance.displayUnit))
                             Divider()
-                            statTile(label: "MAX", value: formatValue(state.max, unit: state.instance.unit))
+                            statTile(label: "MAX", value: formatValue(state.max, unit: state.instance.displayUnit))
                         }
                         .frame(height: 56)
                         .padding(.horizontal)
@@ -440,7 +1080,7 @@ private struct MetricCard: View {
     private var statusDot: some View {
         let color: Color = {
             guard state.hasBeenFetched, let value = state.current else { return .gray }
-            switch state.instance.unit {
+            switch state.instance.displayUnit {
             case "%":  return value < 60 ? .green : value < 80 ? .orange : .red
             case "s":  return value < 0.01 ? .green : value < 0.1 ? .orange : .red
             default:   return .blue
