@@ -65,21 +65,26 @@ The app communicates with a self-hosted BHNM instance.
 | Find device by name | POST | `/fw/index.php?r=restful/devices/find` (body: `name=<deviceName>`) → returns `dev_index` |
 | Performance categories | POST | `/fw/index.php?r=restful/devices/performance-category` (body: `device_id=<id>`) |
 | Performance instances | POST | `/fw/index.php?r=restful/devices/performance-instance-per-category` (body: `device_id=<id>&id=<categoryId>`) |
-| Time-series metrics | POST | `/fw/index.php?r=restful/devices/get-time-series-metrics` (see body parameters below) |
+| Time-series metrics | POST | `/fw/index.php?r=restful/devices/timeseries-metrics` (see body parameters below) |
+| Time-series metrics (batch) | POST | `/fw/index.php?r=restful/devices/timeseries-metrics` (same endpoint, single call returns multiple metrics) |
 
-### Time-Series Metrics Body (form-urlencoded)
+### Time-Series Metrics Body (multipart/form-data)
 ```
 password=<apiKey>
 groupFilterBy=device
 groupFilterValue=<deviceName>
-metricFilterStatGroup=<statGroup>   # e.g. "CPU", "Memory", interface category name
-metricFilterUnits=<units>           # e.g. "%", "Bytes/s"
+metricFilterStatGroup=<statGroup>   # e.g. "CPU", "Memory", "Disks", interface category name
+metricFilterUnits=<units>           # e.g. "%", "Volt", "Processes", "System Load"
 timeFrameFilterBy=time_offset
 timeFrameFilterValue=<timeFrame>    # "Last Hour", "Last 2 Hours", "Last 5 Hours", or "Last 24 Hours"
 returnFormatFilterBy=average
 pin=<pin>                           # optional
 ```
 Response: `{ "metrics": [ { "timeStamp": "<epoch>", "value1": <num>, "value2": <num>, "instanceDescr": <str>, ... } ] }`
+
+**Empty-unit metrics:** When a metric has no unit from discovery (`unit: ""`), use the metric title as `metricFilterUnits` — except where the API expects a different value (e.g. "Running Processes" → `metricFilterUnits=Processes`). The correct unit can be found in the `instanceDescr` parenthetical: `"Running Processes for device (Processes)"`.
+
+**Batch fetching:** A single API call with the same `statGroup`+`units` returns ALL matching metrics (e.g. `CPU`+`%` returns CPU Utilization AND all CPU Cores). Use `instanceDescr` or `metricId` to distinguish them. The app uses `fetchTimeSeriesBatch()` for CPU Cores to fetch once and split by `instanceDescr`.
 
 Interface instances produce two `PerformanceInstance` entries per physical interface (suffixed `-in`/`-out`); `valueKey` selects `value1` (inbound) or `value2` (outbound) from the response.
 

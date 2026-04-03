@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BHNM App Quick Start Guide</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color: #1a1a2e;
+    background: #fff;
+    max-width: 210mm;
+    margin: 0 auto;
+    padding: 12mm;
+    font-size: 9.5pt;
+    line-height: 1.4;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 3px solid #e8531e;
+  }
+  .header img {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+  }
+  .header h1 {
+    font-size: 22pt;
+    font-weight: 700;
+    color: #0a1628;
+    letter-spacing: -0.5px;
+  }
+  .header h1 span { color: #e8531e; }
+  .header .subtitle {
+    font-size: 10pt;
+    color: #666;
+    margin-top: 1px;
+  }
+
+  /* Layout */
+  .content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .full-width { grid-column: 1 / -1; }
+
+  /* Screenshots row */
+  .screenshots {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: center;
+    gap: 18px;
+    margin: 4px 0 6px;
+  }
+  .screenshots figure {
+    text-align: center;
+  }
+  .screenshots img {
+    height: 240px;
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  }
+  .screenshots figcaption {
+    font-size: 8pt;
+    color: #888;
+    margin-top: 4px;
+    font-style: italic;
+  }
+
+  /* Section cards */
+  .section {
+    background: #f7f8fa;
+    border-radius: 10px;
+    padding: 12px 14px;
+    border-left: 4px solid #e8531e;
+  }
+  .section h2 {
+    font-size: 11pt;
+    color: #0a1628;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    text-align: center;
+  }
+  .section h2 .icon {
+    font-size: 13pt;
+  }
+  .section ul {
+    padding-left: 16px;
+    font-size: 9pt;
+  }
+  .section li { margin-bottom: 3px; }
+  .section p { font-size: 9pt; }
+
+  /* Badge styles */
+  .badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-size: 7.5pt;
+    font-weight: 600;
+    color: #fff;
+    vertical-align: middle;
+  }
+  .badge-green { background: #22c55e; }
+  .badge-blue { background: #3b82f6; }
+  .badge-yellow { background: #eab308; color: #1a1a2e; }
+  .badge-orange { background: #f97316; }
+  .badge-red { background: #ef4444; }
+
+  /* Tab bar illustration */
+  .tab-bar {
+    display: flex;
+    justify-content: center;
+    gap: 28px;
+    background: #1a1a2e;
+    border-radius: 10px;
+    padding: 8px 20px;
+    margin: 6px auto 0;
+    max-width: 340px;
+  }
+  .tab-item {
+    text-align: center;
+    color: #888;
+    font-size: 7.5pt;
+    font-weight: 600;
+  }
+  .tab-item.active { color: #e8531e; }
+  .tab-item .tab-icon { font-size: 14pt; display: block; margin-bottom: 1px; }
+
+  /* Swipe hints */
+  .swipe-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0;
+    font-size: 9pt;
+  }
+  .swipe-arrow {
+    font-size: 14pt;
+    font-weight: 700;
+  }
+  .swipe-right { color: #22c55e; }
+  .swipe-left { color: #f97316; }
+
+  /* Footer */
+  .footer {
+    grid-column: 1 / -1;
+    text-align: center;
+    font-size: 7.5pt;
+    color: #aaa;
+    margin-top: 6px;
+    padding-top: 8px;
+    border-top: 1px solid #e0e0e0;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <img src="../BeNeM/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png" alt="BeNeM App Icon">
+  <div>
+    <h1><span>BHNM App</span> Quick Start Guide</h1>
+    <div class="subtitle">BMC Helix Network Management on your iPhone</div>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- Screenshots -->
+  <div class="screenshots">
+    <figure>
+      <img src="../images/BHNM Home Screen.jpeg" alt="Home Dashboard">
+      <figcaption>Home Dashboard</figcaption>
+    </figure>
+    <figure>
+      <img src="../images/BHNM_Incidents.jpeg" alt="Incidents List">
+      <figcaption>Active Incidents</figcaption>
+    </figure>
+  </div>
+
+  <!-- Getting Started -->
+  <div class="section">
+    <h2><span class="icon">1</span> Getting Started</h2>
+    <ul>
+      <li><strong>Add a server:</strong> Go to <strong>Settings</strong> &gt; tap <strong>Add Manually</strong> to enter your BHNM server URL, API token, and PIN (required for SaaS).</li>
+      <li><strong>QR setup:</strong> Tap <strong>Scan QR</strong> in Settings to scan a <code>benem://</code> config link from your administrator.</li>
+      <li><strong>Test connection:</strong> Tap <strong>Test</strong> on the server config screen to verify before saving.</li>
+    </ul>
+  </div>
+
+  <!-- Home Dashboard -->
+  <div class="section">
+    <h2><span class="icon">2</span> Home Dashboard</h2>
+    <ul>
+      <li><strong>Status cards</strong> show active incidents and total devices at a glance.</li>
+      <li><strong>Incident ticker</strong> scrolls the 3 latest open incidents across the screen.</li>
+      <li><strong>H / S / T / A</strong> summary cards: Hosts, Services, Thresholds, Anomalies with color-coded alarm counts.</li>
+      <li><strong>Drill Down</strong> into Categories, Sites, or Business Workflows for grouped alarm views.</li>
+    </ul>
+  </div>
+
+  <!-- Incidents -->
+  <div class="section">
+    <h2><span class="icon">3</span> Managing Incidents</h2>
+    <ul>
+      <li>The <strong>Incidents</strong> tab lists all active incidents with status badges.</li>
+      <li>Tap any incident for full details, related alarms, and device info.</li>
+    </ul>
+    <div class="swipe-row">
+      <span class="swipe-arrow swipe-right">&rarr;</span>
+      <span><strong>Swipe right</strong> to <strong>Acknowledge</strong> or <strong>Unacknowledge</strong> an incident (action depends on current status)</span>
+    </div>
+  </div>
+
+  <!-- Devices -->
+  <div class="section">
+    <h2><span class="icon">4</span> Devices &amp; Performance</h2>
+    <ul>
+      <li>The <strong>Devices</strong> tab lists all monitored devices.</li>
+      <li>Tap a device to see its incidents, performance charts (CPU, Memory, Interfaces), and details.</li>
+      <li>Performance charts show the <em>last 24 hours</em> of data.</li>
+    </ul>
+  </div>
+
+  <!-- Alarm Colors -->
+  <div class="section">
+    <h2><span class="icon">5</span> Understanding Alarm Colors</h2>
+    <p style="margin-bottom: 6px;">Badge colors follow the BHNM convention for monitoring check health (Hosts, Services, Thresholds, Anomalies):</p>
+    <table style="font-size: 8.5pt; border-collapse: collapse; width: 100%;">
+      <tr><td style="padding: 3px 6px;"><span class="badge badge-green">OK</span></td><td style="padding: 3px 6px;">Healthy</td></tr>
+      <tr><td style="padding: 3px 6px;"><span class="badge badge-yellow">WARNING</span></td><td style="padding: 3px 6px;">A warning threshold has been exceeded</td></tr>
+      <tr><td style="padding: 3px 6px;"><span class="badge badge-red">CRITICAL</span></td><td style="padding: 3px 6px;">A critical threshold has been exceeded or a Service Check has failed</td></tr>
+      <tr><td style="padding: 3px 6px;"><span class="badge badge-blue">ACKNOWLEDGED</span></td><td style="padding: 3px 6px;">An incident has been acknowledged</td></tr>
+      <tr><td style="padding: 3px 6px;"><span class="badge badge-orange">UNKNOWN</span></td><td style="padding: 3px 6px;">A Service Check state cannot be determined (service checks only)</td></tr>
+    </table>
+  </div>
+
+  <!-- Auto-Refresh & Notifications -->
+  <div class="section">
+    <h2><span class="icon">6</span> Auto-Refresh &amp; Notifications</h2>
+    <ul>
+      <li>Data refreshes <strong>automatically</strong> (default: every 2 minutes, configurable 30s–5min in Settings). The countdown ring in the toolbar shows time until next refresh.</li>
+      <li>Tap the ring or pull down on any list to refresh immediately.</li>
+      <li><strong>Push notifications</strong> (optional): Enable per server in the server configuration with your middleware URL and webhook secret. Receive real-time alerts even when the app is closed.</li>
+      <li>Tapping a notification jumps directly to the incident details.</li>
+    </ul>
+  </div>
+
+  <!-- Navigation -->
+  <div class="full-width" style="text-align: center;">
+    <div class="tab-bar">
+      <div class="tab-item active">
+        <span class="tab-icon">&#8962;</span> Home
+      </div>
+      <div class="tab-item">
+        <span class="tab-icon">&#9888;</span> Incidents
+      </div>
+      <div class="tab-item">
+        <span class="tab-icon">&#127760;</span> Devices
+      </div>
+      <div class="tab-item">
+        <span class="tab-icon">&#9881;</span> Settings
+      </div>
+    </div>
+    <p style="font-size: 8pt; color: #888; margin-top: 4px;">Navigate between sections using the bottom tab bar</p>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    BHNM App &bull; Companion app for BMC Helix Network Management &bull; &copy; 2025&ndash;2026
+  </div>
+
+</div>
+
+</body>
+</html>

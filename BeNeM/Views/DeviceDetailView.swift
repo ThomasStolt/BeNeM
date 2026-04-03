@@ -16,7 +16,6 @@ struct DeviceDetailView: View {
                 alarmBar
                 hostInfoSection(device)
                 issuesSection
-                latencySection
                 if device.typeClass.isServer {
                     serverUtilizationSection
                 }
@@ -35,30 +34,41 @@ struct DeviceDetailView: View {
     // MARK: - Header
 
     private func headerSection(_ device: NetreoDevice) -> some View {
-        HStack(spacing: 0) {
-            // Left column — device type icon (compact)
-            DeviceTypeIcon(
-                typeClass: device.typeClass,
-                size: 56,
-                color: statusColor(device.status)
-            )
-            .frame(width: 70)
+        let hasLatency = viewModel.latencyStates.first.map { !$0.data.isEmpty } ?? false
 
-            // Middle column — name, IP, category, site
-            VStack(alignment: .leading, spacing: 4) {
-                MarqueeText(text: device.name, font: .headline, fontWeight: .bold, color: .primary)
-                MarqueeText(text: device.ip, font: .subheadline, color: .secondary)
-                MarqueeText(text: device.category, font: .subheadline, color: .secondary)
-                MarqueeText(text: device.site, font: .subheadline, color: .secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        return GeometryReader { geo in
+            let iconWidth: CGFloat = 60
+            let spacing: CGFloat = 8
+            let contentWidth = geo.size.width - iconWidth - spacing
+            let infoWidth = hasLatency ? contentWidth * 0.42 : contentWidth
+            let chartWidth = contentWidth - infoWidth - spacing
 
-            // Right column — mini latency histogram (only if data available)
-            if let firstLatency = viewModel.latencyStates.first, !firstLatency.data.isEmpty {
-                miniLatencyHistogram(data: firstLatency.data)
-                    .frame(minWidth: 64, maxWidth: 100)
+            HStack(spacing: spacing) {
+                // Left column — device type icon
+                DeviceTypeIcon(
+                    typeClass: device.typeClass,
+                    size: 56,
+                    color: statusColor(device.status)
+                )
+                .frame(width: iconWidth)
+
+                // Middle column — name, IP, category, site
+                VStack(alignment: .leading, spacing: 4) {
+                    MarqueeText(text: device.name, font: .headline, fontWeight: .bold, color: .primary)
+                    MarqueeText(text: device.ip, font: .subheadline, color: .secondary)
+                    MarqueeText(text: device.category, font: .subheadline, color: .secondary)
+                    MarqueeText(text: device.site, font: .subheadline, color: .secondary)
+                }
+                .frame(width: infoWidth, alignment: .leading)
+
+                // Right column — mini latency chart
+                if let firstLatency = viewModel.latencyStates.first, !firstLatency.data.isEmpty {
+                    miniLatencyChart(data: firstLatency.data)
+                        .frame(width: chartWidth)
+                }
             }
         }
+        .frame(height: 90)
         .padding(.vertical, 16)
         .padding(.horizontal, 12)
         .background(Color(.secondarySystemGroupedBackground))
@@ -67,18 +77,59 @@ struct DeviceDetailView: View {
         .padding(.top, 16)
     }
 
-    private func miniLatencyHistogram(data: [PerformanceDataPoint]) -> some View {
-        let barColor = Color(red: 0.2, green: 0.8, blue: 0.4)
-        let bars = downsample(data, targetPoints: 16)
-        let maxVal = bars.map(\.value).max() ?? 1
-        return HStack(alignment: .bottom, spacing: 2) {
-            ForEach(Array(bars.enumerated()), id: \.offset) { _, point in
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(barColor)
-                    .frame(height: max(2, CGFloat(point.value / maxVal) * 40))
+    private func miniLatencyChart(data: [PerformanceDataPoint]) -> some View {
+        let lineColor = Color(red: 0.2, green: 0.8, blue: 0.4)
+        let points = downsample(data, targetPoints: 30)
+        let maxVal = points.map(\.value).max() ?? 1
+        let lastVal = data.last?.value
+
+        return VStack(spacing: 2) {
+            HStack(alignment: .top, spacing: 2) {
+                // Y axis labels
+                VStack {
+                    Text(formatMiniAxisValue(maxVal))
+                    Spacer()
+                    Text("0")
+                }
+                .font(.system(size: 7, weight: .medium, design: .rounded))
+                .foregroundColor(.secondary)
+                .frame(width: 24, alignment: .trailing)
+
+                // Line chart
+                Chart(Array(points.enumerated()), id: \.offset) { index, point in
+                    LineMark(
+                        x: .value("T", index),
+                        y: .value("V", point.value)
+                    )
+                    .foregroundStyle(lineColor)
+                    .interpolationMethod(.catmullRom)
+
+                    AreaMark(
+                        x: .value("T", index),
+                        y: .value("V", point.value)
+                    )
+                    .foregroundStyle(lineColor.opacity(0.15))
+                    .interpolationMethod(.catmullRom)
+                }
+                .chartXAxis(.hidden)
+                .chartYAxis(.hidden)
+                .chartYScale(domain: 0...maxVal)
+            }
+            .frame(height: 56)
+
+            // Last value
+            if let last = lastVal {
+                Text("Last: \(formatLatency(last))")
+                    .font(.system(size: 8, weight: .medium, design: .rounded))
+                    .foregroundColor(.secondary)
             }
         }
-        .frame(height: 44)
+    }
+
+    private func formatMiniAxisValue(_ seconds: Double) -> String {
+        if seconds < 0.001 { return "\(Int(seconds * 1_000_000))" }
+        if seconds < 1 { return String(format: "%.0f", seconds * 1000) }
+        return String(format: "%.1f", seconds)
     }
 
     // MARK: - Alarm Summary Bar
@@ -580,13 +631,17 @@ struct DeviceDetailView: View {
 
         let allPoints: [CorePoint] = cores.enumerated().flatMap { (idx, state) in
             let color = Self.coreColors[idx % Self.coreColors.count]
-            let label = "Core \(idx)"
+            let label = state.instance.instanceDescr ?? "Core \(idx + 1)"
             return downsample(state.data).map { CorePoint(core: label, timestamp: $0.timestamp, value: $0.value, color: color) }
         }
 
+        let maxVal = allPoints.map(\.value).max() ?? 100
+        let yMax = max(maxVal * 1.15, 1) // 15% headroom
+
         let currentValues: [(String, Double, Color)] = cores.enumerated().compactMap { (idx, state) in
             guard let current = state.data.last?.value else { return nil }
-            return ("Core \(idx)", current, Self.coreColors[idx % Self.coreColors.count])
+            let label = state.instance.instanceDescr ?? "Core \(idx + 1)"
+            return (label, current, Self.coreColors[idx % Self.coreColors.count])
         }
 
         return VStack(spacing: 0) {
@@ -610,11 +665,12 @@ struct DeviceDetailView: View {
                     x: .value("Time", point.timestamp),
                     y: .value("%", point.value)
                 )
-                .foregroundStyle(point.color)
+                .foregroundStyle(by: .value("Core", point.core))
                 .interpolationMethod(.linear)
                 .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round))
             }
-            .chartYScale(domain: 0 ... 100)
+            .chartForegroundStyleScale(domain: cores.prefix(4).enumerated().map { idx, state in state.instance.instanceDescr ?? "Core \(idx + 1)" }, range: cores.prefix(4).enumerated().map { idx, _ in Self.coreColors[idx % Self.coreColors.count] })
+            .chartYScale(domain: 0 ... yMax)
             .chartXAxis {
                 AxisMarks(values: .stride(by: .hour, count: 6)) { value in
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 5]))
@@ -644,12 +700,12 @@ struct DeviceDetailView: View {
 
             // Legend row
             HStack(spacing: 12) {
-                ForEach(Array(cores.prefix(4).enumerated()), id: \.offset) { idx, _ in
+                ForEach(Array(cores.prefix(4).enumerated()), id: \.offset) { idx, state in
                     HStack(spacing: 4) {
                         Circle()
                             .fill(Self.coreColors[idx % Self.coreColors.count])
                             .frame(width: 6, height: 6)
-                        Text("Core \(idx)")
+                        Text(state.instance.instanceDescr ?? "Core \(idx + 1)")
                             .font(.system(size: 9, weight: .medium))
                             .foregroundColor(.secondary)
                     }
@@ -731,14 +787,18 @@ struct DeviceDetailView: View {
                     Text("No performance data available")
                         .font(.subheadline).foregroundColor(.secondary).padding()
                 } else {
-                    ForEach(viewModel.categories, id: \.id) { category in
-                        if !category.name.lowercased().contains("latency") {
-                            let instances = viewModel.cardStates.values
-                                .filter { $0.instance.categoryId == category.id }
-                                .sorted { $0.instance.key < $1.instance.key }
-                            if !instances.isEmpty {
-                                categoryGroup(category: category, instances: instances)
-                            }
+                    let sortedCategories = viewModel.categories.sorted { a, b in
+                        let aIsLatency = a.name.lowercased().contains("latency")
+                        let bIsLatency = b.name.lowercased().contains("latency")
+                        if aIsLatency != bIsLatency { return aIsLatency }
+                        return false
+                    }
+                    ForEach(sortedCategories, id: \.id) { category in
+                        let instances = viewModel.cardStates.values
+                            .filter { $0.instance.categoryId == category.id }
+                            .sorted { $0.instance.key < $1.instance.key }
+                        if !instances.isEmpty {
+                            categoryGroup(category: category, instances: instances)
                         }
                     }
                 }
@@ -857,19 +917,18 @@ struct DeviceDetailView: View {
 
     private func cpuCoresCard(cores: [MetricCardState]) -> some View {
         let anyLoading = cores.contains(where: { $0.isLoading })
-        let allFetched = cores.allSatisfy(\.hasBeenFetched)
         let loadedCores = cores.filter { !$0.data.isEmpty }
 
         return VStack(spacing: 0) {
             // Tappable header
             HStack {
-                Text("CPU Cores")
+                Text("CPU Cores (\(cores.count))")
                     .font(.subheadline)
                 Spacer()
                 if anyLoading {
                     ProgressView().scaleEffect(0.7)
-                } else if allFetched && !loadedCores.isEmpty {
-                    // Show current values
+                } else if !loadedCores.isEmpty {
+                    // Show current values for loaded cores
                     ForEach(Array(loadedCores.enumerated()), id: \.offset) { idx, state in
                         Text(String(format: "%.0f%%", state.data.last?.value ?? 0))
                             .font(.system(size: 11, weight: .bold, design: .rounded))
@@ -884,11 +943,12 @@ struct DeviceDetailView: View {
             .padding(.vertical, 10)
             .contentShape(Rectangle())
             .onTapGesture {
-                if !allFetched {
-                    // Fetch all cores on first tap
-                    for core in cores {
-                        Task { await viewModel.fetchCard(instanceKey: core.instance.key) }
-                    }
+                // Fetch all unfetched cores in a single batch API call
+                let unfetchedKeys = cores
+                    .filter { !$0.hasBeenFetched && !$0.isLoading }
+                    .map { $0.instance.key }
+                if !unfetchedKeys.isEmpty {
+                    Task { await viewModel.fetchCpuCores(instanceKeys: unfetchedKeys) }
                 }
                 withAnimation(.easeInOut(duration: 0.25)) {
                     cpuCoresExpanded.toggle()

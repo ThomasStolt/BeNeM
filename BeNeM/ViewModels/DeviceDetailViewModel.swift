@@ -330,6 +330,34 @@ class DeviceDetailViewModel: ObservableObject {
         await fetchCard(instanceKey: instanceKey)
     }
 
+    /// Fetch all CPU core instances in a single API call and split the results.
+    func fetchCpuCores(instanceKeys: [String]) async {
+        let instances = instanceKeys.compactMap { cardStates[$0]?.instance }
+        guard !instances.isEmpty else { return }
+
+        // Mark all as loading
+        for key in instanceKeys { cardStates[key]?.isLoading = true }
+
+        do {
+            let results = try await apiService.fetchTimeSeriesBatch(
+                deviceName: device.name,
+                instances: instances,
+                timeFrame: .last24Hours
+            )
+            for key in instanceKeys {
+                cardStates[key]?.data = (results[key] ?? []).filter { !$0.value.isNaN }
+                cardStates[key]?.hasBeenFetched = true
+                cardStates[key]?.isLoading = false
+            }
+        } catch {
+            for key in instanceKeys {
+                cardStates[key]?.error = error.localizedDescription
+                cardStates[key]?.hasBeenFetched = true
+                cardStates[key]?.isLoading = false
+            }
+        }
+    }
+
     func tapCard(instanceKey: String) async {
         guard let state = cardStates[instanceKey] else { return }
         guard !state.isLoading else { return }

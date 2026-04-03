@@ -26,7 +26,8 @@ Here are a few examples of how the app looks and feels like. You can see the hom
 - **Incident List** — live view of active, acknowledged, and closed incidents with severity badges and per-incident alarm counts; sorted newest-first by Incident ID
 - **Acknowledge / Unacknowledge** — swipe right to ACK, swipe left to UnACK, with instant local status update
 - **Incident Detail** — primary alarms, related alarms, and the full incident state log
-- **Device Detail** — tap any device for a full detail view: active incidents, performance metric charts (CPU, memory, interfaces, latency), and network interface status
+- **Device Detail** — tap any device for a full detail view with a 3-column header card (icon, device info, mini latency chart), active incidents, performance metric charts (CPU, memory, disk, interfaces, latency), and network interface status
+- **CPU Cores chart** — combined multi-line chart showing up to 4 CPU cores with distinct colors, actual BHNM core names, and auto-scaled Y axis
 - **Performance charts on-demand** — metric cards in Device Detail fetch and render their time-series chart only when expanded
 - **Incident Ticker** — animated banner on the Dashboard cycles through the latest open incidents; tap to navigate directly to the detail screen
 - **Filters** — filter incidents by severity and status; filter tactical groups to show only those with any non-green alarms (hosts, services, thresholds, or anomalies)

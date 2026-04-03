@@ -12,6 +12,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [2.5.0] — 2026-04-03
+
+### Added
+
+- **3-column device header** — the device detail header now shows the device icon, info (name, IP, category, site), and a mini latency line chart side by side; the chart shows the last 24 hours with auto-scaled Y axis and the most recent value
+- **Scrolling device name** — long device names in the header card now scroll horizontally (MarqueeText) instead of truncating
+- **CPU Cores combined chart** — CPU core metrics are rendered as a single multi-line chart with up to 4 cores, each in a distinct color, with core names from BHNM (e.g. `.0.0 #196608`) and auto-scaled Y axis
+- **Batch time-series fetch** — new `fetchTimeSeriesBatch()` API method fetches multiple related metrics (e.g. all CPU cores) in a single API call, splitting results by `instanceDescr`
+- **Empty-unit metric support** — metrics with no unit from discovery (e.g. Running Processes, System Load) now send the correct `metricFilterUnits` value via an override map
+
+### Changed
+
+- **Latency moved to Performance** — latency is no longer a standalone section; it appears as the first group inside the PERFORMANCE card, sorted automatically
+- **Time-series API upgraded** — all metric fetching now uses the high-performance `timeseries-metrics` endpoint; removed dead code for the legacy `get-time-series-metrics` endpoint
+
+### Fixed
+
+- **CPU Cores showing fewer than expected** — individual per-core API calls raced and dropped results; replaced with a single batch fetch that reliably returns all cores
+- **CPU Cores chart garbled** — chart lines were not separated by series; fixed by using `foregroundStyle(by:)` with a color scale mapping
+
+---
+
 ## [2.4.0] — 2026-04-02
 
 ### Added

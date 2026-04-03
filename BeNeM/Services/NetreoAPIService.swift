@@ -1,12 +1,6 @@
 import Foundation
 import SwiftUI
 
-struct PerformanceMetric {
-    let instanceDescr: String
-    let value1: Double?   // primary value (e.g. % used, bytes used)
-    let value2: Double?   // secondary value where applicable (e.g. bytes total)
-}
-
 struct PerformanceCategory {
     let id: String
     let name: String
@@ -15,7 +9,8 @@ struct PerformanceCategory {
 struct PerformanceInstance {
     let key: String           // unique; interface instances are suffixed "-in" or "-out"
     let title: String
-    let unit: String
+    let unit: String          // unit sent to API (metricFilterUnits)
+    let displayUnit: String   // unit shown in UI (may differ from API unit)
     let statGroup: String     // value passed to metricFilterStatGroup
     let categoryId: String
     let valueKey: String      // "value1" or "value2" (outbound interface)
@@ -31,15 +26,17 @@ class NetreoAPIService: ObservableObject {
     private let configuration: NetreoAPIConfiguration
     private let urlSession: URLSession
     private let jsonDecoder: JSONDecoder
-    
+    private var categoryNameCache: [String: String]?
+    private var siteNameCache: [String: String]?
+
     init(configuration: NetreoAPIConfiguration) {
         self.configuration = configuration
-        
+
         let sessionConfig = URLSessionConfiguration.default
         sessionConfig.timeoutIntervalForRequest = configuration.timeout
         sessionConfig.timeoutIntervalForResource = configuration.timeout * 2
         self.urlSession = URLSession(configuration: sessionConfig)
-        
+
         self.jsonDecoder = JSONDecoder()
         self.jsonDecoder.dateDecodingStrategy = .iso8601
     }
@@ -63,12 +60,66 @@ class NetreoAPIService: ObservableObject {
         }
     }
 
+    // MARK: - Category / Site Name Lookups
+
+    private func ensureCategoryCache() async {
+        guard categoryNameCache == nil else { return }
+        categoryNameCache = [:]
+        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/category/list") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        addProxyToken(&request)
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var params = [URLQueryItem(name: "password", value: configuration.apiKey)]
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
+        guard let (data, _) = try? await urlSession.data(for: request),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
+        for item in json {
+            if let id = item["id"] as? String, let name = item["name"] as? String {
+                categoryNameCache?[id] = name
+            }
+        }
+    }
+
+    private func ensureSiteCache() async {
+        guard siteNameCache == nil else { return }
+        siteNameCache = [:]
+        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/site/list") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        addProxyToken(&request)
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var params = [URLQueryItem(name: "password", value: configuration.apiKey)]
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
+        guard let (data, _) = try? await urlSession.data(for: request),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
+        for item in json {
+            if let id = item["id"] as? String, let name = item["name"] as? String {
+                siteNameCache?[id] = name
+            }
+        }
+    }
+
+    private func resolveCategoryName(_ idOrName: String) -> String {
+        if let name = categoryNameCache?[idOrName] { return name }
+        return idOrName
+    }
+
+    private func resolveSiteName(_ idOrName: String) -> String {
+        if let name = siteNameCache?[idOrName] { return name }
+        return idOrName
+    }
+
     struct DevicePage {
         let devices: [NetreoDevice]
         let totalRecords: Int
     }
 
     func fetchDevices(recordStart: Int = 0, recordCount: Int = 50) async throws -> DevicePage {
+        await ensureCategoryCache()
+        await ensureSiteCache()
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/list") else {
             return DevicePage(devices: [], totalRecords: 0)
         }
@@ -110,6 +161,8 @@ class NetreoAPIService: ObservableObject {
     }
 
     func searchDevices(query: String) async throws -> [NetreoDevice] {
+        await ensureCategoryCache()
+        await ensureSiteCache()
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/find") else { return [] }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -128,6 +181,8 @@ class NetreoAPIService: ObservableObject {
     }
 
     func fetchDevicesForCategory(categoryId: String) async throws -> [NetreoDevice] {
+        await ensureCategoryCache()
+        await ensureSiteCache()
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/category/device-list") else { return [] }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -145,6 +200,8 @@ class NetreoAPIService: ObservableObject {
     }
 
     func fetchDevicesForSite(siteId: String) async throws -> [NetreoDevice] {
+        await ensureCategoryCache()
+        await ensureSiteCache()
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/site/device-list") else { return [] }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -232,6 +289,7 @@ class NetreoAPIService: ObservableObject {
                     key: "\(rawKey)-in",
                     title: "\(description) — In",
                     unit: bwUnit,
+                    displayUnit: bwUnit,
                     statGroup: category.name,
                     categoryId: category.id,
                     valueKey: "value1",
@@ -241,22 +299,39 @@ class NetreoAPIService: ObservableObject {
                     key: "\(rawKey)-out",
                     title: "\(description) — Out",
                     unit: bwUnit,
+                    displayUnit: bwUnit,
                     statGroup: category.name,
                     categoryId: category.id,
                     valueKey: "value2",
                     instanceDescr: description
                 ))
+            } else if type_ == "oid_pertable" {
+                let title = dict["title"] as? String ?? rawKey
+                let unit  = dict["unit"]  as? String ?? ""
+                let description = dict["description"] as? String ?? rawKey
+                instances.append(PerformanceInstance(
+                    key: "\(rawKey)-\(description)",
+                    title: "\(title) (\(description))",
+                    unit: unit,
+                    displayUnit: unit,
+                    statGroup: category.name,
+                    categoryId: category.id,
+                    valueKey: "value1",
+                    instanceDescr: description
+                ))
             } else {
                 let title = dict["title"] as? String ?? rawKey
                 let unit  = dict["unit"]  as? String ?? ""
+                let description = dict["description"] as? String
                 instances.append(PerformanceInstance(
                     key: rawKey,
                     title: title,
                     unit: unit,
+                    displayUnit: unit,
                     statGroup: category.name,
                     categoryId: category.id,
                     valueKey: "value1",
-                    instanceDescr: nil
+                    instanceDescr: description
                 ))
             }
         }
@@ -268,114 +343,203 @@ class NetreoAPIService: ObservableObject {
         instance: PerformanceInstance,
         timeFrame: TimeFrame
     ) async throws -> [PerformanceDataPoint] {
-        let urlString = "\(configuration.baseURL)/fw/index.php?r=restful/devices/get-time-series-metrics"
+        let urlString = "\(configuration.baseURL)/fw/index.php?r=restful/devices/timeseries-metrics"
         guard let url = URL(string: urlString) else { return [] }
+
+        // Use the real unit symbol when available (%, Volt, Seconds, etc.)
+        // For empty-unit metrics, use the title — except known overrides where
+        // the API expects a different value than the title
+        let emptyUnitOverrides = ["Running Processes": "Processes"]
+        let apiUnit = instance.unit.isEmpty
+            ? (emptyUnitOverrides[instance.title] ?? instance.title)
+            : instance.unit
+
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var bodyData = Data()
+        let fields: [(String, String)] = [
+            ("password",               configuration.apiKey),
+            ("groupFilterBy",          "device"),
+            ("groupFilterValue",       deviceName),
+            ("metricFilterStatGroup",  instance.statGroup),
+            ("metricFilterUnits",      apiUnit),
+            ("timeFrameFilterBy",      "time_offset"),
+            ("timeFrameFilterValue",   timeFrame.rawValue),
+            ("returnFormatFilterBy",   "average"),
+        ] + (configuration.pin.map { [("pin", $0)] } ?? [])
+
+        for (name, value) in fields {
+            bodyData.append("--\(boundary)\r\n".data(using: .utf8)!)
+            bodyData.append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n".data(using: .utf8)!)
+            bodyData.append("\(value)\r\n".data(using: .utf8)!)
+        }
+        bodyData.append("--\(boundary)--\r\n".data(using: .utf8)!)
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         addProxyToken(&request)
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        var params = [
-            URLQueryItem(name: "password",               value: configuration.apiKey),
-            URLQueryItem(name: "groupFilterBy",          value: "device"),
-            URLQueryItem(name: "groupFilterValue",       value: deviceName),
-            URLQueryItem(name: "metricFilterStatGroup",  value: instance.statGroup),
-            URLQueryItem(name: "metricFilterUnits",      value: instance.unit),
-            URLQueryItem(name: "timeFrameFilterBy",      value: "time_offset"),
-            URLQueryItem(name: "timeFrameFilterValue",   value: timeFrame.rawValue),
-            URLQueryItem(name: "returnFormatFilterBy",   value: "average"),
-        ]
-        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
-        request.httpBody = formEncodedBody(params)
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = bodyData
+
         let (data, _) = try await urlSession.data(for: request)
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let metrics = json["metrics"] as? [[String: Any]] else { return [] }
-        return metrics.compactMap { dict -> PerformanceDataPoint? in
-            // For interface instances, filter to only the matching interface description
+
+        // instanceDescr format on timeseries-metrics:
+        //   oid:          "CPU Utilization for raspi-054 (CPU Utilization)"
+        //   oid_pertable: "Memory Utilization on Physical memory (Used Space)"
+        //   oid_pertable: "Disk Utilization on / (Percent Used Space)"
+        //   interface:    varies — contains the interface description
+        var points: [PerformanceDataPoint] = []
+        #if DEBUG
+        var debugFilterLog: [String] = []
+        #endif
+        for metric in metrics {
             if let filter = instance.instanceDescr {
-                let descr = dict["instanceDescr"] as? String ?? ""
-                guard descr == filter else { return nil }
+                let descr = metric["instanceDescr"] as? String ?? ""
+                // New endpoint uses "Title on <instanceDescr> (detail)" format
+                // Extract the part between " on " and " (" for exact matching
+                if let onRange = descr.range(of: " on "),
+                   let parenRange = descr.range(of: " (", range: onRange.upperBound..<descr.endIndex) {
+                    let extracted = String(descr[onRange.upperBound..<parenRange.lowerBound])
+                    #if DEBUG
+                    debugFilterLog.append("descr='\(descr)' extracted='\(extracted)' filter='\(filter)' match=\(extracted == filter)")
+                    #endif
+                    guard extracted == filter else { continue }
+                } else {
+                    #if DEBUG
+                    debugFilterLog.append("descr='\(descr)' fallback contains=\(descr.localizedCaseInsensitiveContains(filter)) filter='\(filter)'")
+                    #endif
+                    // Fallback: check if descr contains filter (for oid types: "X for device (title)")
+                    guard descr.localizedCaseInsensitiveContains(filter) else { continue }
+                }
             }
-            guard let tsString = dict["timeStamp"] as? String,
-                  let ts = Double(tsString) else { return nil }
-            let rawValue = dict[instance.valueKey]
-            let value: Double?
-            if let s = rawValue as? String { value = Double(s) }
-            else if let d = rawValue as? Double { value = d }
-            else { value = nil }
-            guard let v = value else { return nil }
-            return PerformanceDataPoint(timestamp: Date(timeIntervalSince1970: ts), value: v)
+            guard let datapoints = metric["datapoints"] as? [[String: Any]] else { continue }
+            for bucket in datapoints {
+                for (tsKey, rawValue) in bucket {
+                    guard let ts = Double(tsKey) else { continue }
+                    let value: Double?
+                    if let s = rawValue as? String { value = Double(s) }
+                    else if let d = rawValue as? Double { value = d }
+                    else { value = nil }
+                    guard let v = value else { continue }
+                    points.append(PerformanceDataPoint(timestamp: Date(timeIntervalSince1970: ts), value: v))
+                }
+            }
         }
+        #if DEBUG
+        if instance.instanceDescr != nil {
+            let safeTitle = instance.title.replacingOccurrences(of: " ", with: "_").replacingOccurrences(of: "/", with: "_")
+            let safeDescr = instance.instanceDescr?.replacingOccurrences(of: "/", with: "_") ?? "nil"
+            let debugPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+                .appendingPathComponent("debug_filter_\(safeTitle)_\(safeDescr).txt")
+            let info = "title: \(instance.title)\ninstanceDescr: \(instance.instanceDescr ?? "nil")\npoints: \(points.count)\nmetrics in response: \(metrics.count)\n\n\(debugFilterLog.joined(separator: "\n"))"
+            try? info.data(using: .utf8)?.write(to: debugPath)
+        }
+        #endif
+        return points.sorted { $0.timestamp < $1.timestamp }
     }
 
-    func fetchPerformanceMetrics(
+    /// Fetch time-series for a group of instances that share the same statGroup+unit in a single API call.
+    /// Returns a dictionary keyed by instance key with the filtered data points for each.
+    func fetchTimeSeriesBatch(
         deviceName: String,
-        statGroup: String,
-        units: String
-    ) async throws -> [PerformanceMetric] {
-        let urlString = "\(configuration.baseURL)/fw/index.php?r=restful/devices/get-time-series-metrics"
-        guard let url = URL(string: urlString) else { return [] }
+        instances: [PerformanceInstance],
+        timeFrame: TimeFrame
+    ) async throws -> [String: [PerformanceDataPoint]] {
+        guard let first = instances.first else { return [:] }
 
-        var params = [
-            URLQueryItem(name: "password",               value: configuration.apiKey),
-            URLQueryItem(name: "metricFilterStatGroup",  value: statGroup),
-            URLQueryItem(name: "metricFilterUnits",      value: units),
-            URLQueryItem(name: "groupFilterBy",          value: "device"),
-            URLQueryItem(name: "groupFilterValue",       value: deviceName),
-            URLQueryItem(name: "timeFrameFilterBy",      value: "time_offset"),
-            URLQueryItem(name: "timeFrameFilterValue",   value: "Last 24 Hours"),
-            URLQueryItem(name: "returnFormatFilterBy",   value: "average"),
-        ]
-        if let pin = configuration.pin {
-            params.append(URLQueryItem(name: "pin", value: pin))
+        let urlString = "\(configuration.baseURL)/fw/index.php?r=restful/devices/timeseries-metrics"
+        guard let url = URL(string: urlString) else { return [:] }
+
+        let emptyUnitOverrides = ["Running Processes": "Processes"]
+        let apiUnit = first.unit.isEmpty
+            ? (emptyUnitOverrides[first.title] ?? first.title)
+            : first.unit
+
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var bodyData = Data()
+        let fields: [(String, String)] = [
+            ("password",               configuration.apiKey),
+            ("groupFilterBy",          "device"),
+            ("groupFilterValue",       deviceName),
+            ("metricFilterStatGroup",  first.statGroup),
+            ("metricFilterUnits",      apiUnit),
+            ("timeFrameFilterBy",      "time_offset"),
+            ("timeFrameFilterValue",   timeFrame.rawValue),
+            ("returnFormatFilterBy",   "average"),
+        ] + (configuration.pin.map { [("pin", $0)] } ?? [])
+
+        for (name, value) in fields {
+            bodyData.append("--\(boundary)\r\n".data(using: .utf8)!)
+            bodyData.append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n".data(using: .utf8)!)
+            bodyData.append("\(value)\r\n".data(using: .utf8)!)
         }
+        bodyData.append("--\(boundary)--\r\n".data(using: .utf8)!)
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         addProxyToken(&request)
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.httpBody = formEncodedBody(params)
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = bodyData
 
         let (data, _) = try await urlSession.data(for: request)
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let metrics = json["metrics"] as? [[String: Any]] else { return [] }
+              let metrics = json["metrics"] as? [[String: Any]] else { return [:] }
 
-        return metrics.compactMap { dict -> PerformanceMetric? in
-            let descr = dict["instanceDescr"] as? String ?? ""
-            let v1 = (dict["value1"] as? String).flatMap(Double.init)
-                   ?? dict["value1"] as? Double
-            let v2 = (dict["value2"] as? String).flatMap(Double.init)
-                   ?? dict["value2"] as? Double
-            return PerformanceMetric(instanceDescr: descr, value1: v1, value2: v2)
+        // Build a lookup: instanceDescr filter value → instance key
+        var descrToKey: [String: String] = [:]
+        for inst in instances {
+            if let descr = inst.instanceDescr {
+                descrToKey[descr] = inst.key
+            }
         }
+
+        var result: [String: [PerformanceDataPoint]] = [:]
+        for inst in instances { result[inst.key] = [] }
+
+        for metric in metrics {
+            let descr = metric["instanceDescr"] as? String ?? ""
+            // Extract the part between " on " and " (" to match against instance.instanceDescr
+            var matchedKey: String?
+            if let onRange = descr.range(of: " on "),
+               let parenRange = descr.range(of: " (", range: onRange.upperBound..<descr.endIndex) {
+                let extracted = String(descr[onRange.upperBound..<parenRange.lowerBound])
+                matchedKey = descrToKey[extracted]
+            }
+            // Fallback: try contains match
+            if matchedKey == nil {
+                for (filter, key) in descrToKey {
+                    if descr.localizedCaseInsensitiveContains(filter) {
+                        matchedKey = key
+                        break
+                    }
+                }
+            }
+            guard let key = matchedKey else { continue }
+
+            guard let datapoints = metric["datapoints"] as? [[String: Any]] else { continue }
+            for bucket in datapoints {
+                for (tsKey, rawValue) in bucket {
+                    guard let ts = Double(tsKey) else { continue }
+                    let value: Double?
+                    if let s = rawValue as? String { value = Double(s) }
+                    else if let d = rawValue as? Double { value = d }
+                    else { value = nil }
+                    guard let v = value else { continue }
+                    result[key, default: []].append(PerformanceDataPoint(timestamp: Date(timeIntervalSince1970: ts), value: v))
+                }
+            }
+        }
+
+        // Sort each series by timestamp
+        for key in result.keys {
+            result[key]?.sort { $0.timestamp < $1.timestamp }
+        }
+
+
+        return result
     }
 
-    /// Fetches metrics for a device with a given stat group filter and stores the raw
-    /// JSON response in UserDefaults for inspection in Settings → Debug.
-    func fetchRawMetricsResponse(deviceName: String, statGroup: String, units: String) async {
-        let urlString = "\(configuration.baseURL)/fw/index.php?r=restful/devices/get-time-series-metrics"
-        guard let url = URL(string: urlString) else { return }
-        var params = [
-            URLQueryItem(name: "password",               value: configuration.apiKey),
-            URLQueryItem(name: "groupFilterBy",          value: "device"),
-            URLQueryItem(name: "groupFilterValue",       value: deviceName),
-            URLQueryItem(name: "timeFrameFilterBy",      value: "time_offset"),
-            URLQueryItem(name: "timeFrameFilterValue",   value: "Last 24 Hours"),
-            URLQueryItem(name: "returnFormatFilterBy",   value: "average"),
-        ]
-        if !statGroup.isEmpty { params.append(URLQueryItem(name: "metricFilterStatGroup", value: statGroup)) }
-        if !units.isEmpty     { params.append(URLQueryItem(name: "metricFilterUnits",     value: units)) }
-        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        addProxyToken(&request)
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.httpBody = formEncodedBody(params)
-        guard let (data, _) = try? await urlSession.data(for: request),
-              let raw = String(data: data, encoding: .utf8) else { return }
-        // Truncate to 2000 chars to fit reasonably in UserDefaults
-        let truncated = raw.count > 2000 ? String(raw.prefix(2000)) + "…" : raw
-        UserDefaults.standard.set(truncated, forKey: "debug_raw_metrics_response")
-    }
 
     private func parseDevice(from dict: [String: Any]) -> NetreoDevice? {
         // UID is required — this is the primary identifier
@@ -390,8 +554,10 @@ class NetreoAPIService: ObservableObject {
         let devIndex = (dict["dev_index"] as? String) ?? (dict["dev_index"] as? Int).map(String.init) ?? ""
         let name = dict["name"] as? String ?? ip
         let description = dict["description"] as? String ?? ""
-        let category = dict["category"] as? String ?? ""
-        let site = dict["site"] as? String ?? ""
+        let rawCategory = dict["category"] as? String ?? ""
+        let category = resolveCategoryName(rawCategory)
+        let rawSite = dict["site"] as? String ?? ""
+        let site = resolveSiteName(rawSite)
         let model = dict["model"] as? String
         let serialNumber = dict["serial_number"] as? String
         let poll = (dict["poll"] as? String) == "1"

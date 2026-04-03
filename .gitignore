@@ -53,6 +53,9 @@ test.json
 # Internal / non-public docs (local only)
 docs/internal/
 
+# Firecrawl research / scraping cache
+.firecrawl/
+
 # Claude Code
 .claude/
 .superpowers/
