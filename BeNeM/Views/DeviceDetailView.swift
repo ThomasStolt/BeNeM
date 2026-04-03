@@ -420,23 +420,39 @@ struct DeviceDetailView: View {
     private var serverUtilizationSection: some View {
         let groups = viewModel.serverUtilizationStates
         let isLoading = viewModel.isLoadingCategories
-        let hasData = groups.contains(where: { $0.states.contains(where: { !$0.data.isEmpty }) })
 
         return Group {
             if !groups.isEmpty || isLoading {
                 VStack(spacing: 0) {
-                    if isLoading && !hasData {
+                    if isLoading && groups.isEmpty {
                         HStack { Spacer(); ProgressView(); Spacer() }.padding()
                     } else {
                         ForEach(groups, id: \.category.id) { group in
-                            let loadedStates = group.states.filter { !$0.data.isEmpty }
-                            if !loadedStates.isEmpty {
-                                ForEach(loadedStates, id: \.instance.key) { state in
-                                    utilizationChart(state: state, categoryName: group.category.name)
-                                    if state.instance.key != loadedStates.last?.instance.key
-                                        || group.category.id != groups.last?.category.id {
-                                        Divider().padding(.leading, 16)
+                            ForEach(group.states, id: \.instance.key) { state in
+                                if state.isLoading && !state.hasBeenFetched {
+                                    VStack(spacing: 8) {
+                                        Text(state.instance.title)
+                                            .font(.caption2).fontWeight(.medium)
+                                            .foregroundColor(.secondary)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .padding(.horizontal, 16)
+                                            .padding(.top, 10)
+                                        HStack { Spacer(); ProgressView(); Spacer() }
+                                            .padding(.vertical, 20)
                                     }
+                                } else if !state.data.isEmpty {
+                                    utilizationChart(state: state, categoryName: group.category.name)
+                                } else if state.hasBeenFetched {
+                                    retryPlaceholder(
+                                        title: state.instance.title,
+                                        isLoading: state.isLoading
+                                    ) {
+                                        Task { await viewModel.retryCard(instanceKey: state.instance.key) }
+                                    }
+                                }
+                                if state.instance.key != group.states.last?.instance.key
+                                    || group.category.id != groups.last?.category.id {
+                                    Divider().padding(.leading, 16)
                                 }
                             }
                         }
