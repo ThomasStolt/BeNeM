@@ -23,7 +23,7 @@ features defined here. Platform-specific behaviour is noted per feature.
 ## Features
 
 ### Feature: Incident List
-**Status:** shipped-ios
+**Status:** shipped-ios, in-progress-pwa
 **API:** `POST /api/incident_api.php` (method=getincidents)
 
 #### Behaviour (both platforms)
@@ -38,4 +38,6 @@ features defined here. Platform-specific behaviour is noted per feature.
 - Auto-refresh countdown ring in the toolbar (`AutoRefreshButton`)
 
 #### PWA-specific
-- Not yet implemented
+- v0.1.0: read-only list, 120s auto-refresh, pull-to-refresh, tap navigates to detail stub
+- v0.1.1 (planned): swipe ACK / UnACK, real incident detail screen, Settings screen
+- No native-style swipe gesture library — touch-based pull-to-refresh is hand-rolled in `components/PullToRefresh.tsx`
