@@ -11,11 +11,11 @@ An open source native iOS app for **BMC Helix Network Management** (BHNM). Monit
 Here are a few examples of how the app looks and feels like. You can see the home dashboard, active incidents, acknowledgement of incidents, device list and a device performance view.
 
 <div align="center">
-  <img src="images/demo1.gif" width="260" alt="Demo part 1 — dashboard and incidents">
+  <img src="ios/images/demo1.gif" width="260" alt="Demo part 1 — dashboard and incidents">
   &emsp;
-  <img src="images/demo2.gif" width="260" alt="Demo part 2 — device detail and performance charts">
+  <img src="ios/images/demo2.gif" width="260" alt="Demo part 2 — device detail and performance charts">
   &emsp;
-  <img src="images/demo3.gif" width="260" alt="Demo part 3 — tactical overview and settings">
+  <img src="ios/images/demo3.gif" width="260" alt="Demo part 3 — tactical overview and settings">
 </div>
 
 ## Features
@@ -44,9 +44,9 @@ Here are a few examples of how the app looks and feels like. You can see the hom
 Here are two screenshots — the Dashboard with its alarm summary cards (left), and the Active Incidents dashboard with severity and alarm indicators (right):
 
 <div align="center">
-  <img src="images/BHNM%20Home%20Screen.jpeg" alt="Dashboard — alarm summaries and incident ticker" width="240">
+  <img src="ios/images/BHNM%20Home%20Screen.jpeg" alt="Dashboard — alarm summaries and incident ticker" width="240">
   &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;
-  <img src="images/BHNM_Incidents.jpeg" alt="Active Incidents — severity badges and alarm indicators" width="240">
+  <img src="ios/images/BHNM_Incidents.jpeg" alt="Active Incidents — severity badges and alarm indicators" width="240">
 </div>
 
 ## Requirements
@@ -172,7 +172,7 @@ The tactical overview endpoint accepts a `grouping_type` body parameter (`catego
 
 BeNeM supports real-time push notifications for new incidents via a lightweight companion middleware ([bhnm-apns](https://github.com/ThomasStolt/bhnm-apns)) that bridges BHNM's webhook output to Apple Push Notification service (APNs).
 
-![Push notification architecture: BHNM incident triggers a webhook to the bhnm-apns middleware, which forwards the alert to APNs and then to the iPhone](images/BHNM%20Push%20Notification%20Architecture%20-%202026%2003%2030.png)
+![Push notification architecture: BHNM incident triggers a webhook to the bhnm-apns middleware, which forwards the alert to APNs and then to the iPhone](ios/images/BHNM%20Push%20Notification%20Architecture%20-%202026%2003%2030.png)
 
 When a new incident is raised in BHNM, a webhook fires to the middleware. The middleware authenticates the request, enriches the payload, and delivers it to the registered device via APNs. Tapping the notification navigates directly to the incident detail screen — even from a cold launch.
 
