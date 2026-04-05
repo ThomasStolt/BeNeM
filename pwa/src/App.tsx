@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import { IOSRedirectBanner } from './components/IOSRedirectBanner';
 import { IncidentListScreen } from './features/incidents/IncidentListScreen';
 import { IncidentDetailStub } from './features/incidents/IncidentDetailStub';
+import { SettingsScreen } from './features/settings/SettingsScreen';
 
 export default function App() {
   return (
@@ -9,6 +10,7 @@ export default function App() {
       <IOSRedirectBanner />
       <Routes>
         <Route path="/" element={<IncidentListScreen />} />
+        <Route path="/settings" element={<SettingsScreen />} />
         <Route path="/incident/:id" element={<IncidentDetailStub />} />
       </Routes>
     </div>
