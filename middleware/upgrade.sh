@@ -110,7 +110,10 @@ else
     FAILED=1
 fi
 
-HEALTH_PWA=$(docker compose exec -T benem-pwa wget -q -O - http://localhost/ 2>/dev/null | head -c 50 || echo "")
+# Use 127.0.0.1 explicitly — `localhost` resolves to IPv6 ::1 first on alpine,
+# but nginx inside benem-pwa only listens on IPv4 0.0.0.0:80, which gives a
+# false "Connection refused" even when the container is healthy.
+HEALTH_PWA=$(docker compose exec -T benem-pwa wget -q -O - http://127.0.0.1/ 2>/dev/null | head -c 50 || echo "")
 if echo "$HEALTH_PWA" | grep -qi '<!doctype html'; then
     ok "benem-pwa is serving the SPA shell."
 else
