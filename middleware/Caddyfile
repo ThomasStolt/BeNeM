@@ -19,3 +19,17 @@
         reverse_proxy bhnm-apns:8889
     }
 }
+
+{$PWA_DOMAIN} {
+    # Same-origin API path — proxied to the bhnm-apns container.
+    # `handle_path` strips the `/bhnm` prefix before forwarding,
+    # mirroring the Vite dev proxy's rewrite.
+    handle_path /bhnm/* {
+        reverse_proxy bhnm-apns:8889
+    }
+
+    # Everything else → static PWA bundle served by nginx.
+    handle {
+        reverse_proxy benem-pwa:80
+    }
+}
