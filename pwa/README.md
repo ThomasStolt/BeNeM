@@ -62,3 +62,28 @@ data even when a key is set.
 The BHNM API key you set in `VITE_BHNM_API_KEY` must exist in the
 deployed middleware's `servers.json`. The middleware proxy looks up the
 target BHNM server by that key.
+
+## Production hosting
+
+The PWA is deployed at `https://benem.hurrikap.org` as a dedicated
+`benem-pwa` container managed by `middleware/docker-compose.yml`. The
+same Caddy instance that fronts the `bhnm-apns` push middleware
+terminates TLS for both hostnames and same-origin-proxies
+`/bhnm/*` on the PWA host to the middleware container — so the PWA
+has no CORS dependency and shares no code with the middleware image.
+
+First-time deploy checklist (run on the server, repo root):
+
+1. `git pull`
+2. Add `PWA_DOMAIN=benem.hurrikap.org` to `middleware/.env`
+3. Create a DNS A/AAAA record for `benem.hurrikap.org` pointing at the server
+4. Wait for DNS to propagate (`dig +short benem.hurrikap.org`)
+5. `cd middleware && docker compose up -d` (Caddy will provision a Let's Encrypt cert automatically)
+6. Visit `https://benem.hurrikap.org/settings` and enter your BHNM API key
+
+Subsequent deploys are `./middleware/upgrade.sh`, which rebuilds the
+`benem-pwa` image from the current `pwa/` source on every run.
+
+The API key you enter in Settings is stored in your browser's
+`localStorage` (scoped to `benem.hurrikap.org`) and is never sent
+anywhere except BHNM via the middleware proxy.
