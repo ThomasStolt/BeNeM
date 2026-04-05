@@ -78,12 +78,10 @@ BeNeM/                          (monorepo root on ThomasStolt/BeNeM)
     ├── PRD-BeNeM-Product-Requirements-Document.md (moved from docs/)
     ├── architecture.svg        (moved from docs/)
     ├── credentials-and-keys-overview.md (moved from docs/)
-    ├── bhnm-timeseries-metrics-api.md (moved from docs/internal/)
+    ├── bhnm-timeseries-metrics-api.md (moved from docs/internal/, unignored)
     ├── feature-spec.md         (new, stub + one worked example)
     ├── push-payload-spec.md    (new, stub + incident_opened example)
-    ├── api-spec.md             (new, stub pointing to BHNM_API_REFERENCE.md)
-    └── examples/
-        └── webhook-test.sh     (was test.json at root)
+    └── api-spec.md             (new, stub pointing to BHNM_API_REFERENCE.md)
 ```
 
 ## 4. File Movement Plan
@@ -115,8 +113,10 @@ The recipe's single `for item in $(ls -A | grep -vE ...)` loop is replaced with 
 | `docs/PRD-BeNeM-Product-Requirements-Document.md` | `shared/PRD-BeNeM-Product-Requirements-Document.md` |
 | `docs/architecture.svg` | `shared/architecture.svg` |
 | `docs/credentials-and-keys-overview.md` | `shared/credentials-and-keys-overview.md` |
-| `docs/internal/bhnm-timeseries-metrics-api.md` | `shared/bhnm-timeseries-metrics-api.md` |
-| `test.json` | `shared/examples/webhook-test.sh` |
+| `docs/internal/bhnm-timeseries-metrics-api.md` | `shared/bhnm-timeseries-metrics-api.md` (gitignored in source → unignored at destination; see §9) |
+
+Additionally in commit 3:
+- `test.json` is **deleted** (`rm test.json`). It was gitignored scratch — user confirmed it is no longer needed.
 
 ### 4.3 Files staying at repo root
 
@@ -125,7 +125,12 @@ The recipe's single `for item in $(ls -A | grep -vE ...)` loop is replaced with 
 ### 4.4 Untracked / ignored files — no git action
 
 - `.DS_Store` (not tracked, verified)
-- `M1BJKI1M3C52.png` (not tracked; stray 512×512 PNG at root; user can delete manually)
+- `M1BJKI1M3C52.png` (gitignored stray 512×512 PNG at root; user can delete manually)
+- `build.local.sh` (gitignored — contains device UDID). Moved to `ios/build.local.sh` with plain `mv` (not `git mv`). The existing `.gitignore` rule `build.local.sh` is a bare pattern that matches at any depth, so it still covers the file at its new path — no .gitignore change required for this file.
+
+### 4.5 Files deleted as part of the restructure
+
+- `test.json` — gitignored scratch; user confirmed no longer needed. `rm test.json` in commit 3.
 
 ## 5. CLAUDE.md Split
 
@@ -233,9 +238,9 @@ git branch backup/pre-monorepo
 
 | # | Message | Contents | Gate |
 |---|---|---|---|
-| 1 | `chore: create monorepo subdirectories` | `mkdir ios middleware pwa/src shared shared/examples ios/docs`; add `.gitkeep` files where needed | Dirs exist |
-| 2 | `chore: move iOS sources and tooling into ios/` | Explicit `git mv` list per §4.1 | Diff review |
-| 3 | `chore: move shared docs and API reference into shared/` | Explicit `git mv` list per §4.2 | Diff review |
+| 1 | `chore: create monorepo subdirectories` | `mkdir ios middleware pwa/src shared ios/docs`; add `.gitkeep` files where needed | Dirs exist |
+| 2 | `chore: move iOS sources and tooling into ios/` | Explicit `git mv` list per §4.1, plus plain `mv` for gitignored `build.local.sh` | Diff review |
+| 3 | `chore: move shared docs and API reference into shared/` | Explicit `git mv` list per §4.2; delete `test.json`; unignore `docs/internal/` | Diff review |
 | 4 | `chore: split CLAUDE.md into monorepo root and ios/` | `git mv CLAUDE.md ios/CLAUDE.md`, edit per §5.1, write new root `CLAUDE.md` per §5.2 | **Gate A:** `xcodebuild -list -project ios/BeNeM.xcodeproj` succeeds |
 | 5 | `chore: import bhnm-apns middleware history into middleware/` | Procedure per §6 | `ls middleware/main.py` and `git log --follow middleware/main.py` show full history |
 | 6 | `docs: add middleware/ and pwa/ CLAUDE.md files` | New files per §5.3, §5.4 | Files exist |
@@ -274,9 +279,23 @@ Deliberately minimal. The principle is **spec-first going forward**, not reverse
 3. **`shared/push-payload-spec.md`** — the recipe's template plus one seeded entry: "Type: `incident_opened`" using the current APNs payload from root `CLAUDE.md` (`{"aps": {...}, "incident_id": "<id>"}`).
 4. **`shared/api-spec.md`** — the recipe's template with a pointer to `shared/BHNM_API_REFERENCE.md` and an empty endpoint table for future population.
 
-## 9. Root `.gitignore` Extension
+## 9. Root `.gitignore` Changes
 
-Append the following blocks to the existing `.gitignore`. Existing rules are not modified or deduplicated.
+Two categories of changes in commit 8:
+
+**9.1 Remove obsolete rules** (these reference files that are being moved or deleted):
+
+```diff
+- # Test / scratch files
+- test.json
+-
+- # Internal / non-public docs (local only)
+- docs/internal/
+```
+
+Both rules are removed: `test.json` is deleted in commit 3; `docs/internal/bhnm-timeseries-metrics-api.md` is moved to `shared/` where it is intentionally tracked.
+
+**9.2 Append monorepo subproject blocks** — the following is added to the existing `.gitignore`. Existing rules (other than 9.1 removals) are not modified or deduplicated.
 
 ```gitignore
 # --- Monorepo subproject ignores ---
