@@ -56,6 +56,17 @@ else
     info "Version unchanged: $AFTER"
 fi
 
+# ── Validate Caddyfile ─────────────────────────────
+
+echo ""
+echo -e "${CYAN}── Validating Caddyfile ──────────────────────────${NC}"
+docker run --rm \
+  --env-file .env \
+  -v "$(pwd)/Caddyfile:/etc/caddy/Caddyfile:ro" \
+  caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile \
+  || die "Caddyfile is invalid — aborting upgrade."
+ok "Caddyfile valid."
+
 # ── Rebuild image ──────────────────────────────────
 
 echo ""
@@ -96,6 +107,15 @@ if echo "$HEALTH_ADMIN" | grep -q '"status":"running"'; then
 else
     warn "benem-admin health check failed — check logs:"
     docker compose logs benem-admin --tail 20
+    FAILED=1
+fi
+
+HEALTH_PWA=$(docker compose exec -T benem-pwa wget -q -O - http://localhost/ 2>/dev/null | head -c 50 || echo "")
+if echo "$HEALTH_PWA" | grep -qi '<!doctype html'; then
+    ok "benem-pwa is serving the SPA shell."
+else
+    warn "benem-pwa health check failed — check logs:"
+    docker compose logs benem-pwa --tail 20
     FAILED=1
 fi
 
