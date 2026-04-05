@@ -1,6 +1,18 @@
-# bhnm-apns — Claude Code Context
+# BeNeM Middleware (bhnm-apns) — Claude Code Context
 
-bhnm-apns is a Python FastAPI middleware that bridges BMC Helix Network Management (BHNM) incident webhooks to Apple Push Notifications (APNs) for the [BeNeM](https://github.com/ThomasStolt/BeNeM) iOS app. It runs as a Docker container (with Caddy for TLS) on any VPS, receives JSON webhook POSTs from a BHNM server, and forwards them as push notifications to registered iPhone devices.
+Python / FastAPI middleware that bridges BMC Helix Network Management
+(BHNM) incident webhooks to Apple Push Notifications (APNs) — and, in the
+future, to Web Push for the PWA.
+
+> Part of the BeNeM monorepo. See `../CLAUDE.md` for the cross-cutting
+> architecture, `../ios/CLAUDE.md` for the iOS consumer, and
+> `../shared/push-payload-spec.md` for the payload contract shared with
+> consumers. History merged from `github.com/ThomasStolt/bhnm-apns`
+> (April 2026 monorepo restructure) with full per-file history preserved.
+
+Runs as a Docker container (with Caddy for TLS) on any VPS, receives JSON
+webhook POSTs from a BHNM server, and forwards them as push notifications
+to registered iPhone devices.
 
 ---
 
@@ -24,12 +36,24 @@ bhnm-apns is a Python FastAPI middleware that bridges BMC Helix Network Manageme
 
 ---
 
+## Deployment facts
+
+- **Runtime:** Python / FastAPI
+- **Deployed at:** `https://bhnm-apns.hurrikap.org` (Linode Nanode, Caddy terminates TLS)
+- **APNs:** `.p8` Auth Key, base64-encoded in `APNS_PRIVATE_KEY_B64` env var
+- **Web Push (future):** VAPID key pair, to be injected via environment variable
+
+---
+
 ## Key Design Decisions
 
 ### Per-Device `active_secret` Routing
 Each BHNM server has its own unique webhook secret. When BeNeM registers a device via `POST /register`, it sends `X-Webhook-Token: <secret>` — this value is stored as `active_secret` in the `device_tokens` SQLite row. When a webhook arrives at `POST /webhook?secret=<value>`, only devices with a matching `active_secret` receive the notification. This enables a single middleware instance to serve multiple BHNM servers without cross-contamination of alerts.
 
-There is no global `WEBHOOK_SECRET` environment variable. Authentication is implicit: possessing the correct secret proves authorisation.
+There is **no global `WEBHOOK_SECRET` environment variable**. Authentication is implicit: possessing the correct secret proves authorisation.
+
+### Dual APNs environment
+The middleware routes per-device-token to sandbox or production APNs endpoints — the same registered device can be served from either pool. See `apns.py`.
 
 ### SQLite via Docker Volume
 `database.py` uses SQLite at `/data/bhnm_apns.db`. `/data` is a Docker named volume (`db-data`), so tokens persist across container rebuilds. For non-Docker installs, `DB_PATH` env var overrides the path. Schema migrations (e.g. adding `active_secret`) are applied with a safe `ALTER TABLE ... ADD COLUMN` wrapped in a try/except that silently ignores `OperationalError` (column already exists).
@@ -42,6 +66,30 @@ All secrets and configuration live in `.env` (gitignored). `config.py` reads the
 
 ### APNs JWT Authentication
 `apns.py` generates a signed JWT (ES256) using the `.p8` private key, which is stored base64-encoded in `APNS_PRIVATE_KEY_B64`. The JWT is cached and refreshed every 55 minutes (APNs requires refresh before 60 min). HTTP/2 is used via `httpx`.
+
+---
+
+## Endpoints
+
+| Endpoint | Purpose | Consumer |
+|---|---|---|
+| `POST /register` | Register an APNs device token (and `active_secret` from `X-Webhook-Token` header) | iOS app (`AppDelegate`) |
+| `POST /webhook` | Receive a BHNM incident event and fan out push notifications to devices whose `active_secret` matches the `?secret=` query param | BHNM |
+| `GET /health` | Health check | Ops |
+
+---
+
+## Push payload contract
+
+The APNs custom-data payload is:
+
+```json
+{ "aps": { "alert": {...}, "sound": "default" }, "incident_id": "<id>" }
+```
+
+All notification payload types (current and future) are defined in
+`../shared/push-payload-spec.md`. When adding a new notification type,
+update that spec first, then implement here.
 
 ---
 
@@ -103,6 +151,11 @@ docker compose up -d
 git pull && docker compose build && docker compose up -d
 ```
 
+Post-monorepo-restructure: the middleware now lives inside the BeNeM
+monorepo. The standalone `ThomasStolt/bhnm-apns` repository will be
+archived (see the monorepo spec). Deployment workflows may need updating
+to pull from the monorepo subdirectory.
+
 ---
 
 ## What NOT to Do
@@ -112,3 +165,10 @@ git pull && docker compose build && docker compose up -d
 - **Never** hardcode any secret or credential in Python source files
 - **Never** add a global `WEBHOOK_SECRET` back — routing is now per-device via `active_secret`
 - **Never** modify `.env.example` to include real values
+
+---
+
+## BHNM API
+
+Endpoint contracts are in `../shared/BHNM_API_REFERENCE.md` (full reference)
+and `../shared/api-spec.md` (narrower subset actively consumed).
