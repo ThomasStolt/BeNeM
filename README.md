@@ -1,14 +1,27 @@
-# BHNM - Mobile Client for BMC Network Management
+# BeNeM — Mobile Clients for BMC Helix Network Management
 
-An open source native iOS app for **BMC Helix Network Management** (BHNM). Monitor your infrastructure, manage incidents, and acknowledge alerts directly from your iPhone.
+An open source monorepo containing two client applications for **BMC Helix Network Management** (BHNM): a **native iOS app** and a **Progressive Web App (PWA)** for Android. Monitor your infrastructure, manage incidents, and acknowledge alerts directly from your phone — on either platform.
 
-**When a new incident is created in BHNM, a push notification is instantly delivered to every registered iPhone** — no polling, no delay. Tap the notification to jump straight to the incident detail. This is a first-class feature of BeNeM, powered by a lightweight companion middleware ([bhnm-apns](https://github.com/ThomasStolt/bhnm-apns)) that bridges BHNM webhooks to Apple Push Notification service (APNs).
+**When a new incident is created in BHNM, a push notification is instantly delivered to every registered device** — no polling, no delay. Tap the notification to jump straight to the incident detail. This is a first-class feature of BeNeM on both platforms, powered by a lightweight companion middleware that bridges BHNM webhooks to Apple Push Notification service (APNs) for iOS and VAPID Web Push for Android.
 
 > **Note:** BMC Helix Network Management (BHNM) was formerly known as **Netreo**. Internal code identifiers (class names, AppStorage keys) still use the legacy `Netreo` prefix for backwards compatibility and will be migrated in a future release.
 
+## Repository Layout
+
+This is a monorepo with four top-level subprojects:
+
+| Path | Purpose |
+|---|---|
+| [`ios/`](ios/) | Native Swift/SwiftUI iOS app. Primary platform, distributed via App Store / TestFlight. |
+| [`pwa/`](pwa/) | React/TypeScript Progressive Web App targeting Android via Web Push, and desktop browsers as a web dashboard. |
+| [`middleware/`](middleware/) | Python/FastAPI service. Ingests BHNM webhooks and delivers push notifications to iOS (APNs) and Android (Web Push). |
+| [`shared/`](shared/) | Specifications and documentation shared between clients — feature spec, push payload contract, API reference. |
+
+The full platform strategy (why native iOS + PWA Android, not a single cross-platform app) is documented in [`shared/DECISION.md`](shared/DECISION.md).
+
 ## Demo
 
-Here are a few examples of how the app looks and feels like. You can see the home dashboard, active incidents, acknowledgement of incidents, device list and a device performance view.
+Here are a few examples of how the iOS app looks and feels. You can see the home dashboard, active incidents, acknowledgement of incidents, device list and a device performance view. The PWA mirrors the same features with a browser-native UI.
 
 <div align="center">
   <img src="ios/images/demo1.gif" width="260" alt="Demo part 1 — dashboard and incidents">
@@ -20,11 +33,13 @@ Here are a few examples of how the app looks and feels like. You can see the hom
 
 ## Features
 
-- **Push Notifications** — instant incident alerts delivered to all registered iPhones the moment a new incident is raised in BHNM; tap to navigate directly to the incident detail screen
+Features are defined once in [`shared/feature-spec.md`](shared/feature-spec.md) and implemented on both platforms unless explicitly marked platform-specific.
+
+- **Push Notifications** — instant incident alerts delivered the moment a new incident is raised in BHNM; tap to navigate directly to the incident detail screen. iOS uses APNs with Time Sensitive entitlement; Android uses VAPID Web Push via the installed PWA.
 - **Dashboard (Home)** — at-a-glance summary with active incident count, total device count, an animated incident ticker (open incidents only), and HOSTS / SERVICES / THRESHOLDS / ANOMALIES alarm summaries with drill-down links to Categories, Sites, and Business Workflows
 - **Categories / Sites / Business Workflows** — group lists showing each group's device count and color-coded alarm status rows (H / S / T / A) across Green / Blue / Yellow / Orange / Red; alternating row backgrounds for readability; filter to show only groups with active alarms; empty group names shown as "Unknown"
 - **Incident List** — live view of active, acknowledged, and closed incidents with severity badges and per-incident alarm counts; sorted newest-first by Incident ID
-- **Acknowledge / Unacknowledge** — swipe right to ACK, swipe left to UnACK, with instant local status update
+- **Acknowledge / Unacknowledge** — swipe right to ACK, swipe left to UnACK on both platforms, with instant local status update
 - **Incident Detail** — primary alarms, related alarms, and the full incident state log
 - **Device Detail** — tap any device for a full detail view with a 3-column header card (icon, device info, mini latency chart), active incidents, performance metric charts (CPU, memory, disk, interfaces, latency), and network interface status
 - **CPU Cores chart** — combined multi-line chart showing up to 4 CPU cores with distinct colors, actual BHNM core names, and auto-scaled Y axis
@@ -32,7 +47,7 @@ Here are a few examples of how the app looks and feels like. You can see the hom
 - **Incident Ticker** — animated banner on the Dashboard cycles through the latest open incidents; tap to navigate directly to the detail screen
 - **Filters** — filter incidents by severity and status; filter tactical groups to show only those with any non-green alarms (hosts, services, thresholds, or anomalies)
 - **Named connections** — save multiple BHNM servers and switch between them via a connection picker in Settings; connection test shows a green dot on success, no popup
-- **QR code scanner** — scan a `benem://` configuration QR code directly from Settings to add a new server; generated by the [benem-admin](https://github.com/ThomasStolt/bhnm-apns) portal
+- **QR code scanner** — scan a `benem://` configuration QR code directly from Settings to add a new server; generated by the **benem-admin** portal (part of [`middleware/`](middleware/))
 - **URL scheme import** — import a server connection via `benem://configure?url=…&key=…` deep link (QR code, MDM profile, or share sheet)
 - **Auto-refresh** — data refreshes automatically every 120 seconds with a visible countdown ring; tap the ring to refresh immediately
 - **Auto-retry** — all screens automatically retry the connection 15 seconds after a network failure
@@ -41,7 +56,7 @@ Here are a few examples of how the app looks and feels like. You can see the hom
 - **Connection Test** — built-in connectivity test with detailed diagnostics; green dot on success, red dot + alert on failure
 - **Multiple API versions** — supports Legacy (PHP), API v1, API v2, and OpenAPI 3.0 endpoints
 
-Here are two screenshots — the Dashboard with its alarm summary cards (left), and the Active Incidents dashboard with severity and alarm indicators (right):
+Here are two screenshots from the iOS app — the Dashboard with its alarm summary cards (left), and the Active Incidents dashboard with severity and alarm indicators (right):
 
 <div align="center">
   <img src="ios/images/BHNM%20Home%20Screen.jpeg" alt="Dashboard — alarm summaries and incident ticker" width="240">
@@ -51,9 +66,20 @@ Here are two screenshots — the Dashboard with its alarm summary cards (left), 
 
 ## Requirements
 
+**iOS app**
 - iOS 16.0 or later
 - Xcode 15 or later
-- A running BHNM instance (on-premise or SaaS)
+
+**PWA**
+- A modern evergreen browser (Chrome, Edge, Firefox, Safari)
+- Android 13 or later for full Web Push support (installed as a home-screen PWA)
+- Node.js 20+ and npm for local development
+
+**Middleware**
+- Docker / Docker Compose (recommended), or Python 3.11+ for bare-metal installs
+
+**Both clients**
+- A running BHNM instance (on-premise or SaaS), minimum version **26.1.02**
 
 ## Installation
 
@@ -64,39 +90,57 @@ git clone https://github.com/thomasstolt/BeNeM.git
 cd BeNeM
 ```
 
-### 2. Open in Xcode
+### 2. iOS app
 
 ```bash
-open BeNeM.xcodeproj
+open ios/BeNeM.xcodeproj
 ```
 
-### 3. Configure signing
+Then in Xcode:
 
-1. Select the `BeNeM` target in Xcode
+1. Select the `BeNeM` target
 2. Under **Signing & Capabilities**, select your Apple Developer Team
 3. Adjust the Bundle Identifier if needed (default: `com.tstolt.benem`)
-
-### 4. Build & Run
-
-- **Simulator**: Select any iPhone simulator and press ▶
-- **Physical device**: Connect your iPhone, select it as the destination and press ▶
+4. Select a simulator or your connected device, press ▶
 
 Alternatively, use the included build script:
 
 ```bash
-# Copy the example config and fill in your device UDID
+cd ios
 cp build.local.sh.example build.local.sh
 # Edit build.local.sh — set BENEM_DEVICE_ID to your device's UDID
-
-# Build and deploy
 ./build_and_deploy.sh
 ```
 
 > **Note:** For corporate or self-signed certificate servers the app includes `NSAllowsArbitraryLoads` in its `Info.plist`. Review and adjust your ATS settings before submitting to the App Store.
 
+### 3. PWA
+
+```bash
+cd pwa
+npm install
+npm run dev            # local development server
+npm run build          # production build
+```
+
+Deploy the contents of `pwa/dist/` to any static-file host (Cloudflare Pages, Netlify, Vercel, a plain nginx, etc.). Open the deployed URL on an Android device and tap **Add to Home screen** to install. The first launch will prompt for notification permission — accept to enable Web Push incident alerts.
+
+> **iOS users:** The PWA is available in the browser but **push notifications are not reliable on iOS Web Push** (subscription expiry, no Time Sensitive entitlement). iOS users are directed to install the native app instead. See [`shared/DECISION.md`](shared/DECISION.md) for the full rationale.
+
+### 4. Middleware
+
+```bash
+cd middleware
+cp .env.example .env
+# Edit .env — APNs .p8 key (base64), VAPID keys, webhook secret, domain
+docker compose up -d
+```
+
+See [`middleware/CLAUDE.md`](middleware/CLAUDE.md) for deployment details, per-device `active_secret` routing, and the `/register` / `/webhook` / `/health` endpoints.
+
 ## Configuration
 
-On first launch, open the **Settings** tab and enter:
+On first launch of either client, open **Settings** and enter:
 
 | Field | Description |
 |---|---|
@@ -112,44 +156,49 @@ Tap the **Test** button to verify your settings. A green dot confirms the connec
 
 ### Discover BHNM Server
 
-If you are on the same Wi-Fi network as your BHNM server, tap **Settings → Discover BHNM Server** to automatically scan the local /24 subnet for BHNM instances. Discovered servers can be connected to directly from the results list.
+If you are on the same Wi-Fi network as your BHNM server, tap **Settings → Discover BHNM Server** (iOS only — the PWA cannot perform local subnet scanning from the browser sandbox) to automatically scan the local /24 subnet for BHNM instances. Discovered servers can be connected to directly from the results list.
 
 ## Project Structure
 
 ```
 BeNeM/
-├── Models/
-│   ├── NetreoIncident.swift          # Incident data model
-│   ├── IncidentDetail.swift          # Incident detail / alarm log model
-│   ├── NetreoDevice.swift            # Device data model
-│   └── GroupSummary.swift            # Aggregated alarm status per group
-├── Services/
-│   ├── NetreoAPIService.swift        # All API calls (incidents, devices, tactical, ACK)
-│   ├── NetreoAPIConfiguration.swift  # URL building, endpoint routing
-│   └── NetworkDiscovery.swift        # Local Wi-Fi subnet scan for BHNM servers
-├── ViewModels/
-│   ├── IncidentListViewModel.swift   # Filtering, sorting, alarm count loading
-│   ├── DeviceListViewModel.swift     # Device list loading
-│   ├── DeviceDetailViewModel.swift   # Concurrent incident + performance loading for one device
-│   └── TacticalViewModel.swift       # Category / Site / Business Workflow loading
-├── Views/
-│   ├── SplashView.swift              # Animated launch screen with logo shimmer + version
-│   ├── DashboardView.swift           # Home: status cards, incident ticker, alarm summaries
-│   ├── GroupListView.swift           # Group list with alarm badges and device count
-│   ├── IncidentListView.swift        # Incident list + swipe ACK/UnACK
-│   ├── IncidentDetailView.swift      # Incident detail screen
-│   ├── DeviceDetailView.swift        # Device detail: incidents, performance charts, interfaces
-│   ├── AutoDiscoveryView.swift       # Wi-Fi server discovery UI
-│   ├── AutoRefreshButton.swift       # Countdown ring + refresh button + connection badge
-│   └── SettingsView.swift            # Configuration + named connections + version info
-└── BeNeMApp.swift                    # App entry point + URL scheme handler
+├── ios/                       # Native Swift/SwiftUI iOS app
+│   ├── BeNeM/
+│   │   ├── Models/            # Incident, Device, Group, IncidentDetail models
+│   │   ├── Services/          # API client, URL building, network discovery
+│   │   ├── ViewModels/        # List, Detail, Tactical view models
+│   │   ├── Views/             # SwiftUI views (Dashboard, Incidents, Devices, Settings, …)
+│   │   └── BeNeMApp.swift     # App entry point + URL scheme handler
+│   ├── BeNeM.xcodeproj
+│   ├── build_and_deploy.sh
+│   └── CLAUDE.md              # iOS-specific context
+│
+├── pwa/                       # React/TypeScript Progressive Web App
+│   ├── src/                   # Components, pages, API client, service worker
+│   └── CLAUDE.md              # PWA-specific context
+│
+├── middleware/                # Python/FastAPI push middleware (formerly bhnm-apns)
+│   ├── main.py                # FastAPI app, /register /webhook /health endpoints
+│   ├── apns.py                # APNs (iOS) delivery — JWT + HTTP/2
+│   ├── database.py            # SQLite token store with per-device active_secret routing
+│   ├── docker-compose.yml
+│   └── CLAUDE.md              # Middleware context + design decisions
+│
+├── shared/                    # Specs shared between clients (source of truth)
+│   ├── DECISION.md            # Platform strategy record
+│   ├── feature-spec.md        # Canonical feature list, per-platform notes
+│   ├── push-payload-spec.md   # Push notification payload contract
+│   ├── api-spec.md            # BHNM API subset actively consumed
+│   └── BHNM_API_REFERENCE.md  # Full BHNM API reference
+│
+└── CLAUDE.md                  # Monorepo-wide context
 ```
 
 > **Note on class names:** Swift types use the legacy `Netreo` prefix (e.g. `NetreoAPIService`, `NetreoIncident`) as they predate the product rebrand. AppStorage keys (`netreo_base_url`, `netreo_api_key`, etc.) are also kept unchanged to preserve existing user settings.
 
 ## API Compatibility
 
-The app uses a mix of BHNM's legacy PHP endpoints and RESTful endpoints:
+Both clients speak to the same BHNM server using a mix of legacy PHP endpoints and RESTful endpoints:
 
 | Action | Method | Endpoint |
 |---|---|---|
@@ -162,7 +211,9 @@ The app uses a mix of BHNM's legacy PHP endpoints and RESTful endpoints:
 | Find device by name | POST | `/fw/index.php?r=restful/devices/find` |
 | Performance categories | POST | `/fw/index.php?r=restful/devices/performance-category` |
 | Performance instances | POST | `/fw/index.php?r=restful/devices/performance-instance-per-category` |
-| Time-series metrics | POST | `/fw/index.php?r=restful/devices/get-time-series-metrics` |
+| Time-series metrics | POST | `/fw/index.php?r=restful/devices/timeseries-metrics` |
+
+See [`shared/BHNM_API_REFERENCE.md`](shared/BHNM_API_REFERENCE.md) for the full reference.
 
 The tactical overview endpoint accepts a `grouping_type` body parameter (`category`, `site`, or `app` for Business Workflows) and returns pre-aggregated host, service, and threshold counts per group directly from BHNM's monitoring core — the same data source as BHNM's own web dashboard.
 
@@ -170,26 +221,32 @@ The tactical overview endpoint accepts a `grouping_type` body parameter (`catego
 
 ## Push Notifications
 
-BeNeM supports real-time push notifications for new incidents via a lightweight companion middleware ([bhnm-apns](https://github.com/ThomasStolt/bhnm-apns)) that bridges BHNM's webhook output to Apple Push Notification service (APNs).
+BeNeM delivers real-time push notifications for new incidents on **both platforms** via a single companion middleware (see [`middleware/`](middleware/)) that bridges BHNM's webhook output to the appropriate push service per client:
 
-![Push notification architecture: BHNM incident triggers a webhook to the bhnm-apns middleware, which forwards the alert to APNs and then to the iPhone](ios/images/BHNM%20Push%20Notification%20Architecture%20-%202026%2003%2030.png)
+- **iOS** — Apple Push Notification service (APNs) using a `.p8` Auth Key and JWT-signed HTTP/2 requests
+- **Android PWA** — VAPID-signed Web Push via the browser's Service Worker
 
-When a new incident is raised in BHNM, a webhook fires to the middleware. The middleware authenticates the request, enriches the payload, and delivers it to the registered device via APNs. Tapping the notification navigates directly to the incident detail screen — even from a cold launch.
+![Push notification architecture: BHNM incident triggers a webhook to the bhnm-apns middleware, which forwards the alert to APNs (iOS) or Web Push (Android) and then to the device](ios/images/BHNM%20Push%20Notification%20Architecture%20-%202026%2003%2030.png)
 
-The middleware URL and shared secret are configurable in **Settings → Push Notifications** and can also be provisioned via the `benem://` deep-link URL scheme.
+When a new incident is raised in BHNM, a webhook fires to the middleware. The middleware authenticates the request using a per-device `active_secret` (each BHNM server has its own webhook secret), looks up all registered devices authorised for that secret, and fans out the notification via APNs or Web Push. Tapping the notification navigates directly to the incident detail screen — even from a cold launch.
+
+The middleware URL and shared secret are configurable in **Settings → Push Notifications** on both clients and can also be provisioned via the `benem://` deep-link URL scheme (QR code, MDM profile, or share sheet).
+
+The payload contract is defined in [`shared/push-payload-spec.md`](shared/push-payload-spec.md) and is the source of truth for both producer and consumers.
 
 ## Versioning
 
-Releases follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
+Releases follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. Each subproject versions independently.
 
 ```bash
-# Bump version and build number (runs xcrun agvtool internally)
+# iOS app — bumps MARKETING_VERSION + CURRENT_PROJECT_VERSION via xcrun agvtool
+cd ios
 ./scripts/bump_version.sh patch   # 1.1.0 → 1.1.1
 ./scripts/bump_version.sh minor   # 1.1.0 → 1.2.0
 ./scripts/bump_version.sh major   # 1.1.0 → 2.0.0
 ```
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release history.
+See [`ios/CHANGELOG.md`](ios/CHANGELOG.md) and [`middleware/CHANGELOG.md`](middleware/CHANGELOG.md) for per-subproject release histories.
 
 ## License
 
