@@ -1,0 +1,37 @@
+[
+  {
+    "active_incidents": [
+      {
+        "incident_id": 58431,
+        "title": "CPU utilization high on core-switch-01",
+        "name": "core-switch-01",
+        "ip": "10.0.0.1",
+        "incident_state": "OPEN",
+        "severity": "critical",
+        "start_time": 1712332800
+      },
+      {
+        "incident_id": "NetreoCloudDemo-58432",
+        "title": "Interface Gi0/1 down",
+        "name": "edge-router-02",
+        "ip": "10.0.0.2",
+        "incident_state": "ACKNOWLEDGED",
+        "alert_level": "major",
+        "start_time": 1712329200,
+        "acknowledged_by": "oncall@example.com"
+      }
+    ],
+    "closed_incidents": [
+      {
+        "incident_id": 58400,
+        "title": "Memory usage warning",
+        "name": "app-server-03",
+        "ip": "10.0.1.5",
+        "incident_state": "CLOSED",
+        "level": "minor",
+        "start_time": 1712300000
+      }
+    ],
+    "success": true
+  }
+]
