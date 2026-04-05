@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Connection Test</h1>
+
+<div style="max-width: 520px;">
+  <div class="card">
+    <form method="post" action="/admin/test">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label>Server</label>
+        <div class="input-row">
+          <select name="server_id">
+            {% for s in servers %}
+            <option value="{{ s.id }}" {{ 'selected' if selected_id == s.id }}>{{ s.name }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-primary">Run Test</button>
+        </div>
+      </div>
+    </form>
+
+    {% if results is not none %}
+    <hr class="divider">
+    {% if results | length == 0 %}
+    <p style="font-size:13px;color:var(--text-muted);">No server selected.</p>
+    {% else %}
+    <div>
+      {% for r in results %}
+      <div class="result-item">
+        <div class="result-icon {{ 'ok' if r.ok else 'fail' }}">
+          {{ '✓' if r.ok else '✗' }}
+        </div>
+        <div>
+          <div class="result-step">{{ r.step }}</div>
+          <div class="result-detail">{{ r.detail }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

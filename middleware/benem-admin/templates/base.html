@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BeNeM Admin</title>
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:          #0c0c14;
+      --surface:     #131320;
+      --surface-hi:  #1c1c2e;
+      --border:      #2a2a40;
+      --border-hi:   #3a3a55;
+      --text:        #dde1f0;
+      --text-muted:  #6b7190;
+      --text-dim:    #44445a;
+      --accent:      #4f8ef7;
+      --accent-glow: rgba(79,142,247,0.18);
+      --accent-dark: rgba(79,142,247,0.08);
+      --green:       #22d98a;
+      --green-glow:  rgba(34,217,138,0.15);
+      --red:         #ff4d6a;
+      --red-glow:    rgba(255,77,106,0.15);
+      --amber:       #f5a623;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+      display: flex;
+    }
+
+    /* ── Sidebar ── */
+    aside {
+      width: 220px;
+      min-width: 220px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .sidebar-brand {
+      padding: 22px 20px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green), 0 0 16px rgba(34,217,138,0.3);
+      flex-shrink: 0;
+      animation: dot-pulse 2.5s ease-in-out infinite;
+    }
+
+    @keyframes dot-pulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--green), 0 0 16px rgba(34,217,138,0.3); }
+      50%       { opacity: 0.55; box-shadow: 0 0 4px var(--green); }
+    }
+
+    .brand-name {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    .brand-sub {
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-top: 1px;
+    }
+
+    nav {
+      flex: 1;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    nav a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--text-muted);
+      text-decoration: none;
+      border-left: 2px solid transparent;
+      border-radius: 0 6px 6px 0;
+      margin-left: -1px;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
+    }
+
+    nav a:hover {
+      color: var(--text);
+      background: rgba(255,255,255,0.04);
+    }
+
+    nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: var(--accent-dark);
+      font-weight: 500;
+    }
+
+    .sidebar-footer {
+      padding: 14px 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .signout-btn {
+      background: none;
+      border: none;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 12px;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: color 0.15s;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .signout-btn:hover { color: var(--red); }
+
+    /* ── Main content ── */
+    main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 36px 40px;
+      background: var(--bg);
+    }
+
+    /* ── Typography ── */
+    h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      margin-bottom: 24px;
+    }
+
+    h2 {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 14px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 22px;
+      margin-bottom: 16px;
+      transition: border-color 0.2s;
+    }
+
+    .card:hover { border-color: var(--border-hi); }
+
+    /* ── Form elements ── */
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      letter-spacing: 0.02em;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    select {
+      width: 100%;
+      background: var(--surface-hi);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 9px 12px;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    input[type="text"]:focus,
+    input[type="password"]:focus,
+    select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    input[readonly] {
+      background: #0a0a12;
+      border-color: var(--border);
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      cursor: default;
+    }
+
+    input.mono {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%236b7190' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 30px;
+    }
+
+    select option {
+      background: var(--surface-hi);
+      color: var(--text);
+    }
+
+    .form-group { margin-bottom: 16px; }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    .input-row input,
+    .input-row .code-display {
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* ── Code / mono displays ── */
+    .code-display {
+      display: block;
+      background: #0a0a12;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 9px 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text-muted);
+      word-break: break-all;
+    }
+
+    code.pill {
+      background: var(--surface-hi);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 9px 18px;
+      border-radius: 7px;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 1px 8px rgba(79,142,247,0.25);
+    }
+
+    .btn-primary:hover {
+      background: #6ba0ff;
+      box-shadow: 0 2px 16px rgba(79,142,247,0.4);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:active { transform: scale(0.98); box-shadow: none; }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    .btn-ghost:hover {
+      color: var(--text);
+      border-color: var(--border-hi);
+      background: var(--surface-hi);
+    }
+
+    .btn-danger {
+      background: transparent;
+      color: var(--red);
+      border: 1px solid rgba(255,77,106,0.35);
+    }
+
+    .btn-danger:hover {
+      background: rgba(255,77,106,0.08);
+      border-color: var(--red);
+    }
+
+    .btn-sm { padding: 7px 12px; font-size: 12px; }
+    .btn-full { width: 100%; }
+
+    /* ── Status text ── */
+    .status-ok   { font-size: 11px; color: var(--green); margin-top: 5px; }
+    .status-fail { font-size: 11px; color: var(--red);   margin-top: 5px; }
+    .status-wait { font-size: 11px; color: var(--text-muted); margin-top: 5px; }
+
+    /* ── Result items (Connection Test) ── */
+    .result-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .result-item:last-child { border-bottom: none; }
+
+    .result-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .result-icon.ok {
+      background: var(--green-glow);
+      color: var(--green);
+      box-shadow: 0 0 8px rgba(34,217,138,0.2);
+    }
+
+    .result-icon.fail {
+      background: var(--red-glow);
+      color: var(--red);
+      box-shadow: 0 0 8px rgba(255,77,106,0.2);
+    }
+
+    .result-step   { font-size: 13px; font-weight: 500; color: var(--text); }
+    .result-detail { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    /* ── Tables ── */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .data-table thead tr {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .data-table thead th {
+      text-align: left;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      padding: 0 16px 10px;
+    }
+
+    .data-table tbody tr {
+      border-bottom: 1px solid rgba(42,42,64,0.5);
+      transition: background 0.1s;
+    }
+
+    .data-table tbody tr:last-child { border-bottom: none; }
+    .data-table tbody tr:hover { background: rgba(255,255,255,0.025); }
+
+    .data-table td {
+      padding: 11px 16px;
+      font-size: 13px;
+      color: var(--text-muted);
+      vertical-align: middle;
+    }
+
+    .data-table td.cell-strong { color: var(--text); font-weight: 500; }
+    .data-table td.cell-mono   { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+
+    /* ── Badge ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+
+    .badge-blue {
+      background: var(--accent-dark);
+      color: var(--accent);
+      border: 1px solid rgba(79,142,247,0.25);
+    }
+
+    /* ── Pagination ── */
+    .pagination {
+      display: flex;
+      gap: 4px;
+      justify-content: center;
+      margin-top: 16px;
+    }
+
+    .pag-item {
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+
+    .pag-item:hover { color: var(--text); border-color: var(--border-hi); }
+    .pag-item.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    /* ── Alert ── */
+    .alert {
+      border-radius: 7px;
+      padding: 10px 14px;
+      font-size: 12px;
+      margin-bottom: 16px;
+    }
+
+    .alert-amber {
+      background: rgba(245,166,35,0.08);
+      border: 1px solid rgba(245,166,35,0.25);
+      color: var(--amber);
+    }
+
+    .alert-green {
+      background: var(--green-glow);
+      border: 1px solid rgba(34,217,138,0.25);
+      color: var(--green);
+    }
+
+    .alert-red {
+      background: var(--red-glow);
+      border: 1px solid rgba(255,77,106,0.25);
+      color: var(--red);
+    }
+
+    /* ── Divider ── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 20px 0;
+    }
+
+    /* ── DL info grid ── */
+    dl.info { display: flex; flex-direction: column; gap: 10px; }
+
+    dl.info div { display: flex; gap: 16px; }
+
+    dl.info dt {
+      font-size: 12px;
+      color: var(--text-muted);
+      width: 110px;
+      flex-shrink: 0;
+    }
+
+    dl.info dd {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text);
+    }
+
+    /* ── Colour swatches ── */
+    .swatches {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .swatch {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+      flex-shrink: 0;
+    }
+
+    .swatch:hover { transform: scale(1.15); }
+
+    input[type="color"] {
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--surface-hi);
+      cursor: pointer;
+      padding: 2px;
+    }
+
+    input.color-hex {
+      width: 88px !important;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <aside>
+    <div class="sidebar-brand">
+      <div class="brand-dot"></div>
+      <div>
+        <div class="brand-name">BeNeM</div>
+        <div class="brand-sub">Admin Portal</div>
+      </div>
+    </div>
+
+    <nav>
+      <a href="/admin/"
+         class="{{ 'active' if active == 'generate' else '' }}">
+        Generate Link
+      </a>
+      <a href="/admin/test"
+         class="{{ 'active' if active == 'test' else '' }}">
+        Connection Test
+      </a>
+      <a href="/admin/push"
+         class="{{ 'active' if active == 'push' else '' }}">
+        Push Config
+      </a>
+      <a href="/admin/log"
+         class="{{ 'active' if active == 'log' else '' }}">
+        Log
+      </a>
+      <a href="/admin/settings"
+         class="{{ 'active' if active == 'settings' else '' }}">
+        Settings
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <form method="post" action="/admin/logout">
+        <button type="submit" class="signout-btn">
+          <span>⏻</span> Sign out
+        </button>
+      </form>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+</body>
+</html>

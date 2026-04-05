@@ -1,0 +1,21 @@
+{$DOMAIN} {
+    # Admin console — protected by Caddy Basic Auth (first factor).
+    # TOTP is the second factor enforced by the app itself.
+    # Generate bcrypt hash: docker run --rm caddy:2-alpine caddy hash-password --plaintext 'yourpassword'
+    handle /admin* {
+        basic_auth {
+            {$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+        }
+        reverse_proxy benem-admin:8001
+    }
+
+    # Static assets served by benem-admin (favicon, CSS, etc.)
+    handle /static* {
+        reverse_proxy benem-admin:8001
+    }
+
+    # bhnm-apns push middleware (all other paths, unchanged)
+    handle {
+        reverse_proxy bhnm-apns:8889
+    }
+}

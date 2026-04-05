@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Push Config</h1>
+
+<div style="max-width: 640px;">
+
+  <div class="card">
+    <h2>Middleware Endpoints</h2>
+    <div class="form-group">
+      <label>Middleware URL</label>
+      <code class="code-display">{{ middleware_url or '(not configured)' }}</code>
+    </div>
+    <div class="form-group" style="margin-bottom: 0;">
+      <label>Webhook URL (for BHNM)</label>
+      <code class="code-display">{{ webhook_url or '(not configured)' }}</code>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="display:flex;align-items:center;gap:10px;">
+      Registered Devices
+      <span class="badge badge-blue">{{ devices | length }}</span>
+    </h2>
+    {% if not devices %}
+    <p style="font-size:13px;color:var(--text-muted);">No devices registered yet.</p>
+    {% else %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Device</th>
+          <th>Token (truncated)</th>
+          <th>Registered</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in devices %}
+        <tr>
+          <td class="cell-strong">{{ d.device_name }}</td>
+          <td class="cell-mono">…{{ d.token[-12:] }}</td>
+          <td>{{ d.registered_at }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

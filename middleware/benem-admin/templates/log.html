@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Log</h1>
+
+<div style="max-width: 880px;">
+
+  <form method="get" action="/admin/log"
+        style="display:flex;gap:10px;align-items:flex-end;margin-bottom:16px;">
+    <div>
+      <label>Filter by server</label>
+      <select name="server_id" style="width:200px;">
+        <option value="">All servers</option>
+        {% for s in servers %}
+        <option value="{{ s.id }}" {{ 'selected' if server_id == s.id }}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-ghost btn-sm">Filter</button>
+    {% if server_id %}
+    <a href="/admin/log" class="btn btn-ghost btn-sm">Clear</a>
+    {% endif %}
+  </form>
+
+  <div class="card" style="padding: 0; overflow: hidden;">
+    {% if not entries %}
+    <p style="padding:20px;font-size:13px;color:var(--text-muted);">No log entries yet.</p>
+    {% else %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="padding-left:20px;">Timestamp</th>
+          <th>User</th>
+          <th>Server</th>
+          <th>Link (prefix)</th>
+          <th style="width:130px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entries %}
+        <tr data-ts="{{ e.ts }}">
+          <td class="cell-mono" style="padding-left:20px;white-space:nowrap;">{{ e.ts }}</td>
+          <td class="cell-strong">
+            <span class="log-user-display">{{ e.user }}</span>
+            <form class="log-user-edit" style="display:none;margin:0;" method="post" action="/admin/log/edit">
+              <input type="hidden" name="ts" value="{{ e.ts }}">
+              <input type="hidden" name="page" value="{{ page }}">
+              <input type="hidden" name="server_id" value="{{ server_id }}">
+              <div style="display:flex;gap:4px;align-items:center;">
+                <input type="text" name="user" value="{{ e.user }}" style="width:120px;padding:3px 6px;font-size:12px;background:var(--bg-input,#1a1a2e);color:var(--text-primary);border:1px solid var(--border-color,#2a2a3e);border-radius:4px;">
+                <button type="submit" class="btn btn-ghost btn-sm" style="padding:3px 8px;">✓</button>
+                <button type="button" class="btn btn-ghost btn-sm log-edit-cancel" style="padding:3px 8px;">✗</button>
+              </div>
+            </form>
+          </td>
+          <td>{{ e.server_name }}</td>
+          <td class="cell-mono" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            {{ e.link_prefix }}…
+          </td>
+          <td style="white-space:nowrap;text-align:right;padding-right:12px;">
+            <button type="button" class="btn btn-ghost btn-sm log-show-btn" data-ts="{{ e.ts }}" style="padding:3px 8px;font-size:11px;">Show</button>
+            <button type="button" class="btn btn-ghost btn-sm log-edit-btn" style="padding:3px 8px;font-size:11px;">Edit</button>
+            <form method="post" action="/admin/log/delete" style="display:inline;margin:0;"
+                  onsubmit="return confirm('Delete this log entry?')">
+              <input type="hidden" name="ts" value="{{ e.ts }}">
+              <input type="hidden" name="page" value="{{ page }}">
+              <input type="hidden" name="server_id" value="{{ server_id }}">
+              <button type="submit" class="btn btn-danger btn-sm" style="padding:3px 8px;font-size:11px;">Del</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- Show modal -->
+    <div id="log-show-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+      <div style="background:var(--bg-card,#131320);border:1px solid var(--border-color,#2a2a3e);border-radius:12px;padding:28px;max-width:440px;width:90%;text-align:center;">
+        <div style="margin-bottom:12px;font-size:14px;font-weight:600;color:var(--text-primary);" id="modal-title"></div>
+        <img id="modal-qr" src="" alt="QR Code" style="width:200px;height:200px;border-radius:8px;margin:0 auto 16px;">
+        <div style="position:relative;margin-bottom:16px;">
+          <input id="modal-url" type="text" readonly style="width:100%;padding:8px 40px 8px 10px;font-size:11px;font-family:'JetBrains Mono',monospace;background:var(--bg-input,#1a1a2e);color:var(--text-primary);border:1px solid var(--border-color,#2a2a3e);border-radius:6px;box-sizing:border-box;">
+          <button type="button" id="modal-copy" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--accent,#4f8ef7);cursor:pointer;font-size:16px;padding:4px 6px;" title="Copy URL">&#x2398;</button>
+        </div>
+        <div id="modal-copied" style="display:none;font-size:11px;color:var(--accent,#4f8ef7);margin-top:-10px;margin-bottom:10px;">Copied!</div>
+        <button type="button" id="modal-close" class="btn btn-ghost btn-sm">Close</button>
+      </div>
+    </div>
+
+    <script>
+    /* Edit inline */
+    document.querySelectorAll('.log-edit-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const row = btn.closest('tr');
+        row.querySelector('.log-user-display').style.display = 'none';
+        row.querySelector('.log-user-edit').style.display = 'block';
+        row.querySelector('.log-user-edit input[name="user"]').focus();
+      });
+    });
+    document.querySelectorAll('.log-edit-cancel').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const row = btn.closest('tr');
+        row.querySelector('.log-user-display').style.display = '';
+        row.querySelector('.log-user-edit').style.display = 'none';
+      });
+    });
+
+    /* Show modal */
+    const modal = document.getElementById('log-show-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalQr = document.getElementById('modal-qr');
+    const modalUrl = document.getElementById('modal-url');
+    const modalCopied = document.getElementById('modal-copied');
+
+    function closeModal() { modal.style.display = 'none'; }
+
+    document.getElementById('modal-close').addEventListener('click', closeModal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+    document.getElementById('modal-copy').addEventListener('click', () => {
+      navigator.clipboard.writeText(modalUrl.value).then(() => {
+        modalCopied.style.display = 'block';
+        setTimeout(() => { modalCopied.style.display = 'none'; }, 1500);
+      });
+    });
+
+    document.querySelectorAll('.log-show-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ts = btn.dataset.ts;
+        modalTitle.textContent = 'Loading…';
+        modalQr.style.display = 'none';
+        modalUrl.value = '';
+        modalCopied.style.display = 'none';
+        modal.style.display = 'flex';
+        fetch('/admin/log/show?ts=' + encodeURIComponent(ts))
+          .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+          .then(data => {
+            modalTitle.textContent = data.user + ' — ' + data.server_name;
+            modalQr.src = 'data:image/png;base64,' + data.qr_b64;
+            modalQr.style.display = 'block';
+            modalUrl.value = data.url;
+          })
+          .catch(() => {
+            modalTitle.textContent = 'No full link stored for this entry';
+          });
+      });
+    });
+    </script>
+    {% endif %}
+  </div>
+
+  {% if total_pages > 1 %}
+  <div class="pagination">
+    {% for p in range(1, total_pages + 1) %}
+    <a href="?page={{ p }}{% if server_id %}&server_id={{ server_id }}{% endif %}"
+       class="pag-item {{ 'active' if p == page else '' }}">
+      {{ p }}
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

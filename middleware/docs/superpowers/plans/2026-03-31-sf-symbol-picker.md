@@ -1,0 +1,496 @@
+# SF Symbol Picker Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Replace the plain `<datalist>` SF Symbol input and swatch section in `generate.html` with a visual three-section picker (Preview + Icon grid + Colour) matching the BeNeM iOS app.
+
+**Architecture:** All changes are confined to a single Jinja2 template file. SVG icons are embedded inline as `<symbol>` defs and referenced via `<use>`. Two hidden `<input>` fields keep the form POST interface unchanged so the backend requires zero modifications.
+
+**Tech Stack:** Jinja2, vanilla HTML/CSS/JS, inline SVG
+
+---
+
+## File Map
+
+| File | Action | What changes |
+|---|---|---|
+| `benem-admin/templates/generate.html` | Modify | Replace SF Symbol + Colour form groups; add SVG defs, CSS, JS |
+
+No other files change.
+
+---
+
+### Task 1: Replace `generate.html` with new picker
+
+**Files:**
+- Modify: `benem-admin/templates/generate.html`
+
+There are no automated tests for Jinja2 templates. Verification is done by running the dev server and checking the browser.
+
+---
+
+- [ ] **Step 1: Start the dev server**
+
+```bash
+cd benem-admin
+pip install -r ../requirements.txt 2>/dev/null || true
+
+export APNS_KEY_ID=test
+export APNS_TEAM_ID=test
+export APNS_BUNDLE_ID=com.tstolt.benem
+export APNS_PRIVATE_KEY_B64=$(echo "dummy" | base64)
+export DB_PATH=/tmp/bhnm_test.db
+export SESSION_SECRET=dev-secret-local
+export ADMIN_PASSWORD_HASH=ignored
+
+uvicorn main:app --reload --port 8889
+```
+
+Open `http://localhost:8889/admin/generate` in the browser (log in with TOTP if needed — or mock the session). Confirm the current datalist picker is visible.
+
+---
+
+- [ ] **Step 2: Overwrite `generate.html` with new picker UI**
+
+Replace the full file content with the following. Read the original first to confirm you're not losing anything outside the form:
+
+```jinja2
+{% extends "base.html" %}
+{% block content %}
+<h1>Generate Link</h1>
+
+{# ── SVG symbol library (20 icons, zero HTTP requests) ── #}
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="s-server.rack" viewBox="0 0 24 24">
+      <rect x="2" y="4" width="20" height="5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="2" y="11" width="20" height="5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="18.5" cy="6.5" r="1" fill="currentColor"/>
+      <circle cx="18.5" cy="13.5" r="1" fill="currentColor"/>
+      <line x1="5" y1="6.5" x2="12" y2="6.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+      <line x1="5" y1="13.5" x2="12" y2="13.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+      <line x1="6" y1="19" x2="6" y2="16" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+      <line x1="18" y1="19" x2="18" y2="16" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+      <line x1="4" y1="19" x2="20" y2="19" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="s-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M12 3c-2 3-3 5.5-3 9s1 6 3 9M12 3c2 3 3 5.5 3 9s-1 6-3 9"/>
+      <line x1="3.5" y1="9" x2="20.5" y2="9"/><line x1="3.5" y1="15" x2="20.5" y2="15"/>
+    </symbol>
+    <symbol id="s-antenna.radiowaves.left.and.right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" y1="6" x2="12" y2="19"/>
+      <path d="M8 10 Q4 12 8 14"/><path d="M16 10 Q20 12 16 14"/>
+      <path d="M5 7 Q0 12 5 17"/><path d="M19 7 Q24 12 19 17"/>
+      <circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none"/>
+    </symbol>
+    <symbol id="s-wifi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2 8.5C7 3.5 17 3.5 22 8.5"/>
+      <path d="M5 11.5C9 7.5 15 7.5 19 11.5"/>
+      <path d="M8 14.5C10.5 12 13.5 12 16 14.5"/>
+      <circle cx="12" cy="18" r="1.5" fill="currentColor" stroke="none"/>
+    </symbol>
+    <symbol id="s-globe.europe.africa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M9 4.5 L9 8 L12 9 L12 12 L9 13 L9 16 L11 18 L11 20.5"/>
+      <path d="M15 6 L13 8 L14 11 L16 11 L17 14 L15 16 L16 19"/>
+      <line x1="3" y1="9" x2="21" y2="9"/><line x1="3.5" y1="15" x2="20.5" y2="15"/>
+    </symbol>
+    <symbol id="s-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 19a4 4 0 01-.5-8 5.5 5.5 0 0110.5-2A4 4 0 0118 19z"/>
+    </symbol>
+    <symbol id="s-lock.shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3L4 6v6c0 4.4 3.4 8.5 8 9.5 4.6-1 8-5.1 8-9.5V6z"/>
+      <rect x="9" y="11" width="6" height="5" rx="1"/>
+      <path d="M9 11V9a3 3 0 016 0v2"/>
+    </symbol>
+    <symbol id="s-building.2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="6" width="10" height="15" rx="1"/>
+      <rect x="13" y="10" width="8" height="11" rx="1"/>
+      <line x1="3" y1="21" x2="21" y2="21"/>
+      <rect x="6" y="9" width="2" height="2" fill="currentColor" stroke="none"/>
+      <rect x="10" y="9" width="2" height="2" fill="currentColor" stroke="none"/>
+      <rect x="6" y="13" width="2" height="2" fill="currentColor" stroke="none"/>
+      <rect x="10" y="13" width="2" height="2" fill="currentColor" stroke="none"/>
+      <rect x="6" y="17" width="2" height="2" fill="currentColor" stroke="none"/>
+    </symbol>
+    <symbol id="s-cpu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="6" y="6" width="12" height="12" rx="2"/>
+      <rect x="9" y="9" width="6" height="6" rx="1"/>
+      <line x1="9" y1="2" x2="9" y2="6"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="15" y1="2" x2="15" y2="6"/>
+      <line x1="9" y1="18" x2="9" y2="22"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="15" y1="18" x2="15" y2="22"/>
+      <line x1="2" y1="9" x2="6" y2="9"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="2" y1="15" x2="6" y2="15"/>
+      <line x1="18" y1="9" x2="22" y2="9"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="18" y1="15" x2="22" y2="15"/>
+    </symbol>
+    <symbol id="s-network" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="9" y="2" width="6" height="4" rx="1"/>
+      <rect x="2" y="18" width="6" height="4" rx="1"/>
+      <rect x="16" y="18" width="6" height="4" rx="1"/>
+      <line x1="12" y1="6" x2="12" y2="12"/>
+      <line x1="12" y1="12" x2="5" y2="18"/>
+      <line x1="12" y1="12" x2="19" y2="18"/>
+    </symbol>
+    <symbol id="s-desktopcomputer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="3" width="20" height="13" rx="2"/>
+      <line x1="8" y1="21" x2="16" y2="21"/>
+      <line x1="12" y1="16" x2="12" y2="21"/>
+    </symbol>
+    <symbol id="s-laptop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="4" y="4" width="16" height="11" rx="2"/>
+      <path d="M2 19c0-1 .9-2 2-2h16c1.1 0 2 1 2 2v.5H2V19z"/>
+    </symbol>
+    <symbol id="s-iphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="6" y="2" width="12" height="20" rx="3"/>
+      <line x1="10" y1="4.5" x2="14" y2="4.5"/>
+      <circle cx="12" cy="18.5" r="1" fill="currentColor" stroke="none"/>
+    </symbol>
+    <symbol id="s-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3L4 6v6c0 4.4 3.4 8.5 8 9.5 4.6-1 8-5.1 8-9.5V6z"/>
+    </symbol>
+    <symbol id="s-bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="13 2 4.5 13.5 11.5 13.5 11 22 19.5 10.5 12.5 10.5 13 2" fill="currentColor" stroke="none"/>
+    </symbol>
+    <symbol id="s-chart.bar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="14" width="4" height="7" rx="1"/>
+      <rect x="10" y="9" width="4" height="12" rx="1"/>
+      <rect x="17" y="4" width="4" height="17" rx="1"/>
+    </symbol>
+    <symbol id="s-checkmark.seal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2l2.4 2.4 3.4-.6 1 3.3 2.8 2-1.4 3.2.6 3.4-3.3 1-2 2.8-3.2-1.4-3.4.6-1-3.3-2.8-2 1.4-3.2-.6-3.4 3.3-1z"/>
+      <polyline points="9 12 11 14 15 10"/>
+    </symbol>
+    <symbol id="s-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+    </symbol>
+    <symbol id="s-gearshape" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+    </symbol>
+    <symbol id="s-house" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1z"/>
+      <polyline points="9 21 9 13 15 13 15 21"/>
+    </symbol>
+  </defs>
+</svg>
+
+<style>
+  /* ── Symbol picker ───────────────────────── */
+  .sym-preview-box {
+    background: var(--surface-hi);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+  }
+  .sym-app-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 16px;
+    background: #0A84FF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+  }
+  .sym-app-icon svg {
+    width: 40px;
+    height: 40px;
+    color: white;
+  }
+  .sym-grid-box {
+    background: var(--surface-hi);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+  }
+  .sym-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+  .sym-cell {
+    aspect-ratio: 1;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .sym-cell svg {
+    width: 24px;
+    height: 24px;
+    color: var(--text-muted);
+    transition: color 0.15s;
+  }
+  .sym-cell:hover {
+    background: var(--border);
+  }
+  .sym-cell.selected {
+    background: #0A84FF;
+  }
+  .sym-cell.selected svg {
+    color: white;
+  }
+  /* ── Colour picker ───────────────────────── */
+  .colour-grid-box {
+    background: var(--surface-hi);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .colour-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+  }
+  .colour-dot {
+    aspect-ratio: 1;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 3px solid transparent;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  .colour-dot:hover {
+    transform: scale(1.08);
+  }
+  .colour-dot.selected {
+    border-color: var(--text);
+  }
+</style>
+
+<div style="max-width: 520px;">
+  <div class="card">
+    <form method="post" action="/admin/generate" id="gen-form">
+
+      <div class="form-group">
+        <label>Server</label>
+        <select name="server_id" id="server-select"
+                hx-get="/admin/server-url"
+                hx-trigger="change"
+                hx-target="#bhnm-url-field"
+                hx-include="[name='server_id']">
+          {% for s in servers %}
+          <option value="{{ s.id }}" {{ 'selected' if selected_server and selected_server.id == s.id }}>
+            {{ s.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>BHNM URL</label>
+        <div id="bhnm-url-field" class="input-row">
+          <input type="text" value="{{ selected_server.url if selected_server else '' }}"
+                 readonly>
+          <button type="button"
+                  data-url="{{ selected_server.url if selected_server else '' }}"
+                  data-result="bhnm-test-result"
+                  onclick="testReachability(this)"
+                  class="btn btn-ghost btn-sm">
+            Test
+          </button>
+        </div>
+        <div id="bhnm-test-result"></div>
+      </div>
+
+      <div class="form-group">
+        <label>Push Middleware URL</label>
+        <div class="input-row">
+          <input type="text" value="{{ middleware_url }}" readonly>
+          <button type="button"
+                  data-url="{{ middleware_url }}"
+                  data-result="mw-test-result"
+                  onclick="testReachability(this)"
+                  class="btn btn-ghost btn-sm">
+            Test
+          </button>
+        </div>
+        <div id="mw-test-result"></div>
+      </div>
+
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" name="user"
+               value="{{ form_data.user if form_data else '' }}"
+               placeholder="e.g. Thomas">
+      </div>
+
+      {# ── Preview ── #}
+      <div class="form-group">
+        <label>Preview</label>
+        <div class="sym-preview-box">
+          <div class="sym-app-icon" id="preview-icon">
+            <svg id="preview-svg"><use href="#s-server.rack"/></svg>
+          </div>
+        </div>
+      </div>
+
+      {# ── Icon grid ── #}
+      <div class="form-group">
+        <label>Icon</label>
+        <div class="sym-grid-box">
+          <div class="sym-grid" id="sym-grid">
+            {% set symbols = [
+              'server.rack', 'globe', 'antenna.radiowaves.left.and.right', 'wifi', 'globe.europe.africa',
+              'cloud', 'lock.shield', 'building.2', 'cpu', 'network',
+              'desktopcomputer', 'laptop', 'iphone', 'shield', 'bolt',
+              'chart.bar', 'checkmark.seal', 'folder', 'gearshape', 'house'
+            ] %}
+            {% for sym in symbols %}
+            <div class="sym-cell" data-sym="{{ sym }}" onclick="selectSymbol(this)" title="{{ sym }}">
+              <svg><use href="#s-{{ sym }}"/></svg>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      {# ── Colour grid ── #}
+      <div class="form-group">
+        <label>Colour</label>
+        <div class="colour-grid-box">
+          <div class="colour-grid" id="colour-grid">
+            {% set colours = ['#0A84FF','#30D158','#FF9F0A','#FF453A','#64D2FF',
+                              '#BF5AF2','#FF6961','#6E6ADB','#5AC8FA','#FFD60A'] %}
+            {% for c in colours %}
+            <div class="colour-dot" data-color="{{ c }}" style="background:{{ c }}"
+                 onclick="selectColour(this)"></div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      {# hidden inputs — same names as before so the backend POST is unchanged #}
+      <input type="hidden" name="symbol" id="symbol-input"
+             value="{{ form_data.symbol if form_data else 'server.rack' }}">
+      <input type="hidden" name="color" id="color-input"
+             value="{{ form_data.color if form_data else '#0A84FF' }}">
+
+      <button type="submit" class="btn btn-primary btn-full">
+        Generate Link
+      </button>
+    </form>
+
+    {% if result %}
+    <hr class="divider">
+    <div class="form-group">
+      <label>benem:// URL</label>
+      <div class="input-row">
+        <code id="result-url" class="code-display">{{ result.url }}</code>
+        <button type="button"
+                onclick="navigator.clipboard.writeText(document.getElementById('result-url').textContent)"
+                class="btn btn-ghost btn-sm">
+          Copy
+        </button>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:center;">
+      <img src="data:image/png;base64,{{ result.qr_b64 }}"
+           alt="QR Code"
+           style="width:200px;height:200px;border:1px solid var(--border);border-radius:8px;background:#fff;padding:8px;">
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  var _selectedColor = '#0A84FF';
+
+  function selectSymbol(cell) {
+    document.querySelectorAll('.sym-cell').forEach(function(c) {
+      c.classList.remove('selected');
+      c.style.background = '';
+    });
+    cell.classList.add('selected');
+    cell.style.background = _selectedColor;
+    var sym = cell.dataset.sym;
+    document.getElementById('symbol-input').value = sym;
+    document.querySelector('#preview-svg use').setAttribute('href', '#s-' + sym);
+  }
+
+  function selectColour(dot) {
+    document.querySelectorAll('.colour-dot').forEach(function(d) {
+      d.classList.remove('selected');
+    });
+    dot.classList.add('selected');
+    _selectedColor = dot.dataset.color;
+    document.getElementById('color-input').value = _selectedColor;
+    document.getElementById('preview-icon').style.background = _selectedColor;
+    var sel = document.querySelector('.sym-cell.selected');
+    if (sel) { sel.style.background = _selectedColor; }
+  }
+
+  // Initialise from current form_data values (handles page re-render after POST)
+  (function init() {
+    var sym = document.getElementById('symbol-input').value;
+    var col = document.getElementById('color-input').value;
+
+    var cell = document.querySelector('.sym-cell[data-sym="' + sym + '"]');
+    if (cell) { cell.classList.add('selected'); }
+
+    var dot = document.querySelector('.colour-dot[data-color="' + col + '"]');
+    if (dot) { dot.classList.add('selected'); }
+
+    _selectedColor = col;
+    document.getElementById('preview-icon').style.background = col;
+    document.querySelector('#preview-svg use').setAttribute('href', '#s-' + sym);
+    if (cell) { cell.style.background = col; }
+  })();
+
+  async function testReachability(btn) {
+    var url = btn.dataset.url;
+    var resultId = btn.dataset.result;
+    if (!url) return;
+    var el = document.getElementById(resultId);
+    el.textContent = 'Testing…';
+    el.className = 'status-wait';
+    try {
+      var resp = await fetch('/admin/reachability-check?url=' + encodeURIComponent(url));
+      var data = await resp.json();
+      el.textContent = data.ok ? '✓ Reachable' : '✗ ' + data.detail;
+      el.className = data.ok ? 'status-ok' : 'status-fail';
+    } catch (e) {
+      el.textContent = '✗ Error';
+      el.className = 'status-fail';
+    }
+  }
+</script>
+{% endblock %}
+```
+
+---
+
+- [ ] **Step 3: Verify in browser**
+
+Reload `http://localhost:8889/admin/generate`. Check:
+
+1. **Preview box** visible below Username — shows server.rack icon in blue rounded square
+2. **Icon grid** — 4 rows × 5 columns of icons; `server.rack` cell has blue background
+3. **Colour grid** — 2 rows × 5 circles; first blue circle has white ring
+4. **No datalist input** — old text field is gone
+5. **No custom color input** — free-form `<input type="color">` is gone
+
+Click any icon → preview icon updates
+Click any colour → preview background + selected icon cell colour update
+Click icon, then colour, then another icon → colour stays consistent
+
+---
+
+- [ ] **Step 4: Test form submission**
+
+Submit the form. Confirm:
+- The generated `benem://` URL is produced without errors
+- The page re-renders with the previously-chosen icon and colour pre-selected (driven by `form_data`)
+
+If backend raises `422` or `500`, check that `name="symbol"` and `name="color"` are present on the hidden inputs (inspect element).
+
+---
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add benem-admin/templates/generate.html
+git commit -m "feat: replace datalist with visual SF Symbol + colour picker"
+```

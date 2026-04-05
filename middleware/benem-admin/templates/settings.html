@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Settings</h1>
+
+<div style="max-width: 520px;">
+
+  <div class="card">
+    <h2>Authenticator Setup</h2>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+      Scan this QR code in Google Authenticator, 1Password, or Authy.
+      The TOTP secret is read from <code class="pill">TOTP_SECRET</code>
+      in your <code class="pill">.env</code> file.
+    </p>
+    {% if totp_qr_b64 %}
+    <div style="display:flex;justify-content:center;margin-bottom:14px;">
+      <img src="data:image/png;base64,{{ totp_qr_b64 }}"
+           alt="TOTP QR Code"
+           style="width:180px;height:180px;border:1px solid var(--border);border-radius:8px;background:#fff;padding:8px;">
+    </div>
+    {% else %}
+    <div class="alert alert-amber">
+      TOTP_SECRET is not configured. Set it in .env and restart.
+    </div>
+    {% endif %}
+    <p style="font-size:11px;color:var(--text-dim);text-align:center;">
+      To rotate: edit <code class="pill">.env</code>, set a new
+      <code class="pill">TOTP_SECRET</code>, restart the container, then re-scan.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>App Info</h2>
+    <dl class="info">
+      <div>
+        <dt>Version</dt>
+        <dd>{{ version }}</dd>
+      </div>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h2>Container</h2>
+    {% if can_restart %}
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">
+      Restart the <code class="pill">benem-admin</code> container.
+    </p>
+    <form method="post" action="/admin/restart"
+          onsubmit="return confirm('Restart container? You will be disconnected briefly.')">
+      <button type="submit" class="btn btn-danger btn-sm">
+        Restart Container
+      </button>
+    </form>
+    {% else %}
+    <p style="font-size:13px;color:var(--text-muted);">
+      Restart manually via SSH:
+      <code class="pill">docker restart benem-admin</code>
+    </p>
+    {% endif %}
+    {% if restart_initiated %}
+    <div class="alert alert-green" style="margin-top:14px;margin-bottom:0;">
+      Restart initiated. Reconnect in a few seconds.
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

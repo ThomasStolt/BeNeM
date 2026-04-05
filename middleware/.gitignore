@@ -1,0 +1,28 @@
+# Secrets — never commit
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.venv/
+
+# Database
+*.db
+*.sqlite3
+
+# APNs key
+*.p8
+
+# Caddy runtime data (when run outside Docker)
+.caddy/
+
+# Logs
+*.log
+
+# Admin portal server config (contains API keys and credentials)
+servers.json
+
+# Design mockups
+mockup.html

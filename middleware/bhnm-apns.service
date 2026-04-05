@@ -1,0 +1,15 @@
+[Unit]
+Description=BHNM APNs Push Notification Middleware
+After=network.target
+
+[Service]
+Type=simple
+User=<your-username>
+WorkingDirectory=/home/<your-username>/bhnm-apns
+ExecStart=/home/<your-username>/bhnm-apns/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8889
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
