@@ -39,7 +39,7 @@ Podfile.lock
 # Credentials / Secrets
 *.env
 secrets.plist
-BeNeM/Secrets.swift
+ios/BeNeM/Secrets.swift
 
 # Local build configuration (contains device UDID and personal paths — never commit)
 build.local.sh
@@ -47,15 +47,35 @@ build.local.sh
 # Personal screenshots accidentally committed — stop tracking future changes
 M1BJKI1M3C52.png
 
-# Test / scratch files
-test.json
-
-# Internal / non-public docs (local only)
-docs/internal/
-
 # Firecrawl research / scraping cache
 .firecrawl/
 
 # Claude Code
 .claude/
 .superpowers/
+
+# --- Monorepo subproject ignores ---
+
+# Xcode (scoped to ios/)
+ios/**/*.xcuserstate
+ios/**/xcuserdata/
+ios/DerivedData/
+ios/.build/
+
+# Python / FastAPI middleware
+middleware/__pycache__/
+middleware/**/__pycache__/
+middleware/*.pyc
+middleware/.env
+middleware/venv/
+middleware/.venv/
+
+# Node / PWA (future)
+pwa/node_modules/
+pwa/dist/
+pwa/.env
+
+# Secrets — never commit (repo-wide)
+*.p8
+*.pem
+vapid_private_key*
