@@ -24,6 +24,14 @@ services:
       - "8001"
     restart: unless-stopped
 
+  benem-pwa:
+    build:
+      context: ..
+      dockerfile: pwa/Dockerfile
+    expose:
+      - "80"
+    restart: unless-stopped
+
   caddy:
     image: caddy:2-alpine
     env_file: .env
