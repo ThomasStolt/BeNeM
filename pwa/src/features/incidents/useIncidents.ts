@@ -1,8 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { getIncidents } from '../../lib/api/incidents';
+import { getIncidents, parseIncidentsResponse } from '../../lib/api/incidents';
 import { useConfig } from '../../lib/config';
 import mockData from '../../lib/mock/incidents.json';
-import { parseIncidentsResponse } from '../../lib/api/incidents';
 
 const REFETCH_INTERVAL_MS = 120_000;
 
