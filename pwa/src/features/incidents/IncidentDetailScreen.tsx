@@ -48,7 +48,7 @@ export function IncidentDetailScreen() {
   if (isLoading || (isFetching && !incident)) {
     return (
       <div className="p-6">
-        <Link to="/" className="text-sm text-slate-400 hover:text-slate-200">← Back</Link>
+        <Link to="/incidents" className="text-sm text-slate-400 hover:text-slate-200">← Back</Link>
         <p className="mt-4 text-slate-400">Loading incident...</p>
       </div>
     );
@@ -57,7 +57,7 @@ export function IncidentDetailScreen() {
   if (!incident) {
     return (
       <div className="p-6">
-        <Link to="/" className="text-sm text-slate-400 hover:text-slate-200">← Back</Link>
+        <Link to="/incidents" className="text-sm text-slate-400 hover:text-slate-200">← Back</Link>
         <p className="mt-4 text-slate-400">Incident not found.</p>
       </div>
     );
@@ -88,7 +88,7 @@ export function IncidentDetailScreen() {
     <div className="min-h-full">
       {/* Header */}
       <header className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-        <Link to="/" className="text-sm text-slate-400 hover:text-slate-200">← Back</Link>
+        <Link to="/incidents" className="text-sm text-slate-400 hover:text-slate-200">← Back</Link>
         <h1 className="text-lg font-semibold">{incident.displayId}</h1>
         <span aria-hidden="true" className="w-10" />
       </header>

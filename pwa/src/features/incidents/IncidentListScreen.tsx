@@ -6,25 +6,6 @@ import { EmptyState } from '../../components/EmptyState';
 import { PullToRefresh } from '../../components/PullToRefresh';
 import { useConfig } from '../../lib/config';
 
-function GearIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="w-5 h-5"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
-  );
-}
-
 function ConfigureLink() {
   return (
     <Link
@@ -50,23 +31,14 @@ export function IncidentListScreen() {
     <PullToRefresh onRefresh={onRefresh}>
       <header className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
         <h1 className="text-lg font-semibold">Incidents</h1>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onRefresh}
-            className="text-xs px-3 py-1 rounded bg-slate-800 hover:bg-slate-700"
-            aria-label="Refresh"
-          >
-            Refresh
-          </button>
-          <Link
-            to="/settings"
-            aria-label="Settings"
-            className="p-1 rounded hover:bg-slate-800 text-slate-300 hover:text-white"
-          >
-            <GearIcon />
-          </Link>
-        </div>
+        <button
+          type="button"
+          onClick={onRefresh}
+          className="text-xs px-3 py-1 rounded bg-slate-800 hover:bg-slate-700"
+          aria-label="Refresh"
+        >
+          Refresh
+        </button>
       </header>
 
       {isLoading && (

@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
-import { IOSRedirectBanner } from './components/IOSRedirectBanner';
+import { AppLayout } from './components/AppLayout';
+import { DashboardScreen } from './features/dashboard/DashboardScreen';
 import { IncidentListScreen } from './features/incidents/IncidentListScreen';
 import { IncidentDetailScreen } from './features/incidents/IncidentDetailScreen';
 import { SettingsScreen } from './features/settings/SettingsScreen';
+import { DevicesPlaceholder } from './features/devices/DevicesPlaceholder';
 
 export default function App() {
   const navigate = useNavigate();
@@ -23,13 +25,14 @@ export default function App() {
   }, [navigate]);
 
   return (
-    <div className="min-h-full">
-      <IOSRedirectBanner />
-      <Routes>
-        <Route path="/" element={<IncidentListScreen />} />
-        <Route path="/settings" element={<SettingsScreen />} />
-        <Route path="/incident/:id" element={<IncidentDetailScreen />} />
-      </Routes>
-    </div>
+    <Routes>
+      <Route element={<AppLayout />}>
+        <Route path="/" element={<DashboardScreen />} />
+        <Route path="/incidents" element={<IncidentListScreen />} />
+        <Route path="/incidents/:id" element={<IncidentDetailScreen />} />
+        <Route path="/devices" element={<DevicesPlaceholder />} />
+      </Route>
+      <Route path="/settings" element={<SettingsScreen />} />
+    </Routes>
   );
 }

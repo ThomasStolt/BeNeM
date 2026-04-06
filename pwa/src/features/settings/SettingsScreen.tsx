@@ -64,6 +64,8 @@ export function SettingsScreen() {
     try {
       // Build a temporary config with current form values
       const tempConfig = {
+        serverId: '',
+        serverName: '',
         baseUrl: config.baseUrl,
         apiKey: apiKey,
         pin: pin.length > 0 ? pin : undefined,
