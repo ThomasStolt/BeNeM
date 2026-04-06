@@ -1,7 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import { IOSRedirectBanner } from './components/IOSRedirectBanner';
 import { IncidentListScreen } from './features/incidents/IncidentListScreen';
-import { IncidentDetailStub } from './features/incidents/IncidentDetailStub';
+import { IncidentDetailScreen } from './features/incidents/IncidentDetailScreen';
 import { SettingsScreen } from './features/settings/SettingsScreen';
 
 export default function App() {
@@ -11,7 +11,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<IncidentListScreen />} />
         <Route path="/settings" element={<SettingsScreen />} />
-        <Route path="/incident/:id" element={<IncidentDetailStub />} />
+        <Route path="/incident/:id" element={<IncidentDetailScreen />} />
       </Routes>
     </div>
   );
