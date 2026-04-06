@@ -148,6 +148,78 @@ def health():
     }
 
 
+# ── BHNM Proxy — Dedicated Routes (cache-ready) ─────────────────────────────
+# These explicit routes exist so the middleware can later add caching /
+# cache-invalidation logic per endpoint.  For now they are thin pass-throughs.
+
+async def _proxy_to_bhnm(request: Request, bhnm_path: str) -> Response:
+    """Forward a form-encoded POST to the given BHNM path and return the response."""
+    body = await request.body()
+
+    # Resolve target BHNM server (same logic as the catch-all proxy)
+    target_base = request.headers.get("X-BHNM-Target", "").strip().rstrip("/")
+    if not target_base:
+        content_type = request.headers.get("content-type", "")
+        if "application/x-www-form-urlencoded" in content_type:
+            parsed_body = parse_qs(body.decode("utf-8", errors="replace"))
+            api_key = parsed_body.get("password", [""])[0] or parsed_body.get("pwd", [""])[0]
+            if api_key:
+                target_base = _target_for_api_key(api_key)
+    if not target_base:
+        target_base = _single_server_url()
+    if not target_base:
+        raise HTTPException(status_code=400, detail="Cannot determine BHNM target server")
+    if not (target_base.startswith("http://") or target_base.startswith("https://")):
+        raise HTTPException(status_code=400, detail="X-BHNM-Target must be an http/https URL")
+
+    target = f"{target_base}/{bhnm_path.lstrip('/')}"
+
+    forward_headers = {
+        k: v for k, v in request.headers.items()
+        if k.lower() not in HOP_BY_HOP_REQUEST
+    }
+
+    try:
+        async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=60.0) as client:
+            resp = await client.request(
+                method="POST",
+                url=target,
+                headers=forward_headers,
+                content=body,
+            )
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Gateway Timeout: BHNM server did not respond in time")
+    except httpx.ConnectError as exc:
+        raise HTTPException(status_code=502, detail=f"Bad Gateway: could not connect to BHNM server")
+    except httpx.RequestError as exc:
+        print(f"[Proxy] Request error: {exc}")
+        raise HTTPException(status_code=502, detail="Bad Gateway: request to BHNM server failed")
+
+    response_headers = {
+        k: v for k, v in resp.headers.items()
+        if k.lower() not in HOP_BY_HOP_RESPONSE
+    }
+    return Response(content=resp.content, status_code=resp.status_code, headers=response_headers)
+
+
+@app.post("/api/proxy/incident/acknowledge")
+async def proxy_incident_acknowledge(request: Request):
+    print("[Proxy] ACK incident request")
+    return await _proxy_to_bhnm(request, "/fw/index.php?r=restful/incident/acknowledge")
+
+
+@app.post("/api/proxy/incident/unacknowledge")
+async def proxy_incident_unacknowledge(request: Request):
+    print("[Proxy] UnACK incident request")
+    return await _proxy_to_bhnm(request, "/fw/index.php?r=restful/incident/unacknowledge")
+
+
+@app.post("/api/proxy/ha-status")
+async def proxy_ha_status(request: Request):
+    print("[Proxy] HA status check")
+    return await _proxy_to_bhnm(request, "/api/ha_status_api.php")
+
+
 # ── BHNM API Proxy (for BeNeM) ────────────────────────────────────────────────────
 # Target BHNM server is supplied per-request via X-BHNM-Target header.
 # Any non-empty X-Proxy-Token is accepted — the secret itself is the credential.
