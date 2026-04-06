@@ -156,7 +156,7 @@ export function SettingsScreen() {
               <div className="bg-slate-900 rounded-lg p-3">
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
                   <dt className="text-slate-500">Version</dt>
-                  <dd>0.3.0</dd>
+                  <dd>0.4.0</dd>
                   <dt className="text-slate-500">Platform</dt>
                   <dd>PWA (Web Push)</dd>
                 </dl>

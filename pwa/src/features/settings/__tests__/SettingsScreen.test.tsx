@@ -32,9 +32,9 @@ describe('SettingsScreen', () => {
     expect(screen.getByText(/add server/i)).toBeInTheDocument();
   });
 
-  it('renders the About section with version 0.3.0', () => {
+  it('renders the About section with version 0.4.0', () => {
     renderScreen();
-    expect(screen.getByText(/0\.3\.0/)).toBeInTheDocument();
+    expect(screen.getByText(/0\.4\.0/)).toBeInTheDocument();
   });
 
   it('shows server name when a server exists', () => {
