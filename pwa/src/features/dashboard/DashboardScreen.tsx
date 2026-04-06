@@ -97,7 +97,6 @@ export function DashboardScreen() {
                 Business Workflows
               </Link>
             </div>
-            <p className="text-xs text-slate-600 mt-1 px-1">Available in v0.4.0</p>
           </div>
         </div>
       )}
