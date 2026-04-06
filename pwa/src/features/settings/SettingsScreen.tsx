@@ -1,7 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useConfig, notifyConfigChanged } from '../../lib/config';
-import { loadApiKey, saveApiKey, clearApiKey, loadPin, savePin, clearPin } from './settingsStorage';
+import {
+  loadApiKey, saveApiKey, clearApiKey,
+  loadPin, savePin, clearPin,
+  loadWebhookSecret, saveWebhookSecret, clearWebhookSecret,
+  loadPushEnabled, savePushEnabled,
+} from './settingsStorage';
+import { subscribeToPush, unsubscribeFromPush, getPushState, type PushState } from '../../lib/pushRegistration';
 import { testConnection } from '../../lib/api/ha-status';
 import { formatHaRole, formatHaStatus } from '../../lib/api/ha-status';
 import type { HaStatusResult } from '../../lib/api/ha-status';
@@ -17,14 +23,20 @@ export function SettingsScreen() {
   const [testState, setTestState] = useState<TestState>('idle');
   const [testResult, setTestResult] = useState<HaStatusResult | null>(null);
   const [testError, setTestError] = useState<string>('');
+  const [webhookSecret, setWebhookSecret] = useState<string>(() => loadWebhookSecret() ?? '');
+  const [pushEnabled, setPushEnabled] = useState<boolean>(() => loadPushEnabled());
+  const [pushState, setPushState] = useState<PushState>(getPushState);
+  const [pushLoading, setPushLoading] = useState(false);
 
   const onSave = (event: FormEvent) => {
     event.preventDefault();
     saveApiKey(apiKey);
     savePin(pin);
+    saveWebhookSecret(webhookSecret);
     notifyConfigChanged();
     setApiKey(loadApiKey() ?? '');
     setPin(loadPin() ?? '');
+    setWebhookSecret(loadWebhookSecret() ?? '');
     setStatusMessage('Saved.');
     setTestState('idle');
     setTestResult(null);
@@ -33,9 +45,13 @@ export function SettingsScreen() {
   const onClear = () => {
     clearApiKey();
     clearPin();
+    clearWebhookSecret();
+    savePushEnabled(false);
     notifyConfigChanged();
     setApiKey('');
     setPin('');
+    setWebhookSecret('');
+    setPushEnabled(false);
     setStatusMessage('Cleared.');
     setTestState('idle');
     setTestResult(null);
@@ -59,6 +75,54 @@ export function SettingsScreen() {
     } catch (err) {
       setTestError(err instanceof Error ? err.message : 'Connection failed');
       setTestState('failed');
+    }
+  };
+
+  const onTogglePush = async () => {
+    if (pushLoading) return;
+    setPushLoading(true);
+    try {
+      if (pushEnabled) {
+        await unsubscribeFromPush();
+        savePushEnabled(false);
+        setPushEnabled(false);
+        setPushState({ status: 'unregistered' });
+      } else {
+        if (!webhookSecret) {
+          setPushState({ status: 'error', message: 'Webhook secret is required for push notifications' });
+          setPushLoading(false);
+          return;
+        }
+        const endpoint = await subscribeToPush(config.baseUrl, webhookSecret);
+        savePushEnabled(true);
+        setPushEnabled(true);
+        setPushState({ status: 'registered', endpoint });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Push registration failed';
+      setPushState({ status: 'error', message: msg });
+      if (pushEnabled) {
+        savePushEnabled(false);
+        setPushEnabled(false);
+      }
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const onReRegisterPush = async () => {
+    if (!webhookSecret) return;
+    setPushLoading(true);
+    try {
+      await unsubscribeFromPush();
+      const endpoint = await subscribeToPush(config.baseUrl, webhookSecret);
+      savePushEnabled(true);
+      setPushEnabled(true);
+      setPushState({ status: 'registered', endpoint });
+    } catch (err) {
+      setPushState({ status: 'error', message: err instanceof Error ? err.message : 'Re-registration failed' });
+    } finally {
+      setPushLoading(false);
     }
   };
 
@@ -103,7 +167,7 @@ export function SettingsScreen() {
               </div>
             </div>
             {/* PIN */}
-            <div className="p-3">
+            <div className="p-3 border-b border-slate-800">
               <label htmlFor="bhnm-pin" className="block text-xs text-slate-400 mb-1.5">
                 PIN / License ID <span className="text-slate-600">(SaaS only)</span>
               </label>
@@ -116,6 +180,22 @@ export function SettingsScreen() {
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
                 className="w-full rounded bg-slate-950 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+            {/* Webhook Secret */}
+            <div className="p-3">
+              <label htmlFor="webhook-secret" className="block text-xs text-slate-400 mb-1.5">
+                Webhook Secret <span className="text-slate-600">(for push notifications)</span>
+              </label>
+              <input
+                id="webhook-secret"
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="Same secret as in BHNM webhook URL"
+                value={webhookSecret}
+                onChange={(e) => setWebhookSecret(e.target.value)}
+                className="w-full rounded bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
               />
             </div>
           </div>
@@ -186,13 +266,62 @@ export function SettingsScreen() {
           {statusMessage || (config.isConfigured ? '✓ Configured' : 'Not configured')}
         </div>
 
+        {/* Push Notifications */}
+        <div>
+          <div className="text-xs text-slate-500 uppercase tracking-wide font-semibold mb-3">Push Notifications</div>
+          <div className="bg-slate-900 rounded-lg overflow-hidden">
+            {/* Enable/disable toggle */}
+            <div className="p-3 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium">Push Notifications</div>
+                <div className="text-xs text-slate-500 mt-0.5">
+                  {pushState.status === 'unsupported' && 'Not supported in this browser'}
+                  {pushState.status === 'denied' && 'Permission denied — enable in browser settings'}
+                  {pushState.status === 'unregistered' && 'Not registered'}
+                  {pushState.status === 'registered' && 'Registered and active'}
+                  {pushState.status === 'error' && pushState.message}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onTogglePush}
+                disabled={pushLoading || pushState.status === 'unsupported' || pushState.status === 'denied'}
+                className={`relative w-11 h-6 rounded-full transition-colors ${
+                  pushEnabled ? 'bg-sky-600' : 'bg-slate-700'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                role="switch"
+                aria-checked={pushEnabled}
+              >
+                <span
+                  className={`block w-5 h-5 rounded-full bg-white shadow transition-transform`}
+                  style={{ transform: pushEnabled ? 'translateX(22px)' : 'translateX(2px)' }}
+                />
+              </button>
+            </div>
+
+            {/* Re-register button */}
+            {pushEnabled && (
+              <div className="p-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={onReRegisterPush}
+                  disabled={pushLoading}
+                  className="w-full text-sm text-slate-400 hover:text-white py-1 disabled:opacity-50"
+                >
+                  {pushLoading ? 'Registering...' : 'Re-register Push Subscription'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* About */}
         <div className="border-t border-slate-800 pt-6">
           <div className="text-xs text-slate-500 uppercase tracking-wide font-semibold mb-3">About</div>
           <div className="bg-slate-900 rounded-lg p-3">
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
               <dt className="text-slate-500">Version</dt>
-              <dd>0.1.1</dd>
+              <dd>0.2.0</dd>
               <dt className="text-slate-500">Platform</dt>
               <dd>PWA (Web Push)</dd>
             </dl>

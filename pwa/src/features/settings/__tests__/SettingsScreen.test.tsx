@@ -37,7 +37,7 @@ describe('SettingsScreen', () => {
 
   it('renders the About section with version', () => {
     renderScreen();
-    expect(screen.getByText(/0\.1\.1/)).toBeInTheDocument();
+    expect(screen.getByText(/0\.2\.0/)).toBeInTheDocument();
   });
 
   it('pre-populates API key from localStorage on mount', () => {
