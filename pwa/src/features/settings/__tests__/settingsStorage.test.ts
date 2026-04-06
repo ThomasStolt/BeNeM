@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { loadApiKey, saveApiKey, clearApiKey, loadPin, savePin, clearPin } from '../settingsStorage';
+import {
+  loadApiKey, saveApiKey, clearApiKey,
+  loadPin, savePin, clearPin,
+  loadWebhookSecret, saveWebhookSecret, clearWebhookSecret,
+  loadPushEnabled, savePushEnabled,
+} from '../settingsStorage';
 
 describe('settingsStorage', () => {
   beforeEach(() => {
@@ -50,5 +55,48 @@ describe('PIN storage', () => {
     savePin('mypin');
     clearPin();
     expect(loadPin()).toBeNull();
+  });
+});
+
+describe('webhookSecret', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('returns null when not set', () => {
+    expect(loadWebhookSecret()).toBeNull();
+  });
+
+  it('saves and loads', () => {
+    saveWebhookSecret('abc123');
+    expect(loadWebhookSecret()).toBe('abc123');
+  });
+
+  it('trims whitespace', () => {
+    saveWebhookSecret('  abc  ');
+    expect(loadWebhookSecret()).toBe('abc');
+  });
+
+  it('clears', () => {
+    saveWebhookSecret('abc');
+    clearWebhookSecret();
+    expect(loadWebhookSecret()).toBeNull();
+  });
+});
+
+describe('pushEnabled', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('defaults to false when not set', () => {
+    expect(loadPushEnabled()).toBe(false);
+  });
+
+  it('saves true and loads', () => {
+    savePushEnabled(true);
+    expect(loadPushEnabled()).toBe(true);
+  });
+
+  it('saves false and loads', () => {
+    savePushEnabled(true);
+    savePushEnabled(false);
+    expect(loadPushEnabled()).toBe(false);
   });
 });

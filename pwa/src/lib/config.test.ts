@@ -77,4 +77,18 @@ describe('useConfig', () => {
     const config = getSnapshotForTest();
     expect(config.pin).toBeUndefined();
   });
+
+  it('includes webhookSecret from localStorage', () => {
+    localStorage.setItem('benem:webhook-secret', 'my-secret');
+    notifyConfigChanged();
+    const config = getSnapshotForTest();
+    expect(config.webhookSecret).toBe('my-secret');
+  });
+
+  it('webhookSecret is undefined when not set', () => {
+    localStorage.removeItem('benem:webhook-secret');
+    notifyConfigChanged();
+    const config = getSnapshotForTest();
+    expect(config.webhookSecret).toBeUndefined();
+  });
 });

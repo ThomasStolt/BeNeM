@@ -1,12 +1,12 @@
 import { useSyncExternalStore } from 'react';
-import { loadApiKey } from '../features/settings/settingsStorage';
-import { loadPin } from '../features/settings/settingsStorage';
+import { loadApiKey, loadPin, loadWebhookSecret } from '../features/settings/settingsStorage';
 
 export interface BhnmConfig {
   /** Base URL the client should hit. `/bhnm` in both dev (Vite proxy) and prod (Caddy handle_path). */
   baseUrl: string;
   apiKey: string;
   pin?: string;
+  webhookSecret?: string;
   isConfigured: boolean;
 }
 
@@ -36,10 +36,13 @@ function buildSnapshot(): BhnmConfig {
   const apiKey = storedKey && storedKey.length > 0 ? storedKey : envKey;
   const storedPin = loadPin();
   const pin = storedPin && storedPin.length > 0 ? storedPin : (envPin.length > 0 ? envPin : undefined);
+  const storedSecret = loadWebhookSecret();
+  const webhookSecret = storedSecret && storedSecret.length > 0 ? storedSecret : undefined;
   return {
     baseUrl: '/bhnm',
     apiKey,
     pin,
+    webhookSecret,
     isConfigured: apiKey.length > 0,
   };
 }
@@ -64,6 +67,7 @@ function getServerSnapshot(): BhnmConfig {
     baseUrl: '/bhnm',
     apiKey: envKey,
     pin: undefined,
+    webhookSecret: undefined,
     isConfigured: envKey.length > 0,
   };
 }
