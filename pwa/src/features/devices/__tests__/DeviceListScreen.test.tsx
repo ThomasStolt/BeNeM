@@ -79,7 +79,7 @@ describe('DeviceListScreen', () => {
       isLoading: false,
       isError: false,
       dataUpdatedAt: Date.now(),
-    } as ReturnType<typeof useDevices>);
+    } as unknown as ReturnType<typeof useDevices>);
     renderScreen();
     expect(screen.getByText('No devices found')).toBeInTheDocument();
   });

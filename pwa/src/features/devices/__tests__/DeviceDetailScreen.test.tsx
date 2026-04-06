@@ -55,7 +55,7 @@ describe('DeviceDetailScreen', () => {
     } as ReturnType<typeof useDeviceSearch>);
     vi.mocked(useIncidents).mockReturnValue({
       data: [],
-    } as ReturnType<typeof useIncidents>);
+    } as unknown as ReturnType<typeof useIncidents>);
 
     renderDetail('raspi-054');
     expect(screen.getByText('raspi-054')).toBeInTheDocument();
@@ -83,7 +83,7 @@ describe('DeviceDetailScreen', () => {
           incidentState: 'OPEN', startTime: new Date(), acknowledgedBy: null,
         },
       ],
-    } as ReturnType<typeof useIncidents>);
+    } as unknown as ReturnType<typeof useIncidents>);
 
     renderDetail('raspi-054');
     expect(screen.getByText('High CPU')).toBeInTheDocument();
@@ -98,7 +98,7 @@ describe('DeviceDetailScreen', () => {
     } as ReturnType<typeof useDeviceSearch>);
     vi.mocked(useIncidents).mockReturnValue({
       data: [],
-    } as ReturnType<typeof useIncidents>);
+    } as unknown as ReturnType<typeof useIncidents>);
 
     renderDetail('raspi-054');
     expect(screen.getByText('Loading...')).toBeInTheDocument();
