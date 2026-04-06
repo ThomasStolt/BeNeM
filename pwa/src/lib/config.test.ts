@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useConfig, notifyConfigChanged } from './config';
+import { useConfig, notifyConfigChanged, getSnapshotForTest } from './config';
 import { saveApiKey, clearApiKey } from '../features/settings/settingsStorage';
 
 describe('useConfig', () => {
@@ -63,5 +63,18 @@ describe('useConfig', () => {
 
     expect(result.current.apiKey).toBe('');
     expect(result.current.isConfigured).toBe(false);
+  });
+
+  it('reads PIN from localStorage when set', () => {
+    window.localStorage.setItem('benem:bhnm-pin', 'local-pin');
+    notifyConfigChanged();
+    const config = getSnapshotForTest();
+    expect(config.pin).toBe('local-pin');
+  });
+
+  it('falls back to env var PIN when localStorage is empty', () => {
+    notifyConfigChanged();
+    const config = getSnapshotForTest();
+    expect(config.pin).toBeUndefined();
   });
 });
