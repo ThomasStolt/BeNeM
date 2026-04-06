@@ -1,94 +1,48 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-import { useConfig, notifyConfigChanged, getSnapshotForTest } from './config';
-import { saveApiKey, clearApiKey } from '../features/settings/settingsStorage';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { getSnapshotForTest } from './config';
+import { addServer, setActiveServer } from './serverStorage';
 
-describe('useConfig', () => {
-  beforeEach(() => {
-    window.localStorage.clear();
-    vi.unstubAllEnvs();
-    // Invalidate cache by triggering a config change
-    notifyConfigChanged();
+beforeEach(() => {
+  localStorage.clear();
+});
+
+describe('config snapshot', () => {
+  it('returns unconfigured when no servers exist', () => {
+    const config = getSnapshotForTest();
+    expect(config.isConfigured).toBe(false);
+    expect(config.apiKey).toBe('');
   });
 
-  it('reads from localStorage when a key is stored', () => {
-    saveApiKey('from-storage');
-    const { result } = renderHook(() => useConfig());
-    expect(result.current.apiKey).toBe('from-storage');
-    expect(result.current.isConfigured).toBe(true);
+  it('reads from active server', () => {
+    addServer({ name: 'Test', baseUrl: '/bhnm', apiKey: 'test-key', pin: 'pin123' });
+    const config = getSnapshotForTest();
+    expect(config.isConfigured).toBe(true);
+    expect(config.apiKey).toBe('test-key');
+    expect(config.pin).toBe('pin123');
+    expect(config.baseUrl).toBe('/bhnm');
+    expect(config.serverId).toBeTruthy();
+    expect(config.serverName).toBe('Test');
   });
 
-  it('falls back to VITE_BHNM_API_KEY when localStorage is empty', () => {
-    vi.stubEnv('VITE_BHNM_API_KEY', 'from-env');
-    const { result } = renderHook(() => useConfig());
-    expect(result.current.apiKey).toBe('from-env');
-    expect(result.current.isConfigured).toBe(true);
+  it('reads from second server when it is active', () => {
+    addServer({ name: 'First', baseUrl: '/a', apiKey: 'k1' });
+    const s2 = addServer({ name: 'Second', baseUrl: '/b', apiKey: 'k2' });
+    setActiveServer(s2.id);
+    const config = getSnapshotForTest();
+    expect(config.apiKey).toBe('k2');
+    expect(config.serverName).toBe('Second');
   });
 
-  it('localStorage wins over env var', () => {
-    vi.stubEnv('VITE_BHNM_API_KEY', 'from-env');
-    saveApiKey('from-storage');
-    const { result } = renderHook(() => useConfig());
-    expect(result.current.apiKey).toBe('from-storage');
-  });
-
-  it('is not configured when both are empty', () => {
-    const { result } = renderHook(() => useConfig());
-    expect(result.current.isConfigured).toBe(false);
-    expect(result.current.apiKey).toBe('');
-  });
-
-  it('re-renders consumers when notifyConfigChanged is called after save', () => {
-    const { result } = renderHook(() => useConfig());
-    expect(result.current.isConfigured).toBe(false);
-
-    act(() => {
-      saveApiKey('new-key');
-      notifyConfigChanged();
+  it('includes webhook fields', () => {
+    addServer({
+      name: 'Push',
+      baseUrl: '/bhnm',
+      apiKey: 'k',
+      pushWebhookSecret: 'secret',
+      pushMiddlewareUrl: '/middleware',
     });
-
-    expect(result.current.apiKey).toBe('new-key');
-    expect(result.current.isConfigured).toBe(true);
-  });
-
-  it('re-renders consumers when notifyConfigChanged is called after clear', () => {
-    saveApiKey('initial');
-    const { result } = renderHook(() => useConfig());
-    expect(result.current.apiKey).toBe('initial');
-
-    act(() => {
-      clearApiKey();
-      notifyConfigChanged();
-    });
-
-    expect(result.current.apiKey).toBe('');
-    expect(result.current.isConfigured).toBe(false);
-  });
-
-  it('reads PIN from localStorage when set', () => {
-    window.localStorage.setItem('benem:bhnm-pin', 'local-pin');
-    notifyConfigChanged();
     const config = getSnapshotForTest();
-    expect(config.pin).toBe('local-pin');
-  });
-
-  it('falls back to env var PIN when localStorage is empty', () => {
-    notifyConfigChanged();
-    const config = getSnapshotForTest();
-    expect(config.pin).toBeUndefined();
-  });
-
-  it('includes webhookSecret from localStorage', () => {
-    localStorage.setItem('benem:webhook-secret', 'my-secret');
-    notifyConfigChanged();
-    const config = getSnapshotForTest();
-    expect(config.webhookSecret).toBe('my-secret');
-  });
-
-  it('webhookSecret is undefined when not set', () => {
-    localStorage.removeItem('benem:webhook-secret');
-    notifyConfigChanged();
-    const config = getSnapshotForTest();
-    expect(config.webhookSecret).toBeUndefined();
+    expect(config.webhookSecret).toBe('secret');
+    expect(config.pushMiddlewareUrl).toBe('/middleware');
   });
 });

@@ -1,12 +1,14 @@
 import { useSyncExternalStore } from 'react';
-import { loadApiKey, loadPin, loadWebhookSecret } from '../features/settings/settingsStorage';
+import { getActiveServer } from './serverStorage';
 
 export interface BhnmConfig {
-  /** Base URL the client should hit. `/bhnm` in both dev (Vite proxy) and prod (Caddy handle_path). */
+  serverId: string;
+  serverName: string;
   baseUrl: string;
   apiKey: string;
   pin?: string;
   webhookSecret?: string;
+  pushMiddlewareUrl?: string;
   isConfigured: boolean;
 }
 
@@ -21,7 +23,7 @@ function subscribe(cb: () => void): () => void {
 }
 
 /**
- * Call after mutating config (e.g. from SettingsScreen Save/Clear) to force
+ * Call after mutating server config (add/edit/delete/switch) to force
  * every `useConfig()` consumer to re-read its snapshot.
  */
 export function notifyConfigChanged(): void {
@@ -30,20 +32,27 @@ export function notifyConfigChanged(): void {
 }
 
 function buildSnapshot(): BhnmConfig {
-  const storedKey = loadApiKey();
-  const envKey = (import.meta.env.VITE_BHNM_API_KEY as string | undefined) ?? '';
-  const envPin = (import.meta.env.VITE_BHNM_PIN as string | undefined) ?? '';
-  const apiKey = storedKey && storedKey.length > 0 ? storedKey : envKey;
-  const storedPin = loadPin();
-  const pin = storedPin && storedPin.length > 0 ? storedPin : (envPin.length > 0 ? envPin : undefined);
-  const storedSecret = loadWebhookSecret();
-  const webhookSecret = storedSecret && storedSecret.length > 0 ? storedSecret : undefined;
+  const server = getActiveServer();
+  if (!server) {
+    // Fall back to env vars for unconfigured state
+    const envKey = (import.meta.env.VITE_BHNM_API_KEY as string | undefined) ?? '';
+    return {
+      serverId: '',
+      serverName: '',
+      baseUrl: '/bhnm',
+      apiKey: envKey,
+      isConfigured: envKey.length > 0,
+    };
+  }
   return {
-    baseUrl: '/bhnm',
-    apiKey,
-    pin,
-    webhookSecret,
-    isConfigured: apiKey.length > 0,
+    serverId: server.id,
+    serverName: server.name,
+    baseUrl: server.baseUrl,
+    apiKey: server.apiKey,
+    pin: server.pin,
+    webhookSecret: server.pushWebhookSecret,
+    pushMiddlewareUrl: server.pushMiddlewareUrl,
+    isConfigured: server.apiKey.length > 0,
   };
 }
 
@@ -60,14 +69,13 @@ export function getSnapshotForTest(): BhnmConfig {
   return buildSnapshot();
 }
 
-// Server snapshot for SSR safety — returns the same shape with no storage access.
 function getServerSnapshot(): BhnmConfig {
   const envKey = (import.meta.env.VITE_BHNM_API_KEY as string | undefined) ?? '';
   return {
+    serverId: '',
+    serverName: '',
     baseUrl: '/bhnm',
     apiKey: envKey,
-    pin: undefined,
-    webhookSecret: undefined,
     isConfigured: envKey.length > 0,
   };
 }

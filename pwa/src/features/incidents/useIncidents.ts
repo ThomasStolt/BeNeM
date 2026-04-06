@@ -15,7 +15,7 @@ export function useIncidents() {
   const mockMode = useMockMode();
 
   return useQuery({
-    queryKey: ['incidents', mockMode ? 'mock' : config.apiKey, config.baseUrl],
+    queryKey: ['incidents', mockMode ? 'mock' : config.serverId, config.baseUrl],
     queryFn: async () => {
       if (mockMode) return parseIncidentsResponse(mockData);
       if (!config.isConfigured) {
