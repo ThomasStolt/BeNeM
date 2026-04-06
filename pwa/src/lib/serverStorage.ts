@@ -97,3 +97,39 @@ export function setActiveServer(id: string): void {
   }
   saveServers(servers);
 }
+
+const LEGACY_API_KEY = 'benem:bhnm-api-key';
+const LEGACY_PIN = 'benem:bhnm-pin';
+const LEGACY_WEBHOOK_SECRET = 'benem:webhook-secret';
+const LEGACY_PUSH_ENABLED = 'benem:push-enabled';
+
+export function migrateFromLegacyConfig(): void {
+  if (typeof window === 'undefined') return;
+
+  // Skip if servers already exist
+  if (loadServers().length > 0) return;
+
+  const apiKey = localStorage.getItem(LEGACY_API_KEY);
+  if (!apiKey) return;
+
+  const pin = localStorage.getItem(LEGACY_PIN) || undefined;
+  const webhookSecret = localStorage.getItem(LEGACY_WEBHOOK_SECRET) || undefined;
+  const pushEnabled = localStorage.getItem(LEGACY_PUSH_ENABLED) === 'true';
+
+  const server = createServerConfig({
+    name: 'BHNM Server',
+    baseUrl: '/bhnm',
+    apiKey,
+    pin,
+    pushEnabled,
+    pushWebhookSecret: webhookSecret,
+  });
+  server.isActive = true;
+  saveServers([server]);
+
+  // Clean up legacy keys
+  localStorage.removeItem(LEGACY_API_KEY);
+  localStorage.removeItem(LEGACY_PIN);
+  localStorage.removeItem(LEGACY_WEBHOOK_SECRET);
+  localStorage.removeItem(LEGACY_PUSH_ENABLED);
+}

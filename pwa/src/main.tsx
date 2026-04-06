@@ -3,7 +3,11 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
+import { migrateFromLegacyConfig } from './lib/serverStorage';
 import './index.css';
+
+// Migrate single-server config to multi-server format (one-time, idempotent)
+migrateFromLegacyConfig();
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -9,6 +9,7 @@ import {
   getActiveServer,
   setActiveServer,
   createServerConfig,
+  migrateFromLegacyConfig,
 } from '../serverStorage';
 
 beforeEach(() => {
@@ -103,6 +104,52 @@ describe('serverStorage', () => {
       const servers = loadServers();
       expect(servers[0].isActive).toBe(false);
       expect(servers[1].isActive).toBe(true);
+    });
+  });
+
+  describe('migrateFromLegacyConfig', () => {
+    it('creates server from legacy keys', () => {
+      localStorage.setItem('benem:bhnm-api-key', 'legacy-key');
+      localStorage.setItem('benem:bhnm-pin', 'legacy-pin');
+      localStorage.setItem('benem:webhook-secret', 'legacy-secret');
+      localStorage.setItem('benem:push-enabled', 'true');
+
+      migrateFromLegacyConfig();
+
+      const servers = loadServers();
+      expect(servers).toHaveLength(1);
+      expect(servers[0].apiKey).toBe('legacy-key');
+      expect(servers[0].pin).toBe('legacy-pin');
+      expect(servers[0].pushWebhookSecret).toBe('legacy-secret');
+      expect(servers[0].pushEnabled).toBe(true);
+      expect(servers[0].baseUrl).toBe('/bhnm');
+      expect(servers[0].isActive).toBe(true);
+      expect(servers[0].name).toBe('BHNM Server');
+    });
+
+    it('skips migration if servers already exist', () => {
+      addServer({ name: 'Existing', baseUrl: '/bhnm', apiKey: 'k1' });
+      localStorage.setItem('benem:bhnm-api-key', 'legacy-key');
+
+      migrateFromLegacyConfig();
+
+      const servers = loadServers();
+      expect(servers).toHaveLength(1);
+      expect(servers[0].name).toBe('Existing');
+    });
+
+    it('skips migration if no legacy keys', () => {
+      migrateFromLegacyConfig();
+      expect(loadServers()).toEqual([]);
+    });
+
+    it('removes legacy keys after migration', () => {
+      localStorage.setItem('benem:bhnm-api-key', 'legacy-key');
+      migrateFromLegacyConfig();
+      expect(localStorage.getItem('benem:bhnm-api-key')).toBeNull();
+      expect(localStorage.getItem('benem:bhnm-pin')).toBeNull();
+      expect(localStorage.getItem('benem:webhook-secret')).toBeNull();
+      expect(localStorage.getItem('benem:push-enabled')).toBeNull();
     });
   });
 });
