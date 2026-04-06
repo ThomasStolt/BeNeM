@@ -2,14 +2,18 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SettingsScreen } from '../SettingsScreen';
-import { saveApiKey, loadApiKey, loadPin, savePin } from '../settingsStorage';
+import { addServer, loadServers } from '../../../lib/serverStorage';
 
 function renderScreen() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter>
-      <SettingsScreen />
-    </MemoryRouter>,
+    <QueryClientProvider client={qc}>
+      <MemoryRouter>
+        <SettingsScreen />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
@@ -18,57 +22,60 @@ describe('SettingsScreen', () => {
     window.localStorage.clear();
   });
 
-  it('renders the API key input and Save button', () => {
+  it('renders the server list section', () => {
     renderScreen();
-    expect(screen.getByLabelText(/API Key/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /clear/i })).toBeInTheDocument();
+    expect(screen.getByText('No servers configured.')).toBeInTheDocument();
   });
 
-  it('renders the PIN input', () => {
+  it('renders the Add Server button', () => {
     renderScreen();
-    expect(screen.getByLabelText(/PIN/i)).toBeInTheDocument();
+    expect(screen.getByText(/add server/i)).toBeInTheDocument();
   });
 
-  it('renders the Test Connection button', () => {
+  it('renders the About section with version 0.3.0', () => {
     renderScreen();
-    expect(screen.getByRole('button', { name: /test connection/i })).toBeInTheDocument();
+    expect(screen.getByText(/0\.3\.0/)).toBeInTheDocument();
   });
 
-  it('renders the About section with version', () => {
+  it('shows server name when a server exists', () => {
+    addServer({ name: 'Test BHNM', baseUrl: '/bhnm', apiKey: 'k1' });
     renderScreen();
-    expect(screen.getByText(/0\.2\.0/)).toBeInTheDocument();
+    expect(screen.getByText('Test BHNM')).toBeInTheDocument();
   });
 
-  it('pre-populates API key from localStorage on mount', () => {
-    saveApiKey('preloaded-key');
+  it('shows push notification section when active server exists', () => {
+    addServer({ name: 'Test', baseUrl: '/bhnm', apiKey: 'k1' });
     renderScreen();
-    expect(screen.getByLabelText(/API Key/i)).toHaveValue('preloaded-key');
+    expect(screen.getAllByText(/push notifications/i).length).toBeGreaterThan(0);
   });
 
-  it('pre-populates PIN from localStorage on mount', () => {
-    savePin('preloaded-pin');
-    renderScreen();
-    expect(screen.getByLabelText(/PIN/i)).toHaveValue('preloaded-pin');
-  });
-
-  it('saves API key and PIN to localStorage', async () => {
+  it('navigates to add server form', async () => {
     const user = userEvent.setup();
     renderScreen();
-    await user.type(screen.getByLabelText(/API Key/i), 'new-key');
-    await user.type(screen.getByLabelText(/PIN/i), 'new-pin');
+    await user.click(screen.getByText(/add server/i));
+    expect(screen.getByText(/add server/i)).toBeInTheDocument();
+    // Form fields should appear
+    expect(document.getElementById('server-name')).toBeInTheDocument();
+    expect(document.getElementById('server-api-key')).toBeInTheDocument();
+  });
+
+  it('adds a server and returns to list', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await user.click(screen.getByText(/add server/i));
+
+    await user.type(document.getElementById('server-name')!, 'New Server');
+    await user.type(document.getElementById('server-api-key')!, 'new-key');
     await user.click(screen.getByRole('button', { name: /save/i }));
-    expect(loadApiKey()).toBe('new-key');
-    expect(loadPin()).toBe('new-pin');
+
+    // Back to list — should show new server
+    expect(screen.getByText('New Server')).toBeInTheDocument();
+    expect(loadServers()).toHaveLength(1);
+    expect(loadServers()[0].apiKey).toBe('new-key');
   });
 
-  it('clears both API key and PIN', async () => {
-    const user = userEvent.setup();
-    saveApiKey('key');
-    savePin('pin');
+  it('renders back link', () => {
     renderScreen();
-    await user.click(screen.getByRole('button', { name: /clear/i }));
-    expect(loadApiKey()).toBeNull();
-    expect(loadPin()).toBeNull();
+    expect(screen.getByLabelText(/back/i)).toBeInTheDocument();
   });
 });
