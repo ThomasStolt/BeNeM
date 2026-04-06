@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIncidents } from './useIncidents';
-import { IncidentRow } from './IncidentRow';
+import { SwipeableIncidentRow } from './SwipeableIncidentRow';
 import { EmptyState } from '../../components/EmptyState';
 import { PullToRefresh } from '../../components/PullToRefresh';
 import { useConfig } from '../../lib/config';
@@ -106,7 +106,7 @@ export function IncidentListScreen() {
       <ul role="list" data-testid="incident-list">
         {data?.map((incident) => (
           <li key={incident.incidentId}>
-            <IncidentRow incident={incident} />
+            <SwipeableIncidentRow incident={incident} />
           </li>
         ))}
       </ul>
