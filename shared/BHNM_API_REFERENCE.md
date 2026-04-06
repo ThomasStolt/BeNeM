@@ -673,6 +673,71 @@ curl --request POST \
 
 ---
 
+## High Availability Status API (v0.3)
+
+Retrieves the HA role and status of the BHNM appliance. Lightweight endpoint —
+ideal for connection tests (no device enumeration, tiny response).
+
+```
+POST https://YOUR_HOST/api/ha_status_api.php
+```
+
+**Auth note:** Despite living under `/api/`, this endpoint uses `password=`
+(not `pwd=`). This is consistent with the official OpenAPI spec on SwaggerHub.
+
+### Parameters:
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `password` | yes | API key (case-sensitive) |
+
+### Response:
+
+```json
+[{"role": "master", "status": "1"}]
+```
+
+Response is array-wrapped (consistent with BHNM convention).
+
+### Role values:
+
+| Role | Meaning |
+|---|---|
+| `standalone` | Not configured as an HA node |
+| `primary` / `master` | Primary HA node |
+| `slave` | Arbitrator or replica HA node |
+
+### Status codes by role:
+
+| Role | Status | Meaning |
+|---|---|---|
+| Primary | `1` | Active |
+| Primary | `2` | Inactive |
+| Slave | `1` | Active |
+| Slave | `2` | Takeover |
+| Slave | `3` | Inactive |
+
+### Example:
+```bash
+curl --request POST \
+  --url 'https://YOUR_HOST/api/ha_status_api.php' \
+  --header 'Content-Type: application/x-www-form-urlencoded' \
+  --data 'password=YOUR_PASSWORD'
+```
+
+### Use as connection test:
+
+A successful 200 with a valid JSON response proves:
+1. BHNM host is reachable
+2. API key is valid
+3. The appliance is operational
+
+Used by BeNeM iOS and PWA Settings screens as the test-connection endpoint
+(replaces the previous `devices/list` approach which was expensive in large
+environments).
+
+---
+
 ## Open 3.0 API — Quick Reference
 
 | Purpose | Endpoint | Auth |
@@ -683,3 +748,4 @@ curl --request POST \
 | Unacknowledge incident | `POST /fw/index.php?r=restful/incident/unacknowledge` | `password=` |
 | Add / update device | `POST /api/new_device_api.php` | `pwd=` |
 | Get metric schema | `POST /api/getPerformanceDataSchema` | `password=` |
+| Get HA status | `POST /api/ha_status_api.php` | `password=` |
