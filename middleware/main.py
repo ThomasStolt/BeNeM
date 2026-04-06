@@ -9,9 +9,11 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from config import MIDDLEWARE_PORT
-from database import init_db, save_token, get_tokens_for_secret, get_all_tokens, delete_token
+from config import MIDDLEWARE_PORT, VAPID_PUBLIC_KEY
+from database import init_db, save_token, get_tokens_for_secret, get_all_tokens, delete_token, \
+    save_web_push_subscription, get_web_push_subscriptions_for_secret, delete_web_push_subscription
 from apns import send_to_all
+from webpush import send_web_push_to_all
 
 HOP_BY_HOP_REQUEST = {
     "host", "x-proxy-token", "x-bhnm-target", "connection", "keep-alive",
@@ -89,6 +91,34 @@ def unregister_token(body: TokenRegistration, request: Request):
     return {"status": "ok"}
 
 
+# ── Web Push Subscription Registration ───────────────────────────────────────
+
+class WebPushRegistration(BaseModel):
+    endpoint: str
+    p256dh: str
+    auth: str
+
+@app.post("/register-webpush", status_code=201)
+def register_webpush(body: WebPushRegistration, request: Request, response: Response):
+    webhook_secret = request.headers.get("X-Webhook-Token", "").strip()
+    if not webhook_secret:
+        raise HTTPException(status_code=400, detail="X-Webhook-Token header is required")
+    existing = get_web_push_subscriptions_for_secret(webhook_secret)
+    is_update = any(s["endpoint"] == body.endpoint for s in existing)
+    save_web_push_subscription(body.endpoint, body.p256dh, body.auth, webhook_secret)
+    if is_update:
+        response.status_code = 200
+    print(f"[WebPush] Subscription {'updated' if is_update else 'registered'}: {body.endpoint[:50]}...")
+    return {"status": "ok"}
+
+@app.get("/vapid-key")
+def get_vapid_key():
+    import config
+    if not config.VAPID_PUBLIC_KEY:
+        raise HTTPException(status_code=404, detail="Web Push not configured")
+    return {"publicKey": config.VAPID_PUBLIC_KEY}
+
+
 # ── BHNM Webhook ──────────────────────────────────────────────────────────────
 
 @app.post("/webhook")
@@ -123,16 +153,26 @@ async def receive_webhook(request: Request):
     print(f"[Webhook] {notification_type} — {hostname} — Incident {incident_id}")
 
     tokens = get_tokens_for_secret(secret)
-    if not tokens:
+    web_push_subs = get_web_push_subscriptions_for_secret(secret)
+
+    if not tokens and not web_push_subs:
         print(f"[Webhook] Rejected: no registered devices for this secret.")
         raise HTTPException(status_code=403, detail="Forbidden: unknown secret")
 
-    stale = await send_to_all(tokens, title, body, incident_id)
-    for t in stale:
+    # Send APNs
+    apns_stale = await send_to_all(tokens, title, body, incident_id) if tokens else []
+    for t in apns_stale:
         delete_token(t)
-        print(f"[Cleanup] Removed stale token ...{t[-8:]}")
+        print(f"[Cleanup] Removed stale APNs token ...{t[-8:]}")
 
-    return {"status": "ok", "notified": len(tokens) - len(stale)}
+    # Send Web Push
+    webpush_gone = await send_web_push_to_all(web_push_subs, title, body, incident_id) if web_push_subs else []
+    for endpoint in webpush_gone:
+        delete_web_push_subscription(endpoint)
+        print(f"[Cleanup] Removed expired Web Push subscription: {endpoint[:50]}...")
+
+    notified = (len(tokens) - len(apns_stale)) + (len(web_push_subs) - len(webpush_gone))
+    return {"status": "ok", "notified": notified}
 
 
 # ── Health Check ──────────────────────────────────────────────────────────────
