@@ -291,7 +291,7 @@ struct ServerConfigView: View {
             addProxyHeaders = false
         }
 
-        guard let testURL = URL(string: "\(testBase)/fw/index.php?r=restful/devices/list") else {
+        guard let testURL = URL(string: "\(testBase)/api/ha_status_api.php") else {
             testStatus = .failure
             alertTitle = "Invalid URL"
             alertMessage = "Could not construct test endpoint."
@@ -327,9 +327,8 @@ struct ServerConfigView: View {
 
             switch statusCode {
             case 200:
-                var deviceCount = 0
                 if let raw = try? JSONSerialization.jsonObject(with: data) {
-                    // Response may be a plain object or wrapped in an outer array
+                    // ha_status response: [{"role":"master","status":"1"}] or {"role":"standalone","status":"1"}
                     let obj: [String: Any]?
                     if let dict = raw as? [String: Any] {
                         obj = dict
@@ -338,21 +337,21 @@ struct ServerConfigView: View {
                     } else {
                         obj = nil
                     }
-                    if let json = obj {
-                        if let arr = json["devices"] as? [[String: Any]] { deviceCount = arr.count }
-                        else if let nested = json["data"] as? [String: Any],
-                                let arr = nested["devices"] as? [[String: Any]] { deviceCount = arr.count }
+                    if let json = obj, let role = json["role"] as? String {
+                        saveConnection(bhnmURLString: bhnmURLString)
+                        testStatus = .success
+                        dismiss()
+                    } else {
+                        let preview = String(data: data.prefix(300), encoding: .utf8) ?? "<non-UTF8>"
+                        testStatus = .failure
+                        alertTitle = "Unexpected response"
+                        alertMessage = "Server responded but did not return HA status.\n\nRaw response:\n\(preview)"
+                        showingAlert = true
                     }
-                }
-                if deviceCount > 0 {
-                    saveConnection(bhnmURLString: bhnmURLString)
-                    testStatus = .success
-                    dismiss()
                 } else {
-                    let preview = String(data: data.prefix(300), encoding: .utf8) ?? "<non-UTF8>"
                     testStatus = .failure
-                    alertTitle = "Connected — no devices found"
-                    alertMessage = "Server responded but returned no devices.\n\nRaw response:\n\(preview)"
+                    alertTitle = "Parse error"
+                    alertMessage = "Could not parse server response as JSON."
                     showingAlert = true
                 }
             case 401, 403:
