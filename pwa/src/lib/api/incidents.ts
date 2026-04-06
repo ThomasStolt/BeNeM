@@ -155,7 +155,6 @@ export async function acknowledgeIncident(
     password: config.apiKey,
     incident_id: incidentId,
     user: 'BeNeM PWA',
-    comment: '',
   };
   if (config.pin) params.pin = config.pin;
   const raw = await postForm(config.baseUrl, '/api/proxy/incident/acknowledge', params);
@@ -170,7 +169,6 @@ export async function unacknowledgeIncident(
     password: config.apiKey,
     incident_id: incidentId,
     user: 'BeNeM PWA',
-    comment: '',
   };
   if (config.pin) params.pin = config.pin;
   const raw = await postForm(config.baseUrl, '/api/proxy/incident/unacknowledge', params);
