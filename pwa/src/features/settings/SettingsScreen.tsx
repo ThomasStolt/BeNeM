@@ -26,6 +26,8 @@ export function SettingsScreen() {
     setApiKey(loadApiKey() ?? '');
     setPin(loadPin() ?? '');
     setStatusMessage('Saved.');
+    setTestState('idle');
+    setTestResult(null);
   };
 
   const onClear = () => {

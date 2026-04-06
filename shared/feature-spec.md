@@ -41,4 +41,4 @@ features defined here. Platform-specific behaviour is noted per feature.
 - v0.1.0: read-only list, 120s auto-refresh, pull-to-refresh, tap navigates to detail stub
 - v0.1.0.5: hosted at `https://benem.hurrikap.org` as a dedicated container alongside the middleware; minimal Settings screen for BHNM API key entry (localStorage)
 - v0.1.1: real incident detail screen (essentials: metadata + ACK action), swipe ACK/UnACK on list rows, polished Settings with PIN + test-connection via ha_status endpoint
-- No native-style swipe gesture library — touch-based pull-to-refresh is hand-rolled in `components/PullToRefresh.tsx`
+- Pull-to-refresh is hand-rolled in `components/PullToRefresh.tsx`; row swipe gestures use `react-swipeable`

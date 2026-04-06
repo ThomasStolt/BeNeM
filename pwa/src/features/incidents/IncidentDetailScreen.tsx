@@ -34,13 +34,22 @@ const STATUS_CLASSES: Record<string, string> = {
 
 export function IncidentDetailScreen() {
   const { id } = useParams();
-  const { data: incidents } = useIncidents();
+  const { data: incidents, isLoading } = useIncidents();
   const config = useConfig();
   const queryClient = useQueryClient();
   const [isAcking, setIsAcking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const incident = incidents?.find((i) => i.incidentId === id);
+
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <Link to="/" className="text-sm text-slate-400 hover:text-slate-200">← Back</Link>
+        <p className="mt-4 text-slate-400">Loading...</p>
+      </div>
+    );
+  }
 
   if (!incident) {
     return (

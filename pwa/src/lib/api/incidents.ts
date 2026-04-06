@@ -154,7 +154,7 @@ export async function acknowledgeIncident(
   const params: Record<string, string> = {
     password: config.apiKey,
     incident_id: incidentId,
-    user: 'Thomas',
+    user: 'BeNeM PWA',
     comment: '',
   };
   if (config.pin) params.pin = config.pin;
@@ -169,7 +169,7 @@ export async function unacknowledgeIncident(
   const params: Record<string, string> = {
     password: config.apiKey,
     incident_id: incidentId,
-    user: 'Thomas',
+    user: 'BeNeM PWA',
     comment: '',
   };
   if (config.pin) params.pin = config.pin;
