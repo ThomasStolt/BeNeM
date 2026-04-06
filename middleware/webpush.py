@@ -41,7 +41,11 @@ async def send_web_push_to_all(
             )
             print(f"[WebPush] Sent to {sub['endpoint'][:50]}...")
         except WebPushException as e:
+            # pywebpush stores status on .response.status_code (requests)
+            # or sometimes only in the exception message string
             status = getattr(e.response, "status_code", 0) if e.response else 0
+            if status == 0 and "410" in str(e):
+                status = 410
             if status == 410:
                 gone_endpoints.append(sub["endpoint"])
                 print(f"[WebPush] Subscription expired (410): {sub['endpoint'][:50]}...")
