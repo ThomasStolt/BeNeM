@@ -110,3 +110,54 @@ features defined here. Platform-specific behaviour is noted per feature.
 #### PWA-specific
 - v0.3.0: localStorage `benem_servers` JSON array, legacy key migration from v0.2.0 format
 - Settings redesigned with server list section and per-server add/edit form
+
+### Feature: Device List
+**Status:** shipped-ios, shipped-pwa
+**API:** `POST /fw/index.php?r=restful/devices/list`, `POST /fw/index.php?r=restful/devices/find`
+
+#### Behaviour (both platforms)
+- Paginated device list (50 per page) with Previous/Next controls
+- Server-side search by device name
+- Display device name, IP, category badge per row
+- Tap navigates to device detail
+
+#### iOS-specific
+- Native SwiftUI List with UID-based identity
+
+#### PWA-specific
+- v0.4.0: Window-based pagination with independent React Query entries per page
+- Debounced search input (300ms via useDeferredValue)
+- 120-second auto-refresh with RefreshCountdown
+
+### Feature: Device Detail
+**Status:** shipped-ios, shipped-pwa
+**API:** `POST /fw/index.php?r=restful/devices/find`
+
+#### Behaviour (both platforms)
+- Device info card: IP, model, serial number, category, site, description
+- Host current issues: filtered from incident list by device name
+- Performance placeholder (v0.5.0)
+
+#### iOS-specific
+- Per-device alarm status via get-host-and-service-status
+
+#### PWA-specific
+- v0.4.0: Info card + filtered incidents using existing useIncidents hook
+- Alarm status badges deferred (no per-device H/S/T/A endpoint identified)
+
+### Feature: Tactical Drill-down
+**Status:** shipped-ios, shipped-pwa
+**API:** `POST /fw/index.php?r=restful/tactical-overview/data`
+
+#### Behaviour (both platforms)
+- Category, Site, and Business Workflow group list views
+- Per-group H/S/T/A alarm count badges (OK/ACK/WARN/UN/CRIT)
+- Filter toggle to hide all-healthy groups
+- 120-second auto-refresh
+
+#### iOS-specific
+- Native SwiftUI grouped list
+
+#### PWA-specific
+- v0.4.0: Single parameterized TacticalGroupListScreen for all three group types
+- Filter button in header with active state indicator
