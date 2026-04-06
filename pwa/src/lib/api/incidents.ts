@@ -134,3 +134,45 @@ export async function getIncidents(config: BhnmConfig): Promise<Incident[]> {
   const raw = await postForm(config.baseUrl, '/api/incident_api.php', params);
   return parseIncidentsResponse(raw);
 }
+
+export function parseAckResponse(raw: unknown): void {
+  const obj: unknown = Array.isArray(raw) ? raw[0] : raw;
+  if (!obj || typeof obj !== 'object') {
+    throw new ApiException({ kind: 'parse', message: 'Invalid ACK response' });
+  }
+  const record = obj as Record<string, unknown>;
+  if (typeof record.result === 'string' && record.result !== 'completed') {
+    const detail = typeof record.detail === 'string' ? record.detail : 'ACK failed';
+    throw new ApiException({ kind: 'server', status: 200, message: detail });
+  }
+}
+
+export async function acknowledgeIncident(
+  config: BhnmConfig,
+  incidentId: string,
+): Promise<void> {
+  const params: Record<string, string> = {
+    password: config.apiKey,
+    incident_id: incidentId,
+    user: 'Thomas',
+    comment: '',
+  };
+  if (config.pin) params.pin = config.pin;
+  const raw = await postForm(config.baseUrl, '/api/proxy/incident/acknowledge', params);
+  parseAckResponse(raw);
+}
+
+export async function unacknowledgeIncident(
+  config: BhnmConfig,
+  incidentId: string,
+): Promise<void> {
+  const params: Record<string, string> = {
+    password: config.apiKey,
+    incident_id: incidentId,
+    user: 'Thomas',
+    comment: '',
+  };
+  if (config.pin) params.pin = config.pin;
+  const raw = await postForm(config.baseUrl, '/api/proxy/incident/unacknowledge', params);
+  parseAckResponse(raw);
+}

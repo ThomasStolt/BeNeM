@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseIncidentsResponse, buildDisplayId } from './incidents';
+import { parseIncidentsResponse, buildDisplayId, parseAckResponse } from './incidents';
 import mock from '../mock/incidents.json';
 
 describe('buildDisplayId', () => {
@@ -69,5 +69,26 @@ describe('parseIncidentsResponse', () => {
 
   it('returns empty array on unrecognised shape', () => {
     expect(parseIncidentsResponse({})).toEqual([]);
+  });
+});
+
+describe('parseAckResponse', () => {
+  it('parses successful ACK response', () => {
+    const raw = { result: 'completed', detail: 'This incident has been ACKNOWLEDGED.' };
+    expect(() => parseAckResponse(raw)).not.toThrow();
+  });
+
+  it('parses array-wrapped ACK response', () => {
+    const raw = [{ result: 'completed', detail: 'ACKNOWLEDGED' }];
+    expect(() => parseAckResponse(raw)).not.toThrow();
+  });
+
+  it('throws on failure response', () => {
+    const raw = { result: 'failed', detail: 'Incident not found' };
+    expect(() => parseAckResponse(raw)).toThrow(/Incident not found/);
+  });
+
+  it('throws on unrecognised shape', () => {
+    expect(() => parseAckResponse(null)).toThrow();
   });
 });
