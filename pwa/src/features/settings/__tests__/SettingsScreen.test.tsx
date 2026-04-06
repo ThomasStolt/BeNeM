@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { SettingsScreen } from '../SettingsScreen';
-import { saveApiKey, loadApiKey } from '../settingsStorage';
+import { saveApiKey, loadApiKey, loadPin, savePin } from '../settingsStorage';
 
 function renderScreen() {
   return render(
@@ -20,33 +20,55 @@ describe('SettingsScreen', () => {
 
   it('renders the API key input and Save button', () => {
     renderScreen();
-    expect(screen.getByLabelText(/BHNM API key/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/API Key/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /clear/i })).toBeInTheDocument();
   });
 
-  it('pre-populates the field from localStorage on mount', () => {
+  it('renders the PIN input', () => {
+    renderScreen();
+    expect(screen.getByLabelText(/PIN/i)).toBeInTheDocument();
+  });
+
+  it('renders the Test Connection button', () => {
+    renderScreen();
+    expect(screen.getByRole('button', { name: /test connection/i })).toBeInTheDocument();
+  });
+
+  it('renders the About section with version', () => {
+    renderScreen();
+    expect(screen.getByText(/0\.1\.1/)).toBeInTheDocument();
+  });
+
+  it('pre-populates API key from localStorage on mount', () => {
     saveApiKey('preloaded-key');
     renderScreen();
-    expect(screen.getByLabelText(/BHNM API key/i)).toHaveValue('preloaded-key');
-    expect(screen.getByText(/configured/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/API Key/i)).toHaveValue('preloaded-key');
   });
 
-  it('saves a new key to localStorage and shows confirmation', async () => {
+  it('pre-populates PIN from localStorage on mount', () => {
+    savePin('preloaded-pin');
+    renderScreen();
+    expect(screen.getByLabelText(/PIN/i)).toHaveValue('preloaded-pin');
+  });
+
+  it('saves API key and PIN to localStorage', async () => {
     const user = userEvent.setup();
     renderScreen();
-    await user.type(screen.getByLabelText(/BHNM API key/i), 'new-key');
+    await user.type(screen.getByLabelText(/API Key/i), 'new-key');
+    await user.type(screen.getByLabelText(/PIN/i), 'new-pin');
     await user.click(screen.getByRole('button', { name: /save/i }));
     expect(loadApiKey()).toBe('new-key');
-    expect(screen.getByRole('status')).toHaveTextContent(/saved/i);
+    expect(loadPin()).toBe('new-pin');
   });
 
-  it('clears the stored key', async () => {
+  it('clears both API key and PIN', async () => {
     const user = userEvent.setup();
-    saveApiKey('initial');
+    saveApiKey('key');
+    savePin('pin');
     renderScreen();
     await user.click(screen.getByRole('button', { name: /clear/i }));
     expect(loadApiKey()).toBeNull();
-    expect(screen.getByLabelText(/BHNM API key/i)).toHaveValue('');
+    expect(loadPin()).toBeNull();
   });
 });
