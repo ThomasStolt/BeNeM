@@ -28,6 +28,17 @@ def init_db():
         except Exception:
             pass  # Column already exists — safe to ignore
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS web_push_subscriptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                endpoint TEXT UNIQUE NOT NULL,
+                p256dh TEXT NOT NULL,
+                auth TEXT NOT NULL,
+                webhook_secret TEXT NOT NULL DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
 @contextmanager
 def get_conn():
     conn = sqlite3.connect(DB_PATH)
@@ -63,3 +74,29 @@ def delete_token(token: str):
     """Call this when APNs returns 410 Gone (token no longer valid)."""
     with get_conn() as conn:
         conn.execute("DELETE FROM device_tokens WHERE token = ?", (token,))
+
+
+def save_web_push_subscription(endpoint: str, p256dh: str, auth: str, webhook_secret: str = ""):
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO web_push_subscriptions (endpoint, p256dh, auth, webhook_secret)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(endpoint) DO UPDATE SET p256dh=?, auth=?, webhook_secret=?""",
+            (endpoint, p256dh, auth, webhook_secret, p256dh, auth, webhook_secret),
+        )
+
+
+def get_web_push_subscriptions_for_secret(secret: str) -> list[dict]:
+    """Return all Web Push subscriptions registered for the given webhook secret."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT endpoint, p256dh, auth FROM web_push_subscriptions WHERE webhook_secret = ?",
+            (secret,),
+        ).fetchall()
+    return [{"endpoint": r[0], "p256dh": r[1], "auth": r[2]} for r in rows]
+
+
+def delete_web_push_subscription(endpoint: str):
+    """Remove a Web Push subscription (called when push service returns 410 Gone)."""
+    with get_conn() as conn:
+        conn.execute("DELETE FROM web_push_subscriptions WHERE endpoint = ?", (endpoint,))
