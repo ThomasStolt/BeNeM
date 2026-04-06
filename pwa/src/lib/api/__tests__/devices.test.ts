@@ -2,7 +2,25 @@ import { describe, it, expect } from 'vitest';
 import { parseDevicesResponse, parseDeviceFindResponse } from '../devices';
 
 describe('parseDevicesResponse', () => {
-  it('parses a normal device list response', () => {
+  it('parses real BHNM response with data.devices array', () => {
+    const raw = [{
+      data: {
+        totalRecords: '40',
+        displayRecords: 2,
+        devices: [
+          { name: 'raspi-054', ip: '192.168.2.54', category: '23', site: '19', description: 'Linux raspi' },
+          { name: 'Synology920', ip: '192.168.2.11', category: '27', site: '19', serial_number: null },
+        ],
+      },
+    }];
+    const result = parseDevicesResponse(raw);
+    expect(result.totalRecords).toBe(40);
+    expect(result.devices).toHaveLength(2);
+    expect(result.devices[0].name).toBe('raspi-054');
+    expect(result.devices[1].name).toBe('Synology920');
+  });
+
+  it('parses object-keyed fallback format', () => {
     const raw = [{
       raspi: {
         name: 'raspi-054',
@@ -20,9 +38,9 @@ describe('parseDevicesResponse', () => {
         site: 'Office',
       },
     }];
-    const devices = parseDevicesResponse(raw);
-    expect(devices).toHaveLength(2);
-    expect(devices[0]).toEqual({
+    const result = parseDevicesResponse(raw);
+    expect(result.devices).toHaveLength(2);
+    expect(result.devices[0]).toEqual({
       name: 'raspi-054',
       ip: '192.168.1.54',
       category: 'Linux',
@@ -31,7 +49,7 @@ describe('parseDevicesResponse', () => {
       serialNumber: 'ABC123',
       description: 'Raspberry Pi',
     });
-    expect(devices[1]).toEqual({
+    expect(result.devices[1]).toEqual({
       name: 'core-switch',
       ip: '10.0.0.1',
       category: 'Network',
@@ -43,26 +61,30 @@ describe('parseDevicesResponse', () => {
   });
 
   it('handles array-wrapped response', () => {
-    const raw = [{ dev1: { name: 'host-1', ip: '1.2.3.4' } }];
-    const devices = parseDevicesResponse(raw);
-    expect(devices).toHaveLength(1);
-    expect(devices[0].name).toBe('host-1');
+    const raw = [{ data: { totalRecords: 1, devices: [{ name: 'host-1', ip: '1.2.3.4' }] } }];
+    const result = parseDevicesResponse(raw);
+    expect(result.devices).toHaveLength(1);
+    expect(result.devices[0].name).toBe('host-1');
   });
 
-  it('returns empty array for null/undefined', () => {
-    expect(parseDevicesResponse(null)).toEqual([]);
-    expect(parseDevicesResponse(undefined)).toEqual([]);
+  it('returns empty for null/undefined', () => {
+    expect(parseDevicesResponse(null).devices).toEqual([]);
+    expect(parseDevicesResponse(undefined).devices).toEqual([]);
   });
 
-  it('returns empty array for empty object', () => {
-    expect(parseDevicesResponse([{}])).toEqual([]);
-    expect(parseDevicesResponse({})).toEqual([]);
+  it('returns empty for empty object', () => {
+    expect(parseDevicesResponse([{}]).devices).toEqual([]);
+    expect(parseDevicesResponse({}).devices).toEqual([]);
   });
 
   it('skips entries without a name', () => {
-    const raw = [{ dev: { ip: '1.2.3.4' } }];
-    const devices = parseDevicesResponse(raw);
-    expect(devices).toEqual([]);
+    const raw = [{ data: { devices: [{ ip: '1.2.3.4' }] } }];
+    expect(parseDevicesResponse(raw).devices).toEqual([]);
+  });
+
+  it('parses totalRecords as string', () => {
+    const raw = [{ data: { totalRecords: '100', devices: [{ name: 'a', ip: '1.1.1.1' }] } }];
+    expect(parseDevicesResponse(raw).totalRecords).toBe(100);
   });
 });
 

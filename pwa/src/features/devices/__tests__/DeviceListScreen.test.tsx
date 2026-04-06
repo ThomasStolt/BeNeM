@@ -44,16 +44,16 @@ function renderScreen() {
 describe('DeviceListScreen', () => {
   beforeEach(() => {
     vi.mocked(useDevices).mockReturnValue({
-      data: mockDevices,
+      data: { devices: mockDevices, totalRecords: 2 },
       isLoading: false,
       isError: false,
       dataUpdatedAt: Date.now(),
-    } as ReturnType<typeof useDevices>);
+    } as unknown as ReturnType<typeof useDevices>);
     vi.mocked(useDeviceSearch).mockReturnValue({
       data: undefined,
       isLoading: false,
       isFetching: false,
-    } as ReturnType<typeof useDeviceSearch>);
+    } as unknown as ReturnType<typeof useDeviceSearch>);
   });
 
   it('renders device rows', () => {
@@ -68,14 +68,14 @@ describe('DeviceListScreen', () => {
       isLoading: true,
       isError: false,
       dataUpdatedAt: 0,
-    } as ReturnType<typeof useDevices>);
+    } as unknown as ReturnType<typeof useDevices>);
     renderScreen();
     expect(screen.getByText('Loading...')).toBeInTheDocument();
   });
 
   it('shows empty state when no devices', () => {
     vi.mocked(useDevices).mockReturnValue({
-      data: [],
+      data: { devices: [], totalRecords: 0 },
       isLoading: false,
       isError: false,
       dataUpdatedAt: Date.now(),
@@ -89,7 +89,7 @@ describe('DeviceListScreen', () => {
       data: [mockDevices[0]],
       isLoading: false,
       isFetching: false,
-    } as ReturnType<typeof useDeviceSearch>);
+    } as unknown as ReturnType<typeof useDeviceSearch>);
     renderScreen();
     const input = screen.getByPlaceholderText('Search devices by name...');
     await userEvent.type(input, 'raspi');

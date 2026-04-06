@@ -13,8 +13,12 @@ export function DeviceListScreen() {
   const [searchInput, setSearchInput] = useState('');
   const deferredQuery = useDeferredValue(searchInput);
 
-  const { data: devices, isLoading, isError, error, dataUpdatedAt } = useDevices(page);
+  const { data: result, isLoading, isError, error, dataUpdatedAt } = useDevices(page);
   const { data: searchResults, isFetching: isSearching } = useDeviceSearch(deferredQuery);
+
+  const devices = result?.devices;
+  const totalRecords = result?.totalRecords ?? 0;
+  const totalPages = totalRecords > 0 ? Math.ceil(totalRecords / PAGE_SIZE) : 0;
 
   const isSearchActive = deferredQuery.length > 0;
   const displayDevices = isSearchActive ? searchResults : devices;
@@ -25,7 +29,9 @@ export function DeviceListScreen() {
         <div>
           <h1 className="text-lg font-semibold">Devices</h1>
           {!isSearchActive && devices && devices.length > 0 && (
-            <p className="text-xs text-slate-500">Page {page + 1}</p>
+            <p className="text-xs text-slate-500">
+              Page {page + 1}{totalPages > 0 ? ` of ${totalPages}` : ''}
+            </p>
           )}
         </div>
         <div className="flex items-center gap-3">
@@ -103,10 +109,12 @@ export function DeviceListScreen() {
               >
                 Previous
               </button>
-              <span className="text-xs text-slate-500">Page {page + 1}</span>
+              <span className="text-xs text-slate-500">
+                Page {page + 1}{totalPages > 0 ? ` of ${totalPages}` : ''}
+              </span>
               <button
                 onClick={() => setPage((p) => p + 1)}
-                disabled={devices.length < PAGE_SIZE}
+                disabled={totalPages > 0 ? page + 1 >= totalPages : devices.length < PAGE_SIZE}
                 className="px-3 py-1.5 text-sm rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 Next

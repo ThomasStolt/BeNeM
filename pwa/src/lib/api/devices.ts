@@ -29,20 +29,57 @@ function parseDevice(entry: Record<string, unknown>): Device | null {
   };
 }
 
-export function parseDevicesResponse(raw: unknown): Device[] {
+export interface DeviceListResult {
+  devices: Device[];
+  totalRecords: number;
+}
+
+function parseDeviceArray(arr: unknown[]): Device[] {
+  const devices: Device[] = [];
+  for (const entry of arr) {
+    if (entry && typeof entry === 'object') {
+      const device = parseDevice(entry as Record<string, unknown>);
+      if (device) devices.push(device);
+    }
+  }
+  return devices;
+}
+
+/**
+ * Parse response from `restful/devices/list`.
+ * Real BHNM shape: `{ data: { totalRecords, displayRecords, devices: [...] } }`
+ * possibly array-wrapped as `[{ data: { ... } }]`.
+ */
+export function parseDevicesResponse(raw: unknown): DeviceListResult {
   const root: unknown = Array.isArray(raw) ? raw[0] : raw;
-  if (!root || typeof root !== 'object') return [];
+  if (!root || typeof root !== 'object') return { devices: [], totalRecords: 0 };
 
   const obj = root as Record<string, unknown>;
-  const devices: Device[] = [];
 
+  // Shape 1: { data: { devices: [...], totalRecords } }
+  if (obj.data && typeof obj.data === 'object') {
+    const data = obj.data as Record<string, unknown>;
+    if (Array.isArray(data.devices)) {
+      const total = typeof data.totalRecords === 'string'
+        ? parseInt(data.totalRecords, 10)
+        : typeof data.totalRecords === 'number' ? data.totalRecords : 0;
+      return { devices: parseDeviceArray(data.devices), totalRecords: total || 0 };
+    }
+  }
+
+  // Shape 2: { devices: [...] } (no data wrapper)
+  if (Array.isArray(obj.devices)) {
+    return { devices: parseDeviceArray(obj.devices), totalRecords: 0 };
+  }
+
+  // Shape 3: object-keyed { key: {device}, key: {device} } (fallback)
+  const devices: Device[] = [];
   for (const value of Object.values(obj)) {
     if (!value || typeof value !== 'object') continue;
     const device = parseDevice(value as Record<string, unknown>);
     if (device) devices.push(device);
   }
-
-  return devices;
+  return { devices, totalRecords: 0 };
 }
 
 export function parseDeviceFindResponse(raw: unknown): Device[] {
@@ -70,7 +107,7 @@ export async function fetchDevices(
   config: BhnmConfig,
   start: number,
   count: number,
-): Promise<Device[]> {
+): Promise<DeviceListResult> {
   const params: Record<string, string> = {
     password: config.apiKey,
     recordStart: String(start),
