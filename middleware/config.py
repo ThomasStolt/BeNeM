@@ -13,5 +13,10 @@ APNS_BUNDLE_ID: str = os.environ["APNS_BUNDLE_ID"]
 # (avoids file mounting — works on any cloud/container platform)
 APNS_PRIVATE_KEY: str = base64.b64decode(os.environ["APNS_PRIVATE_KEY_B64"]).decode()
 
+# Web Push (VAPID) — optional; Web Push sending is disabled if not set
+VAPID_PRIVATE_KEY: str = os.environ.get("VAPID_PRIVATE_KEY", "")
+VAPID_PUBLIC_KEY: str = os.environ.get("VAPID_PUBLIC_KEY", "")
+VAPID_CONTACT_EMAIL: str = os.environ.get("VAPID_CONTACT_EMAIL", "")
+
 # Server
 MIDDLEWARE_PORT: int = int(os.environ.get("MIDDLEWARE_PORT", "8889"))

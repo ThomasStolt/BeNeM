@@ -4,3 +4,7 @@ PyJWT
 cryptography
 uvicorn
 python-dotenv
+pywebpush
+pytest
+pytest-asyncio
+httpx
