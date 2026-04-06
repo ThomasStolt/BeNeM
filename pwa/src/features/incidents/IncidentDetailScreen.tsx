@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIncidents } from './useIncidents';
 import { useConfig } from '../../lib/config';
 import { acknowledgeIncident, unacknowledgeIncident } from '../../lib/api/incidents';
 import { SeverityBadge } from './SeverityBadge';
+import { Toast, type ToastMessage } from '../../components/Toast';
 
 function formatTimestamp(d: Date): string {
   return d.toLocaleDateString('en-US', {
@@ -34,19 +35,21 @@ const STATUS_CLASSES: Record<string, string> = {
 
 export function IncidentDetailScreen() {
   const { id } = useParams();
-  const { data: incidents, isLoading } = useIncidents();
+  const { data: incidents, isLoading, isFetching } = useIncidents();
   const config = useConfig();
   const queryClient = useQueryClient();
   const [isAcking, setIsAcking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+  const dismissToast = useCallback(() => setToast(null), []);
 
   const incident = incidents?.find((i) => i.incidentId === id);
 
-  if (isLoading) {
+  // Still loading the incident list (cold start / deep-link)
+  if (isLoading || (isFetching && !incident)) {
     return (
       <div className="p-6">
         <Link to="/" className="text-sm text-slate-400 hover:text-slate-200">← Back</Link>
-        <p className="mt-4 text-slate-400">Loading...</p>
+        <p className="mt-4 text-slate-400">Loading incident...</p>
       </div>
     );
   }
@@ -64,16 +67,18 @@ export function IncidentDetailScreen() {
 
   const handleToggleAck = async () => {
     setIsAcking(true);
-    setError(null);
+    setToast(null);
     try {
       if (isAcked) {
         await unacknowledgeIncident(config, incident.incidentId);
+        setToast({ text: 'Unacknowledged', type: 'success' });
       } else {
         await acknowledgeIncident(config, incident.incidentId);
+        setToast({ text: 'Acknowledged', type: 'success' });
       }
       await queryClient.invalidateQueries({ queryKey: ['incidents'] });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'ACK failed');
+      setToast({ text: err instanceof Error ? err.message : 'ACK failed', type: 'error' });
     } finally {
       setIsAcking(false);
     }
@@ -108,12 +113,6 @@ export function IncidentDetailScreen() {
           {isAcking ? '...' : isAcked ? 'Unacknowledge' : 'Acknowledge'}
         </button>
       </div>
-
-      {error && (
-        <div className="px-4 py-2 text-xs bg-red-500/20 text-red-300 border-b border-red-500/30">
-          {error}
-        </div>
-      )}
 
       <div className="p-4 space-y-3">
         {/* Summary */}
@@ -154,6 +153,8 @@ export function IncidentDetailScreen() {
           </div>
         )}
       </div>
+
+      <Toast message={toast} onDismiss={dismissToast} />
     </div>
   );
 }
