@@ -6,6 +6,36 @@ import App from './App';
 import { migrateFromLegacyConfig, initStorage } from './lib/serverStorage';
 import './index.css';
 
+/** Error boundary that displays the crash reason visibly on screen. */
+class CrashBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  render() {
+    if (this.state.error) {
+      return React.createElement('div', {
+        style: {
+          position: 'fixed', inset: 0, background: '#7f1d1d', color: '#fff',
+          fontFamily: 'monospace', fontSize: '13px', padding: '16px',
+          overflow: 'auto', zIndex: 99999,
+        },
+      },
+        React.createElement('h2', { style: { margin: '0 0 8px' } }, 'App Crash'),
+        React.createElement('p', null, this.state.error.message),
+        React.createElement('pre', { style: { whiteSpace: 'pre-wrap', fontSize: '11px', marginTop: '8px' } },
+          this.state.error.stack),
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // Migrate single-server config to multi-server format (one-time, idempotent)
 migrateFromLegacyConfig();
 
@@ -30,11 +60,13 @@ initStorage()
   .finally(() => {
     ReactDOM.createRoot(document.getElementById('root')!).render(
       <React.StrictMode>
-        <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </QueryClientProvider>
+        <CrashBoundary>
+          <QueryClientProvider client={queryClient}>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </QueryClientProvider>
+        </CrashBoundary>
       </React.StrictMode>,
     );
   });
