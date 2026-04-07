@@ -1,7 +1,4 @@
-# BHNM Non-Published API: `/devices/timeseries-metrics`
-
-> **CONFIDENTIAL — DO NOT COMMIT TO GIT OR PUBLISH**
-> This document describes a non-published BHNM API endpoint. It is .gitignored.
+# BHNM API: `/devices/timeseries-metrics`
 
 ## Endpoint
 
@@ -56,9 +53,9 @@ Each metric entry contains:
 }
 ```
 
-### Key differences from published `get-time-series-metrics`
+### Comparison with `get-time-series-metrics`
 
-| Aspect | Published (`get-time-series-metrics`) | Non-published (`timeseries-metrics`) |
+| Aspect | `get-time-series-metrics` | `timeseries-metrics` |
 |---|---|---|
 | Content-Type | `application/x-www-form-urlencoded` | `multipart/form-data` |
 | Time range | `timeFrameFilterValue` presets only | Also supports `specific_time` with epoch start/end |
@@ -68,10 +65,9 @@ Each metric entry contains:
 
 ## Known Bug (as of 26.1.02)
 
-When an interface has no speed defined (`speedIn: null`, `speedOut: null`, `interfaceSpeedsRaw.In: 0`), the endpoint returns raw byte/bit values instead of percentages when `metricFilterUnits=%`. The published endpoint `get-time-series-metrics` does not have this issue.
+When an interface has no speed defined (`speedIn: null`, `speedOut: null`, `interfaceSpeedsRaw.In: 0`), the endpoint returns raw byte/bit values instead of percentages when `metricFilterUnits=%`. The `get-time-series-metrics` endpoint does not have this issue.
 
 ## Usage Notes for BeNeM
 
-- The published `get-time-series-metrics` endpoint is sufficient for BeNeM's needs (last 24h max, CPU/Memory/Bandwidth/Latency)
-- This non-published endpoint could be useful in the future for `specific_time` range queries or interface speed display
-- **Do not reference this endpoint in any public documentation, README, or CLAUDE.md**
+- `get-time-series-metrics` is sufficient for BeNeM's needs (last 24h max, CPU/Memory/Bandwidth/Latency)
+- This endpoint is useful for `specific_time` range queries or interface speed display

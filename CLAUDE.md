@@ -66,5 +66,4 @@ model/serial fields, and interface details — all require 26.1.01+.
 ## API
 
 All BHNM API endpoints used by BeNeM are documented in
-`shared/BHNM_API_REFERENCE.md` and (for the narrower subset currently
-consumed) `shared/api-spec.md`.
+`shared/BHNM_API_REFERENCE.md`.

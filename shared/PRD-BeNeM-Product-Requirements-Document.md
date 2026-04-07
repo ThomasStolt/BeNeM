@@ -1,7 +1,7 @@
 # BeNeM — Product Requirements Document (PRD)
 
-**Document Version:** 1.1
-**Last Updated:** 2026-03-19
+**Document Version:** 2.0
+**Last Updated:** 2026-04-07
 **Status:** Living document for development guidance
 **Product Name:** BeNeM — BMC Helix Network Management Mobile Client
 
@@ -15,9 +15,10 @@
 |--------|------------|----------------|
 | 1.0    | 2025-03-17 | Initial PRD from codebase analysis |
 | 1.1    | 2026-03-19 | Updated to reflect BHNM rebrand (formerly Netreo); updated current state |
+| 2.0    | 2026-04-07 | Major rewrite: monorepo structure, PWA platform, push notifications, current feature state |
 
 **Purpose of this document**
-This PRD describes the BeNeM product as understood from the current codebase, and is intended to guide prioritization, feature development, and technical decisions. It follows common product-management practice: problem statement, goals, current state, requirements, and roadmap.
+This PRD describes the BeNeM product as understood from the current codebase, and is intended to guide prioritization, feature development, and technical decisions.
 
 **How to use this PRD**
 - **Product / project owners:** Use for scope, prioritization, and alignment with stakeholders.
@@ -29,17 +30,20 @@ This PRD describes the BeNeM product as understood from the current codebase, an
 
 ## 2. Executive summary
 
-**BeNeM** is a native **network management client** that connects to **BMC Helix Network Management** (BHNM, on-premises or SaaS) to give users a mobile-friendly way to:
+**BeNeM** is a multi-platform network management client that connects to **BMC Helix Network Management** (BHNM, on-premises) to give users a mobile-friendly way to:
 
-- **Monitor** network devices and incidents
-- **View** a dashboard of active incidents and device status across Categories, Sites, and Business Workflows
-- **Manage** incidents (acknowledge, unacknowledge) directly from the device
-- **Configure** connection (base URL, API key, PIN, API version, timeouts)
+- **Receive** real-time push notifications when incidents occur (APNs for iOS, Web Push for Android)
+- **Monitor** network devices and incidents from a dashboard with tactical overview
+- **Manage** incidents (acknowledge, unacknowledge) directly from mobile devices
+- **View** device details including performance charts (CPU, Memory, Bandwidth, Latency)
+- **Configure** connections via QR code scanning or manual entry, with multi-server support
 
-The app is built with **Swift/SwiftUI**, uses a **tab-based** layout (Dashboard, Incidents, Devices, Settings), and supports multiple **BHNM API styles** (legacy PHP, v1, v2, OpenAPI). There is a second, **"Simple"** code path that uses different BHNM REST endpoints and includes device interfaces, interface performance, and latency—but this path is **not** the one launched from the main app entry point today.
+The project consists of three components in a monorepo:
+- **iOS app** (Swift/SwiftUI) — lead platform, App Store / TestFlight
+- **PWA** (React/TypeScript) — targets Android users via Web Push, also serves as a web dashboard
+- **Middleware** (Python/FastAPI) — bridges BHNM webhooks to APNs and Web Push, proxies API requests
 
-**Key takeaway for development:**
-The main flow is functional for real incident and device data. Next priorities are completing the Tactical Overview alarm accuracy, exposing device details, and deciding how to integrate or retire the "Simple" path.
+See `shared/DECISION.md` for the full platform strategy rationale.
 
 ---
 
@@ -47,203 +51,179 @@ The main flow is functional for real incident and device data. Next priorities a
 
 ### 3.1 Vision
 
-BeNeM is the go-to **lightweight mobile client** for BHNM users who want to check network health, triage incidents, and acknowledge alerts from a phone or tablet without using the full BHNM web UI.
+BeNeM is the go-to **lightweight mobile client** for BHNM users who want to check network health, triage incidents, and acknowledge alerts from a phone or tablet without using the full BHNM web UI. Its primary differentiator is **reliable push notification delivery** — including when the phone is locked and in Focus Mode (iOS).
 
 ### 3.2 Goals
 
-- **Usability:** Fast, clear access to incidents and devices with minimal configuration (base URL + API key).
-- **Reliability:** Clear connection status and error messages; behavior that degrades gracefully when the BHNM server or API is unavailable.
-- **Flexibility:** Support for different BHNM deployments (legacy PHP APIs, v1/v2/OpenAPI) and optional PIN for SaaS.
-- **Extensibility:** Architecture that allows adding more BHNM capabilities (e.g. device performance, interfaces) without rewriting the app.
+- **Reliability:** Timely push notifications that penetrate Do Not Disturb and Focus Mode (iOS via Time Sensitive entitlement).
+- **Usability:** Fast, clear access to incidents and devices with minimal configuration (QR code scan or manual API key entry).
+- **Cross-platform:** iOS native for reliability, PWA for Android and desktop browser access.
+- **Extensibility:** Architecture that allows adding more BHNM capabilities without rewriting existing code.
 
 ### 3.3 Target users
 
 - **Network operators / NOC staff** who need a quick view of incidents and device status on the go.
 - **IT admins** who manage devices in BHNM and want to respond to alerts from a phone or tablet.
-- **Organizations** already using BHNM who want a dedicated native client instead of the web UI only.
+- **Organizations** already using BHNM who want push-based incident alerting beyond the web UI.
 
-### 3.4 Out of scope (for this PRD)
+### 3.4 Out of scope
 
 - Replacing the BHNM web UI for full configuration.
 - Supporting other network management systems (BHNM only).
-- Backend or server-side components (BeNeM is a client only).
+- iOS PWA push notifications (unreliable — iOS users are directed to the native app).
 
 ---
 
-## 4. Current state analysis
+## 4. Current state (April 2026)
 
-### 4.1 Entry point and navigation
+### 4.1 Platform status
 
-- **App entry:** `BeNeMApp.swift` → `ContentView()`.
-- **Tabs:**
-  - **Home:** If base URL and API key are set and `NetreoAPIService` is created: **Dashboard**, **Incidents**, **Devices**.
-  - If not configured: **Welcome** (with Quick Setup) and **Settings**.
-  - **Settings** is always shown as a tab.
+| Platform | Status | Distribution |
+|---|---|---|
+| iOS (Swift/SwiftUI) | Production | App Store / TestFlight |
+| PWA (React/TypeScript) | Production | `https://benem.hurrikap.org` |
+| Middleware (Python/FastAPI) | Production | `https://bhnm-apns.hurrikap.org` (Docker + Caddy) |
 
-`SimpleContentView` and `SimpleNetreoService` are **not** used by the main entry point; they form an alternative flow (e.g. for a different build or future merge).
+### 4.2 iOS app architecture
 
-### 4.2 Connection and configuration
+- **Entry point:** `BeNeMApp.swift` → `ContentView()` with tab-based navigation (Dashboard, Incidents, Devices, Settings)
+- **Service layer:** `NetreoAPIService` — single service for all BHNM API calls, uses legacy form-encoded API
+- **Models:** `NetreoDevice`, `NetreoIncident`, `IncidentDetail`, `GroupSummary`, `PerformanceInstance`
+- **ViewModels:** `IncidentListViewModel`, `DeviceListViewModel`, `DeviceDetailViewModel`, `TacticalViewModel`
+- **Push:** APNs via `AppDelegate`, notification tap deep-links to incident detail
+- **QR onboarding:** `DeepLinkHandler` decrypts AES-256-GCM `benem://configure` payloads
 
-| Setting           | Storage        | Used by |
-|-------------------|----------------|--------|
-| Base URL          | `netreo_base_url` (AppStorage) | ContentView, QuickConfigView, SettingsView |
-| API Key           | `netreo_api_key` (AppStorage) | Same |
-| PIN (SaaS)        | `netreo_pin` (AppStorage)     | Same |
-| API Version       | `netreo_api_version` (legacy/v1/v2/openapi) | `NetreoAPIConfiguration` |
-| Timeout           | `netreo_timeout` (e.g. 10–120 s) | `NetreoAPIService` |
-| Retry Count       | `netreo_retry_count` (e.g. 1–10) | `NetreoAPIService` |
+### 4.3 PWA architecture
 
-> AppStorage keys retain the `netreo_` prefix to preserve existing user settings across updates.
+- **Framework:** React 19 + TypeScript + Vite
+- **State:** React Query for server state, localStorage for configuration
+- **API client:** Form-encoded POST via fetch, proxied through middleware
+- **Push:** VAPID Web Push via service worker (`sw.ts`)
+- **QR onboarding:** Web Crypto API for AES-256-GCM decryption, html5-qrcode for camera
 
-### 4.3 Main flow features (ContentView → NetreoAPIService)
+### 4.4 Middleware architecture
 
-| Feature | Implementation | Notes |
-|--------|----------------|-------|
-| **Dashboard** | `DashboardView` | Status cards (active incidents, total devices); Tactical Overview (Category / Site / Business Workflow). Auto-refreshes every 120 s. |
-| **Incidents** | `IncidentListView` + `IncidentListViewModel` | Live list with severity badges and alarm counts; swipe to ACK/UnACK; filters; auto-refresh. |
-| **Tactical Overview** | `GroupListView` + `TacticalViewModel` | Per-group device count + 5-color alarm badges; filter to show only groups with active alarms. Alarm status derived from incident detail API. |
-| **Incident Detail** | `IncidentDetailView` | Primary alarms, related alarms, incident state log. |
-| **Settings** | `SettingsView` | All connection/API options; Test Connection with detailed diagnostics alert; Auto Discovery; Debug panels. |
+- **Framework:** Python / FastAPI / uvicorn
+- **Push delivery:** APNs (HTTP/2 via httpx, JWT `.p8` auth) + Web Push (VAPID via pywebpush)
+- **Database:** SQLite for device tokens and Web Push subscriptions
+- **Proxy:** Catch-all reverse proxy to BHNM servers, with per-request target resolution via `X-BHNM-Target` header or `servers.json` lookup
+- **TLS:** Caddy reverse proxy handles Let's Encrypt certificates
 
-### 4.4 "Simple" flow (SimpleNetreoService — not main entry)
+### 4.5 Connection and configuration
 
-- Uses BHNM REST-style endpoints (e.g. `/fw/index.php?r=restful/...`).
-- **SimpleContentView:** Connect with server IP + API key → device list.
-- **SimpleNetreoService** implements device list, device services, interfaces, interface performance, device latency.
-- **InterfacePerformanceView** and **DeviceLatencyView** are built for `SimpleNetreoService`.
-- **DeviceInterfacesView** is currently a placeholder (no real data binding).
+| Setting | iOS Storage | PWA Storage |
+|---|---|---|
+| BHNM server URL | `SavedConnection.bhnmURL` (UserDefaults JSON) | `server.bhnmUrl` (localStorage JSON) |
+| Middleware URL | `SavedConnection.middlewareURL` | `server.middlewareUrl` |
+| API Key | `SavedConnection.apiKey` | `server.apiKey` |
+| PIN (optional) | `SavedConnection.pin` | `server.pin` |
+| Webhook secret | `SavedConnection.webhookSecret` | `server.pushWebhookSecret` |
+| ACK username | `SavedConnection.ackUser` | `server.ackUser` |
 
-### 4.5 Architecture (main flow)
-
-- **UI:** SwiftUI views; tab-based.
-- **State:** `@AppStorage` for config; `@StateObject` / `@ObservedObject` for ViewModels.
-- **ViewModels:** `IncidentListViewModel`, `DeviceListViewModel`, `TacticalViewModel`.
-- **Service layer:** `NetreoAPIService` (single place for all BHNM API calls; uses `NetreoAPIConfiguration` and `NetreoEndpoint`).
-- **Models:** `NetreoDevice`, `NetreoIncident`, `IncidentDetail`, `GroupSummary`, etc.
-
-### 4.6 API abstraction
-
-- **`NetreoAPIConfiguration`:** Base URL normalization, API version → path prefix.
-- **`NetreoEndpoint`:** Enum for device list/add/delete/rename, incidents, acknowledgment, categories, sites; each endpoint knows path and HTTP method per version.
-- **`NetreoAPIService`:** Implements legacy (form-encoded) vs modern (JSON, Bearer) paths.
-
-### 4.7 Data models (summary)
-
-- **`NetreoDevice`:** ip, name, hostname, status, deviceType, lastUpdated, siteID, categoryID, snmpCommunity, isActive.
-- **`NetreoIncident`:** incidentID, deviceIP/deviceName, summary, description, severity (critical→informational), status (active/acknowledged/resolved/closed), startTime.
-- **`GroupSummary`:** id, name, hostsGreen/Blue/Yellow/Orange/Red — aggregated from incident alarm counts.
+Both platforms support multiple saved servers with per-server push notification configuration.
 
 ---
 
-## 5. Functional requirements
+## 5. Implemented features
 
-### 5.1 Current (as-implemented) requirements
+See `shared/feature-spec.md` for the canonical per-feature specification with platform-specific details.
 
-| ID | Requirement | Priority |
-|----|-------------|----------|
-| F1 | User can set BHNM base URL, API key, and optional PIN and persist them. | P0 |
-| F2 | User can select API version (legacy, v1, v2, openapi) and adjust timeout/retry. | P1 |
-| F3 | When configured, user sees Dashboard, Incidents, and Devices tabs. | P0 |
-| F4 | Dashboard shows counts of active incidents and total devices; links to Tactical Overview. | P0 |
-| F5 | Incidents list shows severity and status; user can filter, ACK/UnACK (swipe), and see alarm detail. | P0 |
-| F6 | Tactical Overview shows per-group device count and 5-color alarm status; filter to alarms-only. | P0 |
-| F7 | Settings screen exposes all connection and API options with Test Connection diagnostics. | P0 |
-| F8 | Auto Discovery scans local Wi-Fi /24 for BHNM servers. | P1 |
+| Feature | iOS | PWA | API |
+|---|---|---|---|
+| Incident list | Shipped | Shipped | `POST /api/incident_api.php` |
+| Incident detail | Shipped | Shipped | `POST /api/incident_api.php` (getincidentdetail) |
+| ACK / UnACK | Shipped | Shipped | `POST /fw/index.php?r=restful/incident/acknowledge` |
+| Dashboard (H/S/T/A) | Shipped | Shipped | `POST /fw/index.php?r=restful/tactical-overview/data` |
+| Device list (paginated) | Shipped | Shipped | `POST /fw/index.php?r=restful/devices/list` |
+| Device search | Shipped | Shipped | `POST /fw/index.php?r=restful/devices/find` |
+| Device detail | Shipped | Shipped | `POST /fw/index.php?r=restful/devices/find` |
+| Performance charts | Shipped | Shipped | `POST /fw/index.php?r=restful/devices/timeseries-metrics` |
+| Tactical drill-down | Shipped | Shipped | `POST /fw/index.php?r=restful/tactical-overview/data` |
+| Push notifications | Shipped (APNs) | Shipped (Web Push) | Middleware `/webhook` |
+| Multi-server management | Shipped | Shipped | N/A (client-side) |
+| QR server onboarding | Shipped | Shipped | AES-256-GCM encrypted `benem://configure` URLs |
+| Auto-refresh (120s) | Shipped | Shipped | N/A (client-side timer) |
 
-### 5.2 Intended (to be implemented) requirements
+---
+
+## 6. Functional requirements
+
+### 6.1 Implemented requirements
+
+| ID | Requirement | Priority | Status |
+|----|-------------|----------|--------|
+| F1 | User can configure BHNM connection (URL, API key, PIN) and persist. | P0 | Done |
+| F2 | Dashboard shows active incident count, device count, and H/S/T/A alarm overview. | P0 | Done |
+| F3 | Incident list with severity badges, alarm counts, swipe ACK/UnACK, and auto-refresh. | P0 | Done |
+| F4 | Tactical overview with per-group alarm badges and filter-to-alarms toggle. | P0 | Done |
+| F5 | Push notifications for new incidents with deep-link to incident detail. | P0 | Done |
+| F6 | Paginated device list with server-side search. | P0 | Done |
+| F7 | Device detail with info card, related incidents, and performance charts. | P1 | Done |
+| F8 | Multi-server management with per-server push configuration. | P1 | Done |
+| F9 | QR code scanning for automated server onboarding. | P1 | Done |
+
+### 6.2 Planned requirements
 
 | ID | Requirement | Priority | Notes |
 |----|-------------|----------|-------|
-| F9 | Device list shows real devices from BHNM API (no mock data in production path). | P0 | Current implementation returns mock devices in legacy and modern paths. |
-| F10 | H/S/T alarm rows in Tactical Overview correctly separate host, service, and threshold alarms. | P1 | Currently all alarms go to H row; API does not clearly distinguish types. |
-| F11 | User can rename a device from the device list or detail (API/ViewModel already support it). | P2 | Add UI (e.g. context menu or edit screen). |
-| F12 | Optional: Device detail view with performance metrics when API provides them. | P2 | Requires implementing `fetchDevicePerformance`. |
-| F13 | Optional: Device interfaces and interface performance (align Simple flow with main flow). | P2 | Requires design decision: extend `NetreoAPIService` or migrate `SimpleNetreoService`. |
-
-### 5.3 Edge cases and error behavior
-
-- **Empty/missing config:** Show Welcome + Quick Config; no Dashboard/Incidents until base URL and API key are set.
-- **Connection failure:** All list/dashboard loads should surface a user-visible error.
-- **API version mismatch:** Show clear error if server responds with unexpected format.
-- **Partial data:** Incidents and devices should tolerate missing optional fields without crashing.
+| F10 | Proxy auth hardening — separate `proxy_token` from `webhookSecret`. | P1 | Plan at `docs/superpowers/plans/2026-04-07-proxy-auth-hardening.md` |
+| F11 | API response caching in middleware for large environments (4K-13K devices). | P2 | Deferred — see project memory |
+| F12 | Per-device alarm status badges (H/S/T/A) in device list. | P2 | No per-device endpoint identified yet |
 
 ---
 
-## 6. Non-functional requirements
+## 7. Non-functional requirements
 
 | ID | Category | Requirement |
 |----|----------|-------------|
-| NFR1 | Performance | Dashboard and lists should load within a few seconds; auto-refresh every 120 s. |
-| NFR2 | Security | API key and PIN must not be logged or exposed; use SecureField for secrets. |
-| NFR3 | Compatibility | Support BHNM API versions currently abstracted (legacy, v1, v2, openapi). |
-| NFR4 | Maintainability | Prefer a single service layer (`NetreoAPIService`) and shared models for all BHNM data. |
-| NFR5 | Accessibility | Use semantic labels; support Dynamic Type and VoiceOver where applicable. |
-| NFR6 | Offline / poor connectivity | Show last known data and a clear "connection failed" state; avoid silent failures. |
+| NFR1 | Performance | Dashboard and lists load within a few seconds; auto-refresh every 120 s. |
+| NFR2 | Security | API keys and secrets not logged in production builds; AES-256-GCM for QR payloads. |
+| NFR3 | Compatibility | Minimum BHNM version: 26.1.02 (UID-based identity, pagination, model/serial fields). |
+| NFR4 | Maintainability | Single service layer per platform; shared feature spec drives parity. |
+| NFR5 | Push reliability | iOS: APNs with Time Sensitive entitlement. Android: VAPID Web Push. iOS PWA users directed to native app. |
 
 ---
 
-## 7. Gaps and technical debt
+## 8. Technical debt and known gaps
 
-### 7.1 Critical (should fix soon)
+### 8.1 Active issues
 
-1. **Device list returns mock data**
-   In `NetreoAPIService`, both `performLegacyDeviceRequest` and `performModernDeviceRequest` return `createMockDevices()`. Real device parsing must be implemented; mock used only for tests.
+1. **Proxy auth disabled** — `X-Proxy-Token` validation removed from middleware after a broken deployment. Hardening plan exists but not yet implemented.
 
-2. **Debug logging in production path**
-   Remove or guard `print(...)` in views and API parsing so they do not run in release builds.
+2. **`proxy_token` not parsed from QR** — iOS `DeepLinkHandler` ignores the `proxy_token` field in QR payloads; reuses `webhookSecret` instead. Part of the hardening plan.
 
-### 7.2 Important (improve when touching related code)
+3. **PWA doesn't send `X-Proxy-Token`** — `postForm()` never includes the proxy auth header. Part of the hardening plan.
 
-3. **Duplicate "Simple" vs main flow**
-   Two parallel implementations exist. Decide: merge into one service and navigation, or clearly separate as a build flavor and document it.
+4. **Push payload lacks `severity`** — The middleware doesn't pass incident severity in the push payload. The `severity` field in the Web Push payload is always empty string.
 
-4. **H/S/T alarm row distinction**
-   All alarms currently go to the H row. The BHNM API does not clearly label incident type (host/service/threshold); a heuristic or additional API call may be needed.
+### 8.2 Resolved (since PRD v1.1)
 
-5. **`fetchDevicePerformance` is a stub**
-   Returns `[]`; either implement against BHNM API or remove from public API until ready.
-
-### 7.3 Nice to have
-
-6. **Rename device UI** — ViewModel and API support rename; add a row action or edit screen.
-7. **Unified error handling** — Centralize API errors and user-facing messages.
-8. **Multiple saved servers** — List of BHNM server configurations the user can switch between.
+- ~~Device list returns mock data~~ — Real device parsing implemented (paginated, UID-based)
+- ~~Debug logging in production~~ — Print statements wrapped in `#if DEBUG` (April 2026)
+- ~~"Simple" flow duplication~~ — `SimpleContentView`, `SimpleNetreoService`, and all Simple* views removed
+- ~~H/S/T alarm row distinction~~ — Now uses `restful/tactical-overview/data` endpoint directly (pre-aggregated)
+- ~~`fetchDevicePerformance` stub~~ — Full performance chart implementation with category discovery and timeseries batch fetch
+- ~~Multiple saved servers~~ — Implemented on both platforms
+- ~~Auto Discovery (SNMP scan)~~ — Removed; QR code onboarding replaces it
 
 ---
 
-## 8. Roadmap and prioritization
+## 9. Roadmap
 
-### Phase 1 — Stabilize core (P0)
+### Current focus: Proxy auth hardening (P1)
 
-- Implement real device list parsing (replace mock in production path).
-- Remove or gate debug prints in release builds.
+Implement proper `X-Proxy-Token` authentication across all three components. See `docs/superpowers/plans/2026-04-07-proxy-auth-hardening.md`.
 
-### Phase 2 — Quality and UX (P1)
+### Next: Performance and scale (P2)
 
-- Improve H/S/T alarm row accuracy.
-- Improve error messages and offline/error state across all screens.
-- Optional: Add unit tests for ViewModels and API parsing.
+- API response caching in middleware for large BHNM environments
+- Investigate per-device alarm status endpoint
 
-### Phase 3 — Feature parity and cleanup (P2)
+### Backlog
 
-- Add device rename UI.
-- Decide strategy for "Simple" flow: integrate or deprecate.
-- Implement or explicitly defer `fetchDevicePerformance` and device/interface detail screens.
-
-### Phase 4 — Enhancements (backlog)
-
-- Device detail with performance charts.
-- Interface list and interface performance in main flow.
-- Accessibility pass (labels, Dynamic Type, VoiceOver).
-- Support multiple saved BHNM servers.
-
----
-
-## 9. Success criteria
-
-- **Phase 1:** Real devices shown in device list; no mock data in production; no unnecessary console noise in release.
-- **Phase 2:** Errors are visible and understandable on all screens; H/S/T alarm rows closer to actual BHNM behavior.
-- **Phase 3:** Device rename is available; strategy for Simple vs main flow is decided and documented.
+- Accessibility pass (labels, Dynamic Type, VoiceOver)
+- Push notification severity in payload
+- Topology view (device connectivity via interface IPs)
 
 ---
 
@@ -253,29 +233,31 @@ BeNeM is the go-to **lightweight mobile client** for BHNM users who want to chec
 
 | Term | Definition |
 |------|------------|
-| BHNM | BMC Helix Network Management — network monitoring and management platform (on-prem or SaaS). Formerly known as **Netreo**. |
-| BeNeM | This client app: "Be Netreo Mobile" (name predates the rebrand; now the BHNM mobile client). |
-| Legacy API | BHNM PHP-style APIs (e.g. form-encoded POST to `/api/incident_api.php`). |
-| Modern API | BHNM v1/v2/OpenAPI REST-style APIs (JSON, Bearer auth). |
-| Main flow | `ContentView` → `NetreoAPIService` → Dashboard, Incidents, Devices. |
-| Simple flow | `SimpleContentView` → `SimpleNetreoService` → device list, interfaces, performance, latency (not used by default entry point). |
+| BHNM | BMC Helix Network Management — network monitoring platform (on-prem). Formerly known as **Netreo**. |
+| BeNeM | This project: "Be Netreo Mobile" (name predates the rebrand; now the BHNM mobile client). |
+| Legacy API | BHNM PHP-style APIs (form-encoded POST to `/fw/index.php?r=restful/...` or `/api/*_api.php`). |
+| APNs | Apple Push Notification Service — delivers push notifications to iOS devices. |
+| VAPID | Voluntary Application Server Identification — Web Push authentication standard. |
+| Middleware | The `bhnm-apns` FastAPI service that bridges BHNM webhooks to push notifications and proxies API requests. |
 
-### Appendix B — File and component reference
+### Appendix B — Key files
 
-| Area | Key files |
-|------|------------|
-| App entry | `BeNeMApp.swift`, `ContentView.swift` |
-| Config / API | `NetreoAPIConfiguration.swift`, `NetreoAPIService.swift` |
-| Models | `NetreoDevice.swift`, `NetreoIncident.swift`, `IncidentDetail.swift`, `GroupSummary.swift` |
-| ViewModels | `IncidentListViewModel.swift`, `DeviceListViewModel.swift`, `TacticalViewModel.swift` |
-| Main views | `DashboardView.swift`, `GroupListView.swift`, `IncidentListView.swift`, `IncidentDetailView.swift`, `SettingsView.swift`, `AutoRefreshButton.swift`, `AutoDiscoveryView.swift` |
-| Simple flow | `SimpleContentView.swift`, `SimpleNetreoService.swift`, `SimpleDeviceListView.swift`, `SimpleQuickConfigView.swift`, `DeviceInterfacesView.swift`, `InterfacePerformanceView.swift`, `DeviceLatencyView.swift` |
+| Area | iOS | PWA | Middleware |
+|------|-----|-----|-----------|
+| Entry point | `BeNeMApp.swift` | `main.tsx` | `main.py` |
+| API service | `NetreoAPIService.swift` | `src/lib/api/client.ts` | N/A (proxy) |
+| Configuration | `NetreoAPIConfiguration.swift` | `src/lib/config.ts` | `config.py` |
+| Push handling | `AppDelegate.swift` | `src/sw.ts` | `apns.py`, `webpush.py` |
+| Deep links / QR | `DeepLinkHandler.swift` | `src/lib/qr/decrypt.ts` | `benem-admin/main.py` |
+| Models | `NetreoIncident.swift`, `NetreoDevice.swift` | `src/lib/api/types.ts` | N/A |
 
 ### Appendix C — References
 
-- BHNM product and API documentation (to be linked when available).
-- SwiftUI and Swift concurrency (async/await) for implementation patterns.
-- This PRD should be updated when major features are added, when the Simple vs main strategy is decided, or when target BHNM API versions change.
+- Platform strategy decision: `shared/DECISION.md`
+- Feature specification: `shared/feature-spec.md`
+- Push payload contract: `shared/push-payload-spec.md`
+- BHNM API reference: `shared/BHNM_API_REFERENCE.md`
+- Credentials overview: `shared/credentials-and-keys-overview.md`
 
 ---
 

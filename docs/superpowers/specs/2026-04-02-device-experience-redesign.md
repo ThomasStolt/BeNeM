@@ -232,7 +232,7 @@ All endpoints include `UID`, `GUID` in device responses (BHNM 25.4.01+).
 
 - **Phase 3: Caching middleware** — API proxy for large environments (saved to project memory)
 - **Topology view** — mapping device connectivity via interface IPs
-- **Non-published `timeseries-metrics` endpoint** — has speed data but percentage bug; published endpoint sufficient
+- **`timeseries-metrics` endpoint for speed data** — has interface speed fields but percentage bug when speed is null; `get-time-series-metrics` sufficient for current needs
 - **Uptime percentages** — shown in BHNM UI, need to verify API availability
 - **Top Process info** — shown in BHNM CPU/Memory cards, likely not available via API
 - **Dashboard Zoom tag filtering** — until BMC exposes tags via API
