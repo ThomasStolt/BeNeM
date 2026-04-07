@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { useConfig } from '../../lib/config';
 import { fetchDevices } from '../../lib/api/devices';
+import { REFETCH_INTERVAL_MS } from '../../lib/constants';
 
 export const PAGE_SIZE = 50;
-const REFETCH_INTERVAL_MS = 120_000;
 
 export function useDevices(page: number) {
   const config = useConfig();

@@ -66,15 +66,52 @@ struct SavedConnection: Codable, Identifiable {
     }
 }
 
+// MARK: - Keychain-backed sensitive fields
+
+extension SavedConnection {
+    /// Move sensitive fields to Keychain, keyed by connection UUID.
+    func saveToKeychain() {
+        let prefix = id.uuidString
+        KeychainHelper.save(key: "\(prefix).apiKey", value: apiKey)
+        KeychainHelper.save(key: "\(prefix).pin", value: pin)
+        KeychainHelper.save(key: "\(prefix).webhookSecret", value: webhookSecret)
+    }
+
+    /// Load sensitive fields from Keychain, falling back to the struct's own values
+    /// (which covers migration from pre-Keychain versions).
+    mutating func loadFromKeychain() {
+        let prefix = id.uuidString
+        if let k = KeychainHelper.load(key: "\(prefix).apiKey") { apiKey = k }
+        if let p = KeychainHelper.load(key: "\(prefix).pin") { pin = p }
+        if let w = KeychainHelper.load(key: "\(prefix).webhookSecret") { webhookSecret = w }
+    }
+
+    /// Remove Keychain entries for this connection.
+    func deleteFromKeychain() {
+        let prefix = id.uuidString
+        KeychainHelper.delete(key: "\(prefix).apiKey")
+        KeychainHelper.delete(key: "\(prefix).pin")
+        KeychainHelper.delete(key: "\(prefix).webhookSecret")
+    }
+}
+
 extension UserDefaults {
     private static let savedConnectionsKey = "saved_connections"
 
     func loadSavedConnections() -> [SavedConnection] {
         guard let data = data(forKey: Self.savedConnectionsKey) else { return [] }
-        return (try? JSONDecoder().decode([SavedConnection].self, from: data)) ?? []
+        var connections = (try? JSONDecoder().decode([SavedConnection].self, from: data)) ?? []
+        for i in connections.indices {
+            connections[i].loadFromKeychain()
+        }
+        return connections
     }
 
     func saveSavedConnections(_ connections: [SavedConnection]) {
+        // Store sensitive fields in Keychain
+        for connection in connections {
+            connection.saveToKeychain()
+        }
         guard let data = try? JSONEncoder().encode(connections) else { return }
         set(data, forKey: Self.savedConnectionsKey)
     }

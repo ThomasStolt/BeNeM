@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { getSnapshotForTest } from './config';
-import { addServer, setActiveServer } from './serverStorage';
+import { addServer, setActiveServer, _resetCache } from './serverStorage';
 
 beforeEach(() => {
   localStorage.clear();
+  _resetCache();
 });
 
 describe('config snapshot', () => {

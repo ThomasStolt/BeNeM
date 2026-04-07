@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SettingsScreen } from '../SettingsScreen';
-import { addServer, loadServers } from '../../../lib/serverStorage';
+import { addServer, loadServers, _resetCache } from '../../../lib/serverStorage';
 
 vi.mock('../../scanner/QRScannerOverlay', () => ({
   QRScannerOverlay: () => null,
@@ -30,6 +30,7 @@ function renderScreen() {
 describe('SettingsScreen', () => {
   beforeEach(() => {
     window.localStorage.clear();
+    _resetCache();
   });
 
   it('renders the server list section', () => {

@@ -5,8 +5,7 @@ import {
   sumTacticalGroups,
   type TacticalSummary,
 } from '../../lib/api/tactical-overview';
-
-const REFETCH_INTERVAL_MS = 120_000;
+import { REFETCH_INTERVAL_MS } from '../../lib/constants';
 
 export function useTacticalSummary() {
   const config = useConfig();

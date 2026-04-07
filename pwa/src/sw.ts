@@ -11,7 +11,7 @@ precacheAndRoute(self.__WB_MANIFEST);
 self.addEventListener('push', (event) => {
   if (!event.data) return;
 
-  let data: { title?: string; body?: string; incident_id?: string; severity?: string };
+  let data: { title?: string; body?: string; incident_id?: string };
   try {
     data = event.data.json();
   } catch {

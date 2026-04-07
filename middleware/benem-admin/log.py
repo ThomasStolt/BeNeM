@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 from datetime import datetime, timezone
@@ -9,13 +10,15 @@ LOG_PATH = os.environ.get("LOG_PATH", "/app/log/admin.jsonl")
 def append_entry(user: str, server_id: str, server_name: str, link: str) -> None:
     path = os.environ.get("LOG_PATH", LOG_PATH)
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    # Store a truncated prefix and hash — never persist the full encrypted link
+    link_hash = hashlib.sha256(link.encode()).hexdigest()[:16]
     entry = {
         "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "user": user,
         "server_id": server_id,
         "server_name": server_name,
         "link_prefix": link[:40],
-        "link": link,
+        "link_hash": link_hash,
     }
     with open(path, "a") as f:
         f.write(json.dumps(entry) + "\n")

@@ -5,17 +5,15 @@ from fastapi import Request
 from fastapi.responses import RedirectResponse
 
 SESSION_COOKIE = "benem_admin_session"
-SESSION_MAX_AGE = 86400  # 24 hours
+SESSION_MAX_AGE = 28800  # 8 hours
 
 
 def _serializer() -> URLSafeTimedSerializer:
-    # SESSION_SECRET is preferred. BENEM_SECRET_KEY is accepted as a fallback for
-    # deployments that haven't yet added a dedicated SESSION_SECRET to .env.
-    secret = os.environ.get("SESSION_SECRET") or os.environ.get("BENEM_SECRET_KEY")
+    secret = os.environ.get("SESSION_SECRET", "")
     if not secret:
         raise RuntimeError(
-            "Neither SESSION_SECRET nor BENEM_SECRET_KEY is set. "
-            "Set SESSION_SECRET in .env to enable session signing."
+            "SESSION_SECRET is not set. "
+            "Add SESSION_SECRET to .env to enable session signing."
         )
     return URLSafeTimedSerializer(secret, salt="benem-admin-session")
 

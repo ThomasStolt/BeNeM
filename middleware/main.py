@@ -1,15 +1,16 @@
-VERSION = "2.3.0"
+VERSION = "2.4.0"
 
 from contextlib import asynccontextmanager
+import ipaddress
 import json
-import os
-from urllib.parse import parse_qs
+import socket
+from urllib.parse import parse_qs, urlparse
 import httpx
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, field_validator
 
-from config import MIDDLEWARE_PORT, VAPID_PUBLIC_KEY
+from config import MIDDLEWARE_PORT, VAPID_PUBLIC_KEY, BHNM_TLS_VERIFY, SERVERS_JSON_PATH, PROXY_TIMEOUT, PROXY_TOKEN
 from database import init_db, save_token, get_tokens_for_secret, get_all_tokens, delete_token, \
     save_web_push_subscription, get_web_push_subscriptions_for_secret, delete_web_push_subscription
 from apns import send_to_all
@@ -26,10 +27,6 @@ HOP_BY_HOP_RESPONSE = {
     # Content-Length from the actual (decompressed) body length.
     "content-encoding", "content-length",
 }
-
-BHNM_TLS_VERIFY = os.getenv("BHNM_TLS_VERIFY", "true").lower() != "false"
-SERVERS_JSON_PATH = os.getenv("SERVERS_JSON_PATH", "/data/servers.json")
-PROXY_TIMEOUT = 60.0  # seconds — BHNM can be slow for large queries
 
 
 def _target_for_api_key(api_key: str) -> str:
@@ -62,6 +59,71 @@ def _single_server_url() -> str:
     except Exception as e:
         print(f"[Config] Error reading servers.json: {e}")
     return ""
+
+
+def _verify_proxy_token(request: Request) -> None:
+    """Validate X-Proxy-Token against PROXY_TOKEN env var or any api_key in servers.json.
+
+    Raises HTTPException(401) if the token is missing or invalid.
+    """
+    token = request.headers.get("X-Proxy-Token", "").strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="X-Proxy-Token header is required")
+    # Accept if it matches the global PROXY_TOKEN
+    if PROXY_TOKEN and token == PROXY_TOKEN:
+        return
+    # Accept if it matches any api_key in servers.json
+    try:
+        with open(SERVERS_JSON_PATH) as f:
+            for s in json.load(f):
+                if s.get("api_key") == token:
+                    return
+    except (FileNotFoundError, json.JSONDecodeError, Exception):
+        pass
+    raise HTTPException(status_code=401, detail="Invalid proxy token")
+
+
+def _validate_proxy_target(target_url: str) -> None:
+    """Block SSRF: only allow targets whose hostname is in servers.json or is non-private.
+
+    Raises HTTPException(403) if the target resolves to a private/reserved IP range.
+    """
+    parsed = urlparse(target_url)
+    hostname = parsed.hostname or ""
+
+    # Collect allowed hostnames from servers.json
+    allowed_hosts: set[str] = set()
+    try:
+        with open(SERVERS_JSON_PATH) as f:
+            for s in json.load(f):
+                url = s.get("url", "")
+                if url:
+                    h = urlparse(url).hostname
+                    if h:
+                        allowed_hosts.add(h.lower())
+    except (FileNotFoundError, json.JSONDecodeError, Exception):
+        pass
+
+    if hostname.lower() in allowed_hosts:
+        return  # Explicitly configured — always allowed
+
+    # Resolve hostname to IP(s) and block private/reserved ranges (RFC 1918,
+    # loopback, link-local, metadata).  Resolving prevents DNS rebinding attacks
+    # where a hostname initially points to a public IP but later resolves to an
+    # internal address.
+    try:
+        infos = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
+    except socket.gaierror:
+        raise HTTPException(status_code=403, detail="Proxy target hostname could not be resolved")
+    for info in infos:
+        ip_str = info[4][0]
+        try:
+            addr = ipaddress.ip_address(ip_str)
+        except ValueError:
+            continue
+        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+            raise HTTPException(status_code=403, detail="Proxy target address is not allowed")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -224,6 +286,7 @@ def health():
 
 async def _proxy_to_bhnm(request: Request, bhnm_path: str) -> Response:
     """Forward a form-encoded POST to the given BHNM path and return the response."""
+    _verify_proxy_token(request)
     body = await request.body()
 
     # Resolve target BHNM server (same logic as the catch-all proxy)
@@ -238,9 +301,10 @@ async def _proxy_to_bhnm(request: Request, bhnm_path: str) -> Response:
     if not target_base:
         target_base = _single_server_url()
     if not target_base:
-        raise HTTPException(status_code=400, detail="Cannot determine BHNM target server")
+        raise HTTPException(status_code=502, detail="Bad Gateway: BHNM target server not configured")
     if not (target_base.startswith("http://") or target_base.startswith("https://")):
         raise HTTPException(status_code=400, detail="X-BHNM-Target must be an http/https URL")
+    _validate_proxy_target(target_base)
 
     target = f"{target_base}/{bhnm_path.lstrip('/')}"
 
@@ -292,10 +356,10 @@ async def proxy_ha_status(request: Request):
 
 # ── BHNM API Proxy (for BeNeM) ────────────────────────────────────────────────────
 # Target BHNM server is supplied per-request via X-BHNM-Target header.
-# TODO: proxy auth disabled — see plan docs/superpowers/plans/proxy-auth-hardening.md
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 async def proxy(path: str, request: Request):
+    _verify_proxy_token(request)
     body = await request.body()
 
     target_base = request.headers.get("X-BHNM-Target", "").strip().rstrip("/")
@@ -319,9 +383,10 @@ async def proxy(path: str, request: Request):
             print(f"[Proxy] No target header/key found — falling back to single configured server")
 
     if not target_base:
-        raise HTTPException(status_code=400, detail="X-BHNM-Target header is required")
+        raise HTTPException(status_code=502, detail="Bad Gateway: BHNM target server not configured")
     if not (target_base.startswith("http://") or target_base.startswith("https://")):
         raise HTTPException(status_code=400, detail="X-BHNM-Target must be an http/https URL")
+    _validate_proxy_target(target_base)
 
     target = f"{target_base}/{path}"
     if request.url.query:
@@ -348,7 +413,7 @@ async def proxy(path: str, request: Request):
         raise HTTPException(status_code=502, detail="Bad Gateway: could not connect to BHNM server")
     except httpx.RequestError as exc:
         print(f"[Proxy] Request error proxying {request.method} {target}: {exc}")
-        raise HTTPException(status_code=502, detail=f"Bad Gateway: {exc}")
+        raise HTTPException(status_code=502, detail="Bad Gateway: request to BHNM server failed")
 
     response_headers = {
         k: v for k, v in resp.headers.items()

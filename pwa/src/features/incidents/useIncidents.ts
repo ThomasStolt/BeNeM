@@ -2,8 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getIncidents, parseIncidentsResponse } from '../../lib/api/incidents';
 import { useConfig } from '../../lib/config';
 import mockData from '../../lib/mock/incidents.json';
-
-const REFETCH_INTERVAL_MS = 120_000;
+import { REFETCH_INTERVAL_MS } from '../../lib/constants';
 
 function useMockMode(): boolean {
   if (typeof window === 'undefined') return false;

@@ -1,4 +1,13 @@
 {$DOMAIN} {
+    # ── Security headers ─────────────────────────────────────────────────
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
     # Admin console — protected by Caddy Basic Auth (first factor).
     # TOTP is the second factor enforced by the app itself.
     # Generate bcrypt hash: docker run --rm caddy:2-alpine caddy hash-password --plaintext 'yourpassword'
@@ -21,6 +30,16 @@
 }
 
 {$PWA_DOMAIN} {
+    # ── Security headers ─────────────────────────────────────────────────
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Content-Security-Policy "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+        -Server
+    }
+
     # Same-origin API path — proxied to the bhnm-apns container.
     # `handle_path` strips the `/bhnm` prefix before forwarding,
     # mirroring the Vite dev proxy's rewrite.

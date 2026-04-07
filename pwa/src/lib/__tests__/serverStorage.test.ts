@@ -10,10 +10,15 @@ import {
   setActiveServer,
   createServerConfig,
   migrateFromLegacyConfig,
+  initStorage,
+  _resetCache,
 } from '../serverStorage';
+import { _resetKeyCache } from '../storage-crypto';
 
 beforeEach(() => {
   localStorage.clear();
+  _resetCache();
+  _resetKeyCache();
 });
 
 describe('serverStorage', () => {
@@ -22,15 +27,55 @@ describe('serverStorage', () => {
       expect(loadServers()).toEqual([]);
     });
 
-    it('round-trips a server list', () => {
+    it('round-trips a server list', async () => {
       const servers: ServerConfig[] = [
         createServerConfig({ name: 'Test', baseUrl: '/bhnm', apiKey: 'key1' }),
       ];
       saveServers(servers);
+
+      // After initStorage, sensitive fields are decrypted in cache
+      await initStorage();
       const loaded = loadServers();
       expect(loaded).toHaveLength(1);
       expect(loaded[0].name).toBe('Test');
       expect(loaded[0].apiKey).toBe('key1');
+    });
+
+    it('encrypts sensitive fields in localStorage', async () => {
+      const servers: ServerConfig[] = [
+        createServerConfig({ name: 'Test', baseUrl: '/bhnm', apiKey: 'secret-key' }),
+      ];
+      saveServers(servers);
+
+      // initStorage awaits the pending write, so after it resolves
+      // localStorage contains the encrypted data
+      await initStorage();
+
+      // Raw localStorage should have encrypted apiKey
+      const raw = JSON.parse(localStorage.getItem('benem_servers')!);
+      expect(raw[0].apiKey).not.toBe('secret-key');
+      expect(raw[0].apiKey).toMatch(/^\$enc\$/);
+      // Non-sensitive fields stay plaintext
+      expect(raw[0].name).toBe('Test');
+      expect(raw[0].baseUrl).toBe('/bhnm');
+    });
+
+    it('transparently migrates plaintext to encrypted on initStorage', async () => {
+      // Write plaintext directly to localStorage (simulating pre-encryption data)
+      const server = createServerConfig({ name: 'Old', baseUrl: '/bhnm', apiKey: 'plain-key', pin: 'pin123' });
+      localStorage.setItem('benem_servers', JSON.stringify([server]));
+
+      await initStorage();
+
+      // Cache should have decrypted values
+      const loaded = loadServers();
+      expect(loaded[0].apiKey).toBe('plain-key');
+      expect(loaded[0].pin).toBe('pin123');
+
+      // localStorage should now be encrypted (initStorage writes synchronously before returning)
+      const raw = JSON.parse(localStorage.getItem('benem_servers')!);
+      expect(raw[0].apiKey).toMatch(/^\$enc\$/);
+      expect(raw[0].pin).toMatch(/^\$enc\$/);
     });
   });
 

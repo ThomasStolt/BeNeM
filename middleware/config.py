@@ -20,3 +20,9 @@ VAPID_CONTACT_EMAIL: str = os.environ.get("VAPID_CONTACT_EMAIL", "")
 
 # Server
 MIDDLEWARE_PORT: int = int(os.environ.get("MIDDLEWARE_PORT", "8889"))
+
+# BHNM proxy
+BHNM_TLS_VERIFY: bool = os.environ.get("BHNM_TLS_VERIFY", "true").lower() != "false"
+SERVERS_JSON_PATH: str = os.environ.get("SERVERS_JSON_PATH", "/data/servers.json")
+PROXY_TIMEOUT: float = 60.0  # seconds — BHNM can be slow for large queries
+PROXY_TOKEN: str = os.environ.get("PROXY_TOKEN", "")

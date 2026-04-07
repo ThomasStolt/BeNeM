@@ -1,4 +1,4 @@
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 
 import base64
 import io
@@ -14,6 +14,7 @@ import pyotp
 import qrcode
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from slowapi import Limiter
@@ -41,6 +42,38 @@ limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(docs_url=None, redoc_url=None)
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
+
+
+class CSRFMiddleware(BaseHTTPMiddleware):
+    """Reject cross-origin POST/PUT/DELETE requests to admin endpoints.
+
+    Defense-in-depth alongside SameSite=strict cookies.  Validates that the
+    Origin or Referer header matches the Host header for state-changing methods.
+    """
+    SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method in self.SAFE_METHODS:
+            return await call_next(request)
+        # Only protect admin routes
+        if not request.url.path.startswith("/admin"):
+            return await call_next(request)
+        origin = request.headers.get("origin", "")
+        referer = request.headers.get("referer", "")
+        host = request.headers.get("host", "")
+        if origin:
+            origin_host = urlparse(origin).netloc
+            if origin_host != host:
+                return JSONResponse({"detail": "CSRF check failed"}, status_code=403)
+        elif referer:
+            referer_host = urlparse(referer).netloc
+            if referer_host != host:
+                return JSONResponse({"detail": "CSRF check failed"}, status_code=403)
+        # If neither header is present, allow (some browsers omit both for same-origin)
+        return await call_next(request)
+
+
+app.add_middleware(CSRFMiddleware)
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -334,13 +367,14 @@ def log_show(request: Request, ts: str = ""):
     if not auth.is_authenticated(request):
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     entry = get_entry(ts)
-    if not entry or not entry.get("link"):
-        return JSONResponse({"error": "not found or no full link stored"}, status_code=404)
+    if not entry:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    # Full link is no longer stored for security — return metadata only
     return JSONResponse({
-        "url": entry["link"],
-        "qr_b64": _make_qr_b64(entry["link"]),
         "user": entry.get("user", ""),
         "server_name": entry.get("server_name", ""),
+        "link_hash": entry.get("link_hash", ""),
+        "message": "Full link is no longer stored. Re-generate from the Generate page.",
     })
 
 

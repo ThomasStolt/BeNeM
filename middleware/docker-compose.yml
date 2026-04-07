@@ -33,7 +33,9 @@ services:
     restart: unless-stopped
 
   caddy:
-    image: caddy:2-alpine
+    # Pin to a specific version to prevent supply-chain attacks via tag mutation.
+    # Update periodically: docker pull caddy:2.9-alpine && docker compose up -d caddy
+    image: caddy:2.9-alpine
     env_file: .env
     ports:
       - "80:80"
