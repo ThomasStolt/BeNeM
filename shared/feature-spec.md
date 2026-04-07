@@ -136,13 +136,16 @@ features defined here. Platform-specific behaviour is noted per feature.
 #### Behaviour (both platforms)
 - Device info card: IP, model, serial number, category, site, description
 - Host current issues: filtered from incident list by device name
-- Performance placeholder (v0.5.0)
+- Inline performance charts (v0.5.0): expandable category cards with Recharts line/area charts
+- Performance data: category discovery → instance filtering → timeseries batch fetch (Last 24 Hours)
 
 #### iOS-specific
 - Per-device alarm status via get-host-and-service-status
+- Auto-loads latency/CPU on open; mini header sparkline
 
 #### PWA-specific
 - v0.4.0: Info card + filtered incidents using existing useIncidents hook
+- v0.5.0: PerformanceSection replaces placeholder; loads on category expand (no auto-load)
 - Alarm status badges deferred (no per-device H/S/T/A endpoint identified)
 
 ### Feature: Tactical Drill-down
@@ -161,3 +164,46 @@ features defined here. Platform-specific behaviour is noted per feature.
 #### PWA-specific
 - v0.4.0: Single parameterized TacticalGroupListScreen for all three group types
 - Filter button in header with active state indicator
+
+### Feature: Performance Charts
+**Status:** shipped-ios, shipped-pwa
+**API:** `POST /fw/index.php?r=restful/devices/performance-category`, `POST /fw/index.php?r=restful/devices/performance-instance-per-category`, `POST /fw/index.php?r=restful/devices/timeseries-metrics`
+
+#### Behaviour (both platforms)
+- Category-based metric discovery per device (CPU, Memory, Disk, Latency, Network, etc.)
+- Instance filtering: removes per-process metrics, swap, raw-byte duplicates
+- Timeseries batch fetch by statGroup + unit (Last 24 Hours, 5-minute polling)
+- Interface metrics produce dual in/out series (value1/value2)
+- Empty-unit handling: uses metric title as metricFilterUnits (with overrides)
+
+#### iOS-specific
+- Auto-loads latency and CPU categories on device detail open
+- Mini sparkline in device header (latency)
+- SwiftUI charts with per-instance expandable cards
+
+#### PWA-specific
+- v0.5.0: Inline PerformanceSection in DeviceDetailScreen
+- Expandable MetricCard per category; loads on expand (no auto-load)
+- Recharts AreaChart (single series) / LineChart (multi-series) with dark theme
+- React Query hooks: 5-min stale for categories/instances, 60s for timeseries
+
+### Feature: QR Server Onboarding
+**Status:** shipped-ios, shipped-pwa
+
+#### Behaviour (both platforms)
+- Scan `benem://configure` QR codes to add/update server configuration
+- AES-256-GCM encryption (shared key across platforms)
+- Compact format: single encrypted JSON blob with all fields
+- Legacy format: individual encrypted parameters
+- Duplicate detection by base URL; offers update instead of add
+
+#### iOS-specific
+- Native AVFoundation camera scanner in QRScannerView
+- `benem://` URL scheme handler in BeNeMApp + DeepLinkHandler
+
+#### PWA-specific
+- v0.5.0: html5-qrcode camera overlay from Settings
+- Web Crypto API for AES-256-GCM decryption
+- Encryption key via VITE_QR_ENCRYPTION_KEY build env var
+- Camera availability check hides button when no camera
+- Error states: permission denied, invalid QR, decryption failure
