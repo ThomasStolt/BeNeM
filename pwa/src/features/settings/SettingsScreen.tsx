@@ -117,7 +117,7 @@ export function SettingsScreen() {
       setScannedConfig(config);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not read QR code';
-      setScanError(msg);
+      setScanError(`QR Error: ${msg}`);
     }
   };
 
@@ -296,6 +296,10 @@ export function SettingsScreen() {
             onCancel={() => { setScannedConfig(null); setExistingServerId(undefined); }}
             existingServerId={existingServerId}
           />
+          {/* Debug: visible proof the overlay rendered — remove after fixing */}
+          <div className="fixed bottom-4 left-4 right-4 bg-yellow-600 text-black text-xs p-2 rounded z-[60]">
+            QR parsed: {scannedConfig.name} | baseUrl: {scannedConfig.baseUrl} | bhnmUrl: {scannedConfig.bhnmUrl}
+          </div>
         </div>
       )}
     </div>
