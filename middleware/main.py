@@ -52,8 +52,12 @@ def _target_for_api_key(api_key: str) -> str:
             for s in json.load(f):
                 if s.get("api_key") == api_key:
                     return s.get("url", "").rstrip("/")
-    except Exception:
-        pass
+    except FileNotFoundError:
+        print(f"[Config] servers.json not found at {SERVERS_JSON_PATH}")
+    except json.JSONDecodeError as e:
+        print(f"[Config] servers.json is not valid JSON: {e}")
+    except Exception as e:
+        print(f"[Config] Error reading servers.json: {e}")
     return ""
 
 
@@ -64,8 +68,12 @@ def _single_server_url() -> str:
             servers = json.load(f)
         if len(servers) == 1:
             return servers[0].get("url", "").rstrip("/")
-    except Exception:
-        pass
+    except FileNotFoundError:
+        print(f"[Config] servers.json not found at {SERVERS_JSON_PATH}")
+    except json.JSONDecodeError as e:
+        print(f"[Config] servers.json is not valid JSON: {e}")
+    except Exception as e:
+        print(f"[Config] Error reading servers.json: {e}")
     return ""
 
 @asynccontextmanager
