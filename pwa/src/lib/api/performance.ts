@@ -158,25 +158,17 @@ export async function fetchTimeSeriesBatch(
     metricFilterUnits = EMPTY_UNIT_OVERRIDES[metricTitle] ?? metricTitle;
   }
 
-  // Build multipart/form-data manually
-  const boundary = `----BeNeMBoundary${Date.now()}`;
-  const fields: Record<string, string> = {
-    password: config.apiKey,
-    groupFilterBy: 'device',
-    groupFilterValue: deviceName,
-    metricFilterStatGroup: statGroup,
-    metricFilterUnits: metricFilterUnits,
-    timeFrameFilterBy: 'time_offset',
-    timeFrameFilterValue: 'Last 24 Hours',
-    returnFormatFilterBy: 'average',
-  };
-  if (config.pin) fields.pin = config.pin;
-
-  const parts = Object.entries(fields).map(
-    ([name, value]) =>
-      `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}`,
-  );
-  const body = parts.join('\r\n') + `\r\n--${boundary}--\r\n`;
+  // Use native FormData — browser handles multipart encoding + boundary
+  const form = new FormData();
+  form.append('password', config.apiKey);
+  form.append('groupFilterBy', 'device');
+  form.append('groupFilterValue', deviceName);
+  form.append('metricFilterStatGroup', statGroup);
+  form.append('metricFilterUnits', metricFilterUnits);
+  form.append('timeFrameFilterBy', 'time_offset');
+  form.append('timeFrameFilterValue', 'Last 24 Hours');
+  form.append('returnFormatFilterBy', 'average');
+  if (config.pin) form.append('pin', config.pin);
 
   let response: Response;
   try {
@@ -184,8 +176,7 @@ export async function fetchTimeSeriesBatch(
       `${config.baseUrl}/fw/index.php?r=restful/devices/timeseries-metrics`,
       {
         method: 'POST',
-        headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
-        body,
+        body: form,
       },
     );
   } catch (err) {
