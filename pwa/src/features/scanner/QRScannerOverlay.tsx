@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 
 interface QRScannerOverlayProps {
-  onScanned: (decodedText: string) => void;
+  onScanned: (decodedText: string) => void | Promise<void>;
   onCancel: () => void;
   onError?: (error: string) => void;
 }
@@ -21,7 +21,12 @@ export function QRScannerOverlay({ onScanned, onCancel, onError }: QRScannerOver
         { fps: 10, qrbox: 250 },
         (decodedText) => {
           scanner.stop().then(() => {
-            onScanned(decodedText);
+            const result = onScanned(decodedText);
+            if (result instanceof Promise) {
+              result.catch((err) => {
+                onError?.(err instanceof Error ? err.message : String(err));
+              });
+            }
           });
         },
         undefined,
@@ -36,8 +41,9 @@ export function QRScannerOverlay({ onScanned, onCancel, onError }: QRScannerOver
       });
 
     return () => {
-      scanner.stop().catch(() => {});
-      scanner.clear();
+      scanner.stop()
+        .catch(() => {})
+        .finally(() => { scanner.clear(); });
     };
   }, [onScanned, onError]);
 

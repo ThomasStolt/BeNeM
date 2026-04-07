@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { parseQRUrl, type ParsedServerConfig } from './qr-parser';
+import { parseQRUrl } from './qr-parser';
 
 vi.mock('./crypto', () => ({
   decrypt: vi.fn(),

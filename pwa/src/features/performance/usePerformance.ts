@@ -40,7 +40,7 @@ export function useTimeSeriesBatch(
 ) {
   const config = useConfig();
   return useQuery({
-    queryKey: ['perf-timeseries', config.serverId, deviceName, statGroup, units],
+    queryKey: ['perf-timeseries', config.serverId, deviceName, statGroup, units, metricTitle ?? ''],
     queryFn: () => fetchTimeSeriesBatch(config, deviceName, statGroup, units, metricTitle),
     enabled: config.isConfigured && enabled,
     staleTime: 60 * 1000,

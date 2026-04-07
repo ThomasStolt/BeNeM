@@ -124,29 +124,13 @@ function ExpandedContent({
 export function MetricCard({ category, deviceIndex, deviceName }: MetricCardProps) {
   const [expanded, setExpanded] = useState(false);
 
-  const { data: instances } = usePerformanceInstances(
-    deviceIndex,
-    category.id,
-    category.category,
-    expanded,
-  );
-
-  const instanceCount = instances?.length;
-
   return (
     <div className="bg-gray-800 rounded-lg overflow-hidden">
       <button
         className="w-full flex items-center justify-between px-4 py-3 text-left"
         onClick={() => setExpanded((prev) => !prev)}
       >
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-200">{category.category}</span>
-          {instanceCount !== undefined && (
-            <span className="text-xs bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded">
-              {instanceCount}
-            </span>
-          )}
-        </div>
+        <span className="text-sm text-slate-200">{category.category}</span>
         <ChevronIcon expanded={expanded} />
       </button>
 

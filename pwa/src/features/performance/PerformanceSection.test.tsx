@@ -34,7 +34,7 @@ describe('PerformanceSection', () => {
       data: [],
       isLoading: false,
       isError: false,
-    } as ReturnType<typeof usePerformanceCategories>);
+    } as unknown as ReturnType<typeof usePerformanceCategories>);
 
     renderSection();
     expect(screen.getByText(/Performance/)).toBeInTheDocument();
@@ -49,7 +49,7 @@ describe('PerformanceSection', () => {
       ],
       isLoading: false,
       isError: false,
-    } as ReturnType<typeof usePerformanceCategories>);
+    } as unknown as ReturnType<typeof usePerformanceCategories>);
 
     renderSection();
     expect(screen.getByText('Latency')).toBeInTheDocument();
@@ -61,7 +61,7 @@ describe('PerformanceSection', () => {
       data: undefined,
       isLoading: true,
       isError: false,
-    } as ReturnType<typeof usePerformanceCategories>);
+    } as unknown as ReturnType<typeof usePerformanceCategories>);
 
     renderSection();
     expect(screen.getByText(/Loading/i)).toBeInTheDocument();

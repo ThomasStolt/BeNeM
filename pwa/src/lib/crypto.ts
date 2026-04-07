@@ -3,8 +3,12 @@ export async function decrypt(blob: Uint8Array, hexKey: string): Promise<string>
     throw new Error('Encrypted data too short (need at least IV + auth tag)');
   }
 
+  const pairs = hexKey.match(/.{2}/g);
+  if (!pairs || pairs.length !== 32) {
+    throw new Error('Invalid encryption key: expected 32-byte hex string');
+  }
   const keyBytes = new Uint8Array(
-    hexKey.match(/.{2}/g)!.map((b) => parseInt(b, 16)),
+    pairs.map((b) => parseInt(b, 16)),
   );
   const key = await crypto.subtle.importKey(
     'raw',

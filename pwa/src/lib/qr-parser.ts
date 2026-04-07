@@ -45,6 +45,15 @@ export async function parseQRUrl(urlString: string): Promise<ParsedServerConfig>
       throw new Error('Missing required fields in QR code');
     }
 
+    try {
+      const parsed = new URL(data.bhnmURL);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        throw new Error('Server URL must use HTTP(S)');
+      }
+    } catch {
+      throw new Error('Invalid server URL in QR code');
+    }
+
     return {
       name: data.name ?? 'BHNM Server',
       baseUrl: data.bhnmURL,
