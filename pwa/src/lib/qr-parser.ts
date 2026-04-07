@@ -8,9 +8,10 @@ function getQRKey(): string {
 export interface ParsedServerConfig {
   name: string;
   baseUrl: string;
+  bhnmUrl: string;
   apiKey: string;
   pin?: string;
-  pushMiddlewareUrl?: string;
+  ackUser?: string;
   pushWebhookSecret?: string;
 }
 
@@ -72,12 +73,16 @@ export async function parseQRUrl(urlString: string): Promise<ParsedServerConfig>
       throw new Error('Invalid server URL in QR code');
     }
 
+    const middlewareUrl = data.middleware_url || data.middlewareURL || '';
+    const ackUser = data.user || data.ackUser || undefined;
+
     return {
       name: data.name ?? 'BHNM Server',
-      baseUrl: bhnmUrl,
+      baseUrl: middlewareUrl || bhnmUrl,
+      bhnmUrl,
       apiKey,
       pin: data.pin || undefined,
-      pushMiddlewareUrl: data.middleware_url || data.middlewareURL || undefined,
+      ackUser,
       pushWebhookSecret: data.push_secret || data.pushSecret || undefined,
     };
   }
@@ -104,9 +109,10 @@ export async function parseQRUrl(urlString: string): Promise<ParsedServerConfig>
   return {
     name,
     baseUrl: server,
+    bhnmUrl: '',
     apiKey,
     pin: pin || undefined,
-    pushMiddlewareUrl: undefined,
+    ackUser: undefined,
     pushWebhookSecret: undefined,
   };
 }

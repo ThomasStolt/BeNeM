@@ -44,10 +44,11 @@ describe('parseQRUrl', () => {
     const result = await parseQRUrl(`benem://configure?p=${fakeB64}`);
     expect(result).toEqual({
       name: 'Test Server',
-      baseUrl: 'https://bhnm.example.com',
+      baseUrl: 'https://middleware.example.com',
+      bhnmUrl: 'https://bhnm.example.com',
       apiKey: 'mykey',
       pin: '1234',
-      pushMiddlewareUrl: 'https://middleware.example.com',
+      ackUser: 'admin',
       pushWebhookSecret: 'webhooksecret',
     });
   });
@@ -76,9 +77,10 @@ describe('parseQRUrl', () => {
     expect(result).toEqual({
       name: 'Legacy Server',
       baseUrl: 'https://bhnm.example.com',
+      bhnmUrl: '',
       apiKey: 'mykey',
       pin: '1234',
-      pushMiddlewareUrl: undefined,
+      ackUser: undefined,
       pushWebhookSecret: undefined,
     });
   });
@@ -94,11 +96,24 @@ describe('parseQRUrl', () => {
     vi.mocked(decryptCompressed).mockResolvedValue(
       JSON.stringify({ bhnm_url: 'https://bhnm.test', api_key: 'k', name: 'S' }),
     );
-    // Base64url uses - and _ instead of + and /, no padding
     const result = await parseQRUrl('benem://configure?p=abc-def_ghi');
     expect(result.baseUrl).toBe('https://bhnm.test');
-    // Verify decryptCompressed was called (not plain decrypt)
+    expect(result.bhnmUrl).toBe('https://bhnm.test');
+    expect(result.ackUser).toBeUndefined();
     expect(decryptCompressed).toHaveBeenCalled();
     expect(decrypt).not.toHaveBeenCalled();
+  });
+
+  it('falls back to bhnm_url as baseUrl when middleware_url is absent', async () => {
+    const payload = JSON.stringify({
+      bhnm_url: 'https://bhnm.example.com',
+      api_key: 'mykey',
+      name: 'No Middleware',
+    });
+    vi.mocked(decryptCompressed).mockResolvedValue(payload);
+    const fakeB64 = btoa('fakeciphertext');
+    const result = await parseQRUrl(`benem://configure?p=${fakeB64}`);
+    expect(result.baseUrl).toBe('https://bhnm.example.com');
+    expect(result.bhnmUrl).toBe('https://bhnm.example.com');
   });
 });
