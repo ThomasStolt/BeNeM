@@ -69,6 +69,8 @@ def _verify_proxy_token(request: Request) -> None:
     token = request.headers.get("X-Proxy-Token", "").strip()
     if not token:
         raise HTTPException(status_code=401, detail="X-Proxy-Token header is required")
+    # DEBUG — remove after troubleshooting
+    print(f"[ProxyAuth] token={token[:8]}... PROXY_TOKEN={PROXY_TOKEN[:8] if PROXY_TOKEN else '(empty)'}... match={token == PROXY_TOKEN}")
     # Accept if it matches the global PROXY_TOKEN
     if PROXY_TOKEN and token == PROXY_TOKEN:
         return
