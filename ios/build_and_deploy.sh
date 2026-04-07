@@ -9,14 +9,15 @@ set -e
 REPO_ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 
 # Load local overrides (device ID, simulator name, etc.)
-LOCAL_CONFIG="$REPO_ROOT/build.local.sh"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LOCAL_CONFIG="$SCRIPT_DIR/build.local.sh"
 if [ -f "$LOCAL_CONFIG" ]; then
     # shellcheck source=/dev/null
     source "$LOCAL_CONFIG"
 fi
 
 SCHEME="${BENEM_SCHEME:-BeNeM}"
-PROJECT="$REPO_ROOT/BeNeM.xcodeproj"
+PROJECT="$REPO_ROOT/ios/BeNeM.xcodeproj"
 DEVICE_ID="${BENEM_DEVICE_ID:-}"
 SIMULATOR="${BENEM_SIMULATOR:-iPhone 16 Pro}"
 

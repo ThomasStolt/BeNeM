@@ -99,39 +99,43 @@ class IncidentListViewModel: ObservableObject {
     }
     
     func loadIncidents() async {
+        #if DEBUG
         print("IncidentListViewModel: Starting to load incidents")
-        
+        #endif
+
         // Prevent duplicate loading
         if await MainActor.run(body: { isLoading }) {
+            #if DEBUG
             print("IncidentListViewModel: Already loading, skipping")
+            #endif
             return
         }
-        
+
         await MainActor.run {
             isLoading = true
             errorMessage = nil
         }
-        
+
         do {
             let fetchedIncidents = try await apiService.fetchIncidents()
+            #if DEBUG
             print("IncidentListViewModel: Received \(fetchedIncidents.count) incidents")
-            
+            #endif
+
             await MainActor.run {
                 // Remove counts for incidents that no longer exist
                 let newIDs = Set(fetchedIncidents.map(\.incidentID))
                 alarmCounts = alarmCounts.filter { newIDs.contains($0.key) }
                 incidents = fetchedIncidents
                 isLoading = false
-                print("IncidentListViewModel: Updated incidents array on main thread")
-                print("IncidentListViewModel: incidents.count is now \(incidents.count)")
-                print("IncidentListViewModel: incidents.isEmpty is now \(incidents.isEmpty)")
             }
-            print("IncidentListViewModel: Load incidents completed")
             await loadAlarmCounts()
         } catch {
+            #if DEBUG
             let detail = "\(error)"
             print("IncidentListViewModel: Error loading incidents: \(detail)")
-            UserDefaults.standard.set(detail, forKey: "debug_incident_error")
+            #endif
+            UserDefaults.standard.set("\(error)", forKey: "debug_incident_error")
             await MainActor.run {
                 errorMessage = error.localizedDescription
                 isLoading = false

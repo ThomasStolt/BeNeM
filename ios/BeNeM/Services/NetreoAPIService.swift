@@ -278,9 +278,9 @@ class NetreoAPIService: ObservableObject {
         var instances: [PerformanceInstance] = []
         for dict in arr {
             let rawKey = (dict["key"] as? String) ?? (dict["key"] as? Int).map(String.init) ?? ""
-            let type_ = dict["type"] as? String ?? ""
+            let instanceType = dict["type"] as? String ?? ""
 
-            if type_ == "interface" {
+            if instanceType == "interface" {
                 // Interface entries produce two instances: inbound and outbound
                 // The "-in"/"-out" suffix is REQUIRED to ensure cardStates dictionary keys are unique
                 let description = dict["description"] as? String ?? rawKey
@@ -305,7 +305,7 @@ class NetreoAPIService: ObservableObject {
                     valueKey: "value2",
                     instanceDescr: description
                 ))
-            } else if type_ == "oid_pertable" {
+            } else if instanceType == "oid_pertable" {
                 let title = dict["title"] as? String ?? rawKey
                 let unit  = dict["unit"]  as? String ?? ""
                 let description = dict["description"] as? String ?? rawKey
@@ -782,12 +782,7 @@ class NetreoAPIService: ObservableObject {
     }
 
     func fetchIncidents() async throws -> [NetreoIncident] {
-        switch configuration.version {
-        case .legacy:
-            return try await performLegacyIncidentRequest()
-        case .v1, .v2, .openapi:
-            return try await performModernIncidentRequest()
-        }
+        return try await performLegacyIncidentRequest()
     }
     
     private func baseParameters() -> [String: Any] {
@@ -796,61 +791,6 @@ class NetreoAPIService: ObservableObject {
             parameters["pin"] = pin
         }
         return parameters
-    }
-    
-    private func performLegacyBoolRequest(
-        endpoint: NetreoEndpoint,
-        parameters: [String: Any]
-    ) async throws -> Bool {
-        let url = URL(string: configuration.endpoint(for: endpoint.path(for: configuration.version)))!
-        var request = URLRequest(url: url)
-        request.httpMethod = endpoint.httpMethod(for: configuration.version).rawValue
-        addProxyToken(&request)
-
-        let bodyItems = parameters.map { URLQueryItem(name: $0.key, value: "\($0.value)") }
-        request.httpBody = formEncodedBody(bodyItems)
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        
-        let (data, response) = try await urlSession.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
-        }
-        
-        guard 200...299 ~= httpResponse.statusCode else {
-            throw APIError.httpError(httpResponse.statusCode, data)
-        }
-        
-        if let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            return jsonObject["success"] as? Bool ?? false
-        }
-        
-        return true
-    }
-    
-    private func performModernBoolRequest(endpoint: NetreoEndpoint, body: [String: Any]? = nil) async throws -> Bool {
-        let url = URL(string: configuration.endpoint(for: endpoint.path(for: configuration.version)))!
-        var request = URLRequest(url: url)
-        request.httpMethod = endpoint.httpMethod(for: configuration.version).rawValue
-        addProxyToken(&request)
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
-        
-        if let body = body {
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        }
-        
-        let (data, response) = try await urlSession.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
-        }
-        
-        guard 200...299 ~= httpResponse.statusCode else {
-            throw APIError.httpError(httpResponse.statusCode, data)
-        }
-        
-        return true
     }
     
     private func performLegacyIncidentRequest() async throws -> [NetreoIncident] {
@@ -864,7 +804,9 @@ class NetreoAPIService: ObservableObject {
         print("Parameters: \(parameters)")
         #endif
         
-        let url = URL(string: urlString)!
+        guard let url = URL(string: urlString) else {
+            throw APIError.configurationError("Invalid server URL: \(urlString)")
+        }
         var request = URLRequest(url: url)
         request.httpMethod = endpoint.httpMethod(for: configuration.version).rawValue
         addProxyToken(&request)
@@ -957,46 +899,6 @@ class NetreoAPIService: ObservableObject {
         }
         
         throw APIError.invalidResponse
-    }
-    
-    private func performModernIncidentRequest() async throws -> [NetreoIncident] {
-        let endpoint = NetreoEndpoint.incidents
-        let url = URL(string: configuration.endpoint(for: endpoint.path(for: configuration.version)))!
-        var request = URLRequest(url: url)
-        request.httpMethod = endpoint.httpMethod(for: configuration.version).rawValue
-        addProxyToken(&request)
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
-        
-        let (data, response) = try await urlSession.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
-        }
-        
-        guard 200...299 ~= httpResponse.statusCode else {
-            throw APIError.httpError(httpResponse.statusCode, data)
-        }
-        
-        #if DEBUG
-        if let rawString = String(data: data.prefix(2000), encoding: .utf8) {
-            UserDefaults.standard.set("Modern API response:\n\(rawString)", forKey: "debug_incident_fields")
-        }
-        #endif
-
-        // Try to decode incidents from response
-        do {
-            let incidentsResponse = try jsonDecoder.decode([NetreoIncident].self, from: data)
-            return incidentsResponse
-        } catch {
-            if let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let incidentsArray = jsonObject["incidents"] as? [[String: Any]] {
-                return try parseIncidents(from: incidentsArray)
-            } else if let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-                return try parseIncidents(from: jsonArray)
-            }
-            return []
-        }
     }
     
     private func parseIncidentsFromNetreoFormat(from array: [[String: Any]], defaultStatus: NetreoIncident.IncidentStatus? = nil) throws -> [NetreoIncident] {

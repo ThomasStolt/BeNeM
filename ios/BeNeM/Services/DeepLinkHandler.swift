@@ -32,18 +32,18 @@ final class DeepLinkHandler: ObservableObject {
             return
         }
 
-        func param(_ name: String) -> String? {
+        func queryParam(_ name: String) -> String? {
             queryItems.first(where: { $0.name == name })?.value
         }
 
         // New compact format: single encrypted+compressed payload
-        if let blob = param("p"), !blob.isEmpty {
+        if let blob = queryParam("p"), !blob.isEmpty {
             handleCompactPayload(blob)
             return
         }
 
-        guard let server = param("server"), !server.isEmpty,
-              let encryptedKey = param("api_key"), !encryptedKey.isEmpty else {
+        guard let server = queryParam("server"), !server.isEmpty,
+              let encryptedKey = queryParam("api_key"), !encryptedKey.isEmpty else {
             fail("The link is missing required fields.")
             return
         }
@@ -53,10 +53,10 @@ final class DeepLinkHandler: ObservableObject {
             return
         }
 
-        let encryptedPin    = param("pin") ?? ""
-        let ackUser         = param("ack_user") ?? "enter user name"
-        let name            = param("name") ?? ""
-        let encryptedSecret = param("push_secret") ?? ""
+        let encryptedPin    = queryParam("pin") ?? ""
+        let ackUser         = queryParam("ack_user") ?? "enter user name"
+        let name            = queryParam("name") ?? ""
+        let encryptedSecret = queryParam("push_secret") ?? ""
 
         do {
             let symmetricKey   = try loadKey()
@@ -166,7 +166,9 @@ final class DeepLinkHandler: ObservableObject {
     }
 
     private func loadKey() throws -> SymmetricKey {
-        guard let keyData = Data(hexString: Secrets.encryptionKey), keyData.count == 32 else {
+        guard let keyData = Data(hexString: Secrets.encryptionKey),
+              keyData.count == 32,
+              keyData != Data(repeating: 0, count: 32) else {
             throw CryptoError.invalidKey
         }
         return SymmetricKey(data: keyData)
@@ -181,7 +183,7 @@ final class DeepLinkHandler: ObservableObject {
                 fail("The link payload could not be parsed.")
                 return
             }
-            func str(_ key: String, default def: String = "") -> String {
+            func jsonString(_ key: String, default def: String = "") -> String {
                 (json[key] as? String) ?? def
             }
 
@@ -191,7 +193,7 @@ final class DeepLinkHandler: ObservableObject {
             let middlewareURL: String
             if let newBhnmURL = json["bhnm_url"] as? String, !newBhnmURL.isEmpty {
                 bhnmURL = newBhnmURL
-                middlewareURL = str("middleware_url")
+                middlewareURL = jsonString("middleware_url")
             } else if let oldServer = json["server"] as? String, !oldServer.isEmpty {
                 // Old format: "server" held the middleware URL; bhnmURL is unknown — leave empty
                 bhnmURL = ""
@@ -201,19 +203,32 @@ final class DeepLinkHandler: ObservableObject {
                 return
             }
 
+            // Validate URL scheme (same check as legacy path)
+            if !bhnmURL.isEmpty,
+               !bhnmURL.hasPrefix("http://"), !bhnmURL.hasPrefix("https://") {
+                fail("The link contains an invalid server URL.")
+                return
+            }
+
+            if !middlewareURL.isEmpty,
+               !middlewareURL.hasPrefix("http://"), !middlewareURL.hasPrefix("https://") {
+                fail("The link contains an invalid middleware URL.")
+                return
+            }
+
             let notificationsEnabled = (json["notifications"] as? Bool) ?? true
 
             pendingImport = PendingImport(
                 bhnmURL:              bhnmURL,
                 middlewareURL:        middlewareURL,
                 notificationsEnabled: notificationsEnabled,
-                apiKey:               str("api_key"),
-                pin:                  str("pin"),
-                ackUser:              str("user", default: "enter user name"),
-                name:                 str("name"),
-                pushSecret:           str("push_secret"),
-                symbol:               str("symbol", default: "server.rack"),
-                accentColor:          str("color", default: "#0A84FF")
+                apiKey:               jsonString("api_key"),
+                pin:                  jsonString("pin"),
+                ackUser:              jsonString("user", default: "enter user name"),
+                name:                 jsonString("name"),
+                pushSecret:           jsonString("push_secret"),
+                symbol:               jsonString("symbol", default: "server.rack"),
+                accentColor:          jsonString("color", default: "#0A84FF")
             )
         } catch {
             fail("The link is invalid or was created with a different key.")
@@ -226,10 +241,11 @@ final class DeepLinkHandler: ObservableObject {
         guard data.count > 6 else { throw CryptoError.invalidBase64 }
         let deflateData = data.dropFirst(2).dropLast(4)
         var outputBuffer = [UInt8](repeating: 0, count: data.count * 8)
-        let resultSize = deflateData.withUnsafeBytes { src in
-            compression_decode_buffer(
+        let resultSize = deflateData.withUnsafeBytes { (src: UnsafeRawBufferPointer) -> Int in
+            guard let base = src.baseAddress else { return 0 }
+            return compression_decode_buffer(
                 &outputBuffer, outputBuffer.count,
-                src.baseAddress!.assumingMemoryBound(to: UInt8.self),
+                base.assumingMemoryBound(to: UInt8.self),
                 src.count,
                 nil, COMPRESSION_ZLIB
             )
@@ -251,19 +267,7 @@ final class DeepLinkHandler: ObservableObject {
     }
 
     private func decrypt(_ base64url: String, using key: SymmetricKey) throws -> String {
-        // Convert base64url → standard base64 with padding
-        var b64 = base64url
-            .replacingOccurrences(of: "-", with: "+")
-            .replacingOccurrences(of: "_", with: "/")
-        let remainder = b64.count % 4
-        if remainder != 0 { b64 += String(repeating: "=", count: 4 - remainder) }
-
-        guard let combined = Data(base64Encoded: b64) else {
-            throw CryptoError.invalidBase64
-        }
-        // Pass full blob to SealedBox — CryptoKit extracts nonce (12 bytes) and tag (16 bytes) internally
-        let sealedBox = try AES.GCM.SealedBox(combined: combined)
-        let plaintext  = try AES.GCM.open(sealedBox, using: key)
+        let plaintext = try decryptToData(base64url, using: key)
         guard let string = String(data: plaintext, encoding: .utf8) else {
             throw CryptoError.invalidUTF8
         }

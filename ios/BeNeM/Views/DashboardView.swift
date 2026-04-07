@@ -2,11 +2,11 @@ import SwiftUI
 
 // MARK: - DashboardView
 
-private let hmGreen  = AlarmColor.green.color
-private let hmYellow = AlarmColor.yellow.color
-private let hmOrange = AlarmColor.orange.color
-private let hmRed    = AlarmColor.red.color
-private let hmBlue   = AlarmColor.blue.color
+private let heatMapGreen  = AlarmColor.green.color
+private let heatMapYellow = AlarmColor.yellow.color
+private let heatMapOrange = AlarmColor.orange.color
+private let heatMapRed    = AlarmColor.red.color
+private let heatMapBlue   = AlarmColor.blue.color
 
 enum TacticalDestination: Hashable {
     case categories, sites, businessWorkflows
@@ -194,11 +194,11 @@ struct DashboardView: View {
                 count: hostsTotal,
                 isLoading: categoryViewModel.isLoading,
                 badges: [
-                    (h.green,  hmGreen),
-                    (h.blue,   hmBlue),
-                    (h.yellow, hmYellow),
-                    (h.orange, hmOrange),
-                    (h.red,    hmRed),
+                    (h.green,  heatMapGreen),
+                    (h.blue,   heatMapBlue),
+                    (h.yellow, heatMapYellow),
+                    (h.orange, heatMapOrange),
+                    (h.red,    heatMapRed),
                 ]
             )
             statBox(
@@ -206,11 +206,11 @@ struct DashboardView: View {
                 count: servicesTotal,
                 isLoading: categoryViewModel.isLoading,
                 badges: [
-                    (s.green,  hmGreen),
-                    (s.blue,   hmBlue),
-                    (s.yellow, hmYellow),
-                    (s.orange, hmOrange),
-                    (s.red,    hmRed),
+                    (s.green,  heatMapGreen),
+                    (s.blue,   heatMapBlue),
+                    (s.yellow, heatMapYellow),
+                    (s.orange, heatMapOrange),
+                    (s.red,    heatMapRed),
                 ]
             )
             statBox(
@@ -218,11 +218,11 @@ struct DashboardView: View {
                 count: thresholdsTotal,
                 isLoading: categoryViewModel.isLoading,
                 badges: [
-                    (t.green,  hmGreen),
-                    (t.blue,   hmBlue),
-                    (t.yellow, hmYellow),
-                    (t.orange, hmOrange),
-                    (t.red,    hmRed),
+                    (t.green,  heatMapGreen),
+                    (t.blue,   heatMapBlue),
+                    (t.yellow, heatMapYellow),
+                    (t.orange, heatMapOrange),
+                    (t.red,    heatMapRed),
                 ]
             )
             statBox(
@@ -230,11 +230,11 @@ struct DashboardView: View {
                 count: anomaliesTotal,
                 isLoading: categoryViewModel.isLoading,
                 badges: [
-                    (a.green,  hmGreen),
-                    (a.blue,   hmBlue),
-                    (a.yellow, hmYellow),
-                    (a.orange, hmOrange),
-                    (a.red,    hmRed),
+                    (a.green,  heatMapGreen),
+                    (a.blue,   heatMapBlue),
+                    (a.yellow, heatMapYellow),
+                    (a.orange, heatMapOrange),
+                    (a.red,    heatMapRed),
                 ]
             )
         }
@@ -269,7 +269,7 @@ struct DashboardView: View {
                             text: "\(n)",
                             font: .system(size: 9, weight: .semibold),
                             weight: .semibold,
-                            color: color == hmYellow ? Color.black : Color.white,
+                            color: color == heatMapYellow ? Color.black : Color.white,
                             centerWhenFitting: true
                         )
                         .frame(maxWidth: .infinity)
@@ -550,7 +550,7 @@ struct IncidentTickerBanner: View {
         let counts   = alarmCounts[incident.incidentID]
         let isCleared = incident.incidentState.uppercased() == "ALARMS CLEARED"
         let badgeLabel = isCleared ? "CLRD" : incident.status.displayLabel
-        let badgeColor = isCleared ? hmGreen : incident.status.displayColor
+        let badgeColor = isCleared ? heatMapGreen : incident.status.displayColor
 
         return NavigationLink(destination: IncidentDetailView(
             incident: incident,

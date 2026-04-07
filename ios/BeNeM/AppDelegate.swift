@@ -40,7 +40,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
         let token = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+        #if DEBUG
         print("[APNs] Device token: \(token)")
+        #endif
         cachedDeviceToken = token
         let ud = UserDefaults.standard
         guard let activeID = ud.string(forKey: "netreo_active_connection_id"), !activeID.isEmpty,
