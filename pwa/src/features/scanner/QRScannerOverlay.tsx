@@ -34,7 +34,7 @@ export function QRScannerOverlay({ onScanned, onCancel, onError }: QRScannerOver
           // triggers React state updates that unmount this component while
           // html5-qrcode is still on the call stack, crashing on some browsers.
           queueMicrotask(() => {
-            scanner.stop().catch(() => {});
+            try { scanner.stop().catch(() => {}); } catch { /* already stopped */ }
             const result = onScannedRef.current(decodedText);
             if (result instanceof Promise) {
               result.catch((err) => {
@@ -56,11 +56,14 @@ export function QRScannerOverlay({ onScanned, onCancel, onError }: QRScannerOver
 
     return () => {
       stoppedRef.current = true;
-      scanner.stop()
-        .catch(() => {})
-        .finally(() => {
+      try {
+        scanner.stop().catch(() => {}).finally(() => {
           try { scanner.clear(); } catch { /* DOM element may already be gone */ }
         });
+      } catch {
+        // scanner.stop() throws synchronously if already stopped
+        try { scanner.clear(); } catch { /* ignore */ }
+      }
     };
   }, []); // stable deps — callbacks accessed via refs
 
