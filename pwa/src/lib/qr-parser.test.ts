@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { parseQRUrl } from './qr-parser';
 
 vi.mock('./crypto', () => ({
@@ -7,9 +7,16 @@ vi.mock('./crypto', () => ({
 }));
 import { decrypt, decryptCompressed } from './crypto';
 
+const FAKE_KEY = 'aa'.repeat(32); // 64 hex chars = 32 bytes
+
 describe('parseQRUrl', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv('VITE_QR_ENCRYPTION_KEY', FAKE_KEY);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('rejects non-benem URLs', async () => {
@@ -74,6 +81,13 @@ describe('parseQRUrl', () => {
       pushMiddlewareUrl: undefined,
       pushWebhookSecret: undefined,
     });
+  });
+
+  it('throws when QR encryption key is not configured', async () => {
+    vi.stubEnv('VITE_QR_ENCRYPTION_KEY', '');
+    const fakeB64 = btoa('fakeciphertext');
+    await expect(parseQRUrl(`benem://configure?p=${fakeB64}`))
+      .rejects.toThrow('QR encryption key is not configured');
   });
 
   it('handles base64url encoded p parameter', async () => {

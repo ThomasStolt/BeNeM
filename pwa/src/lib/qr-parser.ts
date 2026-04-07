@@ -1,6 +1,9 @@
 import { decrypt, decryptCompressed } from './crypto';
 
-const QR_KEY = import.meta.env.VITE_QR_ENCRYPTION_KEY ?? '';
+/** Read the QR encryption key lazily so it picks up env stubs in tests. */
+function getQRKey(): string {
+  return import.meta.env.VITE_QR_ENCRYPTION_KEY ?? '';
+}
 
 export interface ParsedServerConfig {
   name: string;
@@ -45,8 +48,11 @@ export async function parseQRUrl(urlString: string): Promise<ParsedServerConfig>
   // Compact format: single `p` parameter (base64url, zlib-compressed, AES-256-GCM)
   const compactParam = params.get('p');
   if (compactParam) {
+    if (!getQRKey() || getQRKey().length !== 64) {
+      throw new Error('QR encryption key is not configured (set VITE_QR_ENCRYPTION_KEY)');
+    }
     const blob = base64urlToBytes(compactParam);
-    const json = await decryptCompressed(blob, QR_KEY);
+    const json = await decryptCompressed(blob, getQRKey());
     const data = JSON.parse(json);
 
     // Middleware uses snake_case field names: bhnm_url, api_key, middleware_url, push_secret
@@ -83,14 +89,17 @@ export async function parseQRUrl(urlString: string): Promise<ParsedServerConfig>
     throw new Error('No configuration data in QR code');
   }
 
-  const server = await decrypt(base64urlToBytes(serverParam), QR_KEY);
-  const apiKey = await decrypt(base64urlToBytes(apiKeyParam), QR_KEY);
+  if (!getQRKey() || getQRKey().length !== 64) {
+    throw new Error('QR encryption key is not configured (set VITE_QR_ENCRYPTION_KEY)');
+  }
+  const server = await decrypt(base64urlToBytes(serverParam), getQRKey());
+  const apiKey = await decrypt(base64urlToBytes(apiKeyParam), getQRKey());
 
   const pinParam = params.get('pin');
-  const pin = pinParam ? await decrypt(base64urlToBytes(pinParam), QR_KEY) : undefined;
+  const pin = pinParam ? await decrypt(base64urlToBytes(pinParam), getQRKey()) : undefined;
 
   const nameParam = params.get('name');
-  const name = nameParam ? await decrypt(base64urlToBytes(nameParam), QR_KEY) : 'BHNM Server';
+  const name = nameParam ? await decrypt(base64urlToBytes(nameParam), getQRKey()) : 'BHNM Server';
 
   return {
     name,
