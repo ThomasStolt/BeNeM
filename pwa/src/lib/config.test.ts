@@ -46,4 +46,24 @@ describe('config snapshot', () => {
     expect(config.webhookSecret).toBe('secret');
     expect(config.pushMiddlewareUrl).toBe('/middleware');
   });
+
+  it('includes ackUser and bhnmUrl from active server', () => {
+    addServer({
+      name: 'ACK Test',
+      baseUrl: '/bhnm',
+      apiKey: 'k',
+      ackUser: 'thomas',
+      bhnmUrl: 'https://bhnm.test.com',
+    });
+    const config = getSnapshotForTest();
+    expect(config.ackUser).toBe('thomas');
+    expect(config.bhnmUrl).toBe('https://bhnm.test.com');
+  });
+
+  it('defaults ackUser and bhnmUrl to empty string', () => {
+    addServer({ name: 'Basic', baseUrl: '/bhnm', apiKey: 'k' });
+    const config = getSnapshotForTest();
+    expect(config.ackUser).toBe('');
+    expect(config.bhnmUrl).toBe('');
+  });
 });

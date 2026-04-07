@@ -10,6 +10,8 @@ export interface BhnmConfig {
   webhookSecret?: string;
   pushMiddlewareUrl?: string;
   isConfigured: boolean;
+  ackUser: string;
+  bhnmUrl: string;
 }
 
 const listeners = new Set<() => void>();
@@ -42,6 +44,8 @@ function buildSnapshot(): BhnmConfig {
       baseUrl: '/bhnm',
       apiKey: envKey,
       isConfigured: envKey.length > 0,
+      ackUser: '',
+      bhnmUrl: '',
     };
   }
   return {
@@ -53,6 +57,8 @@ function buildSnapshot(): BhnmConfig {
     webhookSecret: server.pushWebhookSecret,
     pushMiddlewareUrl: server.pushMiddlewareUrl,
     isConfigured: server.apiKey.length > 0,
+    ackUser: server.ackUser ?? '',
+    bhnmUrl: server.bhnmUrl ?? '',
   };
 }
 
@@ -77,6 +83,8 @@ function getServerSnapshot(): BhnmConfig {
     baseUrl: '/bhnm',
     apiKey: envKey,
     isConfigured: envKey.length > 0,
+    ackUser: '',
+    bhnmUrl: '',
   };
 }
 
