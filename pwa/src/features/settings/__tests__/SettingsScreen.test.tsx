@@ -1,10 +1,20 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SettingsScreen } from '../SettingsScreen';
 import { addServer, loadServers } from '../../../lib/serverStorage';
+
+vi.mock('../../scanner/QRScannerOverlay', () => ({
+  QRScannerOverlay: () => null,
+}));
+vi.mock('../../scanner/QRConfirmScreen', () => ({
+  QRConfirmScreen: () => null,
+}));
+vi.mock('../../../lib/qr-parser', () => ({
+  parseQRUrl: vi.fn(),
+}));
 
 function renderScreen() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -32,9 +42,9 @@ describe('SettingsScreen', () => {
     expect(screen.getByText(/add server/i)).toBeInTheDocument();
   });
 
-  it('renders the About section with version 0.4.0', () => {
+  it('renders the About section with version 0.5.0', () => {
     renderScreen();
-    expect(screen.getByText(/0\.4\.0/)).toBeInTheDocument();
+    expect(screen.getByText(/0\.5\.0/)).toBeInTheDocument();
   });
 
   it('shows server name when a server exists', () => {

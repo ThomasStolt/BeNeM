@@ -12,6 +12,9 @@ import {
 import { subscribeToPush, unsubscribeFromPush, getPushState, type PushState } from '../../lib/pushRegistration';
 import { ServerListSection } from './ServerListSection';
 import { ServerForm } from './ServerForm';
+import { QRScannerOverlay } from '../scanner/QRScannerOverlay';
+import { QRConfirmScreen } from '../scanner/QRConfirmScreen';
+import { parseQRUrl, type ParsedServerConfig } from '../../lib/qr-parser';
 
 type View = 'list' | 'add' | 'edit';
 
@@ -23,6 +26,11 @@ export function SettingsScreen() {
   const [editingServer, setEditingServer] = useState<ServerConfig | null>(null);
   const [pushState, setPushState] = useState<PushState>(getPushState);
   const [pushLoading, setPushLoading] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scannedConfig, setScannedConfig] = useState<ParsedServerConfig | null>(null);
+  const [existingServerId, setExistingServerId] = useState<string | undefined>(undefined);
+  const hasCamera = typeof navigator !== 'undefined' && !!navigator.mediaDevices;
 
   const refreshServers = useCallback(() => {
     setServers(loadServers());
@@ -87,6 +95,46 @@ export function SettingsScreen() {
     }
   };
 
+  const handleScanResult = async (decodedText: string) => {
+    setShowScanner(false);
+    try {
+      const config = await parseQRUrl(decodedText);
+      const existing = loadServers().find((s) => s.baseUrl === config.baseUrl);
+      setExistingServerId(existing?.id);
+      setScannedConfig(config);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not read QR code';
+      setScanError(msg);
+    }
+  };
+
+  const handleScanConfirm = () => {
+    if (!scannedConfig) return;
+    if (existingServerId) {
+      updateServer(existingServerId, {
+        name: scannedConfig.name,
+        apiKey: scannedConfig.apiKey,
+        pin: scannedConfig.pin,
+        pushMiddlewareUrl: scannedConfig.pushMiddlewareUrl,
+        pushWebhookSecret: scannedConfig.pushWebhookSecret,
+      });
+    } else {
+      addServer({
+        name: scannedConfig.name,
+        baseUrl: scannedConfig.baseUrl,
+        apiKey: scannedConfig.apiKey,
+        pin: scannedConfig.pin,
+        pushMiddlewareUrl: scannedConfig.pushMiddlewareUrl,
+        pushWebhookSecret: scannedConfig.pushWebhookSecret,
+      });
+    }
+    notifyConfigChanged();
+    refreshServers();
+    setScannedConfig(null);
+    setExistingServerId(undefined);
+    queryClient.invalidateQueries();
+  };
+
   const activeServer = servers.find((s) => s.isActive);
 
   return (
@@ -111,6 +159,38 @@ export function SettingsScreen() {
               onEditServer={handleEditClick}
               onAddServer={() => setView('add')}
             />
+
+            {hasCamera && (
+              <button
+                type="button"
+                onClick={() => { setScanError(null); setShowScanner(true); }}
+                className="w-full py-2.5 rounded-lg bg-slate-800 text-sm text-sky-400 hover:bg-slate-700 mt-2"
+              >
+                Scan QR Code
+              </button>
+            )}
+
+            {scanError && (
+              <div className="bg-red-900/30 border border-red-800 rounded-lg p-3 mt-2">
+                <p className="text-sm text-red-300">{scanError}</p>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => { setScanError(null); setShowScanner(true); }}
+                    className="text-xs text-sky-400 hover:text-sky-300"
+                  >
+                    Try Again
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setScanError(null); setView('add'); }}
+                    className="text-xs text-slate-400 hover:text-slate-300"
+                  >
+                    Enter Server Manually
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Push Notifications — for active server */}
             {activeServer && (
@@ -156,7 +236,7 @@ export function SettingsScreen() {
               <div className="bg-slate-900 rounded-lg p-3">
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
                   <dt className="text-slate-500">Version</dt>
-                  <dd>0.4.0</dd>
+                  <dd>0.5.0</dd>
                   <dt className="text-slate-500">Platform</dt>
                   <dd>PWA (Web Push)</dd>
                 </dl>
@@ -180,6 +260,25 @@ export function SettingsScreen() {
           />
         )}
       </div>
+
+      {showScanner && (
+        <QRScannerOverlay
+          onScanned={handleScanResult}
+          onCancel={() => setShowScanner(false)}
+          onError={(msg) => { setShowScanner(false); setScanError(msg); }}
+        />
+      )}
+
+      {scannedConfig && (
+        <div className="fixed inset-0 z-50 bg-slate-950/90 flex items-center justify-center">
+          <QRConfirmScreen
+            config={scannedConfig}
+            onConfirm={handleScanConfirm}
+            onCancel={() => { setScannedConfig(null); setExistingServerId(undefined); }}
+            existingServerId={existingServerId}
+          />
+        </div>
+      )}
     </div>
   );
 }
