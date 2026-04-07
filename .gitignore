@@ -47,6 +47,9 @@ build.local.sh
 # Personal screenshots accidentally committed — stop tracking future changes
 M1BJKI1M3C52.png
 
+# Node (root-level tooling)
+node_modules/
+
 # Firecrawl research / scraping cache
 .firecrawl/
 

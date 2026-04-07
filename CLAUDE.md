@@ -16,7 +16,7 @@ timely, reliable push notifications to engineers when incidents occur.
 |---|---|
 | `ios/` | Native Swift/SwiftUI iOS app. Primary platform. Distributed via App Store / TestFlight. |
 | `middleware/` | Python/FastAPI service. Handles BHNM webhook ingestion and APNs / Web Push delivery. |
-| `pwa/` | Progressive Web App (React/TypeScript), targeting Android via Web Push. Not yet scaffolded. |
+| `pwa/` | Progressive Web App (React/TypeScript), targeting Android via Web Push. |
 | `shared/` | Specifications and documentation. Not deployed. Source of truth for feature parity and API contracts. |
 | `docs/superpowers/` | Brainstorming specs and implementation plans (Claude Code). |
 
