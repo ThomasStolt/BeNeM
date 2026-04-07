@@ -5,7 +5,6 @@ import type {
   TimeSeriesResult,
   TimeSeriesDataPoint,
 } from './types';
-import { ApiException } from './types';
 import { postForm } from './client';
 
 /* ------------------------------------------------------------------ */
@@ -158,54 +157,22 @@ export async function fetchTimeSeriesBatch(
     metricFilterUnits = EMPTY_UNIT_OVERRIDES[metricTitle] ?? metricTitle;
   }
 
-  // Use native FormData — browser handles multipart encoding + boundary
-  const form = new FormData();
-  form.append('password', config.apiKey);
-  form.append('groupFilterBy', 'device');
-  form.append('groupFilterValue', deviceName);
-  form.append('metricFilterStatGroup', statGroup);
-  form.append('metricFilterUnits', metricFilterUnits);
-  form.append('timeFrameFilterBy', 'time_offset');
-  form.append('timeFrameFilterValue', 'Last 24 Hours');
-  form.append('returnFormatFilterBy', 'average');
-  if (config.pin) form.append('pin', config.pin);
+  const params: Record<string, string> = {
+    password: config.apiKey,
+    groupFilterBy: 'device',
+    groupFilterValue: deviceName,
+    metricFilterStatGroup: statGroup,
+    metricFilterUnits: metricFilterUnits,
+    timeFrameFilterBy: 'time_offset',
+    timeFrameFilterValue: 'Last 24 Hours',
+    returnFormatFilterBy: 'average',
+  };
+  if (config.pin) params.pin = config.pin;
 
-  let response: Response;
-  try {
-    response = await fetch(
-      `${config.baseUrl}/fw/index.php?r=restful/devices/timeseries-metrics`,
-      {
-        method: 'POST',
-        body: form,
-      },
-    );
-  } catch (err) {
-    throw new ApiException({
-      kind: 'network',
-      message: err instanceof Error ? err.message : 'Network error',
-    });
-  }
-
-  if (response.status === 401 || response.status === 403) {
-    throw new ApiException({ kind: 'auth', message: `HTTP ${response.status}` });
-  }
-  if (!response.ok) {
-    throw new ApiException({
-      kind: 'server',
-      status: response.status,
-      message: `HTTP ${response.status}`,
-    });
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = await response.json();
-  } catch (err) {
-    throw new ApiException({
-      kind: 'parse',
-      message: err instanceof Error ? err.message : 'JSON parse error',
-    });
-  }
-
-  return parseTimeSeriesResponse(parsed);
+  const raw = await postForm(
+    config.baseUrl,
+    '/fw/index.php?r=restful/devices/timeseries-metrics',
+    params,
+  );
+  return parseTimeSeriesResponse(raw);
 }
