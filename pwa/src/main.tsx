@@ -13,11 +13,11 @@ class CrashBoundary extends React.Component<
 > {
   state: { error: unknown; info: string } = { error: null, info: '' };
 
-  static getDerivedStateFromError(error: unknown) {
-    return { error };
+  static getDerivedStateFromError(err: unknown) {
+    return { error: err };
   }
 
-  componentDidCatch(error: unknown, errorInfo: React.ErrorInfo) {
+  componentDidCatch(_error: unknown, errorInfo: React.ErrorInfo) {
     this.setState({
       info: errorInfo.componentStack || '',
     });
