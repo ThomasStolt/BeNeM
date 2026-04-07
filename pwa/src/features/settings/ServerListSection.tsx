@@ -20,11 +20,22 @@ export function ServerListSection({
   onAddServer,
 }: Props) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [switchTarget, setSwitchTarget] = useState<ServerConfig | null>(null);
 
-  const handleSwitch = (id: string) => {
-    setActiveServer(id);
+  const handleSwitch = (server: ServerConfig) => {
+    if (server.isActive) {
+      onEditServer(server);
+      return;
+    }
+    setSwitchTarget(server);
+  };
+
+  const confirmSwitch = () => {
+    if (!switchTarget) return;
+    setActiveServer(switchTarget.id);
     notifyConfigChanged();
     onServersChanged();
+    setSwitchTarget(null);
   };
 
   const handleDelete = (id: string) => {
@@ -52,7 +63,7 @@ export function ServerListSection({
             {/* Active indicator */}
             <button
               type="button"
-              onClick={() => handleSwitch(server.id)}
+              onClick={() => handleSwitch(server)}
               className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
                 server.isActive
                   ? 'border-sky-500 bg-sky-500'
@@ -75,7 +86,7 @@ export function ServerListSection({
               className="flex-1 text-left"
             >
               <div className="text-sm font-medium text-slate-200">{server.name}</div>
-              <div className="text-xs text-slate-500">{server.baseUrl}</div>
+              <div className="text-xs text-slate-500">{server.bhnmUrl || server.baseUrl}</div>
             </button>
 
             {/* Delete */}
@@ -100,6 +111,32 @@ export function ServerListSection({
       >
         + Add Server
       </button>
+
+      {/* Switch confirmation dialog */}
+      {switchTarget && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl p-5 mx-4 max-w-sm w-full shadow-2xl">
+            <h3 className="text-lg font-semibold text-white text-center">{switchTarget.name}</h3>
+            <p className="text-sm text-slate-400 text-center mt-2">Switch to this server?</p>
+            <div className="flex gap-3 mt-5">
+              <button
+                type="button"
+                onClick={() => setSwitchTarget(null)}
+                className="flex-1 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-sm text-slate-300 hover:bg-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmSwitch}
+                className="flex-1 py-2.5 rounded-lg bg-sky-600 text-sm text-white font-semibold hover:bg-sky-500"
+              >
+                Switch
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

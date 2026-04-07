@@ -15,6 +15,9 @@ vi.mock('../../scanner/QRConfirmScreen', () => ({
 vi.mock('../../../lib/qr-parser', () => ({
   parseQRUrl: vi.fn(),
 }));
+vi.mock('../../../lib/api/ha-status', () => ({
+  testConnection: vi.fn().mockResolvedValue({ ok: true, latencyMs: 10, version: '26.1.02' }),
+}));
 
 function renderScreen() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
