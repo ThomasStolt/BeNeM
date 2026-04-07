@@ -12,6 +12,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [2.6.0] — 2026-04-07
+
+### Security
+
+- **Keychain credential storage** — API keys, PINs, and webhook secrets are now stored in the iOS Keychain (`Security.framework`) instead of `UserDefaults`. Existing plaintext values are migrated transparently on first load. New `KeychainHelper` utility wraps `SecItemAdd`/`SecItemCopyMatching`/`SecItemDelete`.
+- **App Transport Security tightened** — replaced `NSAllowsArbitraryLoads = true` with `NSAllowsLocalNetworking = true` in `Info.plist`. All non-local HTTP traffic now requires valid TLS certificates.
+- **Deep link URL validation** — `DeepLinkHandler` now rejects `benem://` payloads where `middleware_url` uses a non-HTTP(S) scheme, preventing scheme-based injection.
+
+---
+
 ## [2.5.0] — 2026-04-03
 
 ### Added
@@ -336,7 +346,8 @@ Initial release.
 
 ---
 
-[Unreleased]: https://github.com/thomasstolt/BeNeM/compare/v2.3.2...HEAD
+[Unreleased]: https://github.com/thomasstolt/BeNeM/compare/v2.6.0...HEAD
+[2.6.0]: https://github.com/thomasstolt/BeNeM/compare/v2.5.0...v2.6.0
 [2.3.2]: https://github.com/thomasstolt/BeNeM/compare/v2.3.1...v2.3.2
 [2.3.1]: https://github.com/thomasstolt/BeNeM/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/thomasstolt/BeNeM/compare/v2.2.0...v2.3.0

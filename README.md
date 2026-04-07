@@ -1,6 +1,8 @@
 # BeNeM — Mobile Clients for BMC Helix Network Management
 
-An open source monorepo containing two client applications for **BMC Helix Network Management** (BHNM): a **native iOS app** and a **Progressive Web App (PWA)** for Android. Monitor your infrastructure, manage incidents, and acknowledge alerts directly from your phone — on either platform.
+An open-source mobile application for **BMC Helix Network Management (BHNM)**. This is an independent project — it is not affiliated with, endorsed, guaranteed, or supported by BMC Software. BMC, Helix, and BHNM are trademarks of BMC Software, Inc. If you find a bug or have a feature request, contributions are welcome!
+
+This repository provides a push notification middleware, a native iOS app (Swift/SwiftUI), and a Progressive Web App (PWA) for Android.
 
 **When a new incident is created in BHNM, a push notification is instantly delivered to every registered device** — no polling, no delay. Tap the notification to jump straight to the incident detail. This is a first-class feature of BeNeM on both platforms, powered by a lightweight companion middleware that bridges BHNM webhooks to Apple Push Notification service (APNs) for iOS and VAPID Web Push for Android.
 
@@ -196,7 +198,6 @@ BeNeM/
 │   ├── DECISION.md            # Platform strategy record
 │   ├── feature-spec.md        # Canonical feature list, per-platform notes
 │   ├── push-payload-spec.md   # Push notification payload contract
-│   ├── api-spec.md            # BHNM API subset actively consumed
 │   └── BHNM_API_REFERENCE.md  # Full BHNM API reference
 │
 └── CLAUDE.md                  # Monorepo-wide context

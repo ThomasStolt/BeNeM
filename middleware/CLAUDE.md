@@ -26,7 +26,7 @@ to registered iOS devices (APNs) and Android/web users (Web Push).
 | `apns.py` | APNs delivery: JWT generation, HTTP/2 POST via `httpx`, stale token detection. |
 | `webpush.py` | Web Push delivery: VAPID-signed push via `pywebpush`, stale subscription detection. |
 | `Dockerfile` | Builds the FastAPI app image. Uses `uvicorn` as the server. |
-| `docker-compose.yml` | Runs `bhnm-apns` + `benem-admin` + `caddy:2-alpine` together. Named volumes for SQLite and Caddy data. |
+| `docker-compose.yml` | Runs `bhnm-apns` + `benem-admin` + `benem-pwa` + `caddy:2.9-alpine` together. Named volumes for SQLite and Caddy data. |
 | `Caddyfile` | Reverse proxy config: Caddy listens on 443, proxies to the FastAPI container, handles TLS automatically. |
 | `requirements.txt` | Python dependencies: `fastapi`, `uvicorn`, `httpx[http2]`, `PyJWT`, `cryptography`, `python-dotenv`. |
 | `upgrade.sh` | Upgrade script: pulls latest code, rebuilds all containers, restarts services, health-checks bhnm-apns and benem-admin. |
@@ -178,5 +178,4 @@ to pull from the monorepo subdirectory.
 
 ## BHNM API
 
-Endpoint contracts are in `../shared/BHNM_API_REFERENCE.md` (full reference)
-and `../shared/api-spec.md` (narrower subset actively consumed).
+Endpoint contracts are in `../shared/BHNM_API_REFERENCE.md`.

@@ -18,10 +18,11 @@ BHNM Server  ──webhook──►  bhnm-apns  ──APNs──►  iPhone (BeN
 
 ## Features
 
-- Push notifications for BHNM incidents delivered to iPhone in real time
+- Push notifications for BHNM incidents delivered to iPhone (APNs) and Android/web (Web Push VAPID) in real time
 - Per-server routing: each BHNM server uses its own unique webhook secret, so only matching registered devices receive notifications
-- **BeNeM Admin portal** — dark-mode web UI for generating BeNeM registration QR codes / deep-links, testing server connectivity, viewing registered devices, and managing settings. Protected by TOTP authentication with brute-force rate limiting.
-- BHNM API proxy — forwards BeNeM app requests to BHNM servers on private networks via `X-BHNM-Target` header
+- **BeNeM Admin portal** — dark-mode web UI for generating BeNeM registration QR codes / deep-links, testing server connectivity, viewing registered devices, and managing settings. Protected by TOTP authentication with brute-force rate limiting and CSRF protection.
+- BHNM API proxy — forwards BeNeM app requests to BHNM servers on private networks via `X-BHNM-Target` header, authenticated via `X-Proxy-Token`
+- **Security hardened** — proxy token authentication on all API routes, SSRF protection with DNS rebinding prevention, HSTS + security headers, non-root containers, session secret isolation
 - Automatic TLS via Caddy (Let's Encrypt — no manual certificate management)
 - SQLite persistence via Docker named volume — device tokens survive container restarts
 - HTTP/2 APNs delivery with automatic cleanup of expired or invalid device tokens
@@ -93,6 +94,10 @@ All configuration is via environment variables in `.env`. Never commit `.env` �
 | `APNS_BUNDLE_ID` | Yes | App bundle identifier | `com.tstolt.benem` |
 | `APNS_PRIVATE_KEY_B64` | Yes | Contents of `.p8` file, base64-encoded. Generate: `base64 -w 0 AuthKey_XXXX.p8` | `LS0tLS1CRUd...` |
 | `DOMAIN` | Yes | Public domain for this service — used by Caddy for automatic TLS | `bhnm-apns.example.com` |
+| `PROXY_TOKEN` | Recommended | Token for authenticating proxy API requests from BeNeM clients. Generate: `openssl rand -hex 32` | `a1b2c3...` |
+| `VAPID_PRIVATE_KEY` | For Web Push | VAPID private key for Web Push (Android/PWA). Generate: `npx web-push generate-vapid-keys` | |
+| `VAPID_PUBLIC_KEY` | For Web Push | VAPID public key (shared with PWA clients) | |
+| `VAPID_CONTACT_EMAIL` | For Web Push | Contact email for VAPID identification | `mailto:admin@example.com` |
 | `MIDDLEWARE_PORT` | No | Internal port the FastAPI app listens on. Default: `8889` | `8889` |
 
 ---
@@ -193,7 +198,7 @@ Returns service status. No authentication required.
 ```json
 {
   "status": "running",
-  "version": "2.2.0",
+  "version": "2.4.0",
   "registered_devices": 3,
   "apns_environment": "per-device"
 }
@@ -252,10 +257,24 @@ The `benem-admin` service provides a dark-mode web UI accessible at `https://you
 | `MIDDLEWARE_URL` | Public URL of this bhnm-apns instance |
 | `WEBHOOK_SECRET` | Default webhook secret embedded in generated links |
 | `TOTP_SECRET` | Base32 TOTP secret (generate: `python -c "import pyotp; print(pyotp.random_base32())"`) |
-| `SESSION_SECRET` | Random string for signing session cookies (generate: `openssl rand -hex 32`) |
+| `SESSION_SECRET` | **Required.** Random string for signing session cookies (generate: `openssl rand -hex 32`). Does not fall back to any other secret. |
 | `BENEM_SECRET_KEY` | 32-byte hex key for encrypting benem:// payloads (generate: `openssl rand -hex 32`) |
 
 `servers.json` (in the benem-admin working directory) defines available BHNM servers. This file contains API keys and must never be committed to version control — it is listed in `.gitignore`.
+
+---
+
+## Security
+
+bhnm-apns is security-hardened for production deployment:
+
+- **Proxy authentication** — all BHNM API proxy routes require a valid `X-Proxy-Token` header (global token or per-server API key from `servers.json`)
+- **SSRF protection** — proxy targets are validated: hostnames are resolved via DNS and checked against RFC 1918, loopback, link-local, and cloud metadata IP ranges. Configured `servers.json` hostnames are always allowed.
+- **CSRF protection** — the admin portal validates `Origin`/`Referer` headers on all state-changing requests, alongside `SameSite=strict` session cookies
+- **Security headers** — HSTS with preload, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, Content-Security-Policy (PWA domain), Server header stripped
+- **Non-root containers** — both `bhnm-apns` and `benem-admin` run as a dedicated `appuser` system account
+- **Rate limiting** — admin login is rate-limited to 5 attempts/minute per IP
+- **No secrets in logs** — webhook secrets, device tokens, and registration links are never written to logs in full
 
 ---
 

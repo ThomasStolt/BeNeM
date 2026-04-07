@@ -42,6 +42,7 @@
 		HH0001000000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = HH0001000000000000000002 /* AppDelegate.swift */; };
 		II0001000000000000000001 /* IconPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = II0001000000000000000002 /* IconPickerSheet.swift */; };
 		II0001000000000000000003 /* ServerConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = II0001000000000000000004 /* ServerConfigView.swift */; };
+		JJ0001000000000000000001 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = JJ0001000000000000000002 /* KeychainHelper.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -77,6 +78,7 @@
 		HH0001000000000000000002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		II0001000000000000000002 /* IconPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconPickerSheet.swift; sourceTree = "<group>"; };
 		II0001000000000000000004 /* ServerConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConfigView.swift; sourceTree = "<group>"; };
+		JJ0001000000000000000002 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		F1F10DD12CE00003 /* QRScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScannerView.swift; sourceTree = "<group>"; };
 		F1F10DD12CE00001 /* FloppyDiskIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloppyDiskIcon.swift; sourceTree = "<group>"; };
 		F1F10DD12CE00099 /* DeviceTypeIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceTypeIcon.swift; sourceTree = "<group>"; };
@@ -176,6 +178,7 @@
 				A11234567890006B /* NetreoAPIService.swift */,
 				A11234567890007B /* NetreoAPIConfiguration.swift */,
 				GG0001000000000000000002 /* DeepLinkHandler.swift */,
+				JJ0001000000000000000002 /* KeychainHelper.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -320,6 +323,7 @@
 				FF0001000000000000000001 /* Data+Hex.swift in Sources */,
 				FF0001000000000000000003 /* Secrets.swift in Sources */,
 				GG0001000000000000000001 /* DeepLinkHandler.swift in Sources */,
+				JJ0001000000000000000001 /* KeychainHelper.swift in Sources */,
 				II0001000000000000000001 /* IconPickerSheet.swift in Sources */,
 				II0001000000000000000003 /* ServerConfigView.swift in Sources */,
 				F1F10DD12CE00004 /* QRScannerView.swift in Sources */,
@@ -458,7 +462,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BeNeM/BeNeM.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 19;
+				CURRENT_PROJECT_VERSION = 20;
 				DEVELOPMENT_ASSET_PATHS = "\"BeNeM/Preview Content\"";
 				DEVELOPMENT_TEAM = 8L27BJGYXP;
 				ENABLE_PREVIEWS = YES;
@@ -470,7 +474,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.5.0;
+				MARKETING_VERSION = 2.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tstolt.benem;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -486,7 +490,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BeNeM/BeNeM.release.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 19;
+				CURRENT_PROJECT_VERSION = 20;
 				DEVELOPMENT_ASSET_PATHS = "\"BeNeM/Preview Content\"";
 				DEVELOPMENT_TEAM = 8L27BJGYXP;
 				ENABLE_PREVIEWS = YES;
@@ -498,7 +502,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.5.0;
+				MARKETING_VERSION = 2.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tstolt.benem;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

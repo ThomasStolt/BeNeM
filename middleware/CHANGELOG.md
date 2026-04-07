@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.4.0] - 2026-04-07
+
+### Security
+
+- **Proxy authentication enforced** — all BHNM API proxy routes (`/api/proxy/*` and catch-all `/{path}`) now require a valid `X-Proxy-Token` header. Accepts either the global `PROXY_TOKEN` env var or any `api_key` from `servers.json`.
+- **SSRF protection with DNS rebinding prevention** — `_validate_proxy_target()` resolves hostnames to IPs via `socket.getaddrinfo()` and blocks RFC 1918, loopback, link-local, and cloud metadata addresses. Hostnames explicitly configured in `servers.json` are always allowed.
+- **CSRF middleware** (benem-admin v1.4.0) — `CSRFMiddleware` validates `Origin`/`Referer` headers against `Host` for all state-changing requests to `/admin/*`. Defense-in-depth alongside `SameSite=strict` session cookies.
+- **HTTP security headers** — Caddy now sets `Strict-Transport-Security` (HSTS with preload), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, and strips the `Server` header on both domains. PWA domain additionally gets a `Content-Security-Policy`.
+- **Non-root Docker containers** — both `bhnm-apns` and `benem-admin` Dockerfiles create a dedicated `appuser` system account and run as that user.
+- **Session secret independence** — `SESSION_SECRET` no longer falls back to `BENEM_SECRET_KEY`; it must be set independently. Session lifetime reduced from 24 hours to 8 hours.
+- **Admin log no longer stores full links** — `append_entry()` now stores a truncated prefix and SHA-256 hash instead of the full encrypted `benem://` URL. The `log/show` endpoint returns metadata only.
+- **Container image pinning** — Caddy image pinned to `caddy:2.9-alpine` instead of floating `caddy:2-alpine`.
+
+### Added
+
+- `PROXY_TOKEN` environment variable in `config.py` and `.env.example` for global proxy authentication.
+- PWA `nginx.conf` security headers (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`).
+
+---
+
 ## [2.3.0] - 2026-04-02
 
 ### Added
