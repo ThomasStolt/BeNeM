@@ -32,6 +32,7 @@ export function SettingsScreen() {
   const [scannedConfig, setScannedConfig] = useState<ParsedServerConfig | null>(null);
   const [existingServerId, setExistingServerId] = useState<string | undefined>(undefined);
   const hasCamera = typeof navigator !== 'undefined' && !!navigator.mediaDevices;
+  const [debugTrace, setDebugTrace] = useState<string[]>([]);
 
   const refreshServers = useCallback(() => {
     setServers(loadServers());
@@ -107,16 +108,29 @@ export function SettingsScreen() {
   };
 
   const handleScanResult = async (decodedText: string) => {
+    const trace: string[] = [];
+    trace.push('1:callback fired');
+    trace.push(`2:url=${decodedText.slice(0, 60)}`);
     setShowScanner(false);
+    setDebugTrace([...trace]);
     try {
+      trace.push('3:calling parseQRUrl');
+      setDebugTrace([...trace]);
       const config = await parseQRUrl(decodedText);
+      trace.push(`4:parsed ok, name=${config.name}, baseUrl=${config.baseUrl}`);
+      setDebugTrace([...trace]);
       const existing = loadServers().find((s) =>
         (config.bhnmUrl && s.bhnmUrl === config.bhnmUrl) || s.baseUrl === config.baseUrl,
       );
+      trace.push(`5:existing=${existing?.id ?? 'none'}`);
       setExistingServerId(existing?.id);
       setScannedConfig(config);
+      trace.push('6:scannedConfig set');
+      setDebugTrace([...trace]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not read QR code';
+      trace.push(`ERR:${msg}`);
+      setDebugTrace([...trace]);
       setScanError(msg);
     }
   };
@@ -296,6 +310,13 @@ export function SettingsScreen() {
             onCancel={() => { setScannedConfig(null); setExistingServerId(undefined); }}
             existingServerId={existingServerId}
           />
+        </div>
+      )}
+
+      {/* Debug trace — remove after fixing QR issue */}
+      {debugTrace.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-yellow-600 text-black text-xs p-2 z-[999] font-mono">
+          {debugTrace.map((t, i) => <div key={i}>{t}</div>)}
         </div>
       )}
     </div>
