@@ -29,21 +29,15 @@ export function QRScannerOverlay({ onScanned, onCancel, onError }: QRScannerOver
         (decodedText) => {
           if (stoppedRef.current) return;
           stoppedRef.current = true;
-          // Debug: show what was scanned directly on screen
-          try {
-            const el = document.getElementById('qr-debug');
-            if (el) el.textContent = `Scanned: ${decodedText.slice(0, 80)}...`;
-          } catch { /* ignore */ }
-          scanner.stop()
-            .catch(() => {}) // proceed even if stop fails
-            .then(() => {
-              const result = onScannedRef.current(decodedText);
-              if (result instanceof Promise) {
-                result.catch((err) => {
-                  onErrorRef.current?.(err instanceof Error ? err.message : String(err));
-                });
-              }
+          // Stop scanner in background — don't block the callback
+          scanner.stop().catch(() => {});
+          // Fire callback immediately
+          const result = onScannedRef.current(decodedText);
+          if (result instanceof Promise) {
+            result.catch((err) => {
+              onErrorRef.current?.(err instanceof Error ? err.message : String(err));
             });
+          }
         },
         undefined,
       )
@@ -72,7 +66,6 @@ export function QRScannerOverlay({ onScanned, onCancel, onError }: QRScannerOver
           Point at a BeNeM QR code
         </p>
       </div>
-      <div id="qr-debug" className="text-yellow-400 text-xs mt-4 px-4 text-center break-all" />
       <button
         type="button"
         onClick={onCancel}
