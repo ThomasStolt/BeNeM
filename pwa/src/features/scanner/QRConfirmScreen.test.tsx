@@ -5,11 +5,12 @@ import type { ParsedServerConfig } from '../../lib/qr-parser';
 
 const mockConfig: ParsedServerConfig = {
   name: 'Test Server',
-  baseUrl: 'https://middleware.example.com',
+  baseUrl: '/bhnm',
   bhnmUrl: 'https://bhnm.example.com',
   apiKey: 'secret-api-key-12345',
   pin: '1234',
   ackUser: 'admin',
+  pushMiddlewareUrl: 'https://middleware.example.com',
   pushWebhookSecret: 'webhooksecret',
 };
 

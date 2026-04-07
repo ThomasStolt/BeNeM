@@ -12,6 +12,7 @@ export interface ParsedServerConfig {
   apiKey: string;
   pin?: string;
   ackUser?: string;
+  pushMiddlewareUrl?: string;
   pushWebhookSecret?: string;
 }
 
@@ -78,11 +79,12 @@ export async function parseQRUrl(urlString: string): Promise<ParsedServerConfig>
 
     return {
       name: data.name ?? 'BHNM Server',
-      baseUrl: middlewareUrl || bhnmUrl,
+      baseUrl: '/bhnm',
       bhnmUrl,
       apiKey,
       pin: data.pin || undefined,
       ackUser,
+      pushMiddlewareUrl: middlewareUrl || undefined,
       pushWebhookSecret: data.push_secret || data.pushSecret || undefined,
     };
   }
@@ -108,11 +110,12 @@ export async function parseQRUrl(urlString: string): Promise<ParsedServerConfig>
 
   return {
     name,
-    baseUrl: server,
-    bhnmUrl: '',
+    baseUrl: '/bhnm',
+    bhnmUrl: server,
     apiKey,
     pin: pin || undefined,
     ackUser: undefined,
+    pushMiddlewareUrl: undefined,
     pushWebhookSecret: undefined,
   };
 }

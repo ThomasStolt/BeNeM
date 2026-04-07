@@ -33,7 +33,7 @@ export function QRConfirmScreen({
       <div className="bg-slate-900 rounded-lg p-4 space-y-2">
         <InfoRow label="Name" value={config.name} />
         {config.bhnmUrl && <InfoRow label="BHNM URL" value={config.bhnmUrl} />}
-        <InfoRow label="Middleware URL" value={config.baseUrl} />
+        {config.pushMiddlewareUrl && <InfoRow label="Middleware URL" value={config.pushMiddlewareUrl} />}
         <InfoRow label="API Key" value={maskKey(config.apiKey)} />
         {config.pin && <InfoRow label="PIN" value="••••" />}
         {config.ackUser && <InfoRow label="User Name" value={config.ackUser} />}

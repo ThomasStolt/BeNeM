@@ -131,6 +131,7 @@ export function SettingsScreen() {
         apiKey: scannedConfig.apiKey,
         pin: scannedConfig.pin,
         ackUser: scannedConfig.ackUser ?? '',
+        pushMiddlewareUrl: scannedConfig.pushMiddlewareUrl,
         pushWebhookSecret: scannedConfig.pushWebhookSecret,
         isQrProvisioned: true,
       });
@@ -142,6 +143,7 @@ export function SettingsScreen() {
         apiKey: scannedConfig.apiKey,
         pin: scannedConfig.pin,
         ackUser: scannedConfig.ackUser ?? '',
+        pushMiddlewareUrl: scannedConfig.pushMiddlewareUrl,
         pushWebhookSecret: scannedConfig.pushWebhookSecret,
         isQrProvisioned: true,
       });
