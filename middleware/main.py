@@ -112,6 +112,15 @@ class WebPushRegistration(BaseModel):
     p256dh: str
     auth: str
 
+class WebhookPayload(BaseModel):
+    notification_type: str = "PROBLEM"
+    hostname: str = "Unknown device"
+    host_state: str = ""
+    site: str = ""
+    service_desc: str = ""
+    output: str = ""
+    incident_id: str = ""
+
 @app.post("/register-webpush", status_code=201)
 def register_webpush(body: WebPushRegistration, request: Request, response: Response):
     webhook_secret = request.headers.get("X-Webhook-Token", "").strip()
@@ -136,20 +145,18 @@ def get_vapid_key():
 # ── BHNM Webhook ──────────────────────────────────────────────────────────────
 
 @app.post("/webhook")
-async def receive_webhook(request: Request):
+async def receive_webhook(request: Request, payload: WebhookPayload):
     secret = request.query_params.get("secret", "").strip()
     if not secret:
         raise HTTPException(status_code=400, detail="?secret= query parameter is required")
 
-    payload = await request.json()
-
-    notification_type = payload.get("notification_type", "PROBLEM")
-    hostname          = payload.get("hostname", "Unknown device")
-    host_state        = payload.get("host_state", "")
-    site              = payload.get("site", "")
-    service_desc      = payload.get("service_desc", "")
-    output            = payload.get("output", "")
-    incident_id       = payload.get("incident_id", "")
+    notification_type = payload.notification_type
+    hostname          = payload.hostname
+    host_state        = payload.host_state
+    site              = payload.site
+    service_desc      = payload.service_desc
+    output            = payload.output
+    incident_id       = payload.incident_id
 
     # Build human-readable notification
     if notification_type == "RECOVERY":
@@ -170,8 +177,8 @@ async def receive_webhook(request: Request):
     web_push_subs = get_web_push_subscriptions_for_secret(secret)
 
     if not tokens and not web_push_subs:
-        print(f"[Webhook] Rejected: no registered devices for this secret.")
-        raise HTTPException(status_code=403, detail="Forbidden: unknown secret")
+        print(f"[Webhook] No registered devices for this secret — nothing to notify.")
+        return {"status": "ok", "notified": 0}
 
     # Send APNs
     apns_stale = await send_to_all(tokens, title, body, incident_id) if tokens else []

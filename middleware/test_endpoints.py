@@ -82,3 +82,49 @@ def test_vapid_key_returns_404_when_not_configured():
         assert resp.status_code == 404
     finally:
         config.VAPID_PUBLIC_KEY = original
+
+
+# ── Webhook Pydantic validation and no-device behaviour ──────────────────────
+
+from unittest.mock import patch, AsyncMock
+
+
+def test_webhook_rejects_non_json():
+    resp = client.post("/webhook?secret=testsecret", content=b"not json",
+                       headers={"Content-Type": "application/json"})
+    assert resp.status_code == 422
+
+
+def test_webhook_accepts_valid_payload():
+    client.post("/register",
+                json={"token": "aabbccdd" * 8},
+                headers={"X-Webhook-Token": "testsecret"})
+    with patch("main.send_to_all", new_callable=AsyncMock, return_value=[]):
+        resp = client.post("/webhook?secret=testsecret",
+                           json={
+                               "notification_type": "PROBLEM",
+                               "hostname": "switch-01",
+                               "host_state": "DOWN",
+                               "site": "HQ",
+                               "output": "unreachable",
+                               "incident_id": "42"
+                           })
+    assert resp.status_code == 200
+
+
+def test_webhook_accepts_minimal_payload():
+    client.post("/register",
+                json={"token": "11223344" * 8},
+                headers={"X-Webhook-Token": "testsecret2"})
+    with patch("main.send_to_all", new_callable=AsyncMock, return_value=[]):
+        resp = client.post("/webhook?secret=testsecret2",
+                           json={"hostname": "router-01"})
+    assert resp.status_code == 200
+
+
+def test_webhook_returns_200_for_unknown_secret():
+    """A valid-shaped secret with no registered devices should return 200, not 403."""
+    resp = client.post("/webhook?secret=no-devices-yet",
+                       json={"hostname": "switch-01", "host_state": "DOWN"})
+    assert resp.status_code == 200
+    assert resp.json()["notified"] == 0
