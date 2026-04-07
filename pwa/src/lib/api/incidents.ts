@@ -154,7 +154,7 @@ export async function acknowledgeIncident(
   const params: Record<string, string> = {
     password: config.apiKey,
     incident_id: incidentId,
-    user: 'BeNeM PWA',
+    user: config.ackUser || 'BeNeM PWA',
   };
   if (config.pin) params.pin = config.pin;
   const raw = await postForm(config.baseUrl, '/api/proxy/incident/acknowledge', params, config.apiKey);
@@ -168,7 +168,7 @@ export async function unacknowledgeIncident(
   const params: Record<string, string> = {
     password: config.apiKey,
     incident_id: incidentId,
-    user: 'BeNeM PWA',
+    user: config.ackUser || 'BeNeM PWA',
   };
   if (config.pin) params.pin = config.pin;
   const raw = await postForm(config.baseUrl, '/api/proxy/incident/unacknowledge', params, config.apiKey);
