@@ -45,10 +45,11 @@ echo "── Checking for unknown variables ──"
 KNOWN_KEYS="APNS_KEY_ID APNS_TEAM_ID APNS_BUNDLE_ID APNS_PRIVATE_KEY_B64 \
 VAPID_PRIVATE_KEY VAPID_PUBLIC_KEY VAPID_CONTACT_EMAIL \
 DOMAIN PWA_DOMAIN \
+BASIC_AUTH_USER BASIC_AUTH_HASH \
 BENEM_SECRET_KEY SESSION_SECRET TOTP_SECRET \
 MIDDLEWARE_URL MIDDLEWARE_PORT WEBHOOK_SECRET \
 BHNM_TLS_VERIFY PROXY_TOKEN \
-DB_PATH SERVERS_JSON_PATH"
+DB_PATH SERVERS_JSON_PATH LOG_PATH APNS_DB_PATH"
 
 # Extract all keys from .env (skip comments and blank lines)
 while IFS= read -r line; do
@@ -151,6 +152,27 @@ elif [[ "$v" == *"example.com"* ]]; then
 else
   ok "PWA_DOMAIN=$v"
 fi
+# Caddy Basic Auth for /admin
+echo ""
+echo "── Caddy Basic Auth ──"
+
+v="$(val BASIC_AUTH_USER)"
+if [[ -z "$v" ]]; then
+  warn "BASIC_AUTH_USER not set — /admin routes won't have HTTP Basic Auth"
+else
+  ok "BASIC_AUTH_USER=$v"
+fi
+
+v="$(val BASIC_AUTH_HASH)"
+if [[ -z "$v" ]]; then
+  if [[ -n "$(val BASIC_AUTH_USER)" ]]; then
+    err "BASIC_AUTH_HASH is not set but BASIC_AUTH_USER is — auth will fail"
+  fi
+elif [[ ! "$v" =~ ^\$2[aby]?\$ ]]; then
+  warn "BASIC_AUTH_HASH doesn't look like a bcrypt hash (expected \$2a\$... or \$2b\$...)"
+else
+  ok "BASIC_AUTH_HASH is set (bcrypt)"
+fi
 echo ""
 
 # ── VAPID / Web Push ────────────────────────────────────────────────────────
@@ -210,6 +232,30 @@ if [[ -n "$v" && "$v" != "true" && "$v" != "false" ]]; then
 elif [[ "$v" == "false" ]]; then
   yellow "  NOTE: BHNM_TLS_VERIFY=false — TLS certificate checks are disabled"
 fi
+
+v="$(val MIDDLEWARE_PORT)"
+if [[ -n "$v" && ! "$v" =~ ^[0-9]+$ ]]; then
+  err "MIDDLEWARE_PORT must be a number (got '$v')"
+elif [[ -n "$v" ]]; then
+  ok "MIDDLEWARE_PORT=$v"
+fi
+echo ""
+
+# ── Docker paths (optional, have sensible defaults) ─────────────────────────
+
+echo "── Docker paths ──"
+
+v="$(val DB_PATH)"
+if [[ -n "$v" ]]; then ok "DB_PATH=$v"; else dim "  DB_PATH not set (default: /data/bhnm_apns.db)"; fi
+
+v="$(val SERVERS_JSON_PATH)"
+if [[ -n "$v" ]]; then ok "SERVERS_JSON_PATH=$v"; else dim "  SERVERS_JSON_PATH not set (default: /data/servers.json)"; fi
+
+v="$(val LOG_PATH)"
+if [[ -n "$v" ]]; then ok "LOG_PATH=$v"; else dim "  LOG_PATH not set (default: /app/log/admin.jsonl)"; fi
+
+v="$(val APNS_DB_PATH)"
+if [[ -n "$v" ]]; then ok "APNS_DB_PATH=$v"; else dim "  APNS_DB_PATH not set (default: /data/bhnm_apns.db)"; fi
 echo ""
 
 # ── Summary ──────────────────────────────────────────────────────────────────
