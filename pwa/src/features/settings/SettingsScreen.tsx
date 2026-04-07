@@ -6,6 +6,7 @@ import {
   loadServers,
   addServer,
   updateServer,
+  removeServer,
   type ServerConfig,
   type NewServerInput,
 } from '../../lib/serverStorage';
@@ -59,6 +60,16 @@ export function SettingsScreen() {
     setView('edit');
   };
 
+  const handleDeleteServer = () => {
+    if (!editingServer) return;
+    removeServer(editingServer.id);
+    notifyConfigChanged();
+    refreshServers();
+    setView('list');
+    setEditingServer(null);
+    queryClient.invalidateQueries();
+  };
+
   const handleTogglePush = async () => {
     if (pushLoading) return;
     const activeServer = servers.find((s) => s.isActive);
@@ -99,7 +110,9 @@ export function SettingsScreen() {
     setShowScanner(false);
     try {
       const config = await parseQRUrl(decodedText);
-      const existing = loadServers().find((s) => s.baseUrl === config.baseUrl);
+      const existing = loadServers().find((s) =>
+        (config.bhnmUrl && s.bhnmUrl === config.bhnmUrl) || s.baseUrl === config.baseUrl,
+      );
       setExistingServerId(existing?.id);
       setScannedConfig(config);
     } catch (err) {
@@ -113,19 +126,24 @@ export function SettingsScreen() {
     if (existingServerId) {
       updateServer(existingServerId, {
         name: scannedConfig.name,
+        baseUrl: scannedConfig.baseUrl,
+        bhnmUrl: scannedConfig.bhnmUrl,
         apiKey: scannedConfig.apiKey,
         pin: scannedConfig.pin,
-        pushMiddlewareUrl: scannedConfig.pushMiddlewareUrl,
+        ackUser: scannedConfig.ackUser ?? '',
         pushWebhookSecret: scannedConfig.pushWebhookSecret,
+        isQrProvisioned: true,
       });
     } else {
       addServer({
         name: scannedConfig.name,
         baseUrl: scannedConfig.baseUrl,
+        bhnmUrl: scannedConfig.bhnmUrl,
         apiKey: scannedConfig.apiKey,
         pin: scannedConfig.pin,
-        pushMiddlewareUrl: scannedConfig.pushMiddlewareUrl,
+        ackUser: scannedConfig.ackUser ?? '',
         pushWebhookSecret: scannedConfig.pushWebhookSecret,
+        isQrProvisioned: true,
       });
     }
     notifyConfigChanged();
@@ -257,6 +275,7 @@ export function SettingsScreen() {
             server={editingServer}
             onSave={handleEditServer}
             onCancel={() => { setView('list'); setEditingServer(null); }}
+            onDelete={handleDeleteServer}
           />
         )}
       </div>
