@@ -96,6 +96,30 @@ describe('serverStorage', () => {
       expect(servers[0].isActive).toBe(true);
       expect(servers[1].isActive).toBe(false);
     });
+
+    it('stores ackUser, bhnmUrl, and isQrProvisioned', () => {
+      const server = addServer({
+        name: 'QR Server',
+        baseUrl: '/middleware',
+        apiKey: 'k1',
+        ackUser: 'thomas',
+        bhnmUrl: 'https://bhnm.example.com',
+        isQrProvisioned: true,
+      });
+      const servers = loadServers();
+      expect(servers[0].ackUser).toBe('thomas');
+      expect(servers[0].bhnmUrl).toBe('https://bhnm.example.com');
+      expect(servers[0].isQrProvisioned).toBe(true);
+      expect(servers[0].id).toBe(server.id);
+    });
+
+    it('defaults new fields when not provided', () => {
+      addServer({ name: 'Manual', baseUrl: '/bhnm', apiKey: 'k1' });
+      const servers = loadServers();
+      expect(servers[0].ackUser).toBe('');
+      expect(servers[0].bhnmUrl).toBe('');
+      expect(servers[0].isQrProvisioned).toBe(false);
+    });
   });
 
   describe('updateServer', () => {

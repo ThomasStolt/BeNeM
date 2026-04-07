@@ -19,6 +19,9 @@ export interface ServerConfig {
   pushMiddlewareUrl?: string;
   pushWebhookSecret?: string;
   isActive: boolean;
+  ackUser: string;
+  bhnmUrl: string;
+  isQrProvisioned: boolean;
 }
 
 export interface NewServerInput {
@@ -29,6 +32,9 @@ export interface NewServerInput {
   pushEnabled?: boolean;
   pushMiddlewareUrl?: string;
   pushWebhookSecret?: string;
+  ackUser?: string;
+  bhnmUrl?: string;
+  isQrProvisioned?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -172,6 +178,9 @@ export function createServerConfig(input: NewServerInput): ServerConfig {
     pushMiddlewareUrl: input.pushMiddlewareUrl,
     pushWebhookSecret: input.pushWebhookSecret,
     isActive: false,
+    ackUser: input.ackUser ?? '',
+    bhnmUrl: input.bhnmUrl ?? '',
+    isQrProvisioned: input.isQrProvisioned ?? false,
   };
 }
 
