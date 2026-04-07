@@ -12,7 +12,7 @@ VOLUME ["/data"]
 
 # Run as non-root user for security
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser \
-    && chown -R appuser:appgroup /data
+    && mkdir -p /data && chown -R appuser:appgroup /data
 USER appuser
 
 EXPOSE 8889
