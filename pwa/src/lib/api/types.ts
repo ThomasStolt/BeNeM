@@ -26,3 +26,27 @@ export class ApiException extends Error {
     this.name = 'ApiException';
   }
 }
+
+export interface PerformanceCategory {
+  id: string;
+  category: string;
+}
+
+export interface PerformanceInstance {
+  key: string;
+  title: string;
+  unit: string;
+  statGroup: string;
+  valueKey: 'value1' | 'value2';
+}
+
+export interface TimeSeriesDataPoint {
+  timestamp: number;
+  value: number;
+}
+
+export interface TimeSeriesResult {
+  instanceDescr: string;
+  metricId: string;
+  datapoints: TimeSeriesDataPoint[];
+}
