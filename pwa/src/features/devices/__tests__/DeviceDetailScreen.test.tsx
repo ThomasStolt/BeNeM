@@ -10,6 +10,9 @@ vi.mock('../useDeviceSearch', () => ({
 vi.mock('../../incidents/useIncidents', () => ({
   useIncidents: vi.fn(),
 }));
+vi.mock('../../performance/PerformanceSection', () => ({
+  PerformanceSection: () => <div data-testid="perf-section">Performance</div>,
+}));
 vi.mock('../../../lib/config', () => ({
   useConfig: () => ({
     serverId: 'test',
@@ -31,6 +34,7 @@ const mockDevice = {
   model: 'RPi 4',
   serialNumber: 'ABC123',
   description: 'Test Pi',
+  deviceIndex: '3',
 };
 
 function renderDetail(deviceName: string) {

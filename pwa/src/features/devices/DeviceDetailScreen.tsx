@@ -3,6 +3,7 @@ import { useDeviceSearch } from './useDeviceSearch';
 import { useIncidents } from '../incidents/useIncidents';
 import { SwipeableIncidentRow } from '../incidents/SwipeableIncidentRow';
 import { EmptyState } from '../../components/EmptyState';
+import { PerformanceSection } from '../performance/PerformanceSection';
 
 export function DeviceDetailScreen() {
   const { name } = useParams<{ name: string }>();
@@ -64,16 +65,11 @@ export function DeviceDetailScreen() {
             )}
           </div>
 
-          {/* Performance Placeholder */}
-          <div>
-            <button
-              disabled
-              className="w-full py-2.5 rounded-lg bg-slate-900 text-sm text-slate-500 cursor-not-allowed"
-            >
-              View Performance
-            </button>
-            <p className="text-xs text-slate-600 text-center mt-1">Available in v0.5.0</p>
-          </div>
+          {/* Performance */}
+          <PerformanceSection
+            deviceIndex={device.deviceIndex}
+            deviceName={device.name}
+          />
         </div>
       )}
 
