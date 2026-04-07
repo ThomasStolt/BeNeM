@@ -128,3 +128,26 @@ def test_webhook_returns_200_for_unknown_secret():
                        json={"hostname": "switch-01", "host_state": "DOWN"})
     assert resp.status_code == 200
     assert resp.json()["notified"] == 0
+
+
+# ── Input validation ───────────────────────────────────────────────────────────
+
+def test_register_rejects_empty_token():
+    resp = client.post("/register",
+                       json={"token": ""},
+                       headers={"X-Webhook-Token": "secret"})
+    assert resp.status_code == 422
+
+
+def test_register_rejects_whitespace_token():
+    resp = client.post("/register",
+                       json={"token": "   "},
+                       headers={"X-Webhook-Token": "secret"})
+    assert resp.status_code == 422
+
+
+def test_webpush_rejects_empty_endpoint():
+    resp = client.post("/register-webpush",
+                       json={"endpoint": "", "p256dh": "key", "auth": "auth"},
+                       headers={"X-Webhook-Token": "secret"})
+    assert resp.status_code == 422

@@ -7,7 +7,7 @@ from urllib.parse import parse_qs
 import httpx
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from config import MIDDLEWARE_PORT, VAPID_PUBLIC_KEY
 from database import init_db, save_token, get_tokens_for_secret, get_all_tokens, delete_token, \
@@ -30,6 +30,7 @@ HOP_BY_HOP_RESPONSE = {
 BHNM_TLS_VERIFY = os.getenv("BHNM_TLS_VERIFY", "true").lower() != "false"
 SERVERS_JSON_PATH = os.getenv("SERVERS_JSON_PATH", "/data/servers.json")
 PROXY_TOKEN = os.getenv("PROXY_TOKEN", "")
+PROXY_TIMEOUT = 60.0  # seconds — BHNM can be slow for large queries
 
 def _valid_proxy_token(token: str) -> bool:
     """Check token against PROXY_TOKEN env var or any api_key in servers.json."""
@@ -92,6 +93,13 @@ class TokenRegistration(BaseModel):
     device_name: str = "unknown"
     environment: str = "production"
 
+    @field_validator("token")
+    @classmethod
+    def token_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("token must not be empty")
+        return v.strip()
+
 @app.post("/register")
 def register_token(body: TokenRegistration, request: Request):
     active_secret = request.headers.get("X-Webhook-Token", "").strip()
@@ -119,6 +127,13 @@ class WebPushRegistration(BaseModel):
     endpoint: str
     p256dh: str
     auth: str
+
+    @field_validator("endpoint")
+    @classmethod
+    def endpoint_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("endpoint must not be empty")
+        return v.strip()
 
 class WebhookPayload(BaseModel):
     notification_type: str = "PROBLEM"
@@ -253,7 +268,7 @@ async def _proxy_to_bhnm(request: Request, bhnm_path: str) -> Response:
     }
 
     try:
-        async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=60.0) as client:
+        async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=PROXY_TIMEOUT) as client:
             resp = await client.request(
                 method="POST",
                 url=target,
@@ -340,7 +355,7 @@ async def proxy(path: str, request: Request):
     }
 
     try:
-        async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=60.0) as client:
+        async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=PROXY_TIMEOUT) as client:
             resp = await client.request(
                 method=request.method,
                 url=target,
