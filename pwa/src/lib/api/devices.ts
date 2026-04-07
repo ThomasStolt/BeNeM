@@ -9,6 +9,7 @@ export interface Device {
   model: string;
   serialNumber: string;
   description: string;
+  deviceIndex: string;
 }
 
 function coerceString(v: unknown): string {
@@ -26,6 +27,7 @@ function parseDevice(entry: Record<string, unknown>): Device | null {
     model: coerceString(entry.model),
     serialNumber: coerceString(entry.serial_number) || coerceString(entry.serialNumber),
     description: coerceString(entry.description),
+    deviceIndex: coerceString(entry.dev_index) || coerceString(entry.deviceIndex),
   };
 }
 
