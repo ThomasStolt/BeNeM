@@ -29,6 +29,20 @@ HOP_BY_HOP_RESPONSE = {
 
 BHNM_TLS_VERIFY = os.getenv("BHNM_TLS_VERIFY", "true").lower() != "false"
 SERVERS_JSON_PATH = os.getenv("SERVERS_JSON_PATH", "/data/servers.json")
+PROXY_TOKEN = os.getenv("PROXY_TOKEN", "")
+
+def _valid_proxy_token(token: str) -> bool:
+    """Check token against PROXY_TOKEN env var or any api_key in servers.json."""
+    if PROXY_TOKEN and token == PROXY_TOKEN:
+        return True
+    try:
+        with open(SERVERS_JSON_PATH) as f:
+            for s in json.load(f):
+                if s.get("api_key") == token:
+                    return True
+    except Exception as exc:
+        print(f"[Auth] Failed to read {SERVERS_JSON_PATH}: {exc}")
+    return False
 
 
 def _target_for_api_key(api_key: str) -> str:
@@ -194,6 +208,10 @@ def health():
 
 async def _proxy_to_bhnm(request: Request, bhnm_path: str) -> Response:
     """Forward a form-encoded POST to the given BHNM path and return the response."""
+    token = request.headers.get("X-Proxy-Token", "").strip()
+    if not token or not _valid_proxy_token(token):
+        raise HTTPException(status_code=401, detail="X-Proxy-Token header is required")
+
     body = await request.body()
 
     # Resolve target BHNM server (same logic as the catch-all proxy)
@@ -262,14 +280,13 @@ async def proxy_ha_status(request: Request):
 
 # ── BHNM API Proxy (for BeNeM) ────────────────────────────────────────────────────
 # Target BHNM server is supplied per-request via X-BHNM-Target header.
-# Any non-empty X-Proxy-Token is accepted — the secret itself is the credential.
+# X-Proxy-Token is validated against PROXY_TOKEN env var or servers.json api_keys.
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 async def proxy(path: str, request: Request):
-    # TODO: re-enable once BeNeM app sends X-Proxy-Token from the configured proxy_token
-    # token = request.headers.get("X-Proxy-Token", "").strip()
-    # if not token:
-    #     raise HTTPException(status_code=401, detail="X-Proxy-Token header is required")
+    token = request.headers.get("X-Proxy-Token", "").strip()
+    if not token or not _valid_proxy_token(token):
+        raise HTTPException(status_code=401, detail="X-Proxy-Token header is required")
 
     body = await request.body()
 
