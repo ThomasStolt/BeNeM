@@ -1,5 +1,6 @@
 services:
   bhnm-apns:
+    container_name: benem-middleware
     build: .
     env_file: .env
     volumes:
@@ -8,6 +9,7 @@ services:
     restart: unless-stopped
 
   benem-admin:
+    container_name: benem-admin
     build: ./benem-admin
     env_file: .env
     environment:
@@ -25,6 +27,7 @@ services:
     restart: unless-stopped
 
   benem-pwa:
+    container_name: benem-pwa
     build:
       context: ..
       dockerfile: pwa/Dockerfile
@@ -33,6 +36,7 @@ services:
     restart: unless-stopped
 
   caddy:
+    container_name: benem-proxy
     # Pin to a specific version to prevent supply-chain attacks via tag mutation.
     # Update periodically: docker pull caddy:2.9-alpine && docker compose up -d caddy
     image: caddy:2.9-alpine

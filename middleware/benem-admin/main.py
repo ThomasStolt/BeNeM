@@ -438,7 +438,7 @@ def restart_container(request: Request):
     if not _can_restart():
         return RedirectResponse("/admin/settings", status_code=302)
     # Runs in background — this process will be killed momentarily
-    subprocess.Popen(["docker", "restart", "benem-admin"])
+    subprocess.Popen(["docker", "restart", "benem-admin"])  # must match container_name in docker-compose.yml
     return templates.TemplateResponse(request, "settings.html", {
         "active": "settings",
         "totp_qr_b64": _totp_qr_b64(),
