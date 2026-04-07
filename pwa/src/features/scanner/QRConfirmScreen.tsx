@@ -32,10 +32,11 @@ export function QRConfirmScreen({
       </p>
       <div className="bg-slate-900 rounded-lg p-4 space-y-2">
         <InfoRow label="Name" value={config.name} />
-        <InfoRow label="URL" value={config.baseUrl} />
+        {config.bhnmUrl && <InfoRow label="BHNM URL" value={config.bhnmUrl} />}
+        <InfoRow label="Middleware URL" value={config.baseUrl} />
         <InfoRow label="API Key" value={maskKey(config.apiKey)} />
         {config.pin && <InfoRow label="PIN" value="••••" />}
-        {config.pushMiddlewareUrl && <InfoRow label="Middleware" value={config.pushMiddlewareUrl} />}
+        {config.ackUser && <InfoRow label="User Name" value={config.ackUser} />}
         {config.pushWebhookSecret && <InfoRow label="Push Secret" value="[set]" />}
       </div>
       <div className="flex gap-3">

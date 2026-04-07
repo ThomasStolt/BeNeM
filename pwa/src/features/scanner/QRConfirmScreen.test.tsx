@@ -5,22 +5,24 @@ import type { ParsedServerConfig } from '../../lib/qr-parser';
 
 const mockConfig: ParsedServerConfig = {
   name: 'Test Server',
-  baseUrl: 'https://bhnm.example.com',
+  baseUrl: 'https://middleware.example.com',
+  bhnmUrl: 'https://bhnm.example.com',
   apiKey: 'secret-api-key-12345',
   pin: '1234',
-  pushMiddlewareUrl: 'https://middleware.example.com',
+  ackUser: 'admin',
   pushWebhookSecret: 'webhooksecret',
 };
 
 describe('QRConfirmScreen', () => {
-  it('displays parsed server information', () => {
+  it('displays parsed server information including new fields', () => {
     render(
       <QRConfirmScreen config={mockConfig} onConfirm={vi.fn()} onCancel={vi.fn()} />,
     );
     expect(screen.getByText('Test Server')).toBeInTheDocument();
     expect(screen.getByText('https://bhnm.example.com')).toBeInTheDocument();
-    expect(screen.getByText(/\*\*\*/)).toBeInTheDocument(); // masked API key
     expect(screen.getByText('https://middleware.example.com')).toBeInTheDocument();
+    expect(screen.getByText('admin')).toBeInTheDocument();
+    expect(screen.getByText(/\*\*\*/)).toBeInTheDocument(); // masked API key
   });
 
   it('calls onConfirm when Add Server is clicked', () => {
