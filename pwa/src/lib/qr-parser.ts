@@ -1,4 +1,4 @@
-import { decrypt } from './crypto';
+import { decrypt, decryptCompressed } from './crypto';
 
 const QR_KEY = import.meta.env.VITE_QR_ENCRYPTION_KEY ?? '';
 
@@ -11,7 +11,15 @@ export interface ParsedServerConfig {
   pushWebhookSecret?: string;
 }
 
-function base64ToBytes(b64: string): Uint8Array {
+/** Decode base64url (no-padding, URL-safe alphabet) to bytes. */
+function base64urlToBytes(b64url: string): Uint8Array {
+  // Convert base64url → standard base64
+  let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+  // Restore padding
+  const remainder = b64.length % 4;
+  if (remainder === 2) b64 += '==';
+  else if (remainder === 3) b64 += '=';
+
   const binary = atob(b64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
@@ -34,19 +42,23 @@ export async function parseQRUrl(urlString: string): Promise<ParsedServerConfig>
 
   const params = url.searchParams;
 
-  // Compact format: single `p` parameter
+  // Compact format: single `p` parameter (base64url, zlib-compressed, AES-256-GCM)
   const compactParam = params.get('p');
   if (compactParam) {
-    const blob = base64ToBytes(compactParam);
-    const json = await decrypt(blob, QR_KEY);
+    const blob = base64urlToBytes(compactParam);
+    const json = await decryptCompressed(blob, QR_KEY);
     const data = JSON.parse(json);
 
-    if (!data.bhnmURL || !data.apiKey) {
+    // Middleware uses snake_case field names: bhnm_url, api_key, middleware_url, push_secret
+    const bhnmUrl = data.bhnm_url ?? data.bhnmURL ?? '';
+    const apiKey = data.api_key ?? data.apiKey ?? '';
+
+    if (!bhnmUrl || !apiKey) {
       throw new Error('Missing required fields in QR code');
     }
 
     try {
-      const parsed = new URL(data.bhnmURL);
+      const parsed = new URL(bhnmUrl);
       if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
         throw new Error('Server URL must use HTTP(S)');
       }
@@ -56,29 +68,29 @@ export async function parseQRUrl(urlString: string): Promise<ParsedServerConfig>
 
     return {
       name: data.name ?? 'BHNM Server',
-      baseUrl: data.bhnmURL,
-      apiKey: data.apiKey,
+      baseUrl: bhnmUrl,
+      apiKey,
       pin: data.pin || undefined,
-      pushMiddlewareUrl: data.middlewareURL || undefined,
-      pushWebhookSecret: data.pushSecret || undefined,
+      pushMiddlewareUrl: data.middleware_url || data.middlewareURL || undefined,
+      pushWebhookSecret: data.push_secret || data.pushSecret || undefined,
     };
   }
 
-  // Legacy format: individual encrypted parameters
+  // Legacy format: individual encrypted parameters (no zlib, just AES-GCM)
   const serverParam = params.get('server');
   const apiKeyParam = params.get('api_key');
   if (!serverParam || !apiKeyParam) {
     throw new Error('No configuration data in QR code');
   }
 
-  const server = await decrypt(base64ToBytes(serverParam), QR_KEY);
-  const apiKey = await decrypt(base64ToBytes(apiKeyParam), QR_KEY);
+  const server = await decrypt(base64urlToBytes(serverParam), QR_KEY);
+  const apiKey = await decrypt(base64urlToBytes(apiKeyParam), QR_KEY);
 
   const pinParam = params.get('pin');
-  const pin = pinParam ? await decrypt(base64ToBytes(pinParam), QR_KEY) : undefined;
+  const pin = pinParam ? await decrypt(base64urlToBytes(pinParam), QR_KEY) : undefined;
 
   const nameParam = params.get('name');
-  const name = nameParam ? await decrypt(base64ToBytes(nameParam), QR_KEY) : 'BHNM Server';
+  const name = nameParam ? await decrypt(base64urlToBytes(nameParam), QR_KEY) : 'BHNM Server';
 
   return {
     name,
