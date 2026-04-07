@@ -29,15 +29,19 @@ export function QRScannerOverlay({ onScanned, onCancel, onError }: QRScannerOver
         (decodedText) => {
           if (stoppedRef.current) return;
           stoppedRef.current = true;
-          // Stop scanner in background — don't block the callback
-          scanner.stop().catch(() => {});
-          // Fire callback immediately
-          const result = onScannedRef.current(decodedText);
-          if (result instanceof Promise) {
-            result.catch((err) => {
-              onErrorRef.current?.(err instanceof Error ? err.message : String(err));
-            });
-          }
+          // Defer callback to next microtask so it runs AFTER html5-qrcode
+          // finishes its internal processing. Calling onScanned synchronously
+          // triggers React state updates that unmount this component while
+          // html5-qrcode is still on the call stack, crashing on some browsers.
+          queueMicrotask(() => {
+            scanner.stop().catch(() => {});
+            const result = onScannedRef.current(decodedText);
+            if (result instanceof Promise) {
+              result.catch((err) => {
+                onErrorRef.current?.(err instanceof Error ? err.message : String(err));
+              });
+            }
+          });
         },
         undefined,
       )
@@ -54,7 +58,9 @@ export function QRScannerOverlay({ onScanned, onCancel, onError }: QRScannerOver
       stoppedRef.current = true;
       scanner.stop()
         .catch(() => {})
-        .finally(() => { scanner.clear(); });
+        .finally(() => {
+          try { scanner.clear(); } catch { /* DOM element may already be gone */ }
+        });
     };
   }, []); // stable deps — callbacks accessed via refs
 
