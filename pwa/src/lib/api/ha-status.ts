@@ -47,6 +47,6 @@ export async function testConnection(config: BhnmConfig): Promise<HaStatusResult
     password: config.apiKey,
   };
   if (config.pin) params.pin = config.pin;
-  const raw = await postForm(config.baseUrl, '/api/proxy/ha-status', params);
+  const raw = await postForm(config.baseUrl, '/api/proxy/ha-status', params, config.apiKey);
   return parseHaStatusResponse(raw);
 }

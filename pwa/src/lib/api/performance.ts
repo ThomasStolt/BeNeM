@@ -114,6 +114,7 @@ export async function fetchPerformanceCategories(
     config.baseUrl,
     '/fw/index.php?r=restful/devices/performance-category',
     params,
+    config.apiKey,
   );
   return parsePerformanceCategories(raw);
 }
@@ -135,6 +136,7 @@ export async function fetchPerformanceInstances(
     config.baseUrl,
     '/fw/index.php?r=restful/devices/performance-instance-per-category',
     params,
+    config.apiKey,
   );
   return parsePerformanceInstances(raw, statGroup);
 }
@@ -173,6 +175,7 @@ export async function fetchTimeSeriesBatch(
     config.baseUrl,
     '/fw/index.php?r=restful/devices/timeseries-metrics',
     params,
+    config.apiKey,
   );
   return parseTimeSeriesResponse(raw);
 }

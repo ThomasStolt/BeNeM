@@ -10,16 +10,23 @@ const FETCH_TIMEOUT_MS = 50_000;
 export async function postForm(
   baseUrl: string,
   path: string,
-  params: Record<string, string>
+  params: Record<string, string>,
+  proxyToken?: string,
 ): Promise<unknown> {
   const body = new URLSearchParams(params).toString();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+  };
+  if (proxyToken) {
+    headers['X-Proxy-Token'] = proxyToken;
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetch(`${baseUrl}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers,
       body,
       signal: controller.signal,
     });

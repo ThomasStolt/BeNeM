@@ -120,6 +120,7 @@ export async function fetchDevices(
     config.baseUrl,
     '/fw/index.php?r=restful/devices/list',
     params,
+    config.apiKey,
   );
   return parseDevicesResponse(raw);
 }
@@ -137,6 +138,7 @@ export async function searchDevices(
     config.baseUrl,
     '/fw/index.php?r=restful/devices/find',
     params,
+    config.apiKey,
   );
   return parseDeviceFindResponse(raw);
 }

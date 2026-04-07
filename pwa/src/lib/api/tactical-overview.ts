@@ -110,6 +110,7 @@ export async function fetchTacticalOverview(
     config.baseUrl,
     '/fw/index.php?r=restful/tactical-overview/data',
     params,
+    config.apiKey,
   );
   return parseTacticalResponse(raw);
 }

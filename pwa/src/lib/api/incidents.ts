@@ -131,7 +131,7 @@ export async function getIncidents(config: BhnmConfig): Promise<Incident[]> {
     method: 'getincidents',
   };
   if (config.pin) params.pin = config.pin;
-  const raw = await postForm(config.baseUrl, '/api/incident_api.php', params);
+  const raw = await postForm(config.baseUrl, '/api/incident_api.php', params, config.apiKey);
   return parseIncidentsResponse(raw);
 }
 
@@ -157,7 +157,7 @@ export async function acknowledgeIncident(
     user: 'BeNeM PWA',
   };
   if (config.pin) params.pin = config.pin;
-  const raw = await postForm(config.baseUrl, '/api/proxy/incident/acknowledge', params);
+  const raw = await postForm(config.baseUrl, '/api/proxy/incident/acknowledge', params, config.apiKey);
   parseAckResponse(raw);
 }
 
@@ -171,6 +171,6 @@ export async function unacknowledgeIncident(
     user: 'BeNeM PWA',
   };
   if (config.pin) params.pin = config.pin;
-  const raw = await postForm(config.baseUrl, '/api/proxy/incident/unacknowledge', params);
+  const raw = await postForm(config.baseUrl, '/api/proxy/incident/unacknowledge', params, config.apiKey);
   parseAckResponse(raw);
 }
