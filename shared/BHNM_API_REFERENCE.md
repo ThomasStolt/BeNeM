@@ -12,13 +12,13 @@ parameter values, use what is documented here.
 BHNM exposes two distinct APIs. They have different base paths, different auth
 parameter names, and different request encoding. Do not mix them.
 
-| | Legacy API | Open 3.0 API |
-|---|---|---|
-| Base path | `/fw/index.php?r=restful/` | `/api/{resource}_api.php` |
-| Auth param | `password=` | `pwd=` |
-| Encoding | `application/x-www-form-urlencoded` or `multipart/form-data` | `application/x-www-form-urlencoded` |
-| Routing | Via `?r=restful/{resource}/{action}` | Via `method=` form field |
-| Response wrapper | Array `[{...}]` | Varies |
+|                  | Legacy API                                                   | Open 3.0 API                        |
+|------------------|--------------------------------------------------------------|-------------------------------------|
+| Base path        | `/fw/index.php?r=restful/`                                   | `/api/{resource}_api.php`           |
+| Auth param       | `password=`                                                  | `pwd=`                              |
+| Encoding         | `application/x-www-form-urlencoded` or `multipart/form-data` | `application/x-www-form-urlencoded` |
+| Routing          | Via `?r=restful/{resource}/{action}`                         | Via `method=` form field            |
+| Response wrapper | Array `[{...}]`                                              | Varies                              |
 
 The high-performance time series endpoint (`timeseries-metrics`) lives on the **Legacy API**
 and offers significantly better performance than older alternatives. Always use it.

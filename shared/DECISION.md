@@ -27,15 +27,15 @@ negative value — it creates a false sense of coverage.
 The following matrix was used to evaluate iOS native (APNs) against PWA Web Push
 on both iOS and Android:
 
-| Feature | BeNeM iOS (APNs) | PWA iOS | PWA Android |
-|---|---|---|---|
-| Lock screen alert | ✅ Reliable | ⚠️ When it works | ✅ Reliable |
-| Focus Mode bypass (Time Sensitive) | ✅ Supported | ❌ Not available | ❌ Not available |
-| Silent switch bypass (Critical Alerts) | ✅ Available (requires Apple entitlement) | ❌ Not available | ❌ Not available |
-| Push subscription stability | ✅ Stable | 🔴 Known expiry bug on iOS WebKit | ✅ Stable |
-| Background sync | ✅ Yes | ❌ Not supported on iOS | ✅ Yes |
-| EU regulatory stability | ✅ Unaffected | 🔴 Politically unstable (DMA/Apple) | ✅ Unaffected |
-| Onboarding friction | Low (App Store) | High (manual Add to Home Screen) | Medium |
+| Feature                                | BeNeM iOS (APNs)                          | PWA iOS                             | PWA Android      |
+|----------------------------------------|-------------------------------------------|-------------------------------------|------------------|
+| Lock screen alert                      | ✅ Reliable                               | ⚠️ When it works                    | ✅ Reliable      |
+| Focus Mode bypass (Time Sensitive)     | ✅ Supported                              | ❌ Not available                    | ❌ Not available |
+| Silent switch bypass (Critical Alerts) | ✅ Available (requires Apple entitlement) | ❌ Not available                    | ❌ Not available |
+| Push subscription stability            | ✅ Stable                                 | 🔴 Known expiry bug on iOS WebKit   | ✅ Stable        |
+| Background sync                        | ✅ Yes                                    | ❌ Not supported on iOS             | ✅ Yes           |
+| EU regulatory stability                | ✅ Unaffected                             | 🔴 Politically unstable (DMA/Apple) | ✅ Unaffected    |
+| Onboarding friction                    | Low (App Store)                           | High (manual Add to Home Screen)    | Medium           |
 
 ### Key findings
 
@@ -143,14 +143,6 @@ sacrifice the reliability properties that make BeNeM valuable on iOS.
 A PWA-only BeNeM on iOS would be an incident alerting tool that silently
 fails to alert during Focus Mode and whose subscriptions expire unpredictably.
 This is not an acceptable trade-off.
-
-**Paperclip AI agent orchestration for development:** Evaluated but considered
-premature. Paperclip is appropriate for coordinating multiple autonomous coding
-agents running 24/7. The BeNeM codebase at this stage is better served by a
-disciplined monorepo structure with spec-first development, using Claude Code
-sessions scoped per task. Paperclip can be revisited when active simultaneous
-development across all three subprojects makes manual session management
-the bottleneck.
 
 ---
 
