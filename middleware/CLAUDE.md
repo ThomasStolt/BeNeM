@@ -12,7 +12,7 @@ future, to Web Push for the PWA.
 
 Runs as a Docker container (with Caddy for TLS) on any VPS, receives JSON
 webhook POSTs from a BHNM server, and forwards them as push notifications
-to registered iPhone devices.
+to registered iOS devices (APNs) and Android/web users (Web Push).
 
 ---
 
@@ -24,6 +24,7 @@ to registered iPhone devices.
 | `config.py` | Loads all configuration from environment variables (via `python-dotenv`). No secrets in code. |
 | `database.py` | SQLite helpers: `init_db`, `save_token`, `get_tokens_for_secret`, `get_all_tokens`, `delete_token`. |
 | `apns.py` | APNs delivery: JWT generation, HTTP/2 POST via `httpx`, stale token detection. |
+| `webpush.py` | Web Push delivery: VAPID-signed push via `pywebpush`, stale subscription detection. |
 | `Dockerfile` | Builds the FastAPI app image. Uses `uvicorn` as the server. |
 | `docker-compose.yml` | Runs `bhnm-apns` + `benem-admin` + `caddy:2-alpine` together. Named volumes for SQLite and Caddy data. |
 | `Caddyfile` | Reverse proxy config: Caddy listens on 443, proxies to the FastAPI container, handles TLS automatically. |
@@ -41,7 +42,7 @@ to registered iPhone devices.
 - **Runtime:** Python / FastAPI
 - **Deployed at:** `https://bhnm-apns.hurrikap.org` (Linode Nanode, Caddy terminates TLS)
 - **APNs:** `.p8` Auth Key, base64-encoded in `APNS_PRIVATE_KEY_B64` env var
-- **Web Push (future):** VAPID key pair, to be injected via environment variable
+- **Web Push:** VAPID key pair, configured via `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_CONTACT_EMAIL` env vars
 
 ---
 
@@ -73,9 +74,16 @@ All secrets and configuration live in `.env` (gitignored). `config.py` reads the
 
 | Endpoint | Purpose | Consumer |
 |---|---|---|
-| `POST /register` | Register an APNs device token (and `active_secret` from `X-Webhook-Token` header) | iOS app (`AppDelegate`) |
-| `POST /webhook` | Receive a BHNM incident event and fan out push notifications to devices whose `active_secret` matches the `?secret=` query param | BHNM |
-| `GET /health` | Health check | Ops |
+| `POST /register` | Register an APNs device token (with `active_secret` from `X-Webhook-Token` header) | iOS app |
+| `DELETE /register` | Unregister an APNs device token | iOS app |
+| `POST /register-webpush` | Register a Web Push subscription (with webhook secret from `X-Webhook-Token` header) | PWA |
+| `GET /vapid-key` | Return the VAPID public key for Web Push subscription | PWA |
+| `POST /webhook` | Receive a BHNM incident event and fan out push notifications | BHNM |
+| `GET /health` | Health check — returns version and registered device count | Ops |
+| `POST /api/proxy/incident/acknowledge` | Proxy incident acknowledge to BHNM (auth via `X-Proxy-Token`) | iOS app, PWA |
+| `POST /api/proxy/incident/unacknowledge` | Proxy incident unacknowledge to BHNM (auth via `X-Proxy-Token`) | iOS app, PWA |
+| `POST /api/proxy/ha-status` | Proxy HA status check to BHNM (auth via `X-Proxy-Token`) | iOS app, PWA |
+| `{path:path}` | Catch-all BHNM API proxy (auth via `X-Proxy-Token`, target via `X-BHNM-Target` or `servers.json` lookup) | iOS app, PWA |
 
 ---
 
