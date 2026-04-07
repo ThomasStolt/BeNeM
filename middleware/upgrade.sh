@@ -63,7 +63,7 @@ echo -e "${CYAN}── Validating Caddyfile ────────────
 docker run --rm \
   --env-file .env \
   -v "$(pwd)/Caddyfile:/etc/caddy/Caddyfile:ro" \
-  caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile \
+  caddy:2.9-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile \
   || die "Caddyfile is invalid — aborting upgrade."
 ok "Caddyfile valid."
 
