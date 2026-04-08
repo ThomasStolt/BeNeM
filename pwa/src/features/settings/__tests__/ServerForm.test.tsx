@@ -18,7 +18,7 @@ describe('ServerForm', () => {
     render(<ServerForm onSave={vi.fn()} onCancel={vi.fn()} />);
     expect(getField('server-name')).toHaveValue('');
     expect(getField('server-bhnm-url')).toHaveValue('');
-    expect(getField('server-middleware-url')).toHaveValue('/bhnm');
+    expect(getField('server-middleware-url')).toHaveValue('');
     expect(getField('server-api-key')).toHaveValue('');
     expect(getField('server-ack-user')).toHaveValue('');
   });
@@ -27,8 +27,9 @@ describe('ServerForm', () => {
     const server = {
       id: 'abc',
       name: 'Test',
-      baseUrl: '/test',
+      baseUrl: '/bhnm',
       bhnmUrl: 'https://bhnm.test.com',
+      pushMiddlewareUrl: 'https://middleware.test.com',
       apiKey: 'key123',
       pin: 'pin1',
       ackUser: 'thomas',
@@ -39,7 +40,7 @@ describe('ServerForm', () => {
     render(<ServerForm server={server} onSave={vi.fn()} onCancel={vi.fn()} />);
     expect(getField('server-name')).toHaveValue('Test');
     expect(getField('server-bhnm-url')).toHaveValue('https://bhnm.test.com');
-    expect(getField('server-middleware-url')).toHaveValue('/test');
+    expect(getField('server-middleware-url')).toHaveValue('https://middleware.test.com');
     expect(getField('server-api-key')).toHaveValue('key123');
     expect(getField('server-ack-user')).toHaveValue('thomas');
   });
@@ -48,8 +49,9 @@ describe('ServerForm', () => {
     const server = {
       id: 'abc',
       name: 'QR Server',
-      baseUrl: '/middleware',
+      baseUrl: '/bhnm',
       bhnmUrl: 'https://bhnm.example.com',
+      pushMiddlewareUrl: 'https://middleware.example.com',
       apiKey: 'secret-key',
       ackUser: 'admin',
       pushEnabled: false,
@@ -61,7 +63,7 @@ describe('ServerForm', () => {
     expect(getField('server-name')).not.toBeDisabled();
     // QR fields should not be editable inputs — check that text is displayed instead
     expect(screen.getByText('https://bhnm.example.com')).toBeInTheDocument();
-    expect(screen.getByText('/middleware')).toBeInTheDocument();
+    expect(screen.getByText('https://middleware.example.com')).toBeInTheDocument();
     // API key should be masked
     expect(screen.getByText('••••••••')).toBeInTheDocument();
     // Footer should indicate QR provisioning
@@ -85,8 +87,7 @@ describe('ServerForm', () => {
 
     await user.type(getField('server-name'), 'My Server');
     await user.type(getField('server-bhnm-url'), 'https://bhnm.test');
-    await user.clear(getField('server-middleware-url'));
-    await user.type(getField('server-middleware-url'), '/myserver');
+    await user.type(getField('server-middleware-url'), 'https://mw.test');
     await user.type(getField('server-api-key'), 'mykey');
     await user.type(getField('server-ack-user'), 'admin');
     await user.click(screen.getByRole('button', { name: /save/i }));
@@ -96,8 +97,8 @@ describe('ServerForm', () => {
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'My Server',
-        baseUrl: '/myserver',
         bhnmUrl: 'https://bhnm.test',
+        pushMiddlewareUrl: 'https://mw.test',
         apiKey: 'mykey',
         ackUser: 'admin',
       }),

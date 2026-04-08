@@ -33,7 +33,8 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
 
   const [name, setName] = useState(server?.name ?? '');
   const [bhnmUrl, setBhnmUrl] = useState(server?.bhnmUrl ?? '');
-  const [baseUrl, setBaseUrl] = useState(server?.baseUrl ?? '/bhnm');
+  const baseUrl = server?.baseUrl ?? '/bhnm';
+  const [middlewareUrl, setMiddlewareUrl] = useState(server?.pushMiddlewareUrl ?? '');
   const [apiKey, setApiKey] = useState(server?.apiKey ?? '');
   const [pin, setPin] = useState(server?.pin ?? '');
   const [ackUser, setAckUser] = useState(server?.ackUser ?? '');
@@ -71,6 +72,7 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
         pin: pin.trim() || undefined,
         ackUser: ackUser.trim(),
         pushEnabled,
+        pushMiddlewareUrl: middlewareUrl.trim() || undefined,
         pushWebhookSecret: webhookSecret.trim() || undefined,
         isQrProvisioned: isQr,
       });
@@ -128,7 +130,7 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
 
         {/* Middleware URL */}
         {isQr ? (
-          <ReadOnlyField label="Middleware URL" value={baseUrl} />
+          middlewareUrl ? <ReadOnlyField label="Middleware URL" value={middlewareUrl} /> : null
         ) : (
           <div className="p-3">
             <label htmlFor="server-middleware-url" className="block text-xs text-slate-400 mb-1.5">
@@ -137,9 +139,9 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
             <input
               id="server-middleware-url"
               type="text"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="/bhnm"
+              value={middlewareUrl}
+              onChange={(e) => setMiddlewareUrl(e.target.value)}
+              placeholder="https://middleware.example.com"
               className="w-full rounded bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>

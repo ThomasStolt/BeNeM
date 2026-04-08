@@ -111,7 +111,9 @@ export function SettingsScreen() {
     try {
       const config = await parseQRUrl(decodedText);
       const existing = loadServers().find((s) =>
-        (config.bhnmUrl && s.bhnmUrl === config.bhnmUrl) || s.baseUrl === config.baseUrl,
+        s.name === config.name &&
+        s.bhnmUrl === config.bhnmUrl &&
+        s.ackUser === (config.ackUser ?? ''),
       );
       setExistingServerId(existing?.id);
       setScannedConfig(config);
