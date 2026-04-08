@@ -47,6 +47,15 @@ export async function testConnection(config: BhnmConfig): Promise<HaStatusResult
     password: config.apiKey,
   };
   if (config.pin) params.pin = config.pin;
-  const raw = await postForm(config.baseUrl, '/api/proxy/ha-status', params, config.apiKey);
-  return parseHaStatusResponse(raw);
+  try {
+    const raw = await postForm(config.baseUrl, '/api/proxy/ha-status', params, config.apiKey);
+    return parseHaStatusResponse(raw);
+  } catch (err) {
+    // Some BHNM servers (SaaS) return PHP serialized data instead of JSON.
+    // A parse error on a reachable server still means the connection works.
+    if (err instanceof ApiException && err.error.kind === 'parse') {
+      return { role: 'unknown', status: '' };
+    }
+    throw err;
+  }
 }
