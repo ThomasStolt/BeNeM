@@ -51,6 +51,20 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
     setTestState('testing');
     setTestResult(null);
     setTestError('');
+
+    const serverInput = {
+      name: name.trim() || 'BHNM Server',
+      baseUrl: baseUrl.trim(),
+      bhnmUrl: bhnmUrl.trim(),
+      apiKey: apiKey.trim(),
+      pin: pin.trim() || undefined,
+      ackUser: ackUser.trim(),
+      pushEnabled,
+      pushMiddlewareUrl: middlewareUrl.trim() || undefined,
+      pushWebhookSecret: webhookSecret.trim() || undefined,
+      isQrProvisioned: isQr,
+    };
+
     try {
       const result = await testConnection({
         serverId: '',
@@ -64,22 +78,13 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
       });
       setTestResult(result);
       setTestState('success');
-      onSave({
-        name: name.trim() || 'BHNM Server',
-        baseUrl: baseUrl.trim(),
-        bhnmUrl: bhnmUrl.trim(),
-        apiKey: apiKey.trim(),
-        pin: pin.trim() || undefined,
-        ackUser: ackUser.trim(),
-        pushEnabled,
-        pushMiddlewareUrl: middlewareUrl.trim() || undefined,
-        pushWebhookSecret: webhookSecret.trim() || undefined,
-        isQrProvisioned: isQr,
-      });
     } catch (err) {
       setTestError(err instanceof Error ? err.message : 'Connection failed');
       setTestState('failed');
     }
+
+    // Save regardless of test result
+    onSave(serverInput);
   };
 
   const saveDisabled =
