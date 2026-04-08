@@ -18,11 +18,11 @@ export function StatusCard({ label, counts }: Props) {
   const total = values.reduce((a, b) => a + b, 0);
 
   return (
-    <div className="bg-slate-800 rounded-[13px] py-[13px] px-[10px] text-center border border-slate-700/50">
+    <div className="bg-slate-800 rounded-[13px] py-2 px-[10px] text-center border border-slate-700/50">
       <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
         {label}
       </div>
-      <div className="text-[21px] font-semibold my-1 tabular-nums">
+      <div className="text-lg font-semibold my-0.5 tabular-nums">
         {total}
       </div>
       <div className="flex gap-[3px]">

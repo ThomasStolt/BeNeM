@@ -24,7 +24,7 @@ function Card({
 }) {
   const content = (
     <div
-      className="flex-1 p-4 rounded-[14px] bg-slate-950 text-center"
+      className="flex-1 px-4 py-3 rounded-[14px] bg-slate-950 text-center"
       style={{
         border: `1.5px solid ${borderColor}`,
         boxShadow: `0 3px 6px ${shadowColor}`,
