@@ -33,8 +33,8 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         includeAssets: ['icons/*'],
         manifest: {
-          name: 'BeNeM',
-          short_name: 'BeNeM',
+          name: 'BHNM',
+          short_name: 'BHNM',
           description: 'BHNM incident monitoring',
           theme_color: '#0f172a',
           background_color: '#0f172a',
