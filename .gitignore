@@ -44,6 +44,9 @@ ios/BeNeM/Secrets.swift
 # Local build configuration (contains device UDID and personal paths — never commit)
 build.local.sh
 
+# Local deploy script (contains server hostname — never commit)
+deploy.sh
+
 # Personal screenshots accidentally committed — stop tracking future changes
 M1BJKI1M3C52.png
 
