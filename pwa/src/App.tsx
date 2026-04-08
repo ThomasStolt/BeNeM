@@ -34,8 +34,8 @@ export default function App() {
         <Route path="/devices" element={<DeviceListScreen />} />
         <Route path="/devices/:name" element={<DeviceDetailScreen />} />
         <Route path="/tactical/:type" element={<TacticalGroupListScreen />} />
+        <Route path="/settings" element={<SettingsScreen />} />
       </Route>
-      <Route path="/settings" element={<SettingsScreen />} />
     </Routes>
   );
 }
