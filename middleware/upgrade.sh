@@ -43,7 +43,7 @@ LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse "origin/$BRANCH")
 
 if [ "$LOCAL" = "$REMOTE" ]; then
-    warn "Already up to date — rebuilding anyway."
+    warn "Already up to date — will rebuild all services."
 else
     git pull --ff-only || die "git pull failed. Resolve conflicts manually and re-run."
     ok "Code updated."
@@ -67,19 +67,85 @@ docker run --rm \
   || die "Caddyfile is invalid — aborting upgrade."
 ok "Caddyfile valid."
 
-# ── Rebuild image ──────────────────────────────────
+# ── Detect changed services ────────────────────────
 
 echo ""
-echo -e "${CYAN}── Rebuilding Docker image ───────────────────────${NC}"
-docker compose build --no-cache 2>&1 | grep -v -e "^#" -e "^$" || die "docker compose build failed."
-ok "Image built."
+echo -e "${CYAN}── Detecting changes ─────────────────────────────${NC}"
 
-# ── Restart service ────────────────────────────────
+# Compare current HEAD against the commit before pull
+CHANGED_FILES=$(git diff --name-only "$LOCAL" "$REMOTE" 2>/dev/null || echo "")
+BUILD_SERVICES=""
+RECREATE_ONLY=""
+
+if [ -z "$CHANGED_FILES" ]; then
+    warn "No file changes detected — rebuilding all as fallback."
+    BUILD_SERVICES="bhnm-apns benem-admin benem-pwa"
+else
+    # bhnm-apns: middleware files that affect the app image (exclude admin subdir, config-only files)
+    if echo "$CHANGED_FILES" | grep -E '^middleware/' | grep -vE '^middleware/(benem-admin/|Caddyfile$|docker-compose\.yml$|upgrade\.sh$|setup\.sh$|\.env)' | grep -q .; then
+        BUILD_SERVICES="$BUILD_SERVICES bhnm-apns"
+        info "bhnm-apns: changes detected"
+    fi
+
+    # benem-admin: middleware/benem-admin/ files
+    if echo "$CHANGED_FILES" | grep -q '^middleware/benem-admin/'; then
+        BUILD_SERVICES="$BUILD_SERVICES benem-admin"
+        info "benem-admin: changes detected"
+    fi
+
+    # benem-pwa: pwa/ files
+    if echo "$CHANGED_FILES" | grep -q '^pwa/'; then
+        BUILD_SERVICES="$BUILD_SERVICES benem-pwa"
+        info "benem-pwa: changes detected"
+    fi
+
+    # caddy: never rebuilt (image-based), but recreate if Caddyfile or .env changed
+    if echo "$CHANGED_FILES" | grep -qE '^middleware/(Caddyfile|\.env)'; then
+        RECREATE_ONLY="$RECREATE_ONLY caddy"
+        info "caddy: config changed, will recreate"
+    fi
+
+    if [ -z "$BUILD_SERVICES" ] && [ -z "$RECREATE_ONLY" ]; then
+        warn "No service-affecting changes detected — rebuilding all as fallback."
+        BUILD_SERVICES="bhnm-apns benem-admin benem-pwa"
+    fi
+fi
+
+# Trim leading whitespace
+BUILD_SERVICES=$(echo "$BUILD_SERVICES" | xargs)
+RECREATE_ONLY=$(echo "$RECREATE_ONLY" | xargs)
+
+# ── Rebuild changed images ────────────────────────
+
+if [ -n "$BUILD_SERVICES" ]; then
+    echo ""
+    echo -e "${CYAN}── Rebuilding: ${BUILD_SERVICES} ───────────────────${NC}"
+    docker compose build --no-cache $BUILD_SERVICES 2>&1 | grep -v -e "^#" -e "^$" || die "docker compose build failed."
+    ok "Images built: $BUILD_SERVICES"
+else
+    info "No images to rebuild."
+fi
+
+# ── Restart services ──────────────────────────────
 
 echo ""
-echo -e "${CYAN}── Restarting service ────────────────────────────${NC}"
-docker compose up -d --force-recreate
-ok "Service restarted."
+echo -e "${CYAN}── Restarting services ───────────────────────────${NC}"
+
+if [ -n "$BUILD_SERVICES" ]; then
+    docker compose up -d --force-recreate $BUILD_SERVICES
+    ok "Restarted: $BUILD_SERVICES"
+fi
+
+if [ -n "$RECREATE_ONLY" ]; then
+    docker compose up -d --force-recreate $RECREATE_ONLY
+    ok "Recreated: $RECREATE_ONLY"
+fi
+
+# If nothing specific was targeted, ensure everything is up
+if [ -z "$BUILD_SERVICES" ] && [ -z "$RECREATE_ONLY" ]; then
+    docker compose up -d
+    ok "All services up."
+fi
 
 # ── Health check ───────────────────────────────────
 
