@@ -8,16 +8,6 @@
   </head>
   <body class="bg-slate-950 text-slate-100">
     <div id="root"></div>
-    <!-- Debug: catch crashes outside React and show them visibly -->
-    <div id="crash-log" style="display:none;position:fixed;bottom:0;left:0;right:0;background:#b91c1c;color:#fff;font:12px monospace;padding:8px;z-index:99999;max-height:40vh;overflow:auto"></div>
-    <script>
-      (function(){
-        var el=document.getElementById('crash-log');
-        function show(msg){el.style.display='block';el.innerHTML+=msg+'<br>';}
-        window.onerror=function(m,s,l,c,e){show('ERR: '+m+' at '+s+':'+l+':'+c);if(e&&e.stack)show('STACK: '+e.stack);};
-        window.onunhandledrejection=function(ev){show('REJECT: '+(ev.reason&&ev.reason.stack||ev.reason));};
-      })();
-    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

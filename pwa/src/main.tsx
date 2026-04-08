@@ -6,44 +6,38 @@ import App from './App';
 import { migrateFromLegacyConfig, initStorage } from './lib/serverStorage';
 import './index.css';
 
-/** Error boundary that displays the crash reason visibly on screen. */
-class CrashBoundary extends React.Component<
+/** Catch-all error boundary — shows a reload prompt instead of a blank screen. */
+class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
-  { error: unknown; info: string }
+  { error: unknown }
 > {
-  state: { error: unknown; info: string } = { error: null, info: '' };
+  state: { error: unknown } = { error: null };
 
   static getDerivedStateFromError(err: unknown) {
     return { error: err };
   }
 
-  componentDidCatch(_error: unknown, errorInfo: React.ErrorInfo) {
-    this.setState({
-      info: errorInfo.componentStack || '',
-    });
-  }
-
   render() {
     if (this.state.error !== null) {
-      const err = this.state.error;
-      const msg = err instanceof Error ? err.message : String(err);
-      const stack = err instanceof Error ? err.stack : '';
-      const type = Object.prototype.toString.call(err);
-      const json = (() => { try { return JSON.stringify(err, null, 2); } catch { return ''; } })();
-
+      const msg = this.state.error instanceof Error
+        ? this.state.error.message
+        : String(this.state.error);
       return React.createElement('div', {
         style: {
-          position: 'fixed', inset: 0, background: '#7f1d1d', color: '#fff',
-          fontFamily: 'monospace', fontSize: '12px', padding: '16px',
-          overflow: 'auto', zIndex: 99999,
+          display: 'flex', flexDirection: 'column' as const, alignItems: 'center',
+          justifyContent: 'center', minHeight: '100vh', padding: '24px',
+          fontFamily: '-apple-system, system-ui, sans-serif', color: '#94a3b8',
         },
       },
-        React.createElement('h2', { style: { margin: '0 0 8px' } }, 'App Crash'),
-        React.createElement('p', null, `Type: ${type}`),
-        React.createElement('p', null, `Message: ${msg}`),
-        json && React.createElement('pre', { style: { whiteSpace: 'pre-wrap', fontSize: '11px', marginTop: '8px', background: '#450a0a', padding: '8px', borderRadius: '4px' } }, `JSON: ${json}`),
-        stack && React.createElement('pre', { style: { whiteSpace: 'pre-wrap', fontSize: '11px', marginTop: '8px' } }, `Stack: ${stack}`),
-        this.state.info && React.createElement('pre', { style: { whiteSpace: 'pre-wrap', fontSize: '11px', marginTop: '8px', color: '#fca5a5' } }, `Component: ${this.state.info}`),
+        React.createElement('p', { style: { fontSize: '14px', marginBottom: '8px' } }, 'Something went wrong.'),
+        React.createElement('p', { style: { fontSize: '12px', color: '#64748b', marginBottom: '16px' } }, msg),
+        React.createElement('button', {
+          onClick: () => window.location.reload(),
+          style: {
+            padding: '8px 20px', borderRadius: '8px', border: '1px solid #334155',
+            background: '#1e293b', color: '#e2e8f0', fontSize: '14px', cursor: 'pointer',
+          },
+        }, 'Reload'),
       );
     }
     return this.props.children;
@@ -74,13 +68,13 @@ initStorage()
   .finally(() => {
     ReactDOM.createRoot(document.getElementById('root')!).render(
       <React.StrictMode>
-        <CrashBoundary>
+        <ErrorBoundary>
           <QueryClientProvider client={queryClient}>
             <BrowserRouter>
               <App />
             </BrowserRouter>
           </QueryClientProvider>
-        </CrashBoundary>
+        </ErrorBoundary>
       </React.StrictMode>,
     );
   });
