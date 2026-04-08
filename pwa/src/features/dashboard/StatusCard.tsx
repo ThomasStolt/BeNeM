@@ -5,38 +5,40 @@ interface Props {
   counts: StatusCounts;
 }
 
-interface BadgeProps {
-  value: number;
-  color: string;
-  bgColor: string;
-}
-
-function Badge({ value, color, bgColor }: BadgeProps) {
-  if (value === 0) {
-    return <span className="text-xs text-slate-600 tabular-nums w-8 text-center">0</span>;
-  }
-  return (
-    <span className={`text-xs font-semibold tabular-nums px-1.5 py-0.5 rounded ${color} ${bgColor} min-w-[2rem] text-center`}>
-      {value}
-    </span>
-  );
-}
+const BADGE_COLORS = [
+  { bg: '#22c55e', text: '#fff' },    // green (ok)
+  { bg: '#3b82f6', text: '#fff' },    // blue (ack)
+  { bg: '#eab308', text: '#000' },    // yellow (warn)
+  { bg: '#f97316', text: '#fff' },    // orange (un)
+  { bg: '#ef4444', text: '#fff' },    // red (crit)
+];
 
 export function StatusCard({ label, counts }: Props) {
-  const total = counts.ok + counts.ack + counts.warn + counts.un + counts.crit;
+  const values = [counts.ok, counts.ack, counts.warn, counts.un, counts.crit];
+  const total = values.reduce((a, b) => a + b, 0);
 
   return (
-    <div className="bg-slate-900 rounded-lg p-3">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium text-slate-300">{label}</span>
-        <span className="text-xs text-slate-500 tabular-nums">{total}</span>
+    <div className="bg-slate-800 rounded-[13px] py-[13px] px-[10px] text-center border border-slate-700/50">
+      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+        {label}
       </div>
-      <div className="flex items-center gap-1">
-        <Badge value={counts.ok} color="text-emerald-400" bgColor="bg-emerald-500/20" />
-        <Badge value={counts.ack} color="text-sky-400" bgColor="bg-sky-500/20" />
-        <Badge value={counts.warn} color="text-yellow-400" bgColor="bg-yellow-500/20" />
-        <Badge value={counts.un} color="text-orange-400" bgColor="bg-orange-500/20" />
-        <Badge value={counts.crit} color="text-red-400" bgColor="bg-red-500/20" />
+      <div className="text-[21px] font-semibold my-1 tabular-nums">
+        {total}
+      </div>
+      <div className="flex gap-[3px]">
+        {values.map((n, i) => (
+          <span
+            key={i}
+            className="flex-1 text-[9px] font-semibold py-[3px] rounded-lg text-center tabular-nums"
+            style={
+              n > 0
+                ? { background: BADGE_COLORS[i].bg, color: BADGE_COLORS[i].text }
+                : { color: '#4b5563', border: '0.5px solid #374151' }
+            }
+          >
+            {n}
+          </span>
+        ))}
       </div>
     </div>
   );
