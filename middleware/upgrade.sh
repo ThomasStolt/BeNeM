@@ -14,6 +14,17 @@ info() { echo -e "${CYAN}  $*${NC}"; }
 warn() { echo -e "${YELLOW}⚠ $*${NC}"; }
 die()  { echo -e "${RED}✗ $*${NC}" >&2; exit 1; }
 
+FORCE_REBUILD=false
+for arg in "$@"; do
+    case "$arg" in
+        --force) FORCE_REBUILD=true ;;
+        -h|--help)
+            echo "Usage: ./upgrade.sh [--force]"
+            echo "  --force   Rebuild all containers even if no changes detected"
+            exit 0 ;;
+    esac
+done
+
 echo ""
 echo "┌──────────────────────────────────────────────┐"
 echo "│   BHNM APNs Middleware — Upgrade              │"
@@ -43,7 +54,12 @@ LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse "origin/$BRANCH")
 
 if [ "$LOCAL" = "$REMOTE" ]; then
-    warn "Already up to date — will rebuild all services."
+    if [ "$FORCE_REBUILD" = true ]; then
+        warn "Already up to date — rebuilding all (--force)."
+    else
+        ok "Already up to date — nothing to do. Use --force to rebuild anyway."
+        exit 0
+    fi
 else
     git pull --ff-only || die "git pull failed. Resolve conflicts manually and re-run."
     ok "Code updated."
@@ -77,9 +93,11 @@ CHANGED_FILES=$(git diff --name-only "$LOCAL" "$REMOTE" 2>/dev/null || echo "")
 BUILD_SERVICES=""
 RECREATE_ONLY=""
 
-if [ -z "$CHANGED_FILES" ]; then
-    warn "No file changes detected — rebuilding all as fallback."
+if [ -z "$CHANGED_FILES" ] && [ "$FORCE_REBUILD" = true ]; then
+    warn "No file changes detected — rebuilding all (--force)."
     BUILD_SERVICES="bhnm-apns benem-admin benem-pwa"
+elif [ -z "$CHANGED_FILES" ]; then
+    ok "No file changes detected — skipping rebuild."
 else
     # bhnm-apns: middleware files that affect the app image (exclude admin subdir, config-only files)
     if echo "$CHANGED_FILES" | grep -E '^middleware/' | grep -vE '^middleware/(benem-admin/|Caddyfile$|docker-compose\.yml$|upgrade\.sh$|setup\.sh$|\.env)' | grep -q .; then
@@ -106,8 +124,7 @@ else
     fi
 
     if [ -z "$BUILD_SERVICES" ] && [ -z "$RECREATE_ONLY" ]; then
-        warn "No service-affecting changes detected — rebuilding all as fallback."
-        BUILD_SERVICES="bhnm-apns benem-admin benem-pwa"
+        ok "Changes don't affect any service — skipping rebuild."
     fi
 fi
 
