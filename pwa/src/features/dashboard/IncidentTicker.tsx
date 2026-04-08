@@ -8,25 +8,55 @@ interface Props {
   incidents: Incident[];
 }
 
+function TickerCard({ incident }: { incident: Incident }) {
+  return (
+    <div className="p-3 px-3.5">
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <SeverityBadge severity={incident.severity} />
+        <span className="text-[11px] text-slate-500">
+          {buildDisplayId(incident.incidentId)}
+        </span>
+      </div>
+      <div className="text-[13px] text-slate-100 mb-1 truncate">
+        {incident.summary}
+      </div>
+      <div className="text-xs text-slate-400">
+        {incident.deviceName ?? 'Unknown'}
+      </div>
+    </div>
+  );
+}
+
 export function IncidentTicker({ incidents }: Props) {
   const urgent = incidents.filter(
     (i) => i.severity === 'critical' || i.severity === 'major',
   );
 
   const [displayIndex, setDisplayIndex] = useState(0);
+  const [outgoing, setOutgoing] = useState<Incident | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval>>();
+  const cleanupRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
     setDisplayIndex(0);
+    setOutgoing(null);
   }, [urgent.length]);
 
   useEffect(() => {
     if (urgent.length <= 1) return;
     timerRef.current = setInterval(() => {
+      // Capture the current incident as outgoing before advancing
+      setOutgoing(urgent[displayIndex] ?? null);
       setDisplayIndex((prev) => (prev + 1) % urgent.length);
+      // Clear outgoing after the exit animation finishes
+      cleanupRef.current = setTimeout(() => setOutgoing(null), 500);
     }, 4_000);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [urgent.length]);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (cleanupRef.current) clearTimeout(cleanupRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urgent.length, displayIndex]);
 
   if (urgent.length === 0) {
     return (
@@ -44,23 +74,22 @@ export function IncidentTicker({ incidents }: Props) {
       className="block bg-slate-800 rounded-xl border border-slate-700/50 overflow-hidden relative"
       style={{ minHeight: '76px' }}
     >
-      {/* Key forces React to remount this div on index change, triggering the CSS animation */}
+      {/* Outgoing card — slides out to the left */}
+      {outgoing && (
+        <div
+          key={`out-${displayIndex}`}
+          className="absolute inset-0 animate-[slideOutToLeft_0.5s_ease-in_forwards]"
+        >
+          <TickerCard incident={outgoing} />
+        </div>
+      )}
+
+      {/* Incoming card — slides in from the right */}
       <div
         key={displayIndex}
-        className="p-3 px-3.5 animate-[slideInFromRight_0.5s_ease-out]"
+        className="animate-[slideInFromRight_0.5s_ease-out]"
       >
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <SeverityBadge severity={incident.severity} />
-          <span className="text-[11px] text-slate-500">
-            {buildDisplayId(incident.incidentId)}
-          </span>
-        </div>
-        <div className="text-[13px] text-slate-100 mb-1 truncate">
-          {incident.summary}
-        </div>
-        <div className="text-xs text-slate-400">
-          {incident.deviceName ?? 'Unknown'}
-        </div>
+        <TickerCard incident={incident} />
       </div>
 
       {/* Page dots */}
