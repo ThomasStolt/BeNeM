@@ -1,23 +1,37 @@
-# BeNeM PWA
+# BHNM PWA
 
-React/TypeScript Progressive Web App for BHNM incident monitoring.
-Targets Android via Web Push (future). iOS users are directed to the
-native app via an in-app banner — Web Push is unreliable on iOS.
+React/TypeScript Progressive Web App for BMC Helix Network Management (BHNM) incident monitoring. Targets Android via Web Push. iOS users are directed to the native app via an in-app banner — Web Push is unreliable on iOS.
 
-Part of the BeNeM monorepo. See `../CLAUDE.md` for cross-cutting rules
-and `../shared/feature-spec.md` for the canonical feature list.
+Part of the BeNeM monorepo. See `../CLAUDE.md` for cross-cutting rules and `../shared/feature-spec.md` for the canonical feature list.
 
-## v0.1.0 scope
+## Current Version: 0.7.0
 
-- Incident List screen (read-only, 120s auto-refresh, pull-to-refresh, tap-to-detail stub)
-- iOS redirect banner
-- PWA manifest + service worker (offline scaffolding only — no data caching)
+### What's New in v0.7.0
 
-Deferred to later versions:
-- Swipe ACK / UnACK (v0.1.1)
-- Incident detail screen (v0.1.1)
-- Settings screen (v0.1.1)
-- Web Push subscription for Android (v0.2.0)
+- **iOS-style Dashboard** — summary cards (Active Incidents + Total Devices), step-through incident ticker with slide animation and page dots, iOS-style heat map status cards, full-width drill-down rows with icons, chain-link connection badge, circular refresh ring
+- **Settings iOS Parity** — QR-scanned servers lock fields to read-only (except Server Name and Push toggle), added User Name, BHNM URL, and Middleware URL fields, single save-with-test button, server switch confirmation dialog, delete button
+- **QR Scanning Fixes** — deferred scanner callback to prevent React crash, proper encryption key from BENEM_SECRET_KEY, duplicate detection by Server Name + BHNM URL + User Name
+- **Tab Bar on All Screens** — Settings added as 4th tab, persistent bottom navigation everywhere
+- **App Icon** — iOS app icon with handwritten "PWA" badge (Marker Felt)
+- **Error Boundary** — catches React render crashes and shows a reload prompt instead of a blank screen
+- **Proxy Auth** — all API calls now send X-Proxy-Token header for middleware authentication
+
+### Previous Versions
+
+- **v0.6.0** — Performance charts, QR server onboarding, Web Push, localStorage encryption
+- **v0.5.0** — Inline performance charts in Device Detail with Recharts
+- **v0.4.0** — Device list, device detail, tactical drill-down views
+- **v0.3.0** — Dashboard, multi-server management, tab bar navigation
+- **v0.2.0** — Web Push notifications via VAPID
+- **v0.1.0** — Incident list, iOS redirect banner, PWA manifest
+
+## Platforms
+
+| Platform | How to Use |
+|---|---|
+| **Android** | Open `https://benem.hurrikap.org` in Chrome, tap "Add to Home Screen" to install as PWA. Push notifications via Web Push. |
+| **Desktop** | Open the same URL in any modern browser for a web dashboard. |
+| **iOS** | The PWA works in Safari but push is unreliable. An in-app banner directs iOS users to install the native app from the App Store instead. |
 
 ## Prerequisites
 
@@ -35,9 +49,7 @@ npm install
 npm run dev
 ```
 
-Without a real `VITE_BHNM_API_KEY`, the list shows mock fixture data so
-you can still work on the UI. Append `?mock=1` to the URL to force mock
-data even when a key is set.
+Without a real API key, the list shows mock fixture data so you can still work on the UI. Append `?mock=1` to the URL to force mock data even when a key is set.
 
 ## Commands
 
@@ -52,38 +64,13 @@ data even when a key is set.
 
 ## Architecture
 
-- **Stack:** Vite 5 + React 18 + TypeScript strict + Tailwind v3 + vite-plugin-pwa + TanStack Query v5 + React Router v6.
+- **Stack:** Vite 5 + React 19 + TypeScript strict + Tailwind v3 + vite-plugin-pwa + TanStack Query v5 + React Router v6
 - **Dev proxy:** `/bhnm/*` is forwarded to `VITE_MIDDLEWARE_BASE` (default `https://bhnm-apns.hurrikap.org`) with `changeOrigin: true`. This avoids CORS during development.
-- **Production deployment / CORS:** not yet designed — see v0.1.1.
-- **BHNM contract:** `POST /api/incident_api.php` with `pwd`/`method=getincidents` (form-urlencoded). The parser handles array-wrapped responses, `active_incidents`/`closed_incidents`, and multiple severity key names — mirroring the iOS client.
+- **Production:** The PWA is deployed as a Docker container (nginx serving static files) behind Caddy, which same-origin-proxies `/bhnm/*` to the middleware container.
+- **QR Encryption:** The `VITE_QR_ENCRYPTION_KEY` build env var is mapped from `BENEM_SECRET_KEY` in the middleware `.env` via a Docker build arg.
 
-## Middleware coupling
+## Production Hosting
 
-The BHNM API key you set in `VITE_BHNM_API_KEY` must exist in the
-deployed middleware's `servers.json`. The middleware proxy looks up the
-target BHNM server by that key.
+The PWA is deployed at `https://benem.hurrikap.org` as a dedicated `benem-pwa` container managed by `middleware/docker-compose.yml`. The same Caddy instance that fronts the middleware terminates TLS for both hostnames and same-origin-proxies `/bhnm/*` on the PWA host to the middleware container.
 
-## Production hosting
-
-The PWA is deployed at `https://benem.hurrikap.org` as a dedicated
-`benem-pwa` container managed by `middleware/docker-compose.yml`. The
-same Caddy instance that fronts the `bhnm-apns` push middleware
-terminates TLS for both hostnames and same-origin-proxies
-`/bhnm/*` on the PWA host to the middleware container — so the PWA
-has no CORS dependency and shares no code with the middleware image.
-
-First-time deploy checklist (run on the server, repo root):
-
-1. `git pull`
-2. Add `PWA_DOMAIN=benem.hurrikap.org` to `middleware/.env`
-3. Create a DNS A/AAAA record for `benem.hurrikap.org` pointing at the server
-4. Wait for DNS to propagate (`dig +short benem.hurrikap.org`)
-5. `cd middleware && docker compose up -d` (Caddy will provision a Let's Encrypt cert automatically)
-6. Visit `https://benem.hurrikap.org/settings` and enter your BHNM API key
-
-Subsequent deploys are `./middleware/upgrade.sh`, which rebuilds the
-`benem-pwa` image from the current `pwa/` source on every run.
-
-The API key you enter in Settings is stored in your browser's
-`localStorage` (scoped to `benem.hurrikap.org`) and is never sent
-anywhere except BHNM via the middleware proxy.
+Deploy with `./upgrade.sh` from the middleware directory. The smart rebuild only rebuilds containers with changed files.

@@ -23,7 +23,7 @@ features defined here. Platform-specific behaviour is noted per feature.
 ## Features
 
 ### Feature: Incident List
-**Status:** shipped-ios, in-progress-pwa
+**Status:** shipped-ios, shipped-pwa
 **API:** `POST /api/incident_api.php` (method=getincidents)
 
 #### Behaviour (both platforms)
@@ -80,13 +80,14 @@ features defined here. Platform-specific behaviour is noted per feature.
 
 #### PWA-specific
 - v0.3.0: Dashboard screen as default route, status cards, horizontal auto-scrolling incident ticker
+- v0.7.0: iOS-style redesign — summary cards (Active Incidents + Total Devices), step-through incident ticker with slide animation and page dots, iOS-style heat map status cards, full-width drill-down rows with icons, chain-link connection badge, circular refresh ring
 
 ### Feature: Navigation (Tab Bar)
 **Status:** shipped-ios, shipped-pwa
 
 #### Behaviour (both platforms)
-- Bottom tab bar with Dashboard, Incidents, Devices tabs
-- Persistent across screens (except Settings)
+- Bottom tab bar with Dashboard, Incidents, Devices, Settings tabs
+- Persistent across all screens
 - Active tab highlighting
 
 #### iOS-specific
@@ -94,6 +95,7 @@ features defined here. Platform-specific behaviour is noted per feature.
 
 #### PWA-specific
 - v0.3.0: React Router NavLink-based tab bar, fixed bottom position
+- v0.7.0: Added Settings tab (4 tabs total), persistent on all screens including Settings
 
 ### Feature: Multi-Server Management
 **Status:** shipped-ios, shipped-pwa
@@ -110,6 +112,7 @@ features defined here. Platform-specific behaviour is noted per feature.
 #### PWA-specific
 - v0.3.0: localStorage `benem_servers` JSON array, legacy key migration from v0.2.0 format
 - Settings redesigned with server list section and per-server add/edit form
+- v0.7.0: iOS settings parity — QR-scanned servers lock fields to read-only (except Server Name and Push toggle), added User Name (ackUser), BHNM URL, and Middleware URL fields, single Save button that tests then saves, server switch confirmation dialog, delete button with confirmation
 
 ### Feature: Device List
 **Status:** shipped-ios, shipped-pwa
@@ -195,7 +198,7 @@ features defined here. Platform-specific behaviour is noted per feature.
 - AES-256-GCM encryption (shared key across platforms)
 - Compact format: single encrypted JSON blob with all fields
 - Legacy format: individual encrypted parameters
-- Duplicate detection by base URL; offers update instead of add
+- Duplicate detection; offers update instead of add
 
 #### iOS-specific
 - Native AVFoundation camera scanner in QRScannerView
@@ -204,6 +207,7 @@ features defined here. Platform-specific behaviour is noted per feature.
 #### PWA-specific
 - v0.5.0: html5-qrcode camera overlay from Settings
 - Web Crypto API for AES-256-GCM decryption
-- Encryption key via VITE_QR_ENCRYPTION_KEY build env var
+- Encryption key via VITE_QR_ENCRYPTION_KEY build env var (mapped from BENEM_SECRET_KEY at Docker build time)
 - Camera availability check hides button when no camera
 - Error states: permission denied, invalid QR, decryption failure
+- v0.7.0: Duplicate detection by Server Name + BHNM URL + User Name; QR-scanned servers marked as `isQrProvisioned` with read-only fields

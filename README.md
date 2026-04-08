@@ -2,9 +2,16 @@
 
 An open-source mobile application for **BMC Helix Network Management (BHNM)**. This is an independent project — it is not affiliated with, endorsed, guaranteed, or supported by BMC Software. BMC, Helix, and BHNM are trademarks of BMC Software, Inc. If you find a bug or have a feature request, contributions are welcome!
 
-This repository provides a push notification middleware, a native iOS app (Swift/SwiftUI), and a Progressive Web App (PWA) for Android.
+This repository provides **two client apps** and a companion middleware:
 
-**When a new incident is created in BHNM, a push notification is instantly delivered to every registered device** — no polling, no delay. Tap the notification to jump straight to the incident detail. This is a first-class feature of BeNeM on both platforms, powered by a lightweight companion middleware that bridges BHNM webhooks to Apple Push Notification service (APNs) for iOS and VAPID Web Push for Android.
+| App | Platform | Distribution |
+|---|---|---|
+| **Native iOS app** (Swift/SwiftUI) | iPhone, iPad | App Store / TestFlight |
+| **Progressive Web App** (React/TypeScript) | Android, Desktop browsers | Install from `https://benem.hurrikap.org` — "Add to Home Screen" |
+
+Both apps share the same feature set and connect to the same BHNM servers via a lightweight **push notification middleware** (Python/FastAPI) that bridges BHNM webhooks to Apple Push Notification service (APNs) for iOS and VAPID Web Push for Android.
+
+**When a new incident is created in BHNM, a push notification is instantly delivered to every registered device** — no polling, no delay. Tap the notification to jump straight to the incident detail.
 
 > **Note:** BMC Helix Network Management (BHNM) was formerly known as **Netreo**. Internal code identifiers (class names, AppStorage keys) still use the legacy `Netreo` prefix for backwards compatibility and will be migrated in a future release.
 
