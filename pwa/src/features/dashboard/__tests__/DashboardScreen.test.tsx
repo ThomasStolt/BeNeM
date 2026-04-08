@@ -4,7 +4,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DashboardScreen } from '../DashboardScreen';
 
-// Mock useTacticalSummary
 vi.mock('../useTacticalSummary', () => ({
   useTacticalSummary: () => ({
     data: {
@@ -19,7 +18,6 @@ vi.mock('../useTacticalSummary', () => ({
   }),
 }));
 
-// Mock useIncidents
 vi.mock('../../incidents/useIncidents', () => ({
   useIncidents: () => ({
     data: [
@@ -53,7 +51,7 @@ function renderDashboard() {
 }
 
 describe('DashboardScreen', () => {
-  it('renders all four status cards', () => {
+  it('renders heat map cards', () => {
     renderDashboard();
     expect(screen.getByText('Hosts')).toBeInTheDocument();
     expect(screen.getByText('Services')).toBeInTheDocument();
@@ -68,8 +66,19 @@ describe('DashboardScreen', () => {
     expect(screen.getByText('Business Workflows')).toBeInTheDocument();
   });
 
+  it('renders summary cards', () => {
+    renderDashboard();
+    expect(screen.getByText('Active Incidents')).toBeInTheDocument();
+    expect(screen.getByText('Total Devices')).toBeInTheDocument();
+  });
+
   it('renders incident ticker with critical incidents', () => {
     renderDashboard();
-    expect(screen.getAllByText(/Router-1/).length).toBeGreaterThan(0);
+    expect(screen.getByText('Router-1')).toBeInTheDocument();
+  });
+
+  it('renders Home title', () => {
+    renderDashboard();
+    expect(screen.getByText('Home')).toBeInTheDocument();
   });
 });
