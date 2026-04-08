@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useConfig, notifyConfigChanged } from '../../lib/config';
 import {
@@ -161,12 +160,8 @@ export function SettingsScreen() {
 
   return (
     <div className="min-h-full">
-      <header className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-        <Link to="/" className="text-sm text-slate-300 hover:text-white" aria-label="Back to dashboard">
-          ← Back
-        </Link>
+      <header className="px-4 py-3 border-b border-slate-800 flex items-center justify-center">
         <h1 className="text-lg font-semibold">Settings</h1>
-        <span aria-hidden="true" className="w-10" />
       </header>
 
       <div className="p-4 space-y-6 max-w-md">
