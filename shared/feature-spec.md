@@ -24,20 +24,34 @@ features defined here. Platform-specific behaviour is noted per feature.
 
 ### Feature: Incident List
 **Status:** shipped-ios, shipped-pwa
-**API:** `POST /api/incident_api.php` (method=getincidents)
+**API:** `GET /api/v1/incidents` (cached, enriched) with fallback to `POST /api/incident_api.php` (method=getincidents)
 
 #### Behaviour (both platforms)
-- Display open incidents
+- Display open incidents with alarm color badges (red/orange/yellow/green/blue)
+- Incidents and alarm counts load in a single response via middleware cache
 - Swipe gestures for acknowledge / unacknowledge
 - Pull-to-refresh and 120-second auto-refresh
 - Navigate to incident detail on tap
-- Badge with alarm state counts from `getincidentdetail` (`primary_alarm_log` + `relatedalarms`)
+- Dashboard ticker shows latest 3 open critical/major incidents (excludes ALARMS CLEARED)
+- Fallback: if cache is cold, incidents load from BHNM directly; alarm counts load per-incident
+
+#### Middleware Cache
+- Background loop per enabled BHNM server pre-fetches `getincidents` + `getincidentdetail` per incident
+- Enriches each incident with `alarm_counts` and `alert_type` before storing in memory
+- API calls paced evenly over configurable refresh interval (60-900s, default 120s) to avoid BHNM overload
+- Admin portal toggle to enable/disable caching per server; triggers `/internal/cache/reload`
+- Server resolved by `X-Proxy-Token` (api_key) or `X-BHNM-Target` (BHNM URL) header
 
 #### iOS-specific
+- `fetchCachedIncidents()` in `NetreoAPIService` calls `GET /api/v1/incidents`
+- Falls back to legacy `fetchIncidents()` + per-incident `loadAlarmCounts()` if cached endpoint fails
 - SwiftUI `List` with native swipe actions (right = ACK, left = UnACK)
 - Auto-refresh countdown ring in the toolbar (`AutoRefreshButton`)
 
 #### PWA-specific
+- `getCachedIncidents()` in `lib/api/incidents.ts` calls `GET /api/v1/incidents` via `fetchJson`
+- Falls back to legacy `getIncidents()` POST if cached endpoint fails
+- Alarm color badges rendered via `AlarmBadges` component
 - v0.1.0: read-only list, 120s auto-refresh, pull-to-refresh, tap navigates to detail stub
 - v0.1.0.5: hosted at `https://benem.hurrikap.org` as a dedicated container alongside the middleware; minimal Settings screen for BHNM API key entry (localStorage)
 - v0.1.1: real incident detail screen (essentials: metadata + ACK action), swipe ACK/UnACK on list rows, polished Settings with PIN + test-connection via ha_status endpoint

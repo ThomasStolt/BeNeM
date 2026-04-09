@@ -1,8 +1,9 @@
 # BeNeM Middleware (bhnm-apns) — Claude Code Context
 
 Python / FastAPI middleware that bridges BMC Helix Network Management
-(BHNM) incident webhooks to Apple Push Notifications (APNs) — and, in the
-future, to Web Push for the PWA.
+(BHNM) incident webhooks to Apple Push Notifications (APNs) and Web Push
+(PWA/Android). Also provides an incident caching layer that pre-fetches
+and enriches incident data for fast client loading.
 
 > Part of the BeNeM monorepo. See `../CLAUDE.md` for the cross-cutting
 > architecture, `../ios/CLAUDE.md` for the iOS consumer, and
@@ -20,7 +21,8 @@ to registered iOS devices (APNs) and Android/web users (Web Push).
 
 | File | Description |
 |---|---|
-| `main.py` | FastAPI app entry point. Defines `/register`, `/webhook`, `/health` endpoints and the lifespan startup handler. |
+| `main.py` | FastAPI app entry point. Defines `/register`, `/webhook`, `/health`, `/api/v1/incidents`, `/internal/cache/reload` endpoints and the lifespan startup handler. |
+| `incident_cache.py` | Background incident cache: pre-fetches incidents + alarm details from BHNM, stores enriched results in memory, one asyncio.Task per enabled server with configurable pacing. |
 | `config.py` | Loads all configuration from environment variables (via `python-dotenv`). No secrets in code. |
 | `database.py` | SQLite helpers: `init_db`, `save_token`, `get_tokens_for_secret`, `get_all_tokens`, `delete_token`. |
 | `apns.py` | APNs delivery: JWT generation, HTTP/2 POST via `httpx`, stale token detection. |
@@ -32,7 +34,7 @@ to registered iOS devices (APNs) and Android/web users (Web Push).
 | `upgrade.sh` | Upgrade script: pulls latest code, rebuilds all containers, restarts services, health-checks bhnm-apns and benem-admin. |
 | `setup.sh` | Interactive shell wizard that generates `.env` from user prompts. |
 | `.env.example` | Template for `.env`. Committed to the repo — never commit `.env` itself. |
-| `VERSION` | Plain text file containing the current version (`2.3.0`). |
+| `VERSION` | Plain text file containing the current version (`2.4.0`). |
 | `bhnm-apns.service` | Systemd unit file (legacy, not used in Docker deployments). |
 
 ---
@@ -68,18 +70,38 @@ All secrets and configuration live in `.env` (gitignored). `config.py` reads the
 ### APNs JWT Authentication
 `apns.py` generates a signed JWT (ES256) using the `.p8` private key, which is stored base64-encoded in `APNS_PRIVATE_KEY_B64`. The JWT is cached and refreshed every 55 minutes (APNs requires refresh before 60 min). HTTP/2 is used via `httpx`.
 
+### Incident Cache
+`incident_cache.py` pre-fetches incidents and their alarm details from each BHNM server with caching enabled. One `asyncio.Task` per server runs a continuous loop:
+
+1. Calls `getincidents` (1 API call) to get the incident list
+2. Calls `getincidentdetail` per incident (N API calls), paced evenly over the configured refresh interval to avoid overloading BHNM
+3. Enriches each incident with `alarm_counts` (red/orange/yellow/green/blue) and `alert_type`
+4. Stores the enriched result in an in-memory dict keyed by `server_id`
+
+Clients call `GET /api/v1/incidents` and receive the full incident list with alarm counts in a single response. If the cache is cold (startup, new server), the endpoint falls through to the live BHNM proxy.
+
+Configuration is per-server in `servers.json`:
+- `cache_enabled` (bool, default false) — opt-in per server
+- `cache_refresh_seconds` (int, default 120, min 60, max 900) — full cycle interval
+
+The admin portal provides a toggle switch and refresh interval input per server. On add/edit/delete, the admin POSTs to `/internal/cache/reload` to start/stop/restart the cache loop.
+
+Server resolution for the cache uses `X-Proxy-Token` (matched against `api_key` in servers.json) or `X-BHNM-Target` header (matched against server `url`).
+
 ---
 
 ## Endpoints
 
 | Endpoint | Purpose | Consumer |
 |---|---|---|
+| `GET/POST /api/v1/incidents` | Cached enriched incidents with alarm counts; falls through to live BHNM proxy if cache is cold | iOS app, PWA |
+| `POST /internal/cache/reload` | Trigger cache restart for a server (called by admin portal on server add/edit/delete) | Admin portal |
 | `POST /register` | Register an APNs device token (with `active_secret` from `X-Webhook-Token` header) | iOS app |
 | `DELETE /register` | Unregister an APNs device token | iOS app |
 | `POST /register-webpush` | Register a Web Push subscription (with webhook secret from `X-Webhook-Token` header) | PWA |
 | `GET /vapid-key` | Return the VAPID public key for Web Push subscription | PWA |
 | `POST /webhook` | Receive a BHNM incident event and fan out push notifications | BHNM |
-| `GET /health` | Health check — returns version and registered device count | Ops |
+| `GET /health` | Health check — returns version, device count, and cache status per server | Ops |
 | `POST /api/proxy/incident/acknowledge` | Proxy incident acknowledge to BHNM (auth via `X-Proxy-Token`) | iOS app, PWA |
 | `POST /api/proxy/incident/unacknowledge` | Proxy incident unacknowledge to BHNM (auth via `X-Proxy-Token`) | iOS app, PWA |
 | `POST /api/proxy/ha-status` | Proxy HA status check to BHNM (auth via `X-Proxy-Token`) | iOS app, PWA |

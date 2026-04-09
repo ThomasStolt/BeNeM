@@ -219,7 +219,8 @@ xcrun devicectl list devices
 - **Minimum BHNM version:** 26.1.02. The app uses UID-based device identity, pagination, model/serial fields, and interface details — all require 26.1.01+.
 - **Device identity** uses `UID` (root_id from BHNM) as the primary identifier, not IP. The `GUID` field provides globally unique cross-deployment identification.
 - `NetreoAPIService` still has legacy code paths (`configuration.version == .legacy`). Incidents and ACK/UnACK use the RESTful endpoints directly (no `version` switch).
-- The device list API returns **no alarm color field**. For per-incident alarm colors (used in `IncidentDetailView` and `IncidentListView` badge counts), `getincidentdetail` is still called — it returns `primary_alarm_log` + `relatedalarms` entries whose `state` field is authoritative. Severity fields in the incident list API are unreliable.
+- **Incident loading** uses the middleware's cached endpoint (`GET /api/v1/incidents`) which returns incidents enriched with `alarm_counts` and `alert_type` in a single response. `fetchCachedIncidents()` in `NetreoAPIService` calls this endpoint; if it fails (middleware down, cache cold), it falls back to the legacy `getincidents` + per-incident `getincidentdetail` flow. The `alarm_counts` field in the JSON response uses `[String: Any]` (not `[String: Int]`) due to JSONSerialization producing NSNumber values.
+- The device list API returns **no alarm color field**. For `IncidentDetailView`, `getincidentdetail` is still called for full detail.
 - The **Tactical Overview** (H/S/T aggregates) no longer uses incident or device data — it calls `restful/tactical-overview/data` directly.
 - SourceKit regularly reports false-positive errors in this project (e.g. "Cannot find type X in scope"). `xcodebuild` succeeds regardless — trust the compiler, not SourceKit.
 - Debug info is temporarily stored in `UserDefaults`:
