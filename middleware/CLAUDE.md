@@ -21,8 +21,9 @@ to registered iOS devices (APNs) and Android/web users (Web Push).
 
 | File | Description |
 |---|---|
-| `main.py` | FastAPI app entry point. Defines `/register`, `/webhook`, `/health`, `/api/v1/incidents`, `/internal/cache/reload` endpoints and the lifespan startup handler. |
+| `main.py` | FastAPI app entry point. Defines `/register`, `/webhook`, `/health`, `/api/v1/incidents`, `/api/v1/tactical-overview`, `/internal/cache/reload` endpoints and the lifespan startup handler. |
 | `incident_cache.py` | Background incident cache: pre-fetches incidents + alarm details from BHNM, stores enriched results in memory, one asyncio.Task per enabled server with configurable pacing. |
+| `tactical_cache.py` | Background tactical overview cache: pre-fetches category/site/app grouping data from BHNM, stores raw JSON in memory. Same lifecycle as `incident_cache.py`. |
 | `config.py` | Loads all configuration from environment variables (via `python-dotenv`). No secrets in code. |
 | `database.py` | SQLite helpers: `init_db`, `save_token`, `get_tokens_for_secret`, `get_all_tokens`, `delete_token`. |
 | `apns.py` | APNs delivery: JWT generation, HTTP/2 POST via `httpx`, stale token detection. |
@@ -88,6 +89,16 @@ The admin portal provides a toggle switch and refresh interval input per server.
 
 Server resolution for the cache uses `X-Proxy-Token` (matched against `api_key` in servers.json) or `X-BHNM-Target` header (matched against server `url`).
 
+### Tactical Overview Cache
+`tactical_cache.py` pre-fetches tactical overview data (category, site, app grouping types) from each BHNM server with caching enabled. One `asyncio.Task` per server runs a continuous loop:
+
+1. Calls `POST /fw/index.php?r=restful/tactical-overview/data` for each grouping type (3 API calls)
+2. Stores the raw JSON response in an in-memory dict keyed by `(server_id, grouping_type)`
+
+Clients call `GET /api/v1/tactical-overview?grouping_type=category` and receive the data instantly. If the cache is cold, the endpoint falls through to a live BHNM request (building the proper form-encoded POST from the proxy token).
+
+Configuration shares `cache_enabled` and `cache_refresh_seconds` with the incident cache. Admin portal reload (`/internal/cache/reload`) restarts both caches.
+
 ---
 
 ## Endpoints
@@ -95,6 +106,7 @@ Server resolution for the cache uses `X-Proxy-Token` (matched against `api_key` 
 | Endpoint | Purpose | Consumer |
 |---|---|---|
 | `GET/POST /api/v1/incidents` | Cached enriched incidents with alarm counts; falls through to live BHNM proxy if cache is cold | iOS app, PWA |
+| `GET /api/v1/tactical-overview` | Cached tactical overview data by grouping type (`category`, `site`, `app`); falls through to live BHNM if cache is cold | iOS app, PWA |
 | `POST /internal/cache/reload` | Trigger cache restart for a server (called by admin portal on server add/edit/delete) | Admin portal |
 | `POST /register` | Register an APNs device token (with `active_secret` from `X-Webhook-Token` header) | iOS app |
 | `DELETE /register` | Unregister an APNs device token | iOS app |
