@@ -35,6 +35,7 @@ from sf_symbols import SF_SYMBOLS
 load_dotenv()
 
 MIDDLEWARE_URL = os.environ.get("MIDDLEWARE_URL", "")
+MIDDLEWARE_INTERNAL_URL = os.environ.get("MIDDLEWARE_INTERNAL_URL", "http://benem-middleware:8889")
 PUSH_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 PROXY_TOKEN = os.environ.get("PROXY_TOKEN", "")
 
@@ -383,6 +384,18 @@ def restart_container(request: Request):
     })
 
 
+async def _notify_cache_reload(server_id: str) -> None:
+    """Tell the middleware to reload cache config for a server."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                f"{MIDDLEWARE_INTERNAL_URL}/internal/cache/reload",
+                json={"server_id": server_id},
+            )
+    except Exception as e:
+        print(f"[Admin] Failed to notify middleware cache reload for {server_id}: {e}")
+
+
 # ── Server Management (HTMX fragments) ────────────────────────────────────
 
 @app.get("/admin/settings/servers/card", response_class=HTMLResponse)
@@ -416,13 +429,15 @@ def server_edit_form(request: Request, server_id: str = ""):
 
 
 @app.post("/admin/settings/servers/add", response_class=HTMLResponse)
-def server_add(
+async def server_add(
     request: Request,
     id: str = Form(...),
     name: str = Form(...),
     url: str = Form(...),
     api_key: str = Form(...),
     pin: str = Form(""),
+    cache_enabled: str = Form(""),
+    cache_refresh_seconds: int = Form(120),
 ):
     if not auth.is_authenticated(request):
         return HTMLResponse("", status_code=401)
@@ -431,6 +446,8 @@ def server_add(
     url = url.strip().rstrip("/")
     api_key = api_key.strip()
     pin = pin.strip()
+    cache_on = cache_enabled == "1"
+    refresh = max(60, min(900, cache_refresh_seconds))
     if not id or not name or not url or not api_key:
         return HTMLResponse(
             '<div class="alert alert-red">All fields except PIN are required.</div>',
@@ -450,16 +467,18 @@ def server_add(
             f'<div class="alert alert-red">Server ID "{escape(id)}" already exists.</div>',
             status_code=422,
         )
-    new_server = Server(id=id, name=name, url=url, api_key=api_key, pin=pin)
+    new_server = Server(id=id, name=name, url=url, api_key=api_key, pin=pin,
+                        cache_enabled=cache_on, cache_refresh_seconds=refresh)
     servers.append(new_server)
     save_servers(servers)
+    await _notify_cache_reload(id)
     return templates.TemplateResponse(request, "_server_card.html", {
         "s": new_server,
     })
 
 
 @app.post("/admin/settings/servers/edit", response_class=HTMLResponse)
-def server_edit(
+async def server_edit(
     request: Request,
     original_id: str = Form(...),
     id: str = Form(...),
@@ -467,6 +486,8 @@ def server_edit(
     url: str = Form(...),
     api_key: str = Form(...),
     pin: str = Form(""),
+    cache_enabled: str = Form(""),
+    cache_refresh_seconds: int = Form(120),
 ):
     if not auth.is_authenticated(request):
         return HTMLResponse("", status_code=401)
@@ -475,6 +496,8 @@ def server_edit(
     url = url.strip().rstrip("/")
     api_key = api_key.strip()
     pin = pin.strip()
+    cache_on = cache_enabled == "1"
+    refresh = max(60, min(900, cache_refresh_seconds))
     if not id or not name or not url or not api_key:
         return HTMLResponse(
             '<div class="alert alert-red">All fields except PIN are required.</div>',
@@ -500,15 +523,17 @@ def server_edit(
             '<div class="alert alert-red">Server not found.</div>',
             status_code=404,
         )
-    servers[idx] = Server(id=id, name=name, url=url, api_key=api_key, pin=pin)
+    servers[idx] = Server(id=id, name=name, url=url, api_key=api_key, pin=pin,
+                          cache_enabled=cache_on, cache_refresh_seconds=refresh)
     save_servers(servers)
+    await _notify_cache_reload(id)
     return templates.TemplateResponse(request, "_server_card.html", {
         "s": servers[idx],
     })
 
 
 @app.post("/admin/settings/servers/delete", response_class=HTMLResponse)
-def server_delete(request: Request, server_id: str = Form(...)):
+async def server_delete(request: Request, server_id: str = Form(...)):
     if not auth.is_authenticated(request):
         return HTMLResponse("", status_code=401)
     try:
@@ -517,6 +542,7 @@ def server_delete(request: Request, server_id: str = Form(...)):
         return HTMLResponse("")
     servers = [s for s in servers if s.id != server_id]
     save_servers(servers)
+    await _notify_cache_reload(server_id)
     return HTMLResponse("")  # HTMX removes the card from DOM
 
 

@@ -23,6 +23,10 @@
       <dt>PIN</dt>
       <dd>{{ s.pin if s.pin else '(none)' }}</dd>
     </div>
+    <div>
+      <dt>Cache</dt>
+      <dd>{{ 'Enabled (' + s.cache_refresh_seconds|string + 's)' if s.cache_enabled else 'Disabled' }}</dd>
+    </div>
   </dl>
   <div id="test-results-{{ s.id }}"></div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">

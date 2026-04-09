@@ -28,6 +28,22 @@
       <label>PIN <span style="color:var(--text-dim);font-weight:400;">(SaaS only, leave empty for on-prem)</span></label>
       <input type="text" name="pin" value="{{ s.pin }}" placeholder="(empty)" class="mono">
     </div>
+    <div class="form-group" style="display:flex;align-items:center;gap:10px;">
+      <label style="margin:0;">Incident Cache</label>
+      <label class="switch">
+        <input type="checkbox" name="cache_enabled" value="1"
+               {% if s.cache_enabled %}checked{% endif %}
+               onchange="document.getElementById('cache-interval-{{ s.id or 'new' }}').style.display = this.checked ? 'flex' : 'none'">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="form-group" id="cache-interval-{{ s.id or 'new' }}"
+         style="display:{{ 'flex' if s.cache_enabled else 'none' }};align-items:center;gap:10px;">
+      <label style="margin:0;">Refresh interval</label>
+      <input type="number" name="cache_refresh_seconds" value="{{ s.cache_refresh_seconds }}"
+             min="60" max="900" step="10" style="width:80px;" class="mono">
+      <span style="color:var(--text-dim);font-size:12px;">seconds (60–900)</span>
+    </div>
     <div style="display:flex;gap:8px;">
       <button type="submit" class="btn btn-primary btn-sm">Save</button>
       {% if is_new %}

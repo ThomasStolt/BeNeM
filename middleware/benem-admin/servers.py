@@ -12,6 +12,8 @@ class Server:
     url: str
     api_key: str
     pin: str = ""
+    cache_enabled: bool = False
+    cache_refresh_seconds: int = 120
 
 
 def load_servers() -> list[Server]:
@@ -32,7 +34,8 @@ def save_servers(servers: list[Server]) -> None:
     """Write servers list to servers.json with file locking."""
     path = os.environ.get("SERVERS_JSON_PATH", "/app/servers.json")
     data = [
-        {"id": s.id, "name": s.name, "url": s.url, "api_key": s.api_key, "pin": s.pin}
+        {"id": s.id, "name": s.name, "url": s.url, "api_key": s.api_key, "pin": s.pin,
+         "cache_enabled": s.cache_enabled, "cache_refresh_seconds": s.cache_refresh_seconds}
         for s in servers
     ]
     with open(path, "r+") as f:
