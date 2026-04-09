@@ -55,7 +55,7 @@ class DeviceDetailViewModel: ObservableObject {
     @Published var criticalCount: Int = 0
 
     private var devIndex: String?
-    private let apiService: NetreoAPIService
+    let apiService: NetreoAPIService
     let device: NetreoDevice
 
     init(device: NetreoDevice, apiService: NetreoAPIService) {

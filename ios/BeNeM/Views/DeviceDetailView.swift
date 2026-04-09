@@ -3,6 +3,7 @@ import Charts
 
 struct DeviceDetailView: View {
     @StateObject private var viewModel: DeviceDetailViewModel
+    @State private var showMaintenanceSheet = false
 
     init(device: NetreoDevice, apiService: NetreoAPIService) {
         _viewModel = StateObject(wrappedValue: DeviceDetailViewModel(device: device, apiService: apiService))
@@ -29,6 +30,22 @@ struct DeviceDetailView: View {
         .navigationTitle(device.name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.load() }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showMaintenanceSheet = true
+                } label: {
+                    Label("Maintenance", systemImage: "wrench.and.screwdriver")
+                }
+            }
+        }
+        .sheet(isPresented: $showMaintenanceSheet) {
+            MaintenanceWindowSheet(
+                deviceName: device.name,
+                apiService: viewModel.apiService,
+                onDismiss: { showMaintenanceSheet = false }
+            )
+        }
     }
 
     // MARK: - Header
