@@ -29,7 +29,7 @@ from connection_test import run_test
 from crypto import load_key, encrypt_payload
 from log import append_entry, read_entries, count_entries, delete_entry, update_entry_user, get_entry
 from push_db import get_registered_devices
-from servers import load_servers, get_server
+from servers import load_servers, get_server, save_servers, Server
 from sf_symbols import SF_SYMBOLS
 
 load_dotenv()
@@ -422,12 +422,17 @@ def _can_restart() -> bool:
 def settings_page(request: Request):
     if not auth.is_authenticated(request):
         return auth.redirect_to_login()
+    try:
+        servers = load_servers()
+    except FileNotFoundError:
+        servers = []
     return templates.TemplateResponse(request, "settings.html", {
         "active": "settings",
         "totp_qr_b64": _totp_qr_b64(),
         "version": VERSION,
         "can_restart": _can_restart(),
         "restart_initiated": False,
+        "servers": servers,
     })
 
 
@@ -446,3 +451,130 @@ def restart_container(request: Request):
         "can_restart": True,
         "restart_initiated": True,
     })
+
+
+# ── Server Management (HTMX fragments) ────────────────────────────────────
+
+@app.get("/admin/settings/servers/card", response_class=HTMLResponse)
+def server_card_readonly(request: Request, server_id: str = ""):
+    """Return a read-only server card fragment (HTMX)."""
+    if not auth.is_authenticated(request):
+        return HTMLResponse("", status_code=401)
+    server = get_server(server_id)
+    if not server:
+        return HTMLResponse("", status_code=404)
+    return templates.TemplateResponse(request, "_server_card.html", {
+        "s": server,
+    })
+
+
+@app.get("/admin/settings/servers/edit-form", response_class=HTMLResponse)
+def server_edit_form(request: Request, server_id: str = ""):
+    """Return an editable server card fragment (HTMX). Empty server_id = new server."""
+    if not auth.is_authenticated(request):
+        return HTMLResponse("", status_code=401)
+    if server_id:
+        server = get_server(server_id)
+        if not server:
+            return HTMLResponse("", status_code=404)
+    else:
+        server = Server(id="", name="", url="", api_key="", pin="")
+    return templates.TemplateResponse(request, "_server_form.html", {
+        "s": server,
+        "is_new": not server_id,
+    })
+
+
+@app.post("/admin/settings/servers/add", response_class=HTMLResponse)
+def server_add(
+    request: Request,
+    id: str = Form(...),
+    name: str = Form(...),
+    url: str = Form(...),
+    api_key: str = Form(...),
+    pin: str = Form(""),
+):
+    if not auth.is_authenticated(request):
+        return HTMLResponse("", status_code=401)
+    id = id.strip()
+    name = name.strip()
+    url = url.strip().rstrip("/")
+    api_key = api_key.strip()
+    pin = pin.strip()
+    if not id or not name or not url or not api_key:
+        return HTMLResponse(
+            '<div class="alert alert-red">All fields except PIN are required.</div>',
+            status_code=422,
+        )
+    try:
+        servers = load_servers()
+    except FileNotFoundError:
+        servers = []
+    if any(s.id == id for s in servers):
+        return HTMLResponse(
+            f'<div class="alert alert-red">Server ID "{escape(id)}" already exists.</div>',
+            status_code=422,
+        )
+    new_server = Server(id=id, name=name, url=url, api_key=api_key, pin=pin)
+    servers.append(new_server)
+    save_servers(servers)
+    return templates.TemplateResponse(request, "_server_card.html", {
+        "s": new_server,
+    })
+
+
+@app.post("/admin/settings/servers/edit", response_class=HTMLResponse)
+def server_edit(
+    request: Request,
+    original_id: str = Form(...),
+    id: str = Form(...),
+    name: str = Form(...),
+    url: str = Form(...),
+    api_key: str = Form(...),
+    pin: str = Form(""),
+):
+    if not auth.is_authenticated(request):
+        return HTMLResponse("", status_code=401)
+    id = id.strip()
+    name = name.strip()
+    url = url.strip().rstrip("/")
+    api_key = api_key.strip()
+    pin = pin.strip()
+    if not id or not name or not url or not api_key:
+        return HTMLResponse(
+            '<div class="alert alert-red">All fields except PIN are required.</div>',
+            status_code=422,
+        )
+    try:
+        servers = load_servers()
+    except FileNotFoundError:
+        servers = []
+    if id != original_id and any(s.id == id for s in servers):
+        return HTMLResponse(
+            f'<div class="alert alert-red">Server ID "{escape(id)}" already exists.</div>',
+            status_code=422,
+        )
+    idx = next((i for i, s in enumerate(servers) if s.id == original_id), None)
+    if idx is None:
+        return HTMLResponse(
+            '<div class="alert alert-red">Server not found.</div>',
+            status_code=404,
+        )
+    servers[idx] = Server(id=id, name=name, url=url, api_key=api_key, pin=pin)
+    save_servers(servers)
+    return templates.TemplateResponse(request, "_server_card.html", {
+        "s": servers[idx],
+    })
+
+
+@app.post("/admin/settings/servers/delete", response_class=HTMLResponse)
+def server_delete(request: Request, server_id: str = Form(...)):
+    if not auth.is_authenticated(request):
+        return HTMLResponse("", status_code=401)
+    try:
+        servers = load_servers()
+    except FileNotFoundError:
+        return HTMLResponse("")
+    servers = [s for s in servers if s.id != server_id]
+    save_servers(servers)
+    return HTMLResponse("")  # HTMX removes the card from DOM
