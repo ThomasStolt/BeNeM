@@ -1,13 +1,20 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useDeviceSearch } from './useDeviceSearch';
 import { useIncidents } from '../incidents/useIncidents';
 import { SwipeableIncidentRow } from '../incidents/SwipeableIncidentRow';
 import { EmptyState } from '../../components/EmptyState';
 import { PerformanceSection } from '../performance/PerformanceSection';
+import { MaintenanceDialog } from './MaintenanceDialog';
+import { createMaintenanceWindow } from '../../lib/api/maintenance';
+import { useConfig } from '../../lib/config';
 
 export function DeviceDetailScreen() {
   const { name } = useParams<{ name: string }>();
   const decodedName = name ? decodeURIComponent(name) : '';
+
+  const config = useConfig();
+  const [showMaintenance, setShowMaintenance] = useState(false);
 
   const { data: searchResults, isLoading, isError } = useDeviceSearch(decodedName);
   const { data: allIncidents } = useIncidents();
@@ -46,6 +53,23 @@ export function DeviceDetailScreen() {
             <InfoRow label="Site" value={device.site || 'N/A'} />
             {device.description && <InfoRow label="Description" value={device.description} />}
           </div>
+
+          {/* Maintenance */}
+          <button
+            onClick={() => setShowMaintenance(true)}
+            className="w-full bg-slate-900 rounded-lg p-3 text-sm font-semibold text-sky-400 hover:bg-slate-800 transition-colors"
+          >
+            Create Maintenance Window
+          </button>
+
+          <MaintenanceDialog
+            deviceName={decodedName}
+            isOpen={showMaintenance}
+            onClose={() => setShowMaintenance(false)}
+            onSubmit={(duration, comment) =>
+              createMaintenanceWindow(config, decodedName, duration, comment)
+            }
+          />
 
           {/* Host Current Issues */}
           <div>
