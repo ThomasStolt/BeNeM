@@ -255,16 +255,13 @@ async def receive_webhook(request: Request):
     if not secret:
         raise HTTPException(status_code=400, detail="?secret= query parameter is required")
 
-    # Parse body — accept both JSON and form-encoded (BHNM may send either)
-    content_type = request.headers.get("content-type", "")
+    # Parse body — try JSON first, fall back to form-encoded.
+    # BHNM may send JSON without the Content-Type: application/json header.
     body = await request.body()
-    if "application/json" in content_type:
-        try:
-            data = json.loads(body)
-        except (json.JSONDecodeError, ValueError):
-            data = {}
-    else:
-        # Form-encoded or unknown content type
+    data = {}
+    try:
+        data = json.loads(body)
+    except (json.JSONDecodeError, ValueError):
         parsed = parse_qs(body.decode("utf-8", errors="replace"))
         data = {k: v[0] if v else "" for k, v in parsed.items()}
 
