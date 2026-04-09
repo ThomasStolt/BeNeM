@@ -299,8 +299,13 @@ async def cached_incidents(request: Request):
     """Return enriched incidents from cache; fall through to live BHNM if cache is cold."""
     _verify_proxy_token(request)
 
+    # Resolve server: try api_key first, then BHNM URL from X-BHNM-Target header
     api_key = request.headers.get("X-Proxy-Token", "").strip()
     server_id = incident_cache._server_id_for_api_key(api_key)
+    if not server_id:
+        bhnm_target = request.headers.get("X-BHNM-Target", "").strip()
+        if bhnm_target:
+            server_id = incident_cache._server_id_for_bhnm_url(bhnm_target)
 
     if server_id:
         cached = incident_cache.get_cached(server_id)

@@ -35,10 +35,24 @@ def get_cached(server_id: str) -> CachedIncidents | None:
 
 
 def _server_id_for_api_key(api_key: str) -> str:
+    """Look up server ID by api_key from servers.json."""
     try:
         with open(SERVERS_JSON_PATH) as f:
             for s in json.load(f):
                 if s.get("api_key") == api_key:
+                    return s.get("id", "")
+    except (FileNotFoundError, json.JSONDecodeError, Exception):
+        pass
+    return ""
+
+
+def _server_id_for_bhnm_url(bhnm_url: str) -> str:
+    """Look up server ID by BHNM URL from servers.json."""
+    normalized = bhnm_url.rstrip("/")
+    try:
+        with open(SERVERS_JSON_PATH) as f:
+            for s in json.load(f):
+                if s.get("url", "").rstrip("/") == normalized:
                     return s.get("id", "")
     except (FileNotFoundError, json.JSONDecodeError, Exception):
         pass
