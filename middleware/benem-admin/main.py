@@ -369,12 +369,17 @@ def restart_container(request: Request):
         return RedirectResponse("/admin/settings", status_code=302)
     # Runs in background — this process will be killed momentarily
     subprocess.Popen(["docker", "restart", "benem-admin"])  # must match container_name in docker-compose.yml
+    try:
+        servers = load_servers()
+    except FileNotFoundError:
+        servers = []
     return templates.TemplateResponse(request, "settings.html", {
         "active": "settings",
         "totp_qr_b64": _totp_qr_b64(),
         "version": VERSION,
         "can_restart": True,
         "restart_initiated": True,
+        "servers": servers,
     })
 
 
@@ -431,6 +436,11 @@ def server_add(
             '<div class="alert alert-red">All fields except PIN are required.</div>',
             status_code=422,
         )
+    if not re.fullmatch(r'[a-zA-Z0-9_-]+', id):
+        return HTMLResponse(
+            '<div class="alert alert-red">Server ID must contain only letters, numbers, hyphens, and underscores.</div>',
+            status_code=422,
+        )
     try:
         servers = load_servers()
     except FileNotFoundError:
@@ -468,6 +478,11 @@ def server_edit(
     if not id or not name or not url or not api_key:
         return HTMLResponse(
             '<div class="alert alert-red">All fields except PIN are required.</div>',
+            status_code=422,
+        )
+    if not re.fullmatch(r'[a-zA-Z0-9_-]+', id):
+        return HTMLResponse(
+            '<div class="alert alert-red">Server ID must contain only letters, numbers, hyphens, and underscores.</div>',
             status_code=422,
         )
     try:
