@@ -14,7 +14,6 @@ enum TacticalDestination: Hashable {
 
 struct DashboardView: View {
     @ObservedObject private var incidentViewModel: IncidentListViewModel
-    @StateObject private var deviceViewModel: DeviceListViewModel
     @StateObject private var categoryViewModel: TacticalViewModel
     @StateObject private var siteViewModel: TacticalViewModel
     @StateObject private var bwViewModel: TacticalViewModel
@@ -31,7 +30,6 @@ struct DashboardView: View {
         self.incidentViewModel = incidentViewModel
         self._selectedTab = selectedTab
         self.navResetID = navResetID
-        self._deviceViewModel    = StateObject(wrappedValue: DeviceListViewModel(apiService: apiService))
         self._categoryViewModel  = StateObject(wrappedValue: TacticalViewModel(apiService: apiService, type: .category))
         self._siteViewModel      = StateObject(wrappedValue: TacticalViewModel(apiService: apiService, type: .site))
         self._bwViewModel        = StateObject(wrappedValue: TacticalViewModel(apiService: apiService, type: .businessWorkflow))
@@ -41,9 +39,9 @@ struct DashboardView: View {
         NavigationStack(path: $navPath) {
             ScrollView {
                 VStack(spacing: 20) {
-                    if (incidentViewModel.isLoading || deviceViewModel.isLoading)
+                    if (incidentViewModel.isLoading || categoryViewModel.isLoading)
                         && incidentViewModel.incidents.isEmpty
-                        && deviceViewModel.devices.isEmpty {
+                        && categoryViewModel.groups.isEmpty {
                         ProgressView("Loading…")
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 40)
@@ -82,14 +80,14 @@ struct DashboardView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     AutoRefreshButton(
                         interval: refreshInterval,
-                        isLoading: incidentViewModel.isLoading || deviceViewModel.isLoading || categoryViewModel.isLoading,
+                        isLoading: incidentViewModel.isLoading || categoryViewModel.isLoading,
                         action: loadData
                     )
                 }
             }
             .refreshable { await loadData() }
             .task {
-                if incidentViewModel.incidents.isEmpty && deviceViewModel.devices.isEmpty {
+                if incidentViewModel.incidents.isEmpty && categoryViewModel.groups.isEmpty {
                     await loadData()
                 } else if categoryViewModel.groups.isEmpty {
                     await categoryViewModel.load()
@@ -115,7 +113,6 @@ struct DashboardView: View {
         .onChange(of: navResetID) { _, _ in withAnimation { navPath = NavigationPath() } }
         .onChange(of: ObjectIdentifier(apiService)) { _, _ in
             // incidentViewModel is owned by ContentView — it handles its own updateAPIService.
-            deviceViewModel.updateAPIService(apiService)
             categoryViewModel.updateAPIService(apiService)
             siteViewModel.updateAPIService(apiService)
             bwViewModel.updateAPIService(apiService)
@@ -138,7 +135,7 @@ struct DashboardView: View {
 
             StatusCard(
                 title: "Total Devices",
-                count: deviceViewModel.devices.count,
+                count: totalDeviceCount,
                 color: .blue,
                 icon: "network"
             )
@@ -146,6 +143,11 @@ struct DashboardView: View {
     }
 
     // MARK: Summary Boxes
+
+    private var totalDeviceCount: Int {
+        let h = hostTotals
+        return h.green + h.blue + h.yellow + h.orange + h.red
+    }
 
     private var hostTotals: (green: Int, blue: Int, yellow: Int, orange: Int, red: Int) {
         let g = categoryViewModel.groups
@@ -333,15 +335,14 @@ struct DashboardView: View {
     // MARK: Helpers
 
     private func loadData() async {
-        // Load incidents, devices, and category data concurrently.
-        // Category is needed for the Dashboard stat boxes (H/S/T/A).
+        // Load incidents and category data concurrently.
+        // Category is needed for the Dashboard stat boxes (H/S/T/A) and Total Devices count.
         // Sites and Business Workflows load on demand when the user navigates there.
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await incidentViewModel.loadIncidents() }
-            group.addTask { await deviceViewModel.loadDevices() }
             group.addTask { await categoryViewModel.load() }
         }
-        connectionStatus = deviceViewModel.errorMessage == nil ? .connected : .disconnected
+        connectionStatus = await apiService.checkHAStatus() ? .connected : .disconnected
     }
 }
 

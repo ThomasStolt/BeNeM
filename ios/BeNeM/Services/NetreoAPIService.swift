@@ -704,7 +704,33 @@ class NetreoAPIService: ObservableObject {
         }
         return result.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
-    
+
+    /// Lightweight connection check via the HA status endpoint.
+    /// Returns true if the server responds with a valid HA status JSON.
+    func checkHAStatus() async -> Bool {
+        guard let url = URL(string: "\(configuration.baseURL)/api/proxy/ha-status") else { return false }
+        var request = URLRequest(url: url, timeoutInterval: 15)
+        request.httpMethod = "POST"
+        addProxyToken(&request)
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var params = [URLQueryItem(name: "password", value: configuration.apiKey)]
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
+
+        guard let (data, response) = try? await urlSession.data(for: request),
+              let httpResponse = response as? HTTPURLResponse,
+              200...299 ~= httpResponse.statusCode,
+              let raw = try? JSONSerialization.jsonObject(with: data) else {
+            return false
+        }
+        // ha_status returns [{"role":"master","status":"1"}] or {"role":"standalone","status":"1"}
+        let obj: [String: Any]?
+        if let dict = raw as? [String: Any] { obj = dict }
+        else if let arr = raw as? [[String: Any]] { obj = arr.first }
+        else { obj = nil }
+        return obj?["role"] as? String != nil
+    }
+
     func acknowledgeIncident(incidentID: String, user: String, comment: String = "Acked from Mobile App") async throws -> Bool {
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/incident/acknowledge") else { return false }
         var request = URLRequest(url: url)
