@@ -343,6 +343,65 @@ done
 
 ---
 
+## Maintenance Window API
+
+Creates or closes one-time maintenance windows for a device. Discovered by
+inspecting the BHNM server source (`/home/httpd/html/api/maint_window_api.php`).
+
+```
+POST https://YOUR_HOST/api/maint_window_api.php
+```
+
+Auth: `password=` (same as Legacy API).
+
+### Actions
+
+#### Create a maintenance window (`action=new`)
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `password` | yes | API password |
+| `action` | yes | `new` |
+| `name` | yes | Device name (string, not numeric ID) |
+| `start_time` | yes | UTC Unix timestamp. Must be in the future (`> time()`). |
+| `end_time` | yes | UTC Unix timestamp. Must be > `start_time`. |
+| `comment` | no | Description text (stored in `maintenance_window_log.description`) |
+
+Response:
+```json
+{"result": "completed", "detail": "Maintenance window setting has been added"}
+```
+
+**Note:** `author_name` is hardcoded to `"api_user"` by the endpoint. Use the
+`comment` field to record who requested the window.
+
+**Note:** BHNM's built-in UI schedules maintenance windows to start 15 minutes
+in the future. BeNeM follows the same convention.
+
+#### Close all maintenance windows (`action=close`)
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `password` | yes | API password |
+| `action` | yes | `close` |
+| `name` | yes | Device name |
+
+Response:
+```json
+{"result": "completed", "detail": "All maintenance windows for this device are closed"}
+```
+
+### Example — create a 1-hour maintenance window:
+```bash
+START=$(( $(date +%s) + 900 )); END=$(( START + 3600 )); \
+curl --request POST \
+  --url 'https://YOUR_HOST/api/maint_window_api.php' \
+  --header 'Content-Type: application/x-www-form-urlencoded' \
+  --data "password=YOUR_PASSWORD&action=new&name=raspi-050&start_time=$START&end_time=$END&comment=Scheduled+via+API"
+```
+
+---
+
 ---
 
 # Open 3.0 / Officially Documented APIs
@@ -749,3 +808,4 @@ environments).
 | Add / update device | `POST /api/new_device_api.php` | `pwd=` |
 | Get metric schema | `POST /api/getPerformanceDataSchema` | `password=` |
 | Get HA status | `POST /api/ha_status_api.php` | `password=` |
+| Create maintenance window | `POST /api/maint_window_api.php` | `password=` |
