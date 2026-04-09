@@ -59,6 +59,7 @@ node_modules/
 # Claude Code
 .claude/
 .superpowers/
+.worktrees/
 
 # --- Monorepo subproject ignores ---
 
