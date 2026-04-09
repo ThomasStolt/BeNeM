@@ -242,7 +242,7 @@ BeNeM delivers real-time push notifications for new incidents on **both platform
 - **iOS** — Apple Push Notification service (APNs) using a `.p8` Auth Key and JWT-signed HTTP/2 requests
 - **Android PWA** — VAPID-signed Web Push via the browser's Service Worker
 
-![Push notification architecture: BHNM incident triggers a webhook to the bhnm-apns middleware, which forwards the alert to APNs (iOS) or Web Push (Android) and then to the device](ios/images/BHNM%20Push%20Notification%20Architecture%20-%202026%2003%2030.png)
+![BeNeM system architecture: iOS and Android/PWA clients connect via HTTPS to the middleware, which caches incidents, proxies API calls to BHNM, and delivers push notifications via APNs (iOS) and Web Push (Android)](shared/BHNM%20Mobile%20App%20-%20Detailed%20Architecture.png)
 
 When a new incident is raised in BHNM, a webhook fires to the middleware. The middleware authenticates the request using a per-device `active_secret` (each BHNM server has its own webhook secret), looks up all registered devices authorised for that secret, and fans out the notification via APNs or Web Push. Tapping the notification navigates directly to the incident detail screen — even from a cold launch.
 
