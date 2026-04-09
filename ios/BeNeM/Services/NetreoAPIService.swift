@@ -776,6 +776,32 @@ class NetreoAPIService: ObservableObject {
         return (response as? HTTPURLResponse)?.statusCode ?? 0 < 400
     }
 
+    // MARK: - Maintenance Window
+
+    func createMaintenanceWindow(deviceName: String, durationMinutes: Int, comment: String) async throws -> Bool {
+        guard let url = URL(string: "\(configuration.baseURL)/api/proxy/maintenance/create") else { return false }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        addProxyToken(&request)
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var params = [
+            URLQueryItem(name: "password", value: configuration.apiKey),
+            URLQueryItem(name: "name", value: deviceName),
+            URLQueryItem(name: "duration", value: String(durationMinutes)),
+            URLQueryItem(name: "comment", value: comment),
+        ]
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
+        let (data, response) = try await urlSession.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { return false }
+        if httpResponse.statusCode >= 400 { return false }
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let result = json["result"] as? String {
+            return result == "completed"
+        }
+        return false
+    }
+
     func fetchIncidentDetail(incidentID: String) async throws -> IncidentDetail? {
         guard let url = URL(string: "\(configuration.baseURL)/api/incident_api.php") else { return nil }
         var request = URLRequest(url: url)
