@@ -189,47 +189,8 @@ def server_url_fragment(request: Request, server_id: str = ""):
     url_attr = escape(server.url, quote=True)
     return HTMLResponse(
         f'<input type="text" value="{url_attr}" readonly class="flex-1">'
-        f'<button type="button"'
-        f' data-url="{url_attr}"'
-        f' data-result="bhnm-test-result"'
-        f' onclick="testReachability(this)"'
-        f' class="btn btn-ghost btn-sm">Test</button>'
     )
 
-
-@app.get("/admin/reachability-check")
-async def reachability_check(request: Request, url: str = ""):
-    if not auth.is_authenticated(request):
-        return JSONResponse({"ok": False, "detail": "Not authenticated"}, status_code=401)
-    if not url:
-        return JSONResponse({"ok": False, "detail": "No URL provided"})
-
-    parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https"):
-        return JSONResponse({"ok": False, "detail": "Only http/https URLs are allowed"})
-
-    # Restrict to hosts already configured in servers.json or MIDDLEWARE_URL
-    try:
-        allowed_hosts = {urlparse(s.url).hostname for s in load_servers()}
-    except FileNotFoundError:
-        allowed_hosts = set()
-    if MIDDLEWARE_URL:
-        allowed_hosts.add(urlparse(MIDDLEWARE_URL).hostname)
-    allowed_hosts.discard(None)
-
-    if parsed.hostname not in allowed_hosts:
-        return JSONResponse({"ok": False, "detail": f"Host '{parsed.hostname}' is not in the configured server list"})
-
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(url)
-        return JSONResponse({"ok": True, "detail": f"HTTP {resp.status_code}"})
-    except httpx.HTTPError as e:
-        print(f"[ReachabilityCheck] HTTP error for {parsed.hostname}: {e}")
-        return JSONResponse({"ok": False, "detail": "Connection failed"})
-    except Exception as e:
-        print(f"[ReachabilityCheck] Unexpected error for {parsed.hostname}: {e}")
-        return JSONResponse({"ok": False, "detail": "Connection failed"})
 
 
 @app.post("/admin/generate", response_class=HTMLResponse)
@@ -284,43 +245,7 @@ def generate_link(
     })
 
 
-# ── Connection Test ───────────────────────────────────────────────────────────
-
 LOG_PER_PAGE = 50
-
-
-@app.get("/admin/test", response_class=HTMLResponse)
-def test_page(request: Request):
-    if not auth.is_authenticated(request):
-        return auth.redirect_to_login()
-    try:
-        servers = load_servers()
-    except FileNotFoundError:
-        servers = []
-    return templates.TemplateResponse(request, "test.html", {
-        "active": "test",
-        "servers": servers,
-        "selected_id": None,
-        "results": None,
-    })
-
-
-@app.post("/admin/test", response_class=HTMLResponse)
-def test_submit(request: Request, server_id: str = Form(...)):
-    if not auth.is_authenticated(request):
-        return auth.redirect_to_login()
-    try:
-        servers = load_servers()
-    except FileNotFoundError:
-        servers = []
-    server = next((s for s in servers if s.id == server_id), None)
-    results = run_test(server.url, server.api_key, server.pin) if server else []
-    return templates.TemplateResponse(request, "test.html", {
-        "active": "test",
-        "servers": servers,
-        "selected_id": server_id,
-        "results": results,
-    })
 
 
 # ── Push Config ───────────────────────────────────────────────────────────────

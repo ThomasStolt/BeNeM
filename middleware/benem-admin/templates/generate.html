@@ -315,26 +315,14 @@
           <label>BHNM URL</label>
           <div id="bhnm-url-field" class="input-row">
             <input type="text" value="{{ selected_server.url if selected_server else '' }}" readonly>
-            <button type="button"
-                    data-url="{{ selected_server.url if selected_server else '' }}"
-                    data-result="bhnm-test-result"
-                    onclick="testReachability(this)"
-                    class="btn btn-ghost btn-sm">Test</button>
           </div>
-          <div id="bhnm-test-result"></div>
         </div>
 
         <div class="form-group">
           <label>Push Middleware URL</label>
           <div class="input-row">
             <input type="text" value="{{ middleware_url }}" readonly>
-            <button type="button"
-                    data-url="{{ middleware_url }}"
-                    data-result="mw-test-result"
-                    onclick="testReachability(this)"
-                    class="btn btn-ghost btn-sm">Test</button>
           </div>
-          <div id="mw-test-result"></div>
         </div>
 
         <div class="form-group">
@@ -603,24 +591,6 @@
       return;
     }
     document.getElementById('gen-form').submit();
-  }
-
-  async function testReachability(btn) {
-    var url = btn.dataset.url;
-    var resultId = btn.dataset.result;
-    if (!url) return;
-    var el = document.getElementById(resultId);
-    el.textContent = 'Testing\u2026';
-    el.className = 'status-wait';
-    try {
-      var resp = await fetch('/admin/reachability-check?url=' + encodeURIComponent(url));
-      var data = await resp.json();
-      el.textContent = data.ok ? '\u2713 Reachable' : '\u2717 ' + data.detail;
-      el.className = data.ok ? 'status-ok' : 'status-fail';
-    } catch (e) {
-      el.textContent = '\u2717 Error';
-      el.className = 'status-fail';
-    }
   }
 
   // Initialize on page load
