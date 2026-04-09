@@ -47,6 +47,18 @@ def _target_for_api_key(api_key: str) -> str:
     return ""
 
 
+def _server_config_for_api_key(api_key: str) -> dict | None:
+    """Look up full server config by api_key from servers.json."""
+    try:
+        with open(SERVERS_JSON_PATH) as f:
+            for s in json.load(f):
+                if s.get("api_key") == api_key:
+                    return s
+    except (FileNotFoundError, json.JSONDecodeError, Exception):
+        pass
+    return None
+
+
 def _single_server_url() -> str:
     """Return the URL of the only configured server, or '' if 0 or >1 servers."""
     try:
@@ -316,8 +328,38 @@ async def cached_incidents(request: Request):
                 "closed_incidents": cached.closed_incidents,
             }
 
-    # Cache cold or server not found — fall through to live BHNM
-    return await _proxy_to_bhnm(request, "/api/incident_api.php")
+    # Cache cold or server not found — fetch live from BHNM.
+    # The client sends a header-only GET (no form body), so we must build
+    # the proper form-encoded POST that the BHNM incident API expects.
+    target_base = request.headers.get("X-BHNM-Target", "").strip().rstrip("/")
+    server_cfg = _server_config_for_api_key(api_key)
+    if not target_base:
+        target_base = (server_cfg or {}).get("url", "").rstrip("/") if server_cfg else ""
+    if not target_base:
+        target_base = _single_server_url()
+    if not target_base:
+        raise HTTPException(status_code=502, detail="Bad Gateway: BHNM target server not configured")
+    _validate_proxy_target(target_base)
+
+    form = {"pwd": api_key, "method": "getincidents"}
+    pin = (server_cfg or {}).get("pin") if server_cfg else None
+    if pin:
+        form["pin"] = pin
+
+    target = f"{target_base}/api/incident_api.php"
+    try:
+        async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=PROXY_TIMEOUT) as client:
+            resp = await client.post(target, data=form)
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Gateway Timeout: BHNM server did not respond in time")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=502, detail="Bad Gateway: could not connect to BHNM server")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="Bad Gateway: request to BHNM server failed")
+
+    return Response(content=resp.content, status_code=resp.status_code,
+                    headers={k: v for k, v in resp.headers.items()
+                             if k.lower() not in HOP_BY_HOP_RESPONSE})
 
 
 @app.post("/internal/cache/reload")
