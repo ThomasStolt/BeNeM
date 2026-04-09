@@ -1,0 +1,13 @@
+<div style="margin-bottom:10px;margin-top:10px;">
+  {% for r in results %}
+  <div class="result-item">
+    <div class="result-icon {{ 'ok' if r.ok else 'fail' }}">
+      {{ '✓' if r.ok else '✗' }}
+    </div>
+    <div>
+      <div class="result-step">{{ r.step }}</div>
+      <div class="result-detail">{{ r.detail }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>

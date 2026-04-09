@@ -1,0 +1,44 @@
+<div class="card server-card" id="server-{{ s.id or 'new' }}">
+  <h2>{{ 'New Server' if is_new else 'Edit: ' + s.name }}</h2>
+  <form hx-post="/admin/settings/servers/{{ 'add' if is_new else 'edit' }}"
+        hx-target="#server-{{ s.id or 'new' }}"
+        hx-swap="outerHTML">
+    {% if not is_new %}
+    <input type="hidden" name="original_id" value="{{ s.id }}">
+    {% endif %}
+    <div class="form-group">
+      <label>Server ID</label>
+      <input type="text" name="id" value="{{ s.id }}" placeholder="e.g. prod"
+             class="mono" required>
+    </div>
+    <div class="form-group">
+      <label>Display Name</label>
+      <input type="text" name="name" value="{{ s.name }}" placeholder="e.g. Production" required>
+    </div>
+    <div class="form-group">
+      <label>BHNM URL</label>
+      <input type="text" name="url" value="{{ s.url }}" placeholder="https://bhnm.example.com"
+             class="mono" required>
+    </div>
+    <div class="form-group">
+      <label>API Key</label>
+      <input type="password" name="api_key" value="{{ s.api_key }}" placeholder="API key" required>
+    </div>
+    <div class="form-group">
+      <label>PIN <span style="color:var(--text-dim);font-weight:400;">(SaaS only, leave empty for on-prem)</span></label>
+      <input type="text" name="pin" value="{{ s.pin }}" placeholder="(empty)" class="mono">
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button type="submit" class="btn btn-primary btn-sm">Save</button>
+      {% if is_new %}
+      <button type="button" class="btn btn-ghost btn-sm"
+              onclick="this.closest('.server-card').remove()">Cancel</button>
+      {% else %}
+      <button type="button" class="btn btn-ghost btn-sm"
+              hx-get="/admin/settings/servers/card?server_id={{ s.id }}"
+              hx-target="#server-{{ s.id }}"
+              hx-swap="outerHTML">Cancel</button>
+      {% endif %}
+    </div>
+  </form>
+</div>

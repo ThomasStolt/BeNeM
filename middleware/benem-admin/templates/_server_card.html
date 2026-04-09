@@ -1,0 +1,49 @@
+<div class="card server-card" id="server-{{ s.id }}">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <strong style="color:var(--accent);">{{ s.name }}</strong>
+      <span hx-get="/admin/settings/server-health?id={{ s.id }}"
+            hx-trigger="load"
+            hx-swap="innerHTML">
+        <span class="health-dot health-loading" title="Checking..."></span>
+      </span>
+    </div>
+    <span style="font-size:11px;color:var(--text-dim);">id: {{ s.id }}</span>
+  </div>
+  <dl class="info" style="margin-bottom:14px;">
+    <div>
+      <dt>URL</dt>
+      <dd>{{ s.url }}</dd>
+    </div>
+    <div>
+      <dt>API Key</dt>
+      <dd>{{ '••••••••' + s.api_key[-4:] if s.api_key|length > 4 else '••••' }}</dd>
+    </div>
+    <div>
+      <dt>PIN</dt>
+      <dd>{{ s.pin if s.pin else '(none)' }}</dd>
+    </div>
+  </dl>
+  <div id="test-results-{{ s.id }}"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button class="btn btn-ghost btn-sm"
+            hx-get="/admin/settings/servers/edit-form?server_id={{ s.id }}"
+            hx-target="#server-{{ s.id }}"
+            hx-swap="outerHTML">Edit</button>
+    <button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(34,217,138,0.35);"
+            hx-post="/admin/settings/servers/test"
+            hx-vals='{"server_id": "{{ s.id }}"}'
+            hx-target="#test-results-{{ s.id }}"
+            hx-swap="innerHTML"
+            hx-indicator="#test-spin-{{ s.id }}">
+      Test Connection
+      <span id="test-spin-{{ s.id }}" class="htmx-indicator" style="font-size:11px;">...</span>
+    </button>
+    <button class="btn btn-danger btn-sm"
+            hx-post="/admin/settings/servers/delete"
+            hx-vals='{"server_id": "{{ s.id }}"}'
+            hx-target="#server-{{ s.id }}"
+            hx-swap="outerHTML"
+            hx-confirm="Delete server '{{ s.name }}'? This cannot be undone.">Delete</button>
+  </div>
+</div>
