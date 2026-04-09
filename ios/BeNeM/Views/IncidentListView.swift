@@ -95,12 +95,12 @@ struct IncidentListView: View {
     
     private func navigateToPendingIncident() {
         guard let id = pendingIncidentID else { return }
-        if let incident = viewModel.incidents.first(where: { $0.incidentID == id }) {
-            pendingIncidentID = nil
-            navPath.append(incident)
-        } else {
-            pendingIncidentID = nil
-        }
+        // Match by exact ID or by suffix (BHNM webhook sends numeric ID like "24090",
+        // but the incident list may use prefixed IDs like "NetreoCloudDemo-24090")
+        let incident = viewModel.incidents.first(where: { $0.incidentID == id })
+            ?? viewModel.incidents.first(where: { $0.incidentID.hasSuffix("-\(id)") })
+        pendingIncidentID = nil
+        if let incident { navPath.append(incident) }
     }
 
     private var incidentsList: some View {
