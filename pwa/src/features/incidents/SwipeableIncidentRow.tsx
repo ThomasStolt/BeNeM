@@ -69,7 +69,7 @@ export function SwipeableIncidentRow({ incident }: { incident: Incident }) {
     },
     trackMouse: false,
     trackTouch: true,
-    preventScrollOnSwipe: true,
+    preventScrollOnSwipe: false,
   });
 
   return (
