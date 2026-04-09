@@ -275,11 +275,19 @@ async def receive_webhook(request: Request, payload: WebhookPayload):
 @app.get("/health")
 def health():
     tokens = get_all_tokens()
+    cache_status = {}
+    for sid, cached in incident_cache._cache.items():
+        cache_status[sid] = {
+            "active": len(cached.active_incidents),
+            "closed": len(cached.closed_incidents),
+            "age_seconds": round(time.time() - cached.last_updated) if cached.last_updated else None,
+        }
     return {
         "status": "running",
         "version": VERSION,
         "registered_devices": len(tokens),
-        "apns_environment": "per-device"
+        "apns_environment": "per-device",
+        "cache": cache_status,
     }
 
 

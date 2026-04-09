@@ -15,6 +15,8 @@ RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser \
     && mkdir -p /data && chown -R appuser:appgroup /data
 USER appuser
 
+ENV PYTHONUNBUFFERED=1
+
 EXPOSE 8889
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8889"]
