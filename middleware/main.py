@@ -353,7 +353,8 @@ async def cached_incidents(request: Request):
         raise HTTPException(status_code=502, detail="Bad Gateway: BHNM target server not configured")
     _validate_proxy_target(target_base)
 
-    form = {"pwd": api_key, "method": "getincidents"}
+    bhnm_api_key = (server_cfg or {}).get("api_key", api_key) if server_cfg else api_key
+    form = {"pwd": bhnm_api_key, "method": "getincidents"}
     pin = (server_cfg or {}).get("pin") if server_cfg else None
     if pin:
         form["pin"] = pin
@@ -427,7 +428,8 @@ async def cached_tactical_overview(request: Request, grouping_type: str = "categ
         raise HTTPException(status_code=502, detail="Bad Gateway: BHNM target server not configured")
     _validate_proxy_target(target_base)
 
-    form = {"password": api_key, "grouping_type": grouping_type}
+    bhnm_api_key = (server_cfg or {}).get("api_key", api_key) if server_cfg else api_key
+    form = {"password": bhnm_api_key, "grouping_type": grouping_type}
     pin = (server_cfg or {}).get("pin") if server_cfg else None
     if pin:
         form["pin"] = pin
