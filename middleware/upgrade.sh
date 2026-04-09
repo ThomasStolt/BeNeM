@@ -72,6 +72,10 @@ else
     info "Version unchanged: $AFTER"
 fi
 
+# ── Fix file permissions ───────────────────────────
+# servers.json must be writable by the benem-admin container (runs as appuser)
+[ -f servers.json ] && chmod 666 servers.json
+
 # ── Validate Caddyfile ─────────────────────────────
 
 echo ""
