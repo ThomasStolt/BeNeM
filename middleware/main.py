@@ -551,6 +551,99 @@ async def proxy_ha_status(request: Request):
     return await _proxy_to_bhnm(request, "/api/ha_status_api.php")
 
 
+@app.post("/api/proxy/maintenance/create")
+async def proxy_maintenance_create(request: Request):
+    print("[Proxy] Maintenance window create request")
+    _verify_proxy_token(request)
+
+    body_bytes = await request.body()
+    parsed_body = parse_qs(body_bytes.decode("utf-8", errors="replace"))
+
+    name = parsed_body.get("name", [""])[0].strip()
+    duration_raw = parsed_body.get("duration", [""])[0].strip()
+    comment = parsed_body.get("comment", [""])[0].strip()
+
+    if not name:
+        raise HTTPException(status_code=400, detail="name is required")
+    if not duration_raw:
+        raise HTTPException(status_code=400, detail="duration is required")
+    try:
+        duration = int(duration_raw)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="duration must be an integer")
+    if duration < 1:
+        raise HTTPException(status_code=400, detail="duration must be >= 1")
+
+    start_time = int(time.time()) + 900
+    end_time = start_time + (duration * 60)
+
+    # Resolve target BHNM server
+    cfg = _resolve_server_config(request)
+    if cfg:
+        target_base = cfg.get("url", "").rstrip("/")
+        api_key = cfg.get("api_key", "")
+    else:
+        target_base = _single_server_url()
+        api_key = ""
+        if not api_key:
+            # Try to get api_key from the resolved server
+            if target_base:
+                try:
+                    with open(SERVERS_JSON_PATH) as f:
+                        for s in json.load(f):
+                            if s.get("url", "").rstrip("/") == target_base:
+                                api_key = s.get("api_key", "")
+                                break
+                except Exception:
+                    pass
+
+    if not target_base:
+        raise HTTPException(status_code=502, detail="Bad Gateway: BHNM target server not configured")
+    if not (target_base.startswith("http://") or target_base.startswith("https://")):
+        raise HTTPException(status_code=400, detail="X-BHNM-Target must be an http/https URL")
+    _validate_proxy_target(target_base)
+
+    from urllib.parse import urlencode
+    bhnm_body = urlencode({
+        "password": api_key,
+        "action": "new",
+        "name": name,
+        "start_time": str(start_time),
+        "end_time": str(end_time),
+        "comment": comment,
+    })
+
+    target = f"{target_base}/api/maint_window_api.php"
+
+    forward_headers = {
+        k: v for k, v in request.headers.items()
+        if k.lower() not in HOP_BY_HOP_REQUEST
+    }
+    forward_headers["content-type"] = "application/x-www-form-urlencoded"
+
+    try:
+        async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=PROXY_TIMEOUT) as client:
+            resp = await client.request(
+                method="POST",
+                url=target,
+                headers=forward_headers,
+                content=bhnm_body.encode("utf-8"),
+            )
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Gateway Timeout: BHNM server did not respond in time")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=502, detail="Bad Gateway: could not connect to BHNM server")
+    except httpx.RequestError as exc:
+        print(f"[Proxy] Request error: {exc}")
+        raise HTTPException(status_code=502, detail="Bad Gateway: request to BHNM server failed")
+
+    response_headers = {
+        k: v for k, v in resp.headers.items()
+        if k.lower() not in HOP_BY_HOP_RESPONSE
+    }
+    return Response(content=resp.content, status_code=resp.status_code, headers=response_headers)
+
+
 # ── BHNM API Proxy (for BeNeM) ────────────────────────────────────────────────────
 # Target BHNM server is supplied per-request via X-BHNM-Target header.
 
