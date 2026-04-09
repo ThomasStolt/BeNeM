@@ -225,14 +225,6 @@ class WebPushRegistration(BaseModel):
             raise ValueError("endpoint must not be empty")
         return v.strip()
 
-class WebhookPayload(BaseModel):
-    notification_type: str = "PROBLEM"
-    hostname: str = "Unknown device"
-    host_state: str = ""
-    site: str = ""
-    service_desc: str = ""
-    output: str = ""
-    incident_id: str = ""
 
 @app.post("/register-webpush", status_code=201)
 def register_webpush(body: WebPushRegistration, request: Request, response: Response):
@@ -258,18 +250,31 @@ def get_vapid_key():
 # ── BHNM Webhook ──────────────────────────────────────────────────────────────
 
 @app.post("/webhook")
-async def receive_webhook(request: Request, payload: WebhookPayload):
+async def receive_webhook(request: Request):
     secret = request.query_params.get("secret", "").strip()
     if not secret:
         raise HTTPException(status_code=400, detail="?secret= query parameter is required")
 
-    notification_type = payload.notification_type
-    hostname          = payload.hostname
-    host_state        = payload.host_state
-    site              = payload.site
-    service_desc      = payload.service_desc
-    output            = payload.output
-    incident_id       = payload.incident_id
+    # Parse body — accept both JSON and form-encoded (BHNM may send either)
+    content_type = request.headers.get("content-type", "")
+    body = await request.body()
+    if "application/json" in content_type:
+        try:
+            data = json.loads(body)
+        except (json.JSONDecodeError, ValueError):
+            data = {}
+    else:
+        # Form-encoded or unknown content type
+        parsed = parse_qs(body.decode("utf-8", errors="replace"))
+        data = {k: v[0] if v else "" for k, v in parsed.items()}
+
+    notification_type = data.get("notification_type", "PROBLEM")
+    hostname          = data.get("hostname", "Unknown device")
+    host_state        = data.get("host_state", "")
+    site              = data.get("site", "")
+    service_desc      = data.get("service_desc", "")
+    output            = data.get("output", "")
+    incident_id       = str(data.get("incident_id", ""))
 
     # Build human-readable notification
     if notification_type == "RECOVERY":
