@@ -40,6 +40,7 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
   const [ackUser, setAckUser] = useState(server?.ackUser ?? '');
   const [showKey, setShowKey] = useState(false);
   const [webhookSecret, setWebhookSecret] = useState(server?.pushWebhookSecret ?? '');
+  const [showSecret, setShowSecret] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(server?.pushEnabled ?? false);
   const [testState, setTestState] = useState<TestState>('idle');
   const [testResult, setTestResult] = useState<HaStatusResult | null>(null);
@@ -250,16 +251,26 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
             <label htmlFor="server-webhook-secret" className="block text-xs text-slate-400 mb-1.5">
               Webhook Secret <span className="text-slate-600">(for push notifications)</span>
             </label>
-            <input
-              id="server-webhook-secret"
-              type="password"
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="Same secret as in BHNM webhook URL"
-              value={webhookSecret}
-              onChange={(e) => setWebhookSecret(e.target.value)}
-              className="w-full rounded bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                id="server-webhook-secret"
+                type={showSecret ? 'text' : 'password'}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="Same secret as in BHNM webhook URL"
+                value={webhookSecret}
+                onChange={(e) => setWebhookSecret(e.target.value)}
+                className="flex-1 rounded bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+              <button
+                type="button"
+                onClick={() => setShowSecret(!showSecret)}
+                className="px-2 py-2 rounded border border-slate-700 text-slate-400 hover:text-white text-xs"
+                aria-label={showSecret ? 'Hide secret' : 'Show secret'}
+              >
+                {showSecret ? 'Hide' : 'Show'}
+              </button>
+            </div>
           </div>
         )}
       </div>
