@@ -1,4 +1,4 @@
-import { postForm } from './client';
+import { fetchJson, postForm } from './client';
 import type { BhnmConfig } from '../config';
 
 export interface StatusCounts {
@@ -101,16 +101,33 @@ export async function fetchTacticalOverview(
   config: BhnmConfig,
   groupingType: GroupingType = 'category',
 ): Promise<TacticalGroup[]> {
-  const params: Record<string, string> = {
-    password: config.apiKey,
-    grouping_type: groupingType,
-  };
-  if (config.pin) params.pin = config.pin;
-  const raw = await postForm(
-    config.baseUrl,
-    '/fw/index.php?r=restful/tactical-overview/data',
-    params,
-    config.apiKey,
-  );
-  return parseTacticalResponse(raw);
+  // Try cached endpoint first
+  const headers: Record<string, string> = {};
+  if (config.apiKey) headers['X-Proxy-Token'] = config.apiKey;
+  if (config.bhnmUrl) headers['X-BHNM-Target'] = config.bhnmUrl;
+  try {
+    const raw = await fetchJson(
+      config.baseUrl,
+      `/api/v1/tactical-overview?grouping_type=${groupingType}`,
+      headers,
+    );
+    // Cached response wraps BHNM data in a "data" key
+    const obj = (typeof raw === 'object' && raw !== null) ? raw as Record<string, unknown> : {};
+    const tacticalData = obj.data ?? raw;
+    return parseTacticalResponse(tacticalData);
+  } catch {
+    // Fall back to direct BHNM call through proxy
+    const params: Record<string, string> = {
+      password: config.apiKey,
+      grouping_type: groupingType,
+    };
+    if (config.pin) params.pin = config.pin;
+    const raw = await postForm(
+      config.baseUrl,
+      '/fw/index.php?r=restful/tactical-overview/data',
+      params,
+      config.apiKey,
+    );
+    return parseTacticalResponse(raw);
+  }
 }
