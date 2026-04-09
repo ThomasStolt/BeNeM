@@ -28,9 +28,10 @@ function TickerCard({ incident }: { incident: Incident }) {
 }
 
 export function IncidentTicker({ incidents }: Props) {
-  const urgent = incidents.filter(
-    (i) => i.severity === 'critical' || i.severity === 'major',
-  );
+  const urgent = incidents
+    .filter((i) => i.status === 'active' && i.incidentState.toUpperCase() !== 'ALARMS CLEARED'
+      && (i.severity === 'critical' || i.severity === 'major'))
+    .slice(0, 3);
 
   const [displayIndex, setDisplayIndex] = useState(0);
   const [outgoing, setOutgoing] = useState<Incident | null>(null);

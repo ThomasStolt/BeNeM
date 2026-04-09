@@ -86,7 +86,7 @@ class IncidentListViewModel: ObservableObject {
 
     var openIncidents: [NetreoIncident] {
         incidents
-            .filter { $0.status == .active }
+            .filter { $0.status == .active && $0.incidentState.uppercased() != "ALARMS CLEARED" }
             .sorted { (Int($0.incidentID) ?? 0) > (Int($1.incidentID) ?? 0) }
     }
 
