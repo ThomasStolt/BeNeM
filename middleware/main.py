@@ -15,6 +15,8 @@ from database import init_db, save_token, get_tokens_for_secret, get_all_tokens,
     save_web_push_subscription, get_web_push_subscriptions_for_secret, delete_web_push_subscription
 from apns import send_to_all
 from webpush import send_web_push_to_all
+import time
+import incident_cache
 
 HOP_BY_HOP_REQUEST = {
     "host", "x-proxy-token", "x-bhnm-target", "connection", "keep-alive",
@@ -128,6 +130,7 @@ def _validate_proxy_target(target_url: str) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    incident_cache.start_all()
     print(f"[Startup] BHNM APNs middleware v{VERSION} ready on port {MIDDLEWARE_PORT} — dynamic multi-server routing enabled")
     yield
 
@@ -278,6 +281,44 @@ def health():
         "registered_devices": len(tokens),
         "apns_environment": "per-device"
     }
+
+
+# ── Cached Incidents Endpoint ────────────────────────────────────────────────
+
+@app.get("/api/v1/incidents")
+@app.post("/api/v1/incidents")
+async def cached_incidents(request: Request):
+    """Return enriched incidents from cache; fall through to live BHNM if cache is cold."""
+    _verify_proxy_token(request)
+
+    api_key = request.headers.get("X-Proxy-Token", "").strip()
+    server_id = incident_cache._server_id_for_api_key(api_key)
+
+    if server_id:
+        cached = incident_cache.get_cached(server_id)
+        if cached:
+            return {
+                "cache_age_seconds": round(time.time() - cached.last_updated),
+                "active_incidents": cached.active_incidents,
+                "closed_incidents": cached.closed_incidents,
+            }
+
+    # Cache cold or server not found — fall through to live BHNM
+    return await _proxy_to_bhnm(request, "/api/incident_api.php")
+
+
+@app.post("/internal/cache/reload")
+async def cache_reload(request: Request):
+    """Trigger cache reload for a server. Called by admin portal."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    server_id = body.get("server_id", "")
+    if not server_id:
+        raise HTTPException(status_code=400, detail="server_id is required")
+    incident_cache.reload_server(server_id)
+    return {"status": "ok", "server_id": server_id}
 
 
 # ── BHNM Proxy — Dedicated Routes (cache-ready) ─────────────────────────────
