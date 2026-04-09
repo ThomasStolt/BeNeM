@@ -624,6 +624,34 @@ class NetreoAPIService: ObservableObject {
     /// Single endpoint replacing all incident-derived summary logic.
     /// groupingType: "category" | "site" | "app" (business workflows)
     func fetchTacticalOverviewSummaries(groupingType: String) async throws -> [GroupSummary] {
+        // Try cached endpoint first
+        let cachedURL = "\(configuration.baseURL)/api/v1/tactical-overview?grouping_type=\(groupingType)"
+        if let url = URL(string: cachedURL) {
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            addProxyToken(&request)
+
+            if let (data, response) = try? await urlSession.data(for: request),
+               let httpResponse = response as? HTTPURLResponse,
+               200...299 ~= httpResponse.statusCode,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                // Cached response wraps the BHNM data in a "data" key
+                let tacticalData: [String: Any]
+                if let wrapped = json["data"] as? [String: Any] {
+                    tacticalData = wrapped
+                } else {
+                    // Fallthrough response is raw BHNM format
+                    tacticalData = json
+                }
+                return parseTacticalOverview(tacticalData, groupingType: groupingType)
+            }
+        }
+
+        // Fallback to direct BHNM call
+        return try await fetchTacticalOverviewDirect(groupingType: groupingType)
+    }
+
+    private func fetchTacticalOverviewDirect(groupingType: String) async throws -> [GroupSummary] {
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/tactical-overview/data") else { return [] }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -638,9 +666,10 @@ class NetreoAPIService: ObservableObject {
 
         let (data, _) = try await urlSession.data(for: request)
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
+        return parseTacticalOverview(json, groupingType: groupingType)
+    }
 
-        // Extract (green, blue, yellow, orange, red) from a Status dict for a given prefix.
-        // BHNM status keys: ok → green, ack → blue, warn → yellow, un → orange, crit → red
+    private func parseTacticalOverview(_ json: [String: Any], groupingType: String) -> [GroupSummary] {
         func statusCounts(_ status: [String: Any], prefix: String)
             -> (green: Int, blue: Int, yellow: Int, orange: Int, red: Int)
         {
@@ -788,7 +817,13 @@ class NetreoAPIService: ObservableObject {
     /// Fetches enriched incidents from the middleware cache endpoint.
     /// Returns (incidents, alarmCounts) — alarm_counts may be nil per incident if cache is cold.
     func fetchCachedIncidents() async throws -> ([NetreoIncident], [String: [AlarmColor: Int]]) {
-        guard let url = URL(string: "\(configuration.baseURL)/api/v1/incidents") else {
+        let urlString = "\(configuration.baseURL)/api/v1/incidents"
+        #if DEBUG
+        print("fetchCachedIncidents: URL = \(urlString)")
+        print("fetchCachedIncidents: proxyToken = \(configuration.proxyToken.prefix(8))...")
+        print("fetchCachedIncidents: bhnmURL = \(configuration.bhnmURL)")
+        #endif
+        guard let url = URL(string: urlString) else {
             throw APIError.configurationError("Invalid URL")
         }
         var request = URLRequest(url: url)
@@ -799,6 +834,11 @@ class NetreoAPIService: ObservableObject {
 
         guard let httpResponse = response as? HTTPURLResponse,
               200...299 ~= httpResponse.statusCode else {
+            #if DEBUG
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            let body = String(data: data, encoding: .utf8) ?? "(nil)"
+            print("fetchCachedIncidents: FAILED with status \(code), body: \(body.prefix(200))")
+            #endif
             // Fall back to legacy if middleware doesn't support cached endpoint
             let incidents = try await fetchIncidents()
             return (incidents, [:])
