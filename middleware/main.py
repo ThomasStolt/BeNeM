@@ -60,6 +60,31 @@ def _server_config_for_api_key(api_key: str) -> dict | None:
     return None
 
 
+def _server_config_for_bhnm_url(bhnm_url: str) -> dict | None:
+    """Look up full server config by BHNM URL from servers.json."""
+    normalized = bhnm_url.rstrip("/")
+    try:
+        with open(SERVERS_JSON_PATH) as f:
+            for s in json.load(f):
+                if s.get("url", "").rstrip("/") == normalized:
+                    return s
+    except (FileNotFoundError, json.JSONDecodeError, Exception):
+        pass
+    return None
+
+
+def _resolve_server_config(request: Request) -> dict | None:
+    """Resolve server config from X-Proxy-Token (api_key) or X-BHNM-Target (url)."""
+    api_key = request.headers.get("X-Proxy-Token", "").strip()
+    cfg = _server_config_for_api_key(api_key)
+    if cfg:
+        return cfg
+    bhnm_target = request.headers.get("X-BHNM-Target", "").strip()
+    if bhnm_target:
+        return _server_config_for_bhnm_url(bhnm_target)
+    return None
+
+
 def _single_server_url() -> str:
     """Return the URL of the only configured server, or '' if 0 or >1 servers."""
     try:
@@ -343,8 +368,10 @@ async def cached_incidents(request: Request):
     # Cache cold or server not found — fetch live from BHNM.
     # The client sends a header-only GET (no form body), so we must build
     # the proper form-encoded POST that the BHNM incident API expects.
+    # Note: X-Proxy-Token may be a webhook secret, not the BHNM api_key,
+    # so we resolve the server config by API key OR BHNM URL to get the real credentials.
+    server_cfg = _resolve_server_config(request)
     target_base = request.headers.get("X-BHNM-Target", "").strip().rstrip("/")
-    server_cfg = _server_config_for_api_key(api_key)
     if not target_base:
         target_base = (server_cfg or {}).get("url", "").rstrip("/") if server_cfg else ""
     if not target_base:
@@ -353,7 +380,7 @@ async def cached_incidents(request: Request):
         raise HTTPException(status_code=502, detail="Bad Gateway: BHNM target server not configured")
     _validate_proxy_target(target_base)
 
-    bhnm_api_key = (server_cfg or {}).get("api_key", api_key) if server_cfg else api_key
+    bhnm_api_key = server_cfg["api_key"] if server_cfg else api_key
     form = {"pwd": bhnm_api_key, "method": "getincidents"}
     pin = (server_cfg or {}).get("pin") if server_cfg else None
     if pin:
@@ -418,8 +445,8 @@ async def cached_tactical_overview(request: Request, grouping_type: str = "categ
             }
 
     # Cache cold or server not found — fetch live from BHNM.
+    server_cfg = _resolve_server_config(request)
     target_base = request.headers.get("X-BHNM-Target", "").strip().rstrip("/")
-    server_cfg = _server_config_for_api_key(api_key)
     if not target_base:
         target_base = (server_cfg or {}).get("url", "").rstrip("/") if server_cfg else ""
     if not target_base:
@@ -428,7 +455,7 @@ async def cached_tactical_overview(request: Request, grouping_type: str = "categ
         raise HTTPException(status_code=502, detail="Bad Gateway: BHNM target server not configured")
     _validate_proxy_target(target_base)
 
-    bhnm_api_key = (server_cfg or {}).get("api_key", api_key) if server_cfg else api_key
+    bhnm_api_key = server_cfg["api_key"] if server_cfg else api_key
     form = {"password": bhnm_api_key, "grouping_type": grouping_type}
     pin = (server_cfg or {}).get("pin") if server_cfg else None
     if pin:
