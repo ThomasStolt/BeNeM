@@ -784,7 +784,75 @@ class NetreoAPIService: ObservableObject {
     func fetchIncidents() async throws -> [NetreoIncident] {
         return try await performLegacyIncidentRequest()
     }
-    
+
+    /// Fetches enriched incidents from the middleware cache endpoint.
+    /// Returns (incidents, alarmCounts) — alarm_counts may be nil per incident if cache is cold.
+    func fetchCachedIncidents() async throws -> ([NetreoIncident], [String: [AlarmColor: Int]]) {
+        guard let url = URL(string: "\(configuration.baseURL)/api/v1/incidents") else {
+            throw APIError.configurationError("Invalid URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        addProxyToken(&request)
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              200...299 ~= httpResponse.statusCode else {
+            // Fall back to legacy if middleware doesn't support cached endpoint
+            let incidents = try await fetchIncidents()
+            return (incidents, [:])
+        }
+
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw APIError.invalidResponse
+        }
+
+        // If response is a proxied BHNM response (cache cold), it has no cache_age_seconds
+        let isCached = json["cache_age_seconds"] != nil
+
+        var incidents: [NetreoIncident] = []
+        var alarmCounts: [String: [AlarmColor: Int]] = [:]
+
+        if let activeArray = json["active_incidents"] as? [[String: Any]] {
+            let parsed = try parseIncidentsFromNetreoFormat(from: activeArray, defaultStatus: nil)
+            incidents.append(contentsOf: parsed)
+
+            if isCached {
+                for (i, raw) in activeArray.enumerated() where i < parsed.count {
+                    if let counts = raw["alarm_counts"] as? [String: Int] {
+                        alarmCounts[parsed[i].incidentID] = parseAlarmCounts(counts)
+                    }
+                }
+            }
+        }
+        if let closedArray = json["closed_incidents"] as? [[String: Any]] {
+            let parsed = try parseIncidentsFromNetreoFormat(from: closedArray, defaultStatus: .resolved)
+            incidents.append(contentsOf: parsed)
+
+            if isCached {
+                for (i, raw) in closedArray.enumerated() where i < parsed.count {
+                    if let counts = raw["alarm_counts"] as? [String: Int] {
+                        alarmCounts[parsed[i].incidentID] = parseAlarmCounts(counts)
+                    }
+                }
+            }
+        }
+
+        return (incidents, alarmCounts)
+    }
+
+    /// Convert {"red": 2, "orange": 1, ...} dict to [AlarmColor: Int]
+    private func parseAlarmCounts(_ raw: [String: Int]) -> [AlarmColor: Int] {
+        var result: [AlarmColor: Int] = [:]
+        for (key, value) in raw {
+            if let color = AlarmColor(rawValue: key) {
+                result[color] = value
+            }
+        }
+        return result
+    }
+
     private func baseParameters() -> [String: Any] {
         var parameters: [String: Any] = ["pwd": configuration.apiKey]
         if let pin = configuration.pin {

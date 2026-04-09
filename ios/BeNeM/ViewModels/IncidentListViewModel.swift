@@ -103,7 +103,6 @@ class IncidentListViewModel: ObservableObject {
         print("IncidentListViewModel: Starting to load incidents")
         #endif
 
-        // Prevent duplicate loading
         if await MainActor.run(body: { isLoading }) {
             #if DEBUG
             print("IncidentListViewModel: Already loading, skipping")
@@ -117,19 +116,29 @@ class IncidentListViewModel: ObservableObject {
         }
 
         do {
-            let fetchedIncidents = try await apiService.fetchIncidents()
+            let (fetchedIncidents, cachedAlarmCounts) = try await apiService.fetchCachedIncidents()
             #if DEBUG
-            print("IncidentListViewModel: Received \(fetchedIncidents.count) incidents")
+            print("IncidentListViewModel: Received \(fetchedIncidents.count) incidents, \(cachedAlarmCounts.count) cached alarm counts")
             #endif
 
             await MainActor.run {
-                // Remove counts for incidents that no longer exist
                 let newIDs = Set(fetchedIncidents.map(\.incidentID))
                 alarmCounts = alarmCounts.filter { newIDs.contains($0.key) }
+                // Merge cached alarm counts
+                for (id, counts) in cachedAlarmCounts {
+                    alarmCounts[id] = counts
+                }
                 incidents = fetchedIncidents
                 isLoading = false
             }
-            await loadAlarmCounts()
+            // Only fetch individual alarm counts for incidents missing from cache
+            let missingIDs = fetchedIncidents.filter { cachedAlarmCounts[$0.incidentID] == nil }.map(\.incidentID)
+            if !missingIDs.isEmpty {
+                #if DEBUG
+                print("IncidentListViewModel: Fetching alarm counts for \(missingIDs.count) uncached incidents")
+                #endif
+                await loadAlarmCounts(for: missingIDs)
+            }
         } catch {
             #if DEBUG
             let detail = "\(error)"
@@ -147,9 +156,10 @@ class IncidentListViewModel: ObservableObject {
         await loadIncidents()
     }
 
-    func loadAlarmCounts() async {
+    func loadAlarmCounts(for incidentIDs: [String]? = nil) async {
         let currentIncidents = await MainActor.run { incidents }
-        for incident in currentIncidents {
+        let toFetch = incidentIDs.map { ids in currentIncidents.filter { ids.contains($0.incidentID) } } ?? currentIncidents
+        for incident in toFetch {
             let counts = (try? await apiService.fetchIncidentAlarmCounts(incidentID: incident.incidentID)) ?? [:]
             await MainActor.run { alarmCounts[incident.incidentID] = counts }
         }
