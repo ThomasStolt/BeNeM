@@ -18,7 +18,7 @@ export function IncidentRow({ incident }: { incident: Incident }) {
   const ackPrefix = incident.status === 'acknowledged' ? '✓ ' : '';
   return (
     <Link
-      to={`/incident/${encodeURIComponent(incident.incidentId)}`}
+      to={`/incidents/${encodeURIComponent(incident.incidentId)}`}
       className="block border-b border-slate-800 px-4 py-3 hover:bg-slate-900"
     >
       <div className="flex items-center gap-3">
