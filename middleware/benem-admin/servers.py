@@ -1,7 +1,6 @@
 import fcntl
 import json
 import os
-import tempfile
 from dataclasses import dataclass
 from typing import Optional
 
@@ -30,23 +29,18 @@ def get_server(server_id: str) -> Optional[Server]:
 
 
 def save_servers(servers: list[Server]) -> None:
-    """Atomically write servers list to servers.json with file locking."""
+    """Write servers list to servers.json with file locking."""
     path = os.environ.get("SERVERS_JSON_PATH", "/app/servers.json")
     data = [
         {"id": s.id, "name": s.name, "url": s.url, "api_key": s.api_key, "pin": s.pin}
         for s in servers
     ]
-    dir_path = os.path.dirname(path) or "."
-    fd = os.open(path, os.O_RDWR | os.O_CREAT)
-    try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
-        with tempfile.NamedTemporaryFile(
-            mode="w", dir=dir_path, suffix=".tmp", delete=False
-        ) as tmp:
-            json.dump(data, tmp, indent=2)
-            tmp.write("\n")
-            tmp_path = tmp.name
-        os.rename(tmp_path, path)
-    finally:
-        fcntl.flock(fd, fcntl.LOCK_UN)
-        os.close(fd)
+    with open(path, "r+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            f.seek(0)
+            json.dump(data, f, indent=2)
+            f.write("\n")
+            f.truncate()
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
