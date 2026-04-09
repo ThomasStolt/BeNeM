@@ -578,3 +578,51 @@ def server_delete(request: Request, server_id: str = Form(...)):
     servers = [s for s in servers if s.id != server_id]
     save_servers(servers)
     return HTMLResponse("")  # HTMX removes the card from DOM
+
+
+@app.get("/admin/settings/server-health", response_class=HTMLResponse)
+async def server_health(request: Request, id: str = ""):
+    """Passive health check — one lightweight BHNM API call per server."""
+    if not auth.is_authenticated(request):
+        return HTMLResponse("", status_code=401)
+    server = get_server(id)
+    if not server:
+        return HTMLResponse(
+            '<span class="health-dot health-unknown" title="Server not found"></span>'
+        )
+    tls_verify = os.environ.get("BHNM_TLS_VERIFY", "true").lower() != "false"
+    try:
+        form: dict = {"password": server.api_key, "method": "getdevices", "max": "1"}
+        if server.pin:
+            form["pin"] = server.pin
+        async with httpx.AsyncClient(timeout=5.0, verify=tls_verify) as client:
+            resp = await client.post(
+                f"{server.url.rstrip('/')}/api/incident_api.php", data=form
+            )
+        if resp.status_code == 200:
+            return HTMLResponse(
+                '<span class="health-dot health-ok" title="Connected"></span>'
+            )
+        else:
+            return HTMLResponse(
+                f'<span class="health-dot health-fail" title="HTTP {resp.status_code}"></span>'
+            )
+    except Exception as e:
+        detail = str(e)[:80]
+        return HTMLResponse(
+            f'<span class="health-dot health-fail" title="{escape(detail)}"></span>'
+        )
+
+
+@app.post("/admin/settings/servers/test", response_class=HTMLResponse)
+def server_test(request: Request, server_id: str = Form(...)):
+    """Run detailed connection test (DNS → HTTPS → API auth) for a server."""
+    if not auth.is_authenticated(request):
+        return HTMLResponse("", status_code=401)
+    server = get_server(server_id)
+    if not server:
+        return HTMLResponse('<div class="alert alert-red">Server not found.</div>')
+    results = run_test(server.url, server.api_key, server.pin)
+    return templates.TemplateResponse(request, "_server_test_results.html", {
+        "results": results,
+    })
