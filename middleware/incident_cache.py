@@ -8,15 +8,12 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import time
 from dataclasses import dataclass, field
 
 import httpx
 
 from config import SERVERS_JSON_PATH, BHNM_TLS_VERIFY, PROXY_TIMEOUT
-
-logger = logging.getLogger("incident_cache")
 
 # -- Cache storage -------------------------------------------------------------
 
@@ -81,7 +78,7 @@ async def _fetch_incident_detail(client: httpx.AsyncClient, server: dict, incide
         if isinstance(data, list):
             data = data[0] if data else {}
     except Exception as e:
-        logger.warning("Failed to fetch detail for incident %s: %s", incident_id, e)
+        print(f"[Cache] Failed to fetch detail for incident {incident_id}: {e}")
         return {"alarm_counts": None, "alert_type": "host"}
 
     incident = data.get("incident", {})
@@ -129,7 +126,7 @@ async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:
     try:
         data = await _fetch_incidents(client, server)
     except Exception as e:
-        logger.error("[Cache:%s] Failed to fetch incidents: %s", server_id, e)
+        print(f"[Cache:{server_id}] Failed to fetch incidents: {e}")
         return
 
     active_raw = data.get("active_incidents", [])
@@ -138,7 +135,7 @@ async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:
 
     n = len(all_incidents)
     delay = refresh / (n + 1) if n > 0 else refresh
-    logger.info("[Cache:%s] Enriching %d incidents (pacing: %.1fs between calls)", server_id, n, delay)
+    print(f"[Cache:{server_id}] Enriching {n} incidents (pacing: {delay:.1f}s between calls)")
 
     active_enriched = []
     closed_enriched = []
@@ -161,13 +158,12 @@ async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:
         closed_incidents=closed_enriched,
         last_updated=time.time(),
     )
-    logger.info("[Cache:%s] Cache updated: %d active, %d closed",
-                server_id, len(active_enriched), len(closed_enriched))
+    print(f"[Cache:{server_id}] Cache updated: {len(active_enriched)} active, {len(closed_enriched)} closed")
 
 
 async def _cache_loop(server: dict) -> None:
     server_id = server["id"]
-    logger.info("[Cache:%s] Background loop started (refresh=%ds)", server_id, server.get("cache_refresh_seconds", 120))
+    print(f"[Cache:{server_id}] Background loop started (refresh={server.get('cache_refresh_seconds', 120)}s)")
     async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=PROXY_TIMEOUT) as client:
         while True:
             try:
@@ -175,7 +171,7 @@ async def _cache_loop(server: dict) -> None:
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                logger.error("[Cache:%s] Cycle failed: %s", server_id, e)
+                print(f"[Cache:{server_id}] Cycle failed: {e}")
                 await asyncio.sleep(10)
 
 
@@ -192,9 +188,9 @@ def reload_server(server_id: str) -> None:
     server = next((s for s in servers if s["id"] == server_id), None)
     if server:
         _start_server(server)
-        logger.info("[Cache:%s] Reloaded", server_id)
+        print(f"[Cache:{server_id}] Reloaded")
     else:
-        logger.info("[Cache:%s] Caching disabled or server removed -- stopped", server_id)
+        print(f"[Cache:{server_id}] Caching disabled or server removed — stopped")
 
 
 def stop_server(server_id: str) -> None:
@@ -209,4 +205,4 @@ def _start_server(server: dict) -> None:
     if server_id in _tasks and not _tasks[server_id].done():
         return
     _tasks[server_id] = asyncio.create_task(_cache_loop(server))
-    logger.info("[Cache:%s] Started background loop", server_id)
+    print(f"[Cache:{server_id}] Started background loop")
