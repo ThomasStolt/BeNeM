@@ -1,8 +1,49 @@
 {% extends "base.html" %}
 {% block content %}
+<style>
+  .health-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    vertical-align: middle;
+  }
+  .health-ok {
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+  }
+  .health-fail {
+    background: var(--red);
+    box-shadow: 0 0 6px var(--red);
+  }
+  .health-unknown {
+    background: var(--text-dim);
+  }
+  .health-loading {
+    background: var(--text-dim);
+    animation: dot-pulse 1.5s ease-in-out infinite;
+  }
+</style>
+
 <h1>Settings</h1>
 
 <div style="max-width: 520px;">
+
+  <div class="card">
+    <h2>BHNM Servers</h2>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+      Manage the BHNM server connections used for link generation and API proxy.
+    </p>
+    <div id="server-list">
+      {% for s in servers %}
+      {% include "_server_card.html" %}
+      {% endfor %}
+    </div>
+    <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:4px;"
+            hx-get="/admin/settings/servers/edit-form"
+            hx-target="#server-list"
+            hx-swap="beforeend">+ Add Server</button>
+  </div>
 
   <div class="card">
     <h2>Authenticator Setup</h2>
