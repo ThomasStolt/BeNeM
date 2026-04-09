@@ -78,6 +78,11 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     ) {
         let userInfo = response.notification.request.content.userInfo
         if let incidentID = userInfo["incident_id"] as? String, !incidentID.isEmpty {
+            print("[DeepLink] didReceive — incident_id: \(incidentID)")
+            // Always store as pending — covers cold launch where SwiftUI isn't ready yet.
+            // ContentView.onAppear picks this up. For warm launch, the NotificationCenter
+            // post also fires and is handled by .onReceive.
+            pendingIncidentID = incidentID
             NotificationCenter.default.post(
                 name: .pushNotificationIncidentTapped,
                 object: nil,

@@ -45,10 +45,10 @@ struct ContentView: View {
             .onAppear {
                 updateAPIService()
                 if apiService == nil { selectedTab = 3 }
-                if let id = AppDelegate.shared?.pendingIncidentID {
-                    AppDelegate.shared?.pendingIncidentID = nil
-                    selectedTab = 1
-                    pendingIncidentID = id
+                consumePendingDeepLink()
+                // Retry after a short delay — didReceive may fire after onAppear on cold launch
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    consumePendingDeepLink()
                 }
             }
     }
@@ -138,6 +138,17 @@ struct ContentView: View {
             secret: conn.webhookSecret,
             middlewareURL: conn.middlewareURL
         )
+    }
+
+    private func consumePendingDeepLink() {
+        if let id = AppDelegate.shared?.pendingIncidentID {
+            print("[DeepLink] consumePendingDeepLink — incident_id: \(id)")
+            AppDelegate.shared?.pendingIncidentID = nil
+            selectedTab = 1
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                pendingIncidentID = id
+            }
+        }
     }
 
     private func updateAPIService() {
