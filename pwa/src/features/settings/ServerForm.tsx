@@ -19,10 +19,25 @@ function maskSecret(value: string): string {
 }
 
 function ReadOnlyField({ label, value, masked }: { label: string; value: string; masked?: boolean }) {
+  const [revealed, setRevealed] = useState(false);
   return (
     <div className="p-3">
       <div className="block text-xs text-slate-400 mb-1.5">{label}</div>
-      <div className="text-sm text-slate-500 font-mono">{masked ? maskSecret(value) : value}</div>
+      <div className="flex items-center gap-2">
+        <div className="text-sm text-slate-500 font-mono flex-1">
+          {masked && !revealed ? maskSecret(value) : value}
+        </div>
+        {masked && (
+          <button
+            type="button"
+            onClick={() => setRevealed(!revealed)}
+            className="px-2 py-1 rounded border border-slate-700 text-slate-400 hover:text-white text-xs"
+            aria-label={revealed ? 'Hide' : 'Show'}
+          >
+            {revealed ? 'Hide' : 'Show'}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
