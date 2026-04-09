@@ -140,16 +140,22 @@ async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:
     active_enriched = []
     closed_enriched = []
 
-    for incident, bucket in all_incidents:
+    for i, (incident, bucket) in enumerate(all_incidents):
         inc_id = str(incident.get("incident_id", ""))
         if not inc_id:
             continue
-        detail = await _fetch_incident_detail(client, server, inc_id)
+        try:
+            detail = await _fetch_incident_detail(client, server, inc_id)
+        except Exception as e:
+            print(f"[Cache:{server_id}] Error fetching detail for incident {inc_id}: {e}")
+            detail = {"alarm_counts": None, "alert_type": "host"}
         enriched = _enrich_incident(incident, detail)
         if bucket == "active":
             active_enriched.append(enriched)
         else:
             closed_enriched.append(enriched)
+        if (i + 1) % 20 == 0:
+            print(f"[Cache:{server_id}] Progress: {i + 1}/{n}")
         if delay > 0.1:
             await asyncio.sleep(delay)
 
