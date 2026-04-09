@@ -95,12 +95,19 @@ struct IncidentListView: View {
     
     private func navigateToPendingIncident() {
         guard let id = pendingIncidentID else { return }
+        print("[DeepLink] navigateToPendingIncident — looking for: \(id)")
+        print("[DeepLink] Available IDs: \(viewModel.incidents.map { $0.incidentID })")
         // Match by exact ID or by suffix (BHNM webhook sends numeric ID like "24090",
         // but the incident list may use prefixed IDs like "NetreoCloudDemo-24090")
         let incident = viewModel.incidents.first(where: { $0.incidentID == id })
             ?? viewModel.incidents.first(where: { $0.incidentID.hasSuffix("-\(id)") })
         pendingIncidentID = nil
-        if let incident { navPath.append(incident) }
+        if let incident {
+            print("[DeepLink] Found incident: \(incident.incidentID) — navigating")
+            navPath.append(incident)
+        } else {
+            print("[DeepLink] No matching incident found for id: \(id)")
+        }
     }
 
     private var incidentsList: some View {

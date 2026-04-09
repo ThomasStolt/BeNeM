@@ -26,10 +26,21 @@ struct ContentView: View {
     var body: some View {
         tabContentWithHandlers
             .onReceive(NotificationCenter.default.publisher(for: .pushNotificationIncidentTapped)) { notification in
-                guard let id = notification.userInfo?["incident_id"] as? String else { return }
-                if selectedTab == 1 { incidentNavResetID = UUID() }
+                guard let id = notification.userInfo?["incident_id"] as? String else {
+                    print("[DeepLink] No incident_id in notification")
+                    return
+                }
+                print("[DeepLink] Notification tapped — incident_id: \(id)")
+                // Reset nav path first if already on Incidents tab, then set pending ID
+                // after a brief delay to avoid the navReset clearing our navigation.
+                if selectedTab == 1 {
+                    incidentNavResetID = UUID()
+                }
                 selectedTab = 1
-                pendingIncidentID = id
+                // Delay setting pendingIncidentID to let navPath reset settle
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    pendingIncidentID = id
+                }
             }
             .onAppear {
                 updateAPIService()
