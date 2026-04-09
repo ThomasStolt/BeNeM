@@ -38,7 +38,7 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   const incidentId = event.notification.data?.incident_id;
-  const targetUrl = incidentId ? `/incident/${incidentId}` : '/';
+  const targetUrl = incidentId ? `/incidents/${incidentId}` : '/';
 
   event.waitUntil(
     self.clients
