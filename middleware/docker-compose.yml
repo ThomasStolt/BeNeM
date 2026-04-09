@@ -17,7 +17,7 @@ services:
       - LOG_PATH=/app/log/admin.jsonl
       - APNS_DB_PATH=/data/bhnm_apns.db
     volumes:
-      - ./servers.json:/app/servers.json:ro
+      - ./servers.json:/app/servers.json
       - benem-admin-log:/app/log
       - db-data:/data:ro
       # Optional: uncomment to enable the "Restart Container" button in Settings
