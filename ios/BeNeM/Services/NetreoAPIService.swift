@@ -820,7 +820,7 @@ class NetreoAPIService: ObservableObject {
 
             if isCached {
                 for (i, raw) in activeArray.enumerated() where i < parsed.count {
-                    if let counts = raw["alarm_counts"] as? [String: Int] {
+                    if let counts = raw["alarm_counts"] as? [String: Any] {
                         alarmCounts[parsed[i].incidentID] = parseAlarmCounts(counts)
                     }
                 }
@@ -832,7 +832,7 @@ class NetreoAPIService: ObservableObject {
 
             if isCached {
                 for (i, raw) in closedArray.enumerated() where i < parsed.count {
-                    if let counts = raw["alarm_counts"] as? [String: Int] {
+                    if let counts = raw["alarm_counts"] as? [String: Any] {
                         alarmCounts[parsed[i].incidentID] = parseAlarmCounts(counts)
                     }
                 }
@@ -843,11 +843,11 @@ class NetreoAPIService: ObservableObject {
     }
 
     /// Convert {"red": 2, "orange": 1, ...} dict to [AlarmColor: Int]
-    private func parseAlarmCounts(_ raw: [String: Int]) -> [AlarmColor: Int] {
+    private func parseAlarmCounts(_ raw: [String: Any]) -> [AlarmColor: Int] {
         var result: [AlarmColor: Int] = [:]
         for (key, value) in raw {
-            if let color = AlarmColor(rawValue: key) {
-                result[color] = value
+            if let color = AlarmColor(rawValue: key), let intVal = value as? Int {
+                result[color] = intVal
             }
         }
         return result
