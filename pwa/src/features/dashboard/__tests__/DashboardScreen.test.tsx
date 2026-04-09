@@ -31,7 +31,7 @@ vi.mock('../../incidents/useIncidents', () => ({
         status: 'active',
         incidentState: 'OPEN',
         startTime: new Date(),
-        acknowledgedBy: null,
+        acknowledgedBy: null, alarmCounts: null,
       },
     ],
     isLoading: false,

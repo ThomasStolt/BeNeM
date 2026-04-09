@@ -17,7 +17,7 @@ vi.mock('../useIncidents', () => ({
         status: 'active' as const,
         incidentState: 'OPEN',
         startTime: new Date('2026-04-06T14:23:00Z'),
-        acknowledgedBy: null,
+        acknowledgedBy: null, alarmCounts: null,
       },
       {
         incidentId: '58432',

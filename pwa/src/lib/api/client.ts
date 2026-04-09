@@ -7,6 +7,57 @@ const FETCH_TIMEOUT_MS = 50_000;
  * POST form-urlencoded to the BHNM middleware proxy.
  * Returns parsed JSON (may be object or array — caller handles shape).
  */
+/**
+ * GET JSON from the BHNM middleware.
+ * Returns parsed JSON.
+ */
+export async function fetchJson(
+  baseUrl: string,
+  path: string,
+  headers?: Record<string, string>,
+): Promise<unknown> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      method: 'GET',
+      headers,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new ApiException({ kind: 'network', message: 'Request timed out' });
+    }
+    throw new ApiException({
+      kind: 'network',
+      message: err instanceof Error ? err.message : 'Network error',
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (response.status === 401 || response.status === 403) {
+    throw new ApiException({ kind: 'auth', message: `HTTP ${response.status}` });
+  }
+  if (!response.ok) {
+    throw new ApiException({
+      kind: 'server',
+      status: response.status,
+      message: `HTTP ${response.status}`,
+    });
+  }
+
+  try {
+    return await response.json();
+  } catch (err) {
+    throw new ApiException({
+      kind: 'parse',
+      message: err instanceof Error ? err.message : 'JSON parse error',
+    });
+  }
+}
+
 export async function postForm(
   baseUrl: string,
   path: string,

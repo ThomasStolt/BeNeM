@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { Incident } from '../../lib/api/types';
 import { SeverityBadge } from './SeverityBadge';
+import { AlarmBadges } from './AlarmBadges';
 
 function relativeTime(d: Date): string {
   const diffMs = Date.now() - d.getTime();
@@ -29,7 +30,10 @@ export function IncidentRow({ incident }: { incident: Incident }) {
           </div>
           <div className="text-xs text-slate-400 truncate">{incident.summary}</div>
         </div>
-        <div className="text-xs text-slate-500 shrink-0">{relativeTime(incident.startTime)}</div>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className="text-xs text-slate-500">{relativeTime(incident.startTime)}</span>
+          {incident.alarmCounts && <AlarmBadges counts={incident.alarmCounts} />}
+        </div>
       </div>
     </Link>
   );

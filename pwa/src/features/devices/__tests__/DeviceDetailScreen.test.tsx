@@ -79,12 +79,12 @@ describe('DeviceDetailScreen', () => {
         {
           incidentId: '1', displayId: '#1', deviceName: 'raspi-054', deviceIp: '192.168.1.54',
           summary: 'High CPU', severity: 'critical' as const, status: 'active' as const,
-          incidentState: 'OPEN', startTime: new Date(), acknowledgedBy: null,
+          incidentState: 'OPEN', startTime: new Date(), acknowledgedBy: null, alarmCounts: null,
         },
         {
           incidentId: '2', displayId: '#2', deviceName: 'other-host', deviceIp: '10.0.0.1',
           summary: 'Disk full', severity: 'major' as const, status: 'active' as const,
-          incidentState: 'OPEN', startTime: new Date(), acknowledgedBy: null,
+          incidentState: 'OPEN', startTime: new Date(), acknowledgedBy: null, alarmCounts: null,
         },
       ],
     } as unknown as ReturnType<typeof useIncidents>);

@@ -1,5 +1,5 @@
-import { postForm } from './client';
-import { ApiException, Incident, IncidentStatus, Severity } from './types';
+import { fetchJson, postForm } from './client';
+import { AlarmCounts, ApiException, Incident, IncidentStatus, Severity } from './types';
 import type { BhnmConfig } from '../config';
 
 const SEVERITY_MAP: Record<string, Severity> = {
@@ -62,6 +62,20 @@ function parseRow(row: Record<string, unknown>, index: number, forcedStatus?: In
   else if (stateString === 'ACKNOWLEDGED') status = 'acknowledged';
   else status = 'active';
 
+  // Alarm counts from middleware cache (null if cache cold)
+  let alarmCounts: AlarmCounts | null = null;
+  const rawCounts = row.alarm_counts;
+  if (rawCounts && typeof rawCounts === 'object' && !Array.isArray(rawCounts)) {
+    const c = rawCounts as Record<string, unknown>;
+    alarmCounts = {
+      red: typeof c.red === 'number' ? c.red : 0,
+      orange: typeof c.orange === 'number' ? c.orange : 0,
+      yellow: typeof c.yellow === 'number' ? c.yellow : 0,
+      green: typeof c.green === 'number' ? c.green : 0,
+      blue: typeof c.blue === 'number' ? c.blue : 0,
+    };
+  }
+
   return {
     incidentId,
     displayId: buildDisplayId(incidentId),
@@ -77,6 +91,7 @@ function parseRow(row: Record<string, unknown>, index: number, forcedStatus?: In
     incidentState: stateString,
     startTime: coerceStartTime(row.start_time ?? row.startTime),
     acknowledgedBy: coerceString(row.acknowledged_by) ?? coerceString(row.acknowledgedBy),
+    alarmCounts,
   };
 }
 
@@ -123,6 +138,19 @@ export function parseIncidentsResponse(raw: unknown): Incident[] {
   }
 
   return [];
+}
+
+export async function getCachedIncidents(config: BhnmConfig): Promise<Incident[]> {
+  const headers: Record<string, string> = {};
+  if (config.apiKey) headers['X-Proxy-Token'] = config.apiKey;
+  if (config.bhnmUrl) headers['X-BHNM-Target'] = config.bhnmUrl;
+  try {
+    const raw = await fetchJson(config.baseUrl, '/api/v1/incidents', headers);
+    return parseIncidentsResponse(raw);
+  } catch {
+    // Fall back to legacy endpoint if cached endpoint unavailable
+    return getIncidents(config);
+  }
 }
 
 export async function getIncidents(config: BhnmConfig): Promise<Incident[]> {

@@ -16,6 +16,7 @@ const activeIncident: Incident = {
   incidentState: 'OPEN',
   startTime: new Date(),
   acknowledgedBy: null,
+  alarmCounts: null,
 };
 
 const ackedIncident: Incident = {

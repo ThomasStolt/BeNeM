@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { getIncidents, parseIncidentsResponse } from '../../lib/api/incidents';
+import { getCachedIncidents, parseIncidentsResponse } from '../../lib/api/incidents';
 import { useConfig } from '../../lib/config';
 import mockData from '../../lib/mock/incidents.json';
 import { REFETCH_INTERVAL_MS } from '../../lib/constants';
@@ -20,7 +20,7 @@ export function useIncidents() {
       if (!config.isConfigured) {
         return parseIncidentsResponse(mockData); // show fixture when no key set
       }
-      return getIncidents(config);
+      return getCachedIncidents(config);
     },
     refetchInterval: REFETCH_INTERVAL_MS,
     refetchOnWindowFocus: true,

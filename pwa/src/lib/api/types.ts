@@ -1,6 +1,14 @@
 export type Severity = 'critical' | 'major' | 'minor' | 'warning' | 'informational';
 export type IncidentStatus = 'active' | 'acknowledged' | 'resolved' | 'closed';
 
+export interface AlarmCounts {
+  red: number;
+  orange: number;
+  yellow: number;
+  green: number;
+  blue: number;
+}
+
 export interface Incident {
   incidentId: string;
   displayId: string;
@@ -12,6 +20,7 @@ export interface Incident {
   incidentState: string;
   startTime: Date;
   acknowledgedBy: string | null;
+  alarmCounts: AlarmCounts | null;
 }
 
 export type ApiError =
