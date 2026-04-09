@@ -75,7 +75,9 @@ export function SettingsScreen() {
     if (!activeServer) return;
 
     const webhookSecret = activeServer.pushWebhookSecret;
-    const middlewareUrl = activeServer.pushMiddlewareUrl ?? activeServer.baseUrl;
+    // Always use baseUrl (/bhnm proxy) — direct middleware URL is cross-origin
+    // and blocked by CSP/CORS in the PWA's Caddy config.
+    const middlewareUrl = activeServer.baseUrl;
 
     setPushLoading(true);
     try {
