@@ -89,9 +89,12 @@ class CachedIncidents:
 
 ## New Endpoint
 
-### GET /api/v1/servers/{server_id}/incidents
+### GET /api/v1/incidents
 
-Returns the cached enriched incident list.
+Returns the cached enriched incident list. The server is resolved from
+the `X-Proxy-Token` header (which contains the api_key) — same auth
+pattern as all other proxy routes. No `server_id` in the URL because
+the iOS app doesn't know it.
 
 **Response (cache warm):**
 ```json
@@ -186,7 +189,7 @@ within the Docker network between the admin and middleware containers.
 
 ### iOS
 
-- New method in `NetreoAPIService` to call `/api/v1/servers/{server_id}/incidents`
+- New method in `NetreoAPIService` to call `/api/v1/incidents`
 - `IncidentListViewModel.loadIncidents()` uses the new endpoint
 - Parse `alarm_counts` from the enriched response — no more `loadAlarmCounts()` loop
 - If `alarm_counts` is `null` (cold cache fallback), show per-row spinner as today
