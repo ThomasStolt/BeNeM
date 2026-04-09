@@ -24,6 +24,15 @@
     animation: dot-pulse 1.5s ease-in-out infinite;
   }
 </style>
+<script>
+  // Allow HTMX to swap content from error responses (e.g. 422 validation errors)
+  document.body.addEventListener('htmx:beforeSwap', function(evt) {
+    if (evt.detail.xhr.status === 422 || evt.detail.xhr.status === 404) {
+      evt.detail.shouldSwap = true;
+      evt.detail.isError = false;
+    }
+  });
+</script>
 
 <h1>Settings</h1>
 
