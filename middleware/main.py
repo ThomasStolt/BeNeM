@@ -17,6 +17,7 @@ from apns import send_to_all
 from webpush import send_web_push_to_all
 import time
 import incident_cache
+import tactical_cache
 
 HOP_BY_HOP_REQUEST = {
     "host", "x-proxy-token", "x-bhnm-target", "connection", "keep-alive",
@@ -143,6 +144,7 @@ def _validate_proxy_target(target_url: str) -> None:
 async def lifespan(app: FastAPI):
     init_db()
     incident_cache.start_all()
+    tactical_cache.start_all()
     print(f"[Startup] BHNM APNs middleware v{VERSION} ready on port {MIDDLEWARE_PORT} — dynamic multi-server routing enabled")
     yield
 
@@ -294,12 +296,22 @@ def health():
             "closed": len(cached.closed_incidents),
             "age_seconds": round(time.time() - cached.last_updated) if cached.last_updated else None,
         }
+    tactical_status = {}
+    for sid, cached in tactical_cache._cache.items():
+        tactical_status[sid] = {
+            gt: {
+                "groups": len(cached.data.get(gt, {})),
+                "age_seconds": round(time.time() - cached.last_updated.get(gt, 0)) if cached.last_updated.get(gt) else None,
+            }
+            for gt in tactical_cache.GROUPING_TYPES
+        }
     return {
         "status": "running",
         "version": VERSION,
         "registered_devices": len(tokens),
         "apns_environment": "per-device",
         "cache": cache_status,
+        "tactical_cache": tactical_status,
     }
 
 
@@ -373,7 +385,67 @@ async def cache_reload(request: Request):
     if not server_id:
         raise HTTPException(status_code=400, detail="server_id is required")
     incident_cache.reload_server(server_id)
+    tactical_cache.reload_server(server_id)
     return {"status": "ok", "server_id": server_id}
+
+
+# ── Cached Tactical Overview Endpoint ──────────────────────────────────────
+
+@app.get("/api/v1/tactical-overview")
+async def cached_tactical_overview(request: Request, grouping_type: str = "category"):
+    """Return tactical overview from cache; fall through to live BHNM if cache is cold."""
+    _verify_proxy_token(request)
+
+    if grouping_type not in ("category", "site", "app"):
+        raise HTTPException(status_code=400, detail="grouping_type must be category, site, or app")
+
+    api_key = request.headers.get("X-Proxy-Token", "").strip()
+    server_id = tactical_cache._server_id_for_api_key(api_key)
+    if not server_id:
+        bhnm_target = request.headers.get("X-BHNM-Target", "").strip()
+        if bhnm_target:
+            server_id = tactical_cache._server_id_for_bhnm_url(bhnm_target)
+
+    if server_id:
+        cached = tactical_cache.get_cached(server_id, grouping_type)
+        if cached:
+            data, ts = cached
+            return {
+                "cache_age_seconds": round(time.time() - ts),
+                "grouping_type": grouping_type,
+                "data": data,
+            }
+
+    # Cache cold or server not found — fetch live from BHNM.
+    target_base = request.headers.get("X-BHNM-Target", "").strip().rstrip("/")
+    server_cfg = _server_config_for_api_key(api_key)
+    if not target_base:
+        target_base = (server_cfg or {}).get("url", "").rstrip("/") if server_cfg else ""
+    if not target_base:
+        target_base = _single_server_url()
+    if not target_base:
+        raise HTTPException(status_code=502, detail="Bad Gateway: BHNM target server not configured")
+    _validate_proxy_target(target_base)
+
+    form = {"password": api_key, "grouping_type": grouping_type}
+    pin = (server_cfg or {}).get("pin") if server_cfg else None
+    if pin:
+        form["pin"] = pin
+
+    target = f"{target_base}/fw/index.php?r=restful/tactical-overview/data"
+    try:
+        async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=PROXY_TIMEOUT) as client:
+            resp = await client.post(target, data=form)
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Gateway Timeout: BHNM server did not respond in time")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=502, detail="Bad Gateway: could not connect to BHNM server")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="Bad Gateway: request to BHNM server failed")
+
+    return Response(content=resp.content, status_code=resp.status_code,
+                    headers={k: v for k, v in resp.headers.items()
+                             if k.lower() not in HOP_BY_HOP_RESPONSE})
 
 
 # ── BHNM Proxy — Dedicated Routes (cache-ready) ─────────────────────────────
