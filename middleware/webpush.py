@@ -19,6 +19,7 @@ def _send_one(subscription_info: dict, data: str, vapid_claims: dict) -> None:
         data=data,
         vapid_private_key=VAPID_PRIVATE_KEY,
         vapid_claims=vapid_claims,
+        headers={"Urgency": "high", "TTL": "300"},
     )
 
 
