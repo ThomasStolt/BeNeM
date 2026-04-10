@@ -15,6 +15,46 @@ iOS users are directed to the native app for reliable push notifications.
 - **Push:** Web Push (VAPID) via `../middleware/`
 - **Container:** Nginx (static files), proxied behind Caddy
 
+## Project Structure
+
+```
+pwa/
+├── src/
+│   ├── main.tsx                    # Entry point, router, service worker registration
+│   ├── App.tsx                     # Top-level app shell
+│   ├── sw.ts                       # Service worker: Web Push handler + notificationclick routing
+│   ├── features/
+│   │   ├── dashboard/              # Home view
+│   │   ├── incidents/              # Incident list + detail (deep-link target)
+│   │   ├── devices/                # Device list + detail
+│   │   ├── tactical/               # Category / Site / Business Workflow overviews
+│   │   ├── performance/            # Time-series metric charts
+│   │   ├── scanner/                # QR scanner for benem:// URLs
+│   │   └── settings/               # Server config, push registration
+│   ├── components/                 # Shared UI (AppLayout, TabBar, RefreshRing, IOSRedirectBanner, ...)
+│   └── lib/
+│       ├── api/                    # BHNM API client
+│       ├── serverStorage.ts        # Sync storage API backed by in-memory cache
+│       ├── storage-crypto.ts       # AES-256-GCM encryption for sensitive fields
+│       ├── pushRegistration.ts     # Web Push subscribe / register flow
+│       ├── platform.ts             # iOS / Android / desktop detection
+│       ├── qr-parser.ts            # benem:// URL parsing + decryption
+│       └── crypto.ts               # Web Crypto wrappers (PBKDF2, AES-GCM)
+├── public/icons/                   # PWA icons
+├── nginx.conf                      # Static file server + security headers
+└── Dockerfile
+```
+
+## Push Notification Handling
+
+Web Push payload arrives at `src/sw.ts`. On `notificationclick`:
+
+1. Reads `incident_id` from the notification's `data` payload
+2. Opens (or focuses) the PWA at `/incidents?id=<incident_id>` — **not** `/incident` (singular). Use the plural route; the incident list page handles the `id` query param and navigates to detail.
+3. Focuses an existing tab if one is already open, otherwise opens a new window.
+
+Payload contract: see `../shared/push-payload-spec.md`.
+
 ## Key Design Decisions
 
 ### localStorage Encryption

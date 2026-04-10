@@ -30,6 +30,7 @@ to registered iOS devices (APNs) and Android/web users (Web Push).
 | `webpush.py` | Web Push delivery: VAPID-signed push via `pywebpush`, stale subscription detection. |
 | `Dockerfile` | Builds the FastAPI app image. Uses `uvicorn` as the server. |
 | `docker-compose.yml` | Runs `bhnm-apns` + `benem-admin` + `benem-pwa` + `caddy:2.9-alpine` together. Named volumes for SQLite and Caddy data. |
+| `benem-admin/` | Sibling FastAPI service (separate container) providing the web admin portal: manages `servers.json`, per-server cache toggles, connection tests, and triggers `/internal/cache/reload` on this service. Has its own `main.py`, templates, and tests. |
 | `Caddyfile` | Reverse proxy config: Caddy listens on 443, proxies to the FastAPI container, handles TLS automatically. |
 | `requirements.txt` | Python dependencies: `fastapi`, `uvicorn`, `httpx[http2]`, `PyJWT`, `cryptography`, `python-dotenv`. |
 | `upgrade.sh` | Upgrade script: pulls latest code, rebuilds all containers, restarts services, health-checks bhnm-apns and benem-admin. |

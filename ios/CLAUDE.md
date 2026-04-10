@@ -10,37 +10,45 @@ BeNeM (Be Netreo Mobile) is an iOS app built with Swift/SwiftUI for monitoring n
 
 ```
 BeNeM/
+├── BeNeMApp.swift                    # App entry point + URL scheme handler
+├── AppDelegate.swift                 # APNs registration, UNUserNotificationCenterDelegate, deep-link tap handler
+├── ContentView.swift                 # Root tab host; listens for pushNotificationIncidentTapped and routes to Incidents tab
+├── Secrets.swift                     # Generated from Secrets.swift.template (gitignored)
+├── Extensions/                       # Swift language extensions
 ├── Services/
-│   ├── NetreoAPIService.swift       # All API calls (incidents, devices, tactical, ACK/UnACK, performance)
-│   ├── NetreoAPIConfiguration.swift # URL configuration, endpoints, HTTP methods
-│   └── NetworkDiscovery.swift       # Local Wi-Fi /24 subnet scan for BHNM servers (SNMP)
+│   ├── NetreoAPIService.swift        # All API calls (incidents, devices, tactical, ACK/UnACK, performance)
+│   ├── NetreoAPIConfiguration.swift  # URL configuration, endpoints, HTTP methods
+│   ├── DeepLinkHandler.swift         # Parses + applies benem:// config URLs (AES-GCM decryption)
+│   └── KeychainHelper.swift          # Keychain read/write for sensitive credentials
 ├── Models/
 │   ├── NetreoIncident.swift
 │   ├── NetreoDevice.swift
 │   ├── IncidentDetail.swift
-│   └── GroupSummary.swift           # Aggregated alarm status per group (Site/Category/BW)
+│   ├── GroupSummary.swift            # Aggregated alarm status per group (Site/Category/BW)
+│   └── SavedConnection.swift         # Persisted server connection profile
 ├── ViewModels/
 │   ├── IncidentListViewModel.swift
 │   ├── DeviceListViewModel.swift
-│   ├── DeviceDetailViewModel.swift  # Concurrent incident + performance loading for one device
-│   └── TacticalViewModel.swift      # Loads GroupSummary for Category/Site/Business Workflow
-├── Services/
-│   └── DeepLinkHandler.swift        # Parses + applies benem:// config URLs (AES-GCM decryption)
+│   ├── DeviceDetailViewModel.swift   # Concurrent incident + performance loading for one device
+│   └── TacticalViewModel.swift       # Loads GroupSummary for Category/Site/Business Workflow
 └── Views/
-    ├── SplashView.swift              # Animated launch screen with logo shimmer + version
-    ├── DashboardView.swift           # Home: StatusCards + Drill Down links + Incident Ticker + H/S/T/A summary cards
-    ├── IncidentListView.swift        # Swipe gestures: right = ACK, left = UnACK
+    ├── SplashView.swift               # Animated launch screen with logo shimmer + version
+    ├── DashboardView.swift            # Home: StatusCards + Drill Down links + Incident Ticker + H/S/T/A summary cards
+    ├── IncidentListView.swift         # Swipe gestures: right = ACK, left = UnACK
     ├── IncidentDetailView.swift
-    ├── DeviceDetailView.swift        # Device detail: incidents, performance charts, interfaces
-    ├── GroupListView.swift           # Lists groups with alarm badges and device count
-    ├── AutoRefreshButton.swift       # Reusable countdown ring + refresh button (120 s)
-    ├── AutoDiscoveryView.swift       # Wi-Fi server discovery UI
+    ├── DeviceListView.swift           # Paginated device list with search
+    ├── DeviceDetailView.swift         # Device detail: incidents, performance charts, interfaces
+    ├── AddDeviceView.swift            # Add a device to BHNM
+    ├── DeviceTypeIcon.swift           # SF Symbol mapping per device type
+    ├── IconPickerSheet.swift          # Icon picker for device type overrides
+    ├── MaintenanceWindowSheet.swift   # Set device maintenance window
+    ├── MarqueeText.swift              # Horizontally scrolling text (incident ticker)
+    ├── GroupListView.swift            # Lists groups with alarm badges and device count
+    ├── AutoRefreshButton.swift        # Reusable countdown ring + refresh button (120 s)
     ├── SettingsView.swift
-    ├── ServerConfigView.swift        # Add/edit server: connection fields, push config, test & save
-    ├── FloppyDiskIcon.swift          # Custom floppy disk icon drawn as SwiftUI Canvas
-    ├── QRScannerView.swift           # Full-screen camera QR scanner for benem:// URLs
-    ├── BeNeMApp.swift                # App entry point + URL scheme handler
-    └── AppDelegate.swift             # APNs registration, UNUserNotificationCenterDelegate, deep-link tap handler
+    ├── ServerConfigView.swift         # Add/edit server: connection fields, push config, test & save
+    ├── FloppyDiskIcon.swift           # Custom floppy disk icon drawn as SwiftUI Canvas
+    └── QRScannerView.swift            # Full-screen camera QR scanner for benem:// URLs
 ```
 
 ## API – BHNM
