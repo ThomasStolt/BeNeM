@@ -61,10 +61,22 @@ struct DeviceDetailView: View {
                 )
                 .frame(width: iconWidth)
 
-                // Middle column — name, IP
+                // Middle column — name, IP, category, site
                 VStack(alignment: .leading, spacing: 4) {
                     MarqueeText(text: device.name, font: .headline, fontWeight: .bold, color: .primary)
                     MarqueeText(text: device.ip, font: .subheadline, color: .secondary)
+                    HStack(spacing: 4) {
+                        Image(systemName: "folder")
+                            .font(.caption2).foregroundColor(.secondary)
+                        Text(device.category)
+                            .font(.caption).foregroundColor(.secondary)
+                    }
+                    HStack(spacing: 4) {
+                        Image(systemName: "building.2")
+                            .font(.caption2).foregroundColor(.secondary)
+                        Text(device.site)
+                            .font(.caption).foregroundColor(.secondary)
+                    }
                 }
                 .frame(width: infoWidth, alignment: .leading)
 
@@ -75,7 +87,7 @@ struct DeviceDetailView: View {
                 }
             }
         }
-        .frame(height: 90)
+        .frame(height: 110)
         .padding(.vertical, 16)
         .padding(.horizontal, 12)
         .background(Color(.secondarySystemGroupedBackground))
