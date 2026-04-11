@@ -1,14 +1,109 @@
+// pwa/src/features/devices/DeviceDetailScreen.tsx
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useDeviceSearch } from './useDeviceSearch';
 import { useIncidents } from '../incidents/useIncidents';
-import { SwipeableIncidentRow } from '../incidents/SwipeableIncidentRow';
+import { SeverityBadge } from '../incidents/SeverityBadge';
 import { EmptyState } from '../../components/EmptyState';
 import { PerformanceSection } from '../performance/PerformanceSection';
 import { MaintenanceDialog } from './MaintenanceDialog';
+import { LatencyMiniChart } from './LatencyMiniChart';
+import { DeviceTypeIcon } from '../../components/DeviceTypeIcon';
 import { createMaintenanceWindow } from '../../lib/api/maintenance';
 import { useConfig } from '../../lib/config';
+import { classifyDevice } from '../../lib/deviceType';
+import { buildDeviceAlarmMap } from '../../lib/deviceAlarms';
+import type { Incident } from '../../lib/api/types';
 
+// ── Status helpers ────────────────────────────────────────────────
+const STATUS_LABELS: Record<string, string> = {
+  up: 'UP', down: 'DOWN', warning: 'WARNING',
+  critical: 'CRITICAL', maintenance: 'MAINTENANCE', unknown: 'UNKNOWN',
+};
+const STATUS_COLORS: Record<string, string> = {
+  up: 'text-green-400', down: 'text-red-400', warning: 'text-amber-400',
+  critical: 'text-red-400', maintenance: 'text-slate-400', unknown: 'text-slate-500',
+};
+
+// ── Duration helper ───────────────────────────────────────────────
+function duration(start: Date): string {
+  const ms = Date.now() - start.getTime();
+  const m = Math.floor(ms / 60_000);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ${m % 60}m`;
+  return `${Math.floor(h / 24)}d ${h % 24}h`;
+}
+
+// ── Collapsible section wrapper ───────────────────────────────────
+function CollapsibleSection({
+  title,
+  badge,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  badge?: number;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="bg-slate-800 rounded-xl overflow-hidden">
+      <button
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-slate-100">{title}</span>
+          {badge !== undefined && badge > 0 && (
+            <span className="bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+              {badge}
+            </span>
+          )}
+        </div>
+        <svg
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+      {open && <div className="border-t border-slate-700">{children}</div>}
+    </div>
+  );
+}
+
+// ── InfoRow ───────────────────────────────────────────────────────
+function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex justify-between items-start gap-4 text-sm px-4 py-2">
+      <span className="text-slate-500 shrink-0">{label}</span>
+      <span className={`text-slate-200 text-right break-all ${mono ? 'font-mono' : ''}`}>{value}</span>
+    </div>
+  );
+}
+
+// ── Incident table row ────────────────────────────────────────────
+function IssueRow({ incident }: { incident: Incident }) {
+  return (
+    <div
+      className="grid px-4 py-2.5 border-b border-slate-700 last:border-0"
+      style={{ gridTemplateColumns: '80px 1fr 56px', gap: '8px', alignItems: 'start' }}
+    >
+      <SeverityBadge severity={incident.severity} />
+      <p className="text-xs text-slate-200 line-clamp-2">{incident.summary}</p>
+      <p className="text-[11px] text-slate-500 text-right">{duration(incident.startTime)}</p>
+    </div>
+  );
+}
+
+// ── Main screen ───────────────────────────────────────────────────
 export function DeviceDetailScreen() {
   const { name } = useParams<{ name: string }>();
   const decodedName = name ? decodeURIComponent(name) : '';
@@ -24,42 +119,103 @@ export function DeviceDetailScreen() {
     (inc) => inc.deviceName === decodedName,
   );
 
+  const alarmMap = buildDeviceAlarmMap(allIncidents ?? []);
+  const alarmSummary = alarmMap.get(decodedName);
+  const counts = alarmSummary?.counts ?? { red: 0, orange: 0, yellow: 0, green: 0, blue: 0 };
+
   return (
     <div className="min-h-full">
-      <header className="px-4 py-3 border-b border-slate-800">
-        <Link to="/devices" className="text-xs text-sky-400 hover:text-sky-300">
-          &larr; Devices
-        </Link>
-        <h1 className="text-lg font-semibold mt-1">{decodedName}</h1>
-      </header>
-
-      {isLoading && (
-        <EmptyState title="Loading..." description="Fetching device details." />
-      )}
-
+      {isLoading && <EmptyState title="Loading..." description="Fetching device details." />}
       {isError && (
         <EmptyState title="Could not load device" description="Failed to fetch device details." />
       )}
 
       {device && (
-        <div className="p-4 space-y-4">
-          {/* Device Info Card */}
-          <div className="bg-slate-900 rounded-lg p-4 space-y-2">
-            <h2 className="text-sm font-semibold text-slate-300 mb-2">Device Info</h2>
-            <InfoRow label="IP Address" value={device.ip} mono />
-            {device.model && <InfoRow label="Model" value={device.model} />}
-            {device.serialNumber && <InfoRow label="Serial Number" value={device.serialNumber} />}
-            <InfoRow label="Category" value={device.category || 'N/A'} />
-            <InfoRow label="Site" value={device.site || 'N/A'} />
-            {device.description && <InfoRow label="Description" value={device.description} />}
+        <div className="p-4 space-y-3">
+          {/* ── Header card ── */}
+          <div className="bg-slate-800 rounded-xl p-3.5 flex items-stretch gap-3">
+            {/* Icon */}
+            <div className="self-start pt-0.5">
+              <DeviceTypeIcon type={classifyDevice(device)} status={device.status} size={52} />
+            </div>
+
+            {/* Info column */}
+            <div
+              className="flex flex-col justify-center gap-1 min-w-0"
+              style={{ flex: '0 0 38%' }}
+            >
+              <p className="text-[15px] font-bold text-slate-100 truncate">{device.name}</p>
+              <p className="text-[11px] text-slate-400 font-mono">{device.ip}</p>
+              {device.category && (
+                <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="w-3 h-3 shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  </svg>
+                  {device.category}
+                </p>
+              )}
+              {device.site && (
+                <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="w-3 h-3 shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  </svg>
+                  {device.site}
+                </p>
+              )}
+              <p
+                className={`text-[10px] font-semibold flex items-center gap-1 ${STATUS_COLORS[device.status] ?? 'text-slate-500'}`}
+              >
+                <span className="w-2 h-2 rounded-full bg-current inline-block" />
+                {STATUS_LABELS[device.status] ?? device.status.toUpperCase()}
+              </p>
+            </div>
+
+            {/* Latency mini chart */}
+            <div className="flex-1 min-w-0">
+              <LatencyMiniChart deviceIndex={device.deviceIndex} deviceName={device.name} />
+            </div>
           </div>
 
-          {/* Maintenance */}
+          {/* ── Alarm summary bar ── */}
+          <div className="grid grid-cols-4">
+            {(
+              [
+                { label: 'HEALTHY', value: counts.green, color: 'text-green-500' },
+                { label: 'ACK', value: counts.blue, color: 'text-blue-400' },
+                { label: 'WARNING', value: counts.yellow + counts.orange, color: 'text-yellow-300' },
+                { label: 'CRITICAL', value: counts.red, color: 'text-red-400' },
+              ] as const
+            ).map((col, i) => (
+              <div
+                key={col.label}
+                className={`text-center ${i > 0 ? 'border-l border-slate-700' : ''}`}
+              >
+                <p className={`text-[26px] font-bold leading-none ${col.color}`}>{col.value}</p>
+                <p className={`text-[9px] font-semibold tracking-widest mt-0.5 ${col.color}`}>
+                  {col.label}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Maintenance Window card ── */}
           <button
             onClick={() => setShowMaintenance(true)}
-            className="w-full bg-slate-900 rounded-lg p-3 text-sm font-semibold text-sky-400 hover:bg-slate-800 transition-colors"
+            className="w-full bg-slate-800 rounded-xl py-3.5 text-sm font-medium text-sky-400 hover:bg-slate-700 transition-colors"
           >
-            Create Maintenance Window
+            + Create Maintenance Window
           </button>
 
           <MaintenanceDialog
@@ -67,49 +223,61 @@ export function DeviceDetailScreen() {
             username={config.ackUser}
             isOpen={showMaintenance}
             onClose={() => setShowMaintenance(false)}
-            onSubmit={(duration, comment) =>
-              createMaintenanceWindow(config, decodedName, duration, comment)
+            onSubmit={(dur, comment) =>
+              createMaintenanceWindow(config, decodedName, dur, comment)
             }
           />
 
-          {/* Host Current Issues */}
-          <div>
-            <h2 className="text-xs text-slate-500 uppercase tracking-wide font-semibold mb-2">
-              Current Issues
-            </h2>
+          {/* ── Host Information (collapsed by default) ── */}
+          <CollapsibleSection title="Host Information" defaultOpen={false}>
+            <InfoRow label="Current State" value={STATUS_LABELS[device.status] ?? device.status} />
+            {device.description && <InfoRow label="Type" value={device.description} />}
+            {device.category && <InfoRow label="Category" value={device.category} />}
+            {device.site && <InfoRow label="Site" value={device.site} />}
+            {device.model && <InfoRow label="Model" value={device.model} />}
+            {device.serialNumber && <InfoRow label="Serial Number" value={device.serialNumber} />}
+            <InfoRow label="UID" value={device.deviceIndex} mono />
+          </CollapsibleSection>
+
+          {/* ── Current Issues (expanded by default) ── */}
+          <CollapsibleSection
+            title="Current Issues"
+            badge={deviceIncidents.length}
+            defaultOpen={true}
+          >
             {deviceIncidents.length === 0 ? (
-              <div className="bg-slate-900 rounded-lg p-4 text-sm text-slate-400 text-center">
+              <div className="px-4 py-5 flex items-center justify-center gap-2 text-slate-400 text-sm">
+                <svg
+                  viewBox="0 0 24 24"
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M20 6L9 17l-5-5" />
+                </svg>
                 No current issues
               </div>
             ) : (
-              <div className="rounded-lg overflow-hidden">
-                {deviceIncidents.map((incident) => (
-                  <SwipeableIncidentRow key={incident.incidentId} incident={incident} />
+              <div>
+                {deviceIncidents.map((inc) => (
+                  <IssueRow key={inc.incidentId} incident={inc} />
                 ))}
               </div>
             )}
-          </div>
+          </CollapsibleSection>
 
-          {/* Performance */}
-          <PerformanceSection
-            deviceIndex={device.deviceIndex}
-            deviceName={device.name}
-          />
+          {/* ── Performance ── */}
+          <PerformanceSection deviceIndex={device.deviceIndex} deviceName={device.name} />
         </div>
       )}
 
       {!isLoading && !device && !isError && (
-        <EmptyState title="Device not found" description={`No device named '${decodedName}'.`} />
+        <EmptyState
+          title="Device not found"
+          description={`No device named '${decodedName}'.`}
+        />
       )}
-    </div>
-  );
-}
-
-function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="flex justify-between items-center text-sm">
-      <span className="text-slate-500">{label}</span>
-      <span className={`text-slate-200 ${mono ? 'font-mono' : ''}`}>{value}</span>
     </div>
   );
 }
