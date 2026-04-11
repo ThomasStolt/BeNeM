@@ -61,12 +61,10 @@ struct DeviceDetailView: View {
                 )
                 .frame(width: iconWidth)
 
-                // Middle column — name, IP, category, site
+                // Middle column — name, IP
                 VStack(alignment: .leading, spacing: 4) {
                     MarqueeText(text: device.name, font: .headline, fontWeight: .bold, color: .primary)
                     MarqueeText(text: device.ip, font: .subheadline, color: .secondary)
-                    MarqueeText(text: device.category, font: .subheadline, color: .secondary)
-                    MarqueeText(text: device.site, font: .subheadline, color: .secondary)
                 }
                 .frame(width: infoWidth, alignment: .leading)
 
@@ -195,8 +193,8 @@ struct DeviceDetailView: View {
                     infoRow("Current State", value: device.status.rawValue.uppercased(),
                             valueColor: statusColor(device.status))
                     infoRow("Type of Device", value: device.description)
-                    infoRow("Category", value: device.category)
-                    infoRow("Site", value: device.site)
+                    infoRowWithIcon("folder", value: device.category)
+                    infoRowWithIcon("building.2", value: device.site)
                     if let model = device.model {
                         infoRow("Model", value: model)
                     }
@@ -214,6 +212,21 @@ struct DeviceDetailView: View {
         .background(Color(.secondarySystemGroupedBackground))
         .cornerRadius(12)
         .padding(.horizontal, 16)
+    }
+
+    private func infoRowWithIcon(_ systemImage: String, value: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .frame(width: 14)
+            Text(value)
+                .font(.caption)
+                .foregroundColor(.primary)
+            Spacer()
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
     }
 
     private func infoRow(_ label: String, value: String, valueColor: Color = .primary) -> some View {
