@@ -21,9 +21,10 @@ to registered iOS devices (APNs) and Android/web users (Web Push).
 
 | File | Description |
 |---|---|
-| `main.py` | FastAPI app entry point. Defines `/register`, `/webhook`, `/health`, `/api/v1/incidents`, `/api/v1/tactical-overview`, `/internal/cache/reload` endpoints and the lifespan startup handler. |
+| `main.py` | FastAPI app entry point. Defines `/register`, `/webhook`, `/health`, `/api/v1/incidents`, `/api/v1/tactical-overview`, `/api/v1/threshold-counts`, `/internal/cache/reload` endpoints and the lifespan startup handler. |
 | `incident_cache.py` | Background incident cache: pre-fetches incidents + alarm details from BHNM, stores enriched results in memory, one asyncio.Task per enabled server with configurable pacing. |
 | `tactical_cache.py` | Background tactical overview cache: pre-fetches category/site/app grouping data from BHNM, stores raw JSON in memory. Same lifecycle as `incident_cache.py`. |
+| `threshold_cache.py` | Background threshold counts cache: pre-fetches `list-thresholds-csv` from BHNM, parses server-side, stores `{deviceName: count}` dict in memory. Reduces per-client payload from ~50 MB CSV to ~200 KB JSON at scale. |
 | `config.py` | Loads all configuration from environment variables (via `python-dotenv`). No secrets in code. |
 | `database.py` | SQLite helpers: `init_db`, `save_token`, `get_tokens_for_secret`, `get_all_tokens`, `delete_token`. |
 | `apns.py` | APNs delivery: JWT generation, HTTP/2 POST via `httpx`, stale token detection. |
@@ -36,7 +37,7 @@ to registered iOS devices (APNs) and Android/web users (Web Push).
 | `upgrade.sh` | Upgrade script: pulls latest code, rebuilds all containers, restarts services, health-checks bhnm-apns and benem-admin. |
 | `setup.sh` | Interactive shell wizard that generates `.env` from user prompts. |
 | `.env.example` | Template for `.env`. Committed to the repo — never commit `.env` itself. |
-| `VERSION` | Plain text file containing the current version (`2.4.0`). |
+| `VERSION` | Plain text file containing the current version (`2.6.0`). |
 | `bhnm-apns.service` | Systemd unit file (legacy, not used in Docker deployments). |
 
 ---

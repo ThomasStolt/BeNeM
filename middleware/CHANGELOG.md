@@ -5,6 +5,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.6.0] - 2026-04-12
+
+### Added
+
+- **Threshold counts cache** (`threshold_cache.py`) — new background cache module that pre-fetches `list-thresholds-csv` from BHNM once per refresh interval, parses the CSV server-side in Python, and stores `{deviceName: count}` per server. At 10 000 devices this reduces per-client payload from ~50 MB of raw CSV to ~200 KB of compact JSON.
+- **`GET /api/v1/threshold-counts`** — new cached endpoint that returns threshold counts as `{"cache_age_seconds": N, "counts": {"deviceName": count, ...}}`. Falls through to a live BHNM fetch (with server-side CSV parse) if the cache is cold. Activated by the same per-server `cache_enabled` toggle in the admin portal.
+- **`postFormText()` helper** in PWA client (`pwa/src/lib/api/client.ts`) for endpoints that return CSV or plain text instead of JSON.
+
+### Fixed
+
+- **Content-Length header stripped** when forwarding maintenance create requests to BHNM — prevents BHNM from rejecting requests whose content-length changed during proxy rewriting.
+
+---
+
+## [2.5.0] - 2026-04-09
+
+### Added
+
+- **Tactical overview background cache** (`tactical_cache.py`) — pre-fetches category/site/app grouping data from BHNM, stores raw JSON in memory; one asyncio.Task per enabled server with `cache_refresh_seconds` interval.
+- **`GET /api/v1/tactical-overview`** — cached tactical overview endpoint; falls through to live BHNM on cache miss.
+- **`POST /api/proxy/maintenance/create`** — middleware proxy that creates BHNM maintenance windows. Resolves BHNM credentials server-side so the PWA never sends the raw API key.
+- **Admin cache management** (benem-admin v1.6.0) — per-server cache toggle (enable/disable) and refresh interval input (60–900 s). Saving triggers `POST /internal/cache/reload` to restart the background loop.
+
+### Fixed
+
+- **Webhook payload parsing** — middleware now accepts both JSON and form-encoded webhook payloads and tries JSON parsing first regardless of `Content-Type`, preventing dropped notifications from BHNM servers that send incorrect content types.
+- **Server config resolution via BHNM URL** — when `X-Proxy-Token` is a webhook secret rather than an API key, the middleware now correctly resolves the server config via `X-BHNM-Target` header to obtain real BHNM credentials for cache fallthrough requests.
+- **Web push urgency** — `Urgency: high` header now set on all web push notifications, improving delivery reliability on Android.
+- **Incident cache fallthrough** — builds a correct form-encoded BHNM request when the cache is cold and the client sends a header-only GET.
+- **Cache lookup by BHNM URL** — `_server_id_for_bhnm_url()` now correctly resolves server IDs for both incident and tactical caches when the request includes an `X-BHNM-Target` header.
+
+---
+
 ## [2.4.0] - 2026-04-07
 
 ### Security

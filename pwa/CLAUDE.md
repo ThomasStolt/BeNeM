@@ -1,6 +1,6 @@
 # BHNM PWA
 
-React/TypeScript Progressive Web App (v0.7.0). Targets Android users via Web Push.
+React/TypeScript Progressive Web App (v0.8.0). Targets Android users via Web Push.
 iOS users are directed to the native app for reliable push notifications.
 
 > Part of the BeNeM monorepo. See `../CLAUDE.md` for cross-cutting rules,

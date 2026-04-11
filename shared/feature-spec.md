@@ -145,6 +145,7 @@ features defined here. Platform-specific behaviour is noted per feature.
 - v0.4.0: Window-based pagination with independent React Query entries per page
 - Debounced search input (300ms via useDeferredValue)
 - 120-second auto-refresh with RefreshCountdown
+- v0.8.0: `DeviceRow` redesigned — `DeviceTypeIcon` (status-coloured, 40 px), alarm badges (green/blue/yellow/orange/red from incident data), scrolling incident ticker at constant speed (visible only when active incidents exist, height preserved when empty)
 
 ### Feature: Device Detail
 **Status:** shipped-ios, shipped-pwa
@@ -185,8 +186,14 @@ features defined here. Platform-specific behaviour is noted per feature.
 #### PWA-specific
 - v0.4.0: Info card + filtered incidents using existing useIncidents hook
 - v0.5.0: PerformanceSection replaces placeholder; loads on category expand (no auto-load)
-- Alarm status badges deferred (no per-device H/S/T/A endpoint identified)
-- **Pending parity:** header card layout (name + IP + category/site with icons); maintenance window card order (currently above Current Issues — move to below)
+- v0.8.0: Full iOS parity for header card and screen layout:
+  - Centred device name (h1) + IP above the header card as screen title
+  - Header card: `DeviceTypeIcon` (52 px, status-coloured) · info column (category, site, status dot) · `LatencyMiniChart` (eager-loaded, fills remaining width; hidden if no latency data)
+  - Alarm summary bar: HEALTHY / ACK / WARNING / CRITICAL counts; greyed out (`text-slate-600`) when zero
+  - HEALTHY = `thresholds + ok_enabled_service_checks − active_incidents` (see Threshold Cache feature)
+  - Collapsible "Host Information" section (closed by default): Status, Description, Category, Site, Model, Serial, UID
+  - Collapsible "Current Issues" section (open by default, badge shows count): severity badge · summary (2-line clamp) · elapsed duration
+  - Maintenance Window card placed below the alarm bar (above Host Information)
 
 ### Feature: Tactical Drill-down
 **Status:** shipped-ios, shipped-pwa
@@ -204,6 +211,29 @@ features defined here. Platform-specific behaviour is noted per feature.
 #### PWA-specific
 - v0.4.0: Single parameterized TacticalGroupListScreen for all three group types
 - Filter button in header with active state indicator
+
+### Feature: Threshold Cache
+**Status:** shipped-pwa (middleware-side; iOS reads thresholds indirectly via incidents)
+**API:** `GET /api/v1/threshold-counts` (middleware), `POST /fw/index.php?r=restful/devices/list-thresholds-csv` (BHNM, server-side only)
+
+#### Behaviour
+
+- Middleware pre-fetches the BHNM threshold CSV once per `cache_refresh_seconds` interval and parses it server-side into a compact `{deviceName: count}` dictionary
+- PWA fetches `GET /api/v1/threshold-counts` — receives ~200 KB JSON regardless of environment size vs ~50 MB raw CSV at 10 K devices
+- Falls through to a live BHNM fetch (with server-side CSV parse) if the cache is cold
+- Activated by the same per-server `cache_enabled` toggle in the admin portal
+- `device_services` endpoint (`/fw/index.php?r=restful/devices/services`) called per-device on the detail screen for enabled+OK service check count
+
+#### Middleware
+- `threshold_cache.py` — same asyncio lifecycle as `incident_cache.py` and `tactical_cache.py`
+- `GET /api/v1/threshold-counts` — authenticated via `X-Proxy-Token` / `X-BHNM-Target`
+
+#### PWA-specific
+- v0.8.0: `useThresholds()` hook (10-min stale time, all devices), `useDeviceServices()` hook (5-min stale time, per device)
+- HEALTHY badge in device list rows: `thresholds − active_incidents`
+- HEALTHY column in device detail alarm bar: `thresholds + ok_service_checks − active_incidents`
+
+---
 
 ### Feature: Performance Charts
 **Status:** shipped-ios, shipped-pwa

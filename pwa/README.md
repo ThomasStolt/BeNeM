@@ -4,20 +4,21 @@ React/TypeScript Progressive Web App for BMC Helix Network Management (BHNM) inc
 
 Part of the BeNeM monorepo. See `../CLAUDE.md` for cross-cutting rules and `../shared/feature-spec.md` for the canonical feature list.
 
-## Current Version: 0.7.0
+## Current Version: 0.8.0
 
-### What's New in v0.7.0
+### What's New in v0.8.0
 
-- **iOS-style Dashboard** — summary cards (Active Incidents + Total Devices), step-through incident ticker with slide animation and page dots, iOS-style heat map status cards, full-width drill-down rows with icons, chain-link connection badge, circular refresh ring
-- **Settings iOS Parity** — QR-scanned servers lock fields to read-only (except Server Name and Push toggle), added User Name, BHNM URL, and Middleware URL fields, single save-with-test button, server switch confirmation dialog, delete button
-- **QR Scanning Fixes** — deferred scanner callback to prevent React crash, proper encryption key from BENEM_SECRET_KEY, duplicate detection by Server Name + BHNM URL + User Name
-- **Tab Bar on All Screens** — Settings added as 4th tab, persistent bottom navigation everywhere
-- **App Icon** — iOS app icon with handwritten "PWA" badge (Marker Felt)
-- **Error Boundary** — catches React render crashes and shows a reload prompt instead of a blank screen
-- **Proxy Auth** — all API calls now send X-Proxy-Token header for middleware authentication
+- **Device view iOS alignment (Phase 1)** — device list rows and detail screen now match the iOS native app:
+  - Device type icons (Linux/Tux, Windows, Router, Switch) in `shared/icons/` as canonical SVG assets; `DeviceTypeIcon` component colours the icon background by device status
+  - `DeviceRow` redesign — type icon on the left, alarm badges (green/blue/yellow/orange/red matching incident cards) on the right, scrolling incident ticker below the badges at constant speed
+  - `DeviceDetailScreen` — centred device name + IP as screen title; iOS-style header card (icon · category/site/status · latency mini chart); alarm summary bar (HEALTHY / ACK / WARNING / CRITICAL, greyed out when zero); collapsible "Host Information" (closed by default) and "Current Issues" sections with severity-badged incident table
+- **HEALTHY count** — computed per device as `thresholds + ok_service_checks − active_incidents`. Threshold counts fetched via a new middleware cache endpoint (`GET /api/v1/threshold-counts`) — the raw CSV is parsed server-side once per refresh interval rather than in every browser client
+- **Maintenance window improvements** — auto-generated timestamp prefix is read-only; 255-character total limit enforced in the UI
+- **SaaS compatibility** — PHP 8+ BHNM servers return `dev_index`, `category`, `site`, and other fields as integers; the PWA parser now accepts both integers and strings so performance charts and category/site labels work correctly on SaaS servers
 
 ### Previous Versions
 
+- **v0.7.0** — iOS-style Dashboard, Settings iOS parity, QR scanning fixes, tab bar on all screens, app icon, error boundary, proxy auth
 - **v0.6.0** — Performance charts, QR server onboarding, Web Push, localStorage encryption
 - **v0.5.0** — Inline performance charts in Device Detail with Recharts
 - **v0.4.0** — Device list, device detail, tactical drill-down views
