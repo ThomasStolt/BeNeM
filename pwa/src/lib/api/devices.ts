@@ -32,18 +32,26 @@ function coerceString(v: unknown): string {
   return typeof v === 'string' ? v : '';
 }
 
+// SaaS BHNM returns numeric fields (dev_index, category, site) as integers
+// rather than strings. This helper accepts both.
+function coerceStringOrNum(v: unknown): string {
+  if (typeof v === 'string' && v.length > 0) return v;
+  if (typeof v === 'number') return String(v);
+  return '';
+}
+
 function parseDevice(entry: Record<string, unknown>): Device | null {
   const name = coerceString(entry.name);
   if (!name) return null;
   return {
     name,
     ip: coerceString(entry.ip) || coerceString(entry.ip_address),
-    category: coerceString(entry.category),
-    site: coerceString(entry.site),
+    category: coerceStringOrNum(entry.category),
+    site: coerceStringOrNum(entry.site),
     model: coerceString(entry.model),
     serialNumber: coerceString(entry.serial_number) || coerceString(entry.serialNumber),
     description: coerceString(entry.description),
-    deviceIndex: coerceString(entry.dev_index) || coerceString(entry.deviceIndex),
+    deviceIndex: coerceStringOrNum(entry.dev_index) || coerceStringOrNum(entry.deviceIndex),
     status: coerceStatus(entry.status),
   };
 }

@@ -233,7 +233,8 @@ class NetreoAPIService: ObservableObject {
         let (data, _) = try await urlSession.data(for: request)
         guard let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
               let first = arr.first else { return nil }
-        return first["dev_index"] as? String
+        // SaaS BHNM returns dev_index as Int; on-prem returns String
+        return (first["dev_index"] as? String) ?? (first["dev_index"] as? Int).map(String.init)
     }
 
     func fetchPerformanceCategories(deviceId: String) async throws -> [PerformanceCategory] {
@@ -554,16 +555,17 @@ class NetreoAPIService: ObservableObject {
         let devIndex = (dict["dev_index"] as? String) ?? (dict["dev_index"] as? Int).map(String.init) ?? ""
         let name = dict["name"] as? String ?? ip
         let description = dict["description"] as? String ?? ""
-        let rawCategory = dict["category"] as? String ?? ""
+        // SaaS BHNM returns category, site, poll, monitor, create_time as integers
+        let rawCategory = (dict["category"] as? String) ?? (dict["category"] as? Int).map(String.init) ?? ""
         let category = resolveCategoryName(rawCategory)
-        let rawSite = dict["site"] as? String ?? ""
+        let rawSite = (dict["site"] as? String) ?? (dict["site"] as? Int).map(String.init) ?? ""
         let site = resolveSiteName(rawSite)
         let model = dict["model"] as? String
         let serialNumber = dict["serial_number"] as? String
-        let poll = (dict["poll"] as? String) == "1"
-        let monitor = (dict["monitor"] as? String) == "1"
+        let poll = (dict["poll"] as? String) == "1" || (dict["poll"] as? Int) == 1
+        let monitor = (dict["monitor"] as? String) == "1" || (dict["monitor"] as? Int) == 1
         let snmpVersion = dict["snmp_version"] as? String
-        let createTime = dict["create_time"] as? String
+        let createTime = (dict["create_time"] as? String) ?? (dict["create_time"] as? Int).map(String.init)
 
         let status: NetreoDevice.DeviceStatus = {
             if let color = (dict["alarm_color"] as? String)?.lowercased() {

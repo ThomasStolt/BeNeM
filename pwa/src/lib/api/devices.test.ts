@@ -23,6 +23,26 @@ describe('parseDeviceFindResponse', () => {
     expect(devices[0].deviceIndex).toBe('3');
   });
 
+  it('parses integer dev_index from SaaS server', () => {
+    const raw = [
+      {
+        results: [
+          {
+            name: 'saas-device',
+            ip: '10.0.0.1',
+            category: 19,
+            site: 3,
+            dev_index: 1,
+          },
+        ],
+      },
+    ];
+    const devices = parseDeviceFindResponse(raw);
+    expect(devices[0].deviceIndex).toBe('1');
+    expect(devices[0].category).toBe('19');
+    expect(devices[0].site).toBe('3');
+  });
+
   it('defaults deviceIndex to empty string when missing', () => {
     const raw = [
       {
