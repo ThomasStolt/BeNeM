@@ -151,19 +151,42 @@ features defined here. Platform-specific behaviour is noted per feature.
 **API:** `POST /fw/index.php?r=restful/devices/find`
 
 #### Behaviour (both platforms)
-- Device info card: IP, model, serial number, category, site, description
+
+**Header card** (top of screen, always visible):
+- Device name in bold
+- IP address below the name (non-bold)
+- Category below IP, prefixed with a folder icon
+- Site below category, prefixed with a building icon
+- Long values scroll horizontally (marquee) rather than truncating
+- On iOS: device type icon on the left; latency sparkline occupies the right ~60% of the card when data is available
+
+**Device info card** (collapsible):
+- Current state, type of device, model, serial number, SNMP version, UID
+- Does **not** repeat device name or IP (shown in header)
+- Category and site are shown in the header card, not repeated here
+
+**Screen layout order** (top to bottom):
+1. Header card (name, IP, category, site, optional sparkline)
+2. Alarm summary bar (H/S/T/A counts)
+3. Device info card (collapsible)
+4. **Create Maintenance Window** card — full-width tappable card, blue text (`#38bdf8` / sky-400), placed immediately below Current Issues
+5. Host Current Issues card (collapsible)
+6. Performance charts (expandable per category)
+
 - Host current issues: filtered from incident list by device name
-- Inline performance charts (v0.5.0): expandable category cards with Recharts line/area charts
+- Inline performance charts: expandable category cards
 - Performance data: category discovery → instance filtering → timeseries batch fetch (Last 24 Hours)
 
 #### iOS-specific
 - Per-device alarm status via get-host-and-service-status
-- Auto-loads latency/CPU on open; mini header sparkline
+- Auto-loads latency/CPU on open; mini latency sparkline in header card (right 60%)
+- `MarqueeText` component handles horizontal scrolling of long names
 
 #### PWA-specific
 - v0.4.0: Info card + filtered incidents using existing useIncidents hook
 - v0.5.0: PerformanceSection replaces placeholder; loads on category expand (no auto-load)
 - Alarm status badges deferred (no per-device H/S/T/A endpoint identified)
+- **Pending parity:** header card layout (name + IP + category/site with icons); maintenance window card order (currently above Current Issues — move to below)
 
 ### Feature: Tactical Drill-down
 **Status:** shipped-ios, shipped-pwa
@@ -209,6 +232,9 @@ features defined here. Platform-specific behaviour is noted per feature.
 **API:** Middleware `POST /api/proxy/maintenance/create` → BHNM `POST /api/maint_window_api.php`
 
 #### Behaviour (both platforms)
+
+**Entry point**
+- A full-width tappable card labelled "Create Maintenance Window" with blue text (`#38bdf8` / sky-400) is shown on the device detail screen, immediately below the Host Current Issues card.
 
 **Creating a window**
 - User selects a duration and optionally types a note, then taps Create.
