@@ -5,11 +5,15 @@ struct MaintenanceWindowSheet: View {
     let apiService: NetreoAPIService
     let onDismiss: () -> Void
 
+    @AppStorage("netreo_ack_user") private var ackUser = ""
+
     @State private var selectedDuration: DurationOption = .oneHour
     @State private var customMinutes: String = "60"
-    @State private var comment: String = ""
+    @State private var userNote: String = ""
     @State private var isCreating = false
     @State private var showResult: ResultType?
+
+    private let prefix: String
 
     enum DurationOption: String, CaseIterable {
         case oneHour = "1h"
@@ -40,14 +44,21 @@ struct MaintenanceWindowSheet: View {
         self.deviceName = deviceName
         self.apiService = apiService
         self.onDismiss = onDismiss
+
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        _comment = State(initialValue: "set by api_user on \(formatter.string(from: Date()))")
+        let stamp = formatter.string(from: Date())
+        let user = UserDefaults.standard.string(forKey: "netreo_ack_user") ?? ""
+        self.prefix = "Created by \(user.isEmpty ? "unknown" : user) on \(stamp): "
     }
 
     private var durationMinutes: Int {
         if let fixed = selectedDuration.minutes { return fixed }
         return Int(customMinutes) ?? 60
+    }
+
+    private var remaining: Int {
+        max(0, 255 - prefix.count - userNote.count)
     }
 
     var body: some View {
@@ -87,8 +98,22 @@ struct MaintenanceWindowSheet: View {
                     }
                 }
 
-                Section("Description") {
-                    TextField("Description", text: $comment)
+                Section {
+                    Text(prefix)
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    TextField("optional note…", text: $userNote)
+                        .onChange(of: userNote) { _, new in
+                            let limit = 255 - prefix.count
+                            if new.count > limit {
+                                userNote = String(new.prefix(limit))
+                            }
+                        }
+                } header: {
+                    Text("Description")
+                } footer: {
+                    Text("\(remaining) left")
+                        .foregroundColor(remaining <= 20 ? .yellow : .secondary)
                 }
             }
             .navigationTitle("Create Maintenance Window")
@@ -130,6 +155,7 @@ struct MaintenanceWindowSheet: View {
         isCreating = true
         defer { isCreating = false }
         do {
+            let comment = prefix + userNote
             let success = try await apiService.createMaintenanceWindow(
                 deviceName: deviceName,
                 durationMinutes: durationMinutes,
