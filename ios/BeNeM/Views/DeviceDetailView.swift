@@ -85,6 +85,7 @@ struct DeviceDetailView: View {
                     .frame(width: chartWidth)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(GeometryReader { geo in
             Color.clear.onAppear { headerInnerWidth = geo.size.width }
         })
