@@ -1,0 +1,11 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+  <!-- Body -->
+  <ellipse cx="12" cy="16.5" rx="6" ry="5.5"/>
+  <!-- Head -->
+  <ellipse cx="12" cy="7.5" rx="5" ry="5.5"/>
+  <!-- Wings -->
+  <ellipse cx="5.5" cy="13" rx="2.5" ry="4" transform="rotate(-10 5.5 13)"/>
+  <ellipse cx="18.5" cy="13" rx="2.5" ry="4" transform="rotate(10 18.5 13)"/>
+  <!-- Feet -->
+  <path d="M9 22 L7.5 24 M9 22 L10 24 M15 22 L13.5 24 M15 22 L16 24"/>
+</svg>
