@@ -17,6 +17,7 @@ struct DeviceDetailView: View {
                 alarmBar
                 hostInfoSection(device)
                 issuesSection
+                maintenanceCard
                 if device.typeClass.isServer {
                     serverUtilizationSection
                 }
@@ -30,15 +31,6 @@ struct DeviceDetailView: View {
         .navigationTitle(device.name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.load() }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showMaintenanceSheet = true
-                } label: {
-                    Label("Maintenance", systemImage: "wrench.and.screwdriver")
-                }
-            }
-        }
         .sheet(isPresented: $showMaintenanceSheet) {
             MaintenanceWindowSheet(
                 deviceName: device.name,
@@ -238,6 +230,24 @@ struct DeviceDetailView: View {
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 8)
+    }
+
+    // MARK: - Maintenance Window Card
+
+    private var maintenanceCard: some View {
+        Button {
+            showMaintenanceSheet = true
+        } label: {
+            Text("Create Maintenance Window")
+                .font(.subheadline).fontWeight(.semibold)
+                .foregroundColor(Color(red: 0.22, green: 0.74, blue: 0.98)) // sky-400 #38bdf8
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color(.secondarySystemGroupedBackground))
+                .cornerRadius(12)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
     }
 
     // MARK: - Current Issues (collapsible card, open by default)
