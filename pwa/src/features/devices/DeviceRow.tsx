@@ -19,6 +19,9 @@ export function DeviceRow({ device, alarmSummary }: DeviceRowProps) {
   const summaries = alarmSummary?.activeSummaries ?? [];
   const hasTicker = summaries.length > 0;
   const tickerText = summaries.join(' · ');
+  // Keep scroll speed constant (~20 chars/s) regardless of how many incidents there are.
+  // Minimum 6s so a single short summary doesn't flash past.
+  const tickerDuration = `${Math.max(6, tickerText.length / 20)}s`;
 
   return (
     <Link
@@ -54,7 +57,11 @@ export function DeviceRow({ device, alarmSummary }: DeviceRowProps) {
                   'linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)',
               }}
             >
-              <div className="flex w-max animate-marquee motion-reduce:animate-none" aria-hidden="true">
+              <div
+                className="flex w-max motion-reduce:animate-none"
+                style={{ animation: `marquee ${tickerDuration} linear infinite` }}
+                aria-hidden="true"
+              >
                 <span className="text-[10px] whitespace-nowrap pr-8 text-red-400">
                   {tickerText}
                 </span>
