@@ -5,8 +5,6 @@ struct MaintenanceWindowSheet: View {
     let apiService: NetreoAPIService
     let onDismiss: () -> Void
 
-    @AppStorage("netreo_ack_user") private var ackUser = ""
-
     @State private var selectedDuration: DurationOption = .oneHour
     @State private var customMinutes: String = "60"
     @State private var userNote: String = ""
