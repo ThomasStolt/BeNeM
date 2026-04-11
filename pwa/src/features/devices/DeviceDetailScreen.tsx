@@ -64,6 +64,7 @@ export function DeviceDetailScreen() {
 
           <MaintenanceDialog
             deviceName={decodedName}
+            username={config.ackUser}
             isOpen={showMaintenance}
             onClose={() => setShowMaintenance(false)}
             onSubmit={(duration, comment) =>

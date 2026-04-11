@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 interface MaintenanceDialogProps {
   deviceName: string;
+  username: string;
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (durationMinutes: number, comment: string) => Promise<void>;
@@ -15,20 +16,22 @@ const DURATION_OPTIONS = [
   { label: '7d', minutes: 10080 },
 ] as const;
 
-function defaultComment(): string {
+function buildPrefix(username: string): string {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  return `set by api_user on ${stamp}`;
+  return `Created by ${username || 'unknown'} on ${stamp}: `;
 }
 
-export function MaintenanceDialog({ deviceName, isOpen, onClose, onSubmit }: MaintenanceDialogProps) {
+export function MaintenanceDialog({ deviceName, username, isOpen, onClose, onSubmit }: MaintenanceDialogProps) {
   const [selectedMinutes, setSelectedMinutes] = useState(60);
   const [isCustom, setIsCustom] = useState(false);
   const [customMinutes, setCustomMinutes] = useState('60');
-  const [comment, setComment] = useState(defaultComment);
+  const [userComment, setUserComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const prefix = isOpen ? buildPrefix(username) : '';
 
   if (!isOpen) return null;
 
@@ -40,7 +43,7 @@ export function MaintenanceDialog({ deviceName, isOpen, onClose, onSubmit }: Mai
     setIsSubmitting(true);
     setError(null);
     try {
-      await onSubmit(durationMinutes, comment);
+      await onSubmit(durationMinutes, prefix + userComment);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create maintenance window.');
@@ -103,12 +106,16 @@ export function MaintenanceDialog({ deviceName, isOpen, onClose, onSubmit }: Mai
 
         <div>
           <label className="text-xs text-slate-500 uppercase tracking-wide font-semibold">Description</label>
-          <input
-            type="text"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            className="mt-2 w-full bg-slate-800 border border-slate-700 text-slate-200 rounded px-3 py-2 text-sm"
-          />
+          <div className="mt-2 w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm flex flex-wrap items-baseline gap-x-0">
+            <span className="text-slate-500 select-none whitespace-pre shrink-0">{prefix}</span>
+            <input
+              type="text"
+              value={userComment}
+              onChange={(e) => setUserComment(e.target.value)}
+              placeholder="optional note…"
+              className="flex-1 min-w-0 bg-transparent text-slate-200 outline-none placeholder:text-slate-600"
+            />
+          </div>
         </div>
 
         {error && (
