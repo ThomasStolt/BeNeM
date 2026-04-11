@@ -100,5 +100,6 @@ describe('DeviceListScreen', () => {
     renderScreen();
     const input = screen.getByPlaceholderText('Search devices by name...');
     await userEvent.type(input, 'raspi');
+    expect(screen.getByText('raspi-054')).toBeInTheDocument();
   });
 });

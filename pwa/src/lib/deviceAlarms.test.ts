@@ -81,4 +81,11 @@ describe('buildDeviceAlarmMap', () => {
     const map = buildDeviceAlarmMap([incident({ deviceName: null })]);
     expect(map.size).toBe(0);
   });
+
+  it('counts informational active as blue', () => {
+    const map = buildDeviceAlarmMap([incident({ severity: 'informational', status: 'active' })]);
+    expect(map.get('host-a')?.counts.blue).toBe(1);
+    expect(map.get('host-a')?.counts.red).toBe(0);
+    expect(map.get('host-a')?.counts.green).toBe(0);
+  });
 });

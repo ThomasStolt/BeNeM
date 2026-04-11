@@ -1,4 +1,4 @@
-import { useState, useDeferredValue } from 'react';
+import { useState, useDeferredValue, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useConfig } from '../../lib/config';
 import { useDevices, PAGE_SIZE } from './useDevices';
@@ -18,7 +18,10 @@ export function DeviceListScreen() {
   const { data: result, isLoading, isError, error, dataUpdatedAt } = useDevices(page);
   const { data: searchResults, isFetching: isSearching } = useDeviceSearch(deferredQuery);
   const { data: allIncidents } = useIncidents();
-  const deviceAlarmMap = buildDeviceAlarmMap(allIncidents ?? []);
+  const deviceAlarmMap = useMemo(
+    () => buildDeviceAlarmMap(allIncidents ?? []),
+    [allIncidents],
+  );
 
   const devices = result?.devices;
   const totalRecords = result?.totalRecords ?? 0;

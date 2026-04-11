@@ -43,24 +43,28 @@ export function DeviceRow({ device, alarmSummary }: DeviceRowProps) {
       <div className="flex-1 min-w-0 flex flex-col justify-between items-end gap-1">
         <AlarmBadges counts={counts} />
         {hasTicker ? (
-          <div
-            className="w-full overflow-hidden"
-            style={{
-              maskImage:
-                'linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)',
-              WebkitMaskImage:
-                'linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)',
-            }}
-          >
-            <div className="flex w-max animate-marquee" aria-hidden="true">
-              <span className="text-[10px] whitespace-nowrap pr-8 text-red-400">
-                {tickerText}
-              </span>
-              <span className="text-[10px] whitespace-nowrap pr-8 text-red-400" aria-hidden="true">
-                {tickerText}
-              </span>
+          <>
+            <div
+              className="w-full overflow-hidden"
+              aria-hidden="true"
+              style={{
+                maskImage:
+                  'linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)',
+                WebkitMaskImage:
+                  'linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)',
+              }}
+            >
+              <div className="flex w-max animate-marquee motion-reduce:animate-none" aria-hidden="true">
+                <span className="text-[10px] whitespace-nowrap pr-8 text-red-400">
+                  {tickerText}
+                </span>
+                <span className="text-[10px] whitespace-nowrap pr-8 text-red-400" aria-hidden="true">
+                  {tickerText}
+                </span>
+              </div>
             </div>
-          </div>
+            <span className="sr-only">{tickerText}</span>
+          </>
         ) : (
           <div className="h-[14px]" />
         )}
