@@ -27,6 +27,7 @@ export default {
         },
       },
       animation: {
+        // marquee has a utility class; slide animations use arbitrary-value syntax elsewhere
         marquee: 'marquee 14s linear infinite',
       },
     },
