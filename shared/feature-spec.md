@@ -204,6 +204,75 @@ features defined here. Platform-specific behaviour is noted per feature.
 - Recharts AreaChart (single series) / LineChart (multi-series) with dark theme
 - React Query hooks: 5-min stale for categories/instances, 60s for timeseries
 
+### Feature: Maintenance Windows
+**Status:** shipped-pwa
+**API:** Middleware `POST /api/proxy/maintenance/create` → BHNM `POST /api/maint_window_api.php`
+
+#### Behaviour (both platforms)
+
+**Creating a window**
+- User selects a duration and optionally types a note, then taps Create.
+- Preset durations: 1 h, 6 h, 12 h, 24 h, 7 d. A "Custom" option allows entering an arbitrary number of minutes (minimum 1).
+- The middleware computes:
+  - `start_time` = `now + 900` (UTC epoch seconds — 15 minutes in the future, matching BHNM's expectation)
+  - `end_time` = `start_time + (duration_minutes × 60)`
+- The middleware posts to BHNM with `action=new`, `name` (device name), `start_time`, `end_time`, `comment`, and `password` (api_key resolved server-side — the client does **not** send the key).
+- On success BHNM returns `{"result":"success"}`. On failure it returns `{"result":"error","detail":"..."}`, which the middleware surfaces as HTTP 200 with an error body (not a 5xx); the client checks `result === "error"` and shows the message.
+
+**Description / comment field**
+- The description is always prefixed with a **non-editable** stamp:
+  ```
+  Created by <ackUser> on YYYY-MM-DD HH:MM: 
+  ```
+  - `<ackUser>` is the "User Name" field from the active server configuration (falls back to `"unknown"` if blank).
+  - Timestamp is the **local wall-clock time** at the moment the dialog opens (not at submit), formatted `YYYY-MM-DD HH:MM` (zero-padded, 24 h).
+  - The trailing `: ` (colon + space) is part of the prefix so the optional user note reads naturally.
+- The user may type additional free text after the prefix. This portion is optional.
+- **Hard limit: the full comment string (prefix + user note) must not exceed 255 characters.** The editable field enforces `maxLength = 255 − prefix.length`. A character counter is shown; it turns amber when ≤ 20 characters remain.
+
+**Middleware proxy contract**
+
+Client → middleware (`POST /api/proxy/maintenance/create`, form-encoded):
+
+| Field | Type | Notes |
+|---|---|---|
+| `name` | string | Device name (required) |
+| `duration` | integer | Duration in minutes ≥ 1 (required) |
+| `comment` | string | Full comment string, max 255 chars |
+
+Authentication: `X-Proxy-Token` header (webhook secret) or `X-BHNM-Target` header. The middleware resolves the BHNM api_key server-side; the client never sends it.
+
+Middleware → BHNM (`POST /api/maint_window_api.php`, form-encoded):
+
+| Field | Value |
+|---|---|
+| `password` | BHNM api_key (resolved by middleware) |
+| `action` | `new` |
+| `name` | device name |
+| `start_time` | Unix epoch (now + 900 s) |
+| `end_time` | Unix epoch (start_time + duration_minutes × 60) |
+| `comment` | full comment string |
+
+**Important:** the middleware strips the client's `Content-Length` header before forwarding its own body to BHNM, because the body is reconstructed (not forwarded verbatim). Failing to do this causes `h11 LocalProtocolError: Too much data for declared Content-Length`.
+
+#### iOS-specific
+- Show a sheet or modal from the Device Detail screen with the same fields.
+- Username: read from the `ackUser` property of the active `BHNMServer` configuration.
+- Build the non-editable prefix using `DateFormatter` or `String(format:)` with local calendar; match format `YYYY-MM-DD HH:MM` (24 h, zero-padded).
+- Enforce the 255-character total limit: compute `maxLength = 255 - prefix.count` and apply it to the `TextField` / `UITextField`.
+- Show a character counter label; highlight it (e.g. orange) when ≤ 20 characters remain.
+- Call `NetreoAPIService.createMaintenanceWindow(deviceName:durationMinutes:comment:)` (to be implemented), which posts to `/api/proxy/maintenance/create`.
+- The success/error response JSON from BHNM is proxied verbatim; check `result == "success"` vs `result == "error"`.
+
+#### PWA-specific
+- `MaintenanceDialog` component (`src/features/devices/MaintenanceDialog.tsx`).
+- `username` prop comes from `config.ackUser` (via `useConfig()`).
+- `buildPrefix(username)` constructs the stamp at dialog open time (captured in component state via `isOpen` guard).
+- Comment submitted as `prefix + userComment`.
+- API call via `createMaintenanceWindow()` in `src/lib/api/maintenance.ts`.
+
+---
+
 ### Feature: QR Server Onboarding
 **Status:** shipped-ios, shipped-pwa
 
