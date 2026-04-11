@@ -105,13 +105,19 @@ export function MaintenanceDialog({ deviceName, username, isOpen, onClose, onSub
         </div>
 
         <div>
-          <label className="text-xs text-slate-500 uppercase tracking-wide font-semibold">Description</label>
-          <div className="mt-2 w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm flex flex-wrap items-baseline gap-x-0">
+          <div className="flex items-baseline justify-between mb-1">
+            <label className="text-xs text-slate-500 uppercase tracking-wide font-semibold">Description</label>
+            <span className={`text-xs tabular-nums ${255 - prefix.length - userComment.length <= 20 ? 'text-amber-400' : 'text-slate-600'}`}>
+              {255 - prefix.length - userComment.length} left
+            </span>
+          </div>
+          <div className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm flex flex-wrap items-baseline gap-x-0">
             <span className="text-slate-500 select-none whitespace-pre shrink-0">{prefix}</span>
             <input
               type="text"
               value={userComment}
               onChange={(e) => setUserComment(e.target.value)}
+              maxLength={255 - prefix.length}
               placeholder="optional note…"
               className="flex-1 min-w-0 bg-transparent text-slate-200 outline-none placeholder:text-slate-600"
             />
