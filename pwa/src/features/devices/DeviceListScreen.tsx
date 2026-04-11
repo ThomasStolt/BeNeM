@@ -6,6 +6,8 @@ import { useDeviceSearch } from './useDeviceSearch';
 import { DeviceRow } from './DeviceRow';
 import { RefreshCountdown } from '../../components/RefreshCountdown';
 import { EmptyState } from '../../components/EmptyState';
+import { useIncidents } from '../incidents/useIncidents';
+import { buildDeviceAlarmMap } from '../../lib/deviceAlarms';
 
 export function DeviceListScreen() {
   const config = useConfig();
@@ -15,6 +17,8 @@ export function DeviceListScreen() {
 
   const { data: result, isLoading, isError, error, dataUpdatedAt } = useDevices(page);
   const { data: searchResults, isFetching: isSearching } = useDeviceSearch(deferredQuery);
+  const { data: allIncidents } = useIncidents();
+  const deviceAlarmMap = buildDeviceAlarmMap(allIncidents ?? []);
 
   const devices = result?.devices;
   const totalRecords = result?.totalRecords ?? 0;
@@ -95,7 +99,11 @@ export function DeviceListScreen() {
           {displayDevices && displayDevices.length > 0 && (
             <div>
               {displayDevices.map((device) => (
-                <DeviceRow key={device.name} device={device} />
+                <DeviceRow
+                  key={device.name}
+                  device={device}
+                  alarmSummary={deviceAlarmMap.get(device.name)}
+                />
               ))}
             </div>
           )}

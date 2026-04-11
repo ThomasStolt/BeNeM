@@ -21,9 +21,13 @@ vi.mock('../../../lib/config', () => ({
     isConfigured: true,
   }),
 }));
+vi.mock('../../incidents/useIncidents', () => ({
+  useIncidents: vi.fn(),
+}));
 
 import { useDevices } from '../useDevices';
 import { useDeviceSearch } from '../useDeviceSearch';
+import { useIncidents } from '../../incidents/useIncidents';
 
 const mockDevices = [
   { name: 'raspi-054', ip: '192.168.1.54', category: 'Linux', site: 'Home', model: '', serialNumber: '', description: '', deviceIndex: '', status: 'up' as const },
@@ -54,6 +58,9 @@ describe('DeviceListScreen', () => {
       isLoading: false,
       isFetching: false,
     } as unknown as ReturnType<typeof useDeviceSearch>);
+    vi.mocked(useIncidents).mockReturnValue({
+      data: [],
+    } as unknown as ReturnType<typeof useIncidents>);
   });
 
   it('renders device rows', () => {
