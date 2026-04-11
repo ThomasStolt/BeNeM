@@ -33,13 +33,13 @@ function MiniChartSvg({ points }: MiniChartSvgProps) {
     v >= 1000 ? `${(v / 1000).toFixed(1)}s` : `${Math.round(v)}ms`;
 
   return (
-    <div className="flex flex-col h-full min-w-0">
+    <div className="flex flex-col min-w-0 w-full" style={{ height: '64px' }}>
       <span className="text-[10px] text-slate-500 text-right mb-0.5">Latency</span>
-      <div className="flex-1 relative">
+      <div className="flex-1 relative min-h-0">
         <svg
           viewBox={`0 0 ${W} ${H}`}
           preserveAspectRatio="none"
-          className="w-full h-full"
+          style={{ width: '100%', height: '100%', display: 'block' }}
         >
           <path d={areaPath} fill="#0ea5e9" fillOpacity="0.15" />
           <path d={linePath} fill="none" stroke="#0ea5e9" strokeWidth="2" />

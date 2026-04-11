@@ -144,20 +144,21 @@ export function DeviceDetailScreen() {
 
       {device && (
         <div className="p-4 space-y-3">
+          {/* ── Screen title ── */}
+          <div>
+            <h1 className="text-xl font-bold text-slate-100 truncate">{device.name}</h1>
+            <p className="text-sm text-slate-400 font-mono mt-0.5">{device.ip}</p>
+          </div>
+
           {/* ── Header card ── */}
-          <div className="bg-slate-800 rounded-xl p-3.5 flex items-stretch gap-3">
+          <div className="bg-slate-800 rounded-xl p-3.5 flex items-center gap-3" style={{ minHeight: '80px' }}>
             {/* Icon */}
-            <div className="self-start pt-0.5">
+            <div className="self-center shrink-0">
               <DeviceTypeIcon type={classifyDevice(device)} status={device.status} size={52} />
             </div>
 
             {/* Info column */}
-            <div
-              className="flex flex-col justify-center gap-1 min-w-0"
-              style={{ flex: '0 0 38%' }}
-            >
-              <p className="text-[15px] font-bold text-slate-100 truncate">{device.name}</p>
-              <p className="text-[11px] text-slate-400 font-mono">{device.ip}</p>
+            <div className="flex flex-col justify-center gap-1 min-w-0" style={{ flex: '0 0 38%' }}>
               {device.category && (
                 <p className="text-[11px] text-slate-400 flex items-center gap-1">
                   <svg
@@ -194,32 +195,33 @@ export function DeviceDetailScreen() {
               </p>
             </div>
 
-            {/* Latency mini chart */}
-            <div className="flex-1 min-w-0">
+            {/* Latency mini chart — flex-1 always reserves the column */}
+            <div className="flex-1 min-w-0 self-stretch">
               <LatencyMiniChart deviceIndex={device.deviceIndex} deviceName={device.name} />
             </div>
           </div>
 
           {/* ── Alarm summary bar ── */}
           <div className="grid grid-cols-4">
-            {(
-              [
-                { label: 'HEALTHY', value: counts.green, color: 'text-green-500' },
-                { label: 'ACK', value: counts.blue, color: 'text-blue-400' },
-                { label: 'WARNING', value: counts.yellow + counts.orange, color: 'text-yellow-300' },
-                { label: 'CRITICAL', value: counts.red, color: 'text-red-400' },
-              ] as const
-            ).map((col, i) => (
-              <div
-                key={col.label}
-                className={`text-center ${i > 0 ? 'border-l border-slate-700' : ''}`}
-              >
-                <p className={`text-[26px] font-bold leading-none ${col.color}`}>{col.value}</p>
-                <p className={`text-[9px] font-semibold tracking-widest mt-0.5 ${col.color}`}>
-                  {col.label}
-                </p>
-              </div>
-            ))}
+            {[
+              { label: 'HEALTHY', value: counts.green, activeColor: 'text-green-500' },
+              { label: 'ACK', value: counts.blue, activeColor: 'text-blue-400' },
+              { label: 'WARNING', value: counts.yellow + counts.orange, activeColor: 'text-yellow-300' },
+              { label: 'CRITICAL', value: counts.red, activeColor: 'text-red-400' },
+            ].map((col, i) => {
+              const color = col.value === 0 ? 'text-slate-600' : col.activeColor;
+              return (
+                <div
+                  key={col.label}
+                  className={`text-center ${i > 0 ? 'border-l border-slate-700' : ''}`}
+                >
+                  <p className={`text-[26px] font-bold leading-none ${color}`}>{col.value}</p>
+                  <p className={`text-[9px] font-semibold tracking-widest mt-0.5 ${color}`}>
+                    {col.label}
+                  </p>
+                </div>
+              );
+            })}
           </div>
 
           {/* ── Maintenance Window card ── */}
