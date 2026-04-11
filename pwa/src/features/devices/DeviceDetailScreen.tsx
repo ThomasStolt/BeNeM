@@ -145,7 +145,7 @@ export function DeviceDetailScreen() {
       {device && (
         <div className="p-4 space-y-3">
           {/* ── Screen title ── */}
-          <div>
+          <div className="text-center">
             <h1 className="text-xl font-bold text-slate-100 truncate">{device.name}</h1>
             <p className="text-sm text-slate-400 font-mono mt-0.5">{device.ip}</p>
           </div>
