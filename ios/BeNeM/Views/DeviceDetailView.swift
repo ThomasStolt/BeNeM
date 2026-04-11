@@ -45,49 +45,40 @@ struct DeviceDetailView: View {
     private func headerSection(_ device: NetreoDevice) -> some View {
         let hasLatency = viewModel.latencyStates.first.map { !$0.data.isEmpty } ?? false
 
-        return GeometryReader { geo in
-            let iconWidth: CGFloat = 60
-            let spacing: CGFloat = 8
-            let contentWidth = geo.size.width - iconWidth - spacing
-            let infoWidth = hasLatency ? contentWidth * 0.42 : contentWidth
-            let chartWidth = contentWidth - infoWidth - spacing
+        return HStack(spacing: 8) {
+            // Left column — device type icon
+            DeviceTypeIcon(
+                typeClass: device.typeClass,
+                size: 56,
+                color: statusColor(device.status)
+            )
+            .frame(width: 60)
 
-            HStack(spacing: spacing) {
-                // Left column — device type icon
-                DeviceTypeIcon(
-                    typeClass: device.typeClass,
-                    size: 56,
-                    color: statusColor(device.status)
-                )
-                .frame(width: iconWidth)
-
-                // Middle column — name, IP, category, site
-                VStack(alignment: .leading, spacing: 4) {
-                    MarqueeText(text: device.name, font: .headline, fontWeight: .bold, color: .primary)
-                    MarqueeText(text: device.ip, font: .subheadline, color: .secondary)
-                    HStack(spacing: 4) {
-                        Image(systemName: "folder")
-                            .font(.caption2).foregroundColor(.secondary)
-                        Text(device.category)
-                            .font(.caption).foregroundColor(.secondary)
-                    }
-                    HStack(spacing: 4) {
-                        Image(systemName: "building.2")
-                            .font(.caption2).foregroundColor(.secondary)
-                        Text(device.site)
-                            .font(.caption).foregroundColor(.secondary)
-                    }
+            // Middle column — name, IP, category, site
+            VStack(alignment: .leading, spacing: 4) {
+                MarqueeText(text: device.name, font: .headline, fontWeight: .bold, color: .primary)
+                MarqueeText(text: device.ip, font: .subheadline, color: .secondary)
+                HStack(spacing: 4) {
+                    Image(systemName: "folder")
+                        .font(.caption2).foregroundColor(.secondary)
+                        .frame(width: 12)
+                    MarqueeText(text: device.category, font: .caption, color: .secondary)
                 }
-                .frame(width: infoWidth, alignment: .leading)
-
-                // Right column — mini latency chart
-                if let firstLatency = viewModel.latencyStates.first, !firstLatency.data.isEmpty {
-                    miniLatencyChart(data: firstLatency.data)
-                        .frame(width: chartWidth)
+                HStack(spacing: 4) {
+                    Image(systemName: "building.2")
+                        .font(.caption2).foregroundColor(.secondary)
+                        .frame(width: 12)
+                    MarqueeText(text: device.site, font: .caption, color: .secondary)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Right column — mini latency chart
+            if hasLatency, let firstLatency = viewModel.latencyStates.first {
+                miniLatencyChart(data: firstLatency.data)
+                    .frame(width: 110)
+            }
         }
-        .frame(height: 110)
         .padding(.vertical, 16)
         .padding(.horizontal, 12)
         .background(Color(.secondarySystemGroupedBackground))
