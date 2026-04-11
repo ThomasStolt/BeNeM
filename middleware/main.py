@@ -619,7 +619,7 @@ async def proxy_maintenance_create(request: Request):
 
     forward_headers = {
         k: v for k, v in request.headers.items()
-        if k.lower() not in HOP_BY_HOP_REQUEST
+        if k.lower() not in HOP_BY_HOP_REQUEST and k.lower() != "content-length"
     }
     forward_headers["content-type"] = "application/x-www-form-urlencoded"
 
