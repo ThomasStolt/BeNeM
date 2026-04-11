@@ -49,6 +49,7 @@ describe('parseDevicesResponse', () => {
       serialNumber: 'ABC123',
       description: 'Raspberry Pi',
       deviceIndex: '',
+      status: '',
     });
     expect(result.devices[1]).toEqual({
       name: 'core-switch',
@@ -59,6 +60,7 @@ describe('parseDevicesResponse', () => {
       serialNumber: '',
       description: '',
       deviceIndex: '',
+      status: '',
     });
   });
 
