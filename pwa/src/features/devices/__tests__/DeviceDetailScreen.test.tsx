@@ -35,6 +35,7 @@ const mockDevice = {
   serialNumber: 'ABC123',
   description: 'Test Pi',
   deviceIndex: '3',
+  status: 'up' as const,
 };
 
 function renderDetail(deviceName: string) {

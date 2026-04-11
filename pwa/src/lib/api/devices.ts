@@ -1,6 +1,21 @@
 import { postForm } from './client';
 import type { BhnmConfig } from '../config';
 
+export type DeviceStatus = 'up' | 'down' | 'warning' | 'critical' | 'unknown' | 'maintenance';
+
+const STATUS_MAP: Record<string, DeviceStatus> = {
+  up: 'up', UP: 'up',
+  down: 'down', DOWN: 'down',
+  warning: 'warning', WARNING: 'warning',
+  critical: 'critical', CRITICAL: 'critical',
+  maintenance: 'maintenance', MAINTENANCE: 'maintenance',
+};
+
+function coerceStatus(v: unknown): DeviceStatus {
+  if (typeof v === 'string') return STATUS_MAP[v] ?? 'unknown';
+  return 'unknown';
+}
+
 export interface Device {
   name: string;
   ip: string;
@@ -10,7 +25,7 @@ export interface Device {
   serialNumber: string;
   description: string;
   deviceIndex: string;
-  status: string;
+  status: DeviceStatus;
 }
 
 function coerceString(v: unknown): string {
@@ -29,7 +44,7 @@ function parseDevice(entry: Record<string, unknown>): Device | null {
     serialNumber: coerceString(entry.serial_number) || coerceString(entry.serialNumber),
     description: coerceString(entry.description),
     deviceIndex: coerceString(entry.dev_index) || coerceString(entry.deviceIndex),
-    status: coerceString(entry.status),
+    status: coerceStatus(entry.status),
   };
 }
 

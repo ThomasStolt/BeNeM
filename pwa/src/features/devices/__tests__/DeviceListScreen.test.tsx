@@ -26,8 +26,8 @@ import { useDevices } from '../useDevices';
 import { useDeviceSearch } from '../useDeviceSearch';
 
 const mockDevices = [
-  { name: 'raspi-054', ip: '192.168.1.54', category: 'Linux', site: 'Home', model: '', serialNumber: '', description: '' },
-  { name: 'core-switch', ip: '10.0.0.1', category: 'Network', site: 'Office', model: '', serialNumber: '', description: '' },
+  { name: 'raspi-054', ip: '192.168.1.54', category: 'Linux', site: 'Home', model: '', serialNumber: '', description: '', deviceIndex: '', status: 'up' as const },
+  { name: 'core-switch', ip: '10.0.0.1', category: 'Network', site: 'Office', model: '', serialNumber: '', description: '', deviceIndex: '', status: 'up' as const },
 ];
 
 function renderScreen() {

@@ -49,7 +49,7 @@ describe('parseDevicesResponse', () => {
       serialNumber: 'ABC123',
       description: 'Raspberry Pi',
       deviceIndex: '',
-      status: '',
+      status: 'unknown',
     });
     expect(result.devices[1]).toEqual({
       name: 'core-switch',
@@ -60,7 +60,7 @@ describe('parseDevicesResponse', () => {
       serialNumber: '',
       description: '',
       deviceIndex: '',
-      status: '',
+      status: 'unknown',
     });
   });
 
@@ -89,6 +89,33 @@ describe('parseDevicesResponse', () => {
   it('parses totalRecords as string', () => {
     const raw = [{ data: { totalRecords: '100', devices: [{ name: 'a', ip: '1.1.1.1' }] } }];
     expect(parseDevicesResponse(raw).totalRecords).toBe(100);
+  });
+
+  it('parses status UP to "up"', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'host', ip: '1.2.3.4', category: '', site: '', model: '',
+        serial_number: '', description: '', dev_index: '1', status: 'UP' }
+    ]}}];
+    const result = parseDevicesResponse(raw);
+    expect(result.devices[0].status).toBe('up');
+  });
+
+  it('falls back to "unknown" for unrecognised status', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'host', ip: '1.2.3.4', category: '', site: '', model: '',
+        serial_number: '', description: '', dev_index: '1', status: 'PURPLE' }
+    ]}}];
+    const result = parseDevicesResponse(raw);
+    expect(result.devices[0].status).toBe('unknown');
+  });
+
+  it('defaults to "unknown" when status field is absent', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'host', ip: '1.2.3.4', category: '', site: '', model: '',
+        serial_number: '', description: '', dev_index: '1' }
+    ]}}];
+    const result = parseDevicesResponse(raw);
+    expect(result.devices[0].status).toBe('unknown');
   });
 });
 
