@@ -18,6 +18,7 @@ from webpush import send_web_push_to_all
 import time
 import incident_cache
 import tactical_cache
+import threshold_cache
 
 HOP_BY_HOP_REQUEST = {
     "host", "x-proxy-token", "x-bhnm-target", "connection", "keep-alive",
@@ -170,6 +171,7 @@ async def lifespan(app: FastAPI):
     init_db()
     incident_cache.start_all()
     tactical_cache.start_all()
+    threshold_cache.start_all()
     print(f"[Startup] BHNM APNs middleware v{VERSION} ready on port {MIDDLEWARE_PORT} — dynamic multi-server routing enabled")
     yield
 
@@ -416,6 +418,7 @@ async def cache_reload(request: Request):
         raise HTTPException(status_code=400, detail="server_id is required")
     incident_cache.reload_server(server_id)
     tactical_cache.reload_server(server_id)
+    threshold_cache.reload_server(server_id)
     return {"status": "ok", "server_id": server_id}
 
 
@@ -477,6 +480,74 @@ async def cached_tactical_overview(request: Request, grouping_type: str = "categ
     return Response(content=resp.content, status_code=resp.status_code,
                     headers={k: v for k, v in resp.headers.items()
                              if k.lower() not in HOP_BY_HOP_RESPONSE})
+
+
+# ── Cached Threshold Counts Endpoint ──────────────────────────────────────
+
+@app.get("/api/v1/threshold-counts")
+async def cached_threshold_counts(request: Request):
+    """Return per-device threshold counts from cache; fall through to live BHNM if cold.
+
+    Response: {"cache_age_seconds": N, "counts": {"deviceName": count, ...}}
+    When cache is cold the CSV is fetched live, parsed, and returned as JSON.
+    """
+    _verify_proxy_token(request)
+
+    api_key = request.headers.get("X-Proxy-Token", "").strip()
+    server_id = threshold_cache._server_id_for_api_key(api_key)
+    if not server_id:
+        bhnm_target = request.headers.get("X-BHNM-Target", "").strip()
+        if bhnm_target:
+            server_id = threshold_cache._server_id_for_bhnm_url(bhnm_target)
+
+    if server_id:
+        cached = threshold_cache.get_cached(server_id)
+        if cached:
+            return {
+                "cache_age_seconds": round(time.time() - cached.last_updated),
+                "counts": cached.counts,
+            }
+
+    # Cache cold or server not found — fetch live from BHNM and parse on the fly.
+    server_cfg = _resolve_server_config(request)
+    target_base = request.headers.get("X-BHNM-Target", "").strip().rstrip("/")
+    if not target_base:
+        target_base = (server_cfg or {}).get("url", "").rstrip("/") if server_cfg else ""
+    if not target_base:
+        target_base = _single_server_url()
+    if not target_base:
+        raise HTTPException(status_code=502, detail="Bad Gateway: BHNM target server not configured")
+    _validate_proxy_target(target_base)
+
+    bhnm_api_key = server_cfg["api_key"] if server_cfg else api_key
+    form: dict[str, str] = {"password": bhnm_api_key}
+    pin = (server_cfg or {}).get("pin") if server_cfg else None
+    if pin:
+        form["pin"] = pin
+
+    target = f"{target_base}/fw/index.php?r=restful/devices/list-thresholds-csv"
+    try:
+        async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=PROXY_TIMEOUT) as client:
+            resp = await client.post(target, data=form)
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Gateway Timeout: BHNM server did not respond in time")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=502, detail="Bad Gateway: could not connect to BHNM server")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="Bad Gateway: request to BHNM server failed")
+
+    # Parse CSV server-side and return compact JSON
+    counts: dict[str, int] = {}
+    for line in resp.text.splitlines()[1:]:
+        if not line.strip():
+            continue
+        parts = line.split(",")
+        if len(parts) >= 5:
+            device_name = parts[4].strip()
+            if device_name:
+                counts[device_name] = counts.get(device_name, 0) + 1
+
+    return {"cache_age_seconds": None, "counts": counts}
 
 
 # ── BHNM Proxy — Dedicated Routes (cache-ready) ─────────────────────────────
