@@ -73,10 +73,10 @@ struct DeviceDetailView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Right column — mini latency chart
+            // Right column — mini latency chart (~50% of remaining space)
             if hasLatency, let firstLatency = viewModel.latencyStates.first {
                 miniLatencyChart(data: firstLatency.data)
-                    .frame(width: 110)
+                    .frame(maxWidth: .infinity)
             }
         }
         .padding(.vertical, 16)
