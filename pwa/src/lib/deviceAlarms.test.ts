@@ -48,12 +48,41 @@ describe('buildDeviceAlarmMap', () => {
     expect(map.get('host-a')?.counts.red).toBe(0);
   });
 
-  it('counts resolved/closed as green', () => {
+  it('resolved/closed incidents are ignored (green comes from thresholds)', () => {
     const map = buildDeviceAlarmMap([
       incident({ status: 'resolved' }),
       incident({ incidentId: '2', status: 'closed' }),
     ]);
-    expect(map.get('host-a')?.counts.green).toBe(2);
+    // Without threshold counts, green stays 0 even for resolved incidents
+    expect(map.get('host-a')?.counts.green).toBe(0);
+  });
+
+  it('computes green from threshold counts minus active incidents', () => {
+    const thresholds = new Map([['host-a', 10]]);
+    const map = buildDeviceAlarmMap(
+      [incident({ severity: 'critical', status: 'active' })],
+      thresholds,
+    );
+    // 10 thresholds − 1 active incident = 9
+    expect(map.get('host-a')?.counts.green).toBe(9);
+  });
+
+  it('clamps green to 0 when active incidents exceed thresholds', () => {
+    const thresholds = new Map([['host-a', 1]]);
+    const map = buildDeviceAlarmMap(
+      [
+        incident({ incidentId: '1', severity: 'critical', status: 'active' }),
+        incident({ incidentId: '2', severity: 'warning', status: 'active' }),
+      ],
+      thresholds,
+    );
+    expect(map.get('host-a')?.counts.green).toBe(0);
+  });
+
+  it('includes devices with thresholds but no incidents in the map', () => {
+    const thresholds = new Map([['clean-host', 5]]);
+    const map = buildDeviceAlarmMap([], thresholds);
+    expect(map.get('clean-host')?.counts.green).toBe(5);
   });
 
   it('collects activeSummaries only for active incidents, critical first', () => {

@@ -13,6 +13,8 @@ import { createMaintenanceWindow } from '../../lib/api/maintenance';
 import { useConfig } from '../../lib/config';
 import { classifyDevice } from '../../lib/deviceType';
 import { buildDeviceAlarmMap } from '../../lib/deviceAlarms';
+import { useThresholds } from './useThresholds';
+import { useDeviceServices } from './useDeviceServices';
 import type { Incident } from '../../lib/api/types';
 
 // ── Status helpers ────────────────────────────────────────────────
@@ -128,12 +130,17 @@ export function DeviceDetailScreen() {
     [allIncidents, decodedName],
   );
 
-  const alarmSummary = useMemo(() => {
-    const map = buildDeviceAlarmMap(allIncidents ?? []);
-    return map.get(decodedName);
-  }, [allIncidents, decodedName]);
+  const { data: thresholdCounts } = useThresholds();
+  const { data: okServices = 0 } = useDeviceServices(decodedName);
 
-  const counts = alarmSummary?.counts ?? { red: 0, orange: 0, yellow: 0, green: 0, blue: 0 };
+  const alarmSummary = useMemo(() => {
+    const map = buildDeviceAlarmMap(allIncidents ?? [], thresholdCounts ?? new Map());
+    return map.get(decodedName);
+  }, [allIncidents, thresholdCounts, decodedName]);
+
+  // HEALTHY = (thresholds − active incidents) + ok service checks
+  const rawCounts = alarmSummary?.counts ?? { red: 0, orange: 0, yellow: 0, green: 0, blue: 0 };
+  const counts = { ...rawCounts, green: rawCounts.green + okServices };
 
   return (
     <div className="min-h-full">

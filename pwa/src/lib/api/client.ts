@@ -4,10 +4,6 @@ import { ApiException } from './types';
 const FETCH_TIMEOUT_MS = 50_000;
 
 /**
- * POST form-urlencoded to the BHNM middleware proxy.
- * Returns parsed JSON (may be object or array — caller handles shape).
- */
-/**
  * GET JSON from the BHNM middleware.
  * Returns parsed JSON.
  */
@@ -58,6 +54,10 @@ export async function fetchJson(
   }
 }
 
+/**
+ * POST form-urlencoded to BHNM.
+ * Returns parsed JSON (may be object or array — caller handles shape).
+ */
 export async function postForm(
   baseUrl: string,
   path: string,
@@ -112,4 +112,49 @@ export async function postForm(
       message: err instanceof Error ? err.message : 'JSON parse error',
     });
   }
+}
+
+/**
+ * Same as postForm but returns the raw response body as a string.
+ * Use for endpoints that return CSV or plain text instead of JSON.
+ */
+export async function postFormText(
+  baseUrl: string,
+  path: string,
+  params: Record<string, string>,
+  proxyToken?: string,
+): Promise<string> {
+  const body = new URLSearchParams(params).toString();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+  };
+  if (proxyToken) headers['X-Proxy-Token'] = proxyToken;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers,
+      body,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new ApiException({ kind: 'network', message: 'Request timed out' });
+    }
+    throw new ApiException({
+      kind: 'network',
+      message: err instanceof Error ? err.message : 'Network error',
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+  if (response.status === 401 || response.status === 403) {
+    throw new ApiException({ kind: 'auth', message: `HTTP ${response.status}` });
+  }
+  if (!response.ok) {
+    throw new ApiException({ kind: 'server', status: response.status, message: `HTTP ${response.status}` });
+  }
+  return response.text();
 }

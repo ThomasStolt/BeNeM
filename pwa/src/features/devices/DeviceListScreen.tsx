@@ -8,6 +8,7 @@ import { RefreshCountdown } from '../../components/RefreshCountdown';
 import { EmptyState } from '../../components/EmptyState';
 import { useIncidents } from '../incidents/useIncidents';
 import { buildDeviceAlarmMap } from '../../lib/deviceAlarms';
+import { useThresholds } from './useThresholds';
 
 export function DeviceListScreen() {
   const config = useConfig();
@@ -18,9 +19,10 @@ export function DeviceListScreen() {
   const { data: result, isLoading, isError, error, dataUpdatedAt } = useDevices(page);
   const { data: searchResults, isFetching: isSearching } = useDeviceSearch(deferredQuery);
   const { data: allIncidents } = useIncidents();
+  const { data: thresholdCounts } = useThresholds();
   const deviceAlarmMap = useMemo(
-    () => buildDeviceAlarmMap(allIncidents ?? []),
-    [allIncidents],
+    () => buildDeviceAlarmMap(allIncidents ?? [], thresholdCounts ?? new Map()),
+    [allIncidents, thresholdCounts],
   );
 
   const devices = result?.devices;
