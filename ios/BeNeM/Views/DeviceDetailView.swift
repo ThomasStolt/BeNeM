@@ -4,6 +4,7 @@ import Charts
 struct DeviceDetailView: View {
     @StateObject private var viewModel: DeviceDetailViewModel
     @State private var showMaintenanceSheet = false
+    @State private var headerInnerWidth: CGFloat = 300
 
     init(device: NetreoDevice, apiService: NetreoAPIService) {
         _viewModel = StateObject(wrappedValue: DeviceDetailViewModel(device: device, apiService: apiService))
@@ -44,15 +45,20 @@ struct DeviceDetailView: View {
 
     private func headerSection(_ device: NetreoDevice) -> some View {
         let hasLatency = viewModel.latencyStates.first.map { !$0.data.isEmpty } ?? false
+        let iconWidth: CGFloat = 60
+        let spacing: CGFloat = 8
+        let available = max(0, headerInnerWidth - iconWidth - spacing)
+        let infoWidth  = hasLatency ? available * 0.4 : available
+        let chartWidth = available * 0.6
 
-        return HStack(spacing: 8) {
+        return HStack(spacing: spacing) {
             // Left column — device type icon
             DeviceTypeIcon(
                 typeClass: device.typeClass,
                 size: 56,
                 color: statusColor(device.status)
             )
-            .frame(width: 60)
+            .frame(width: iconWidth)
 
             // Middle column — name, IP, category, site
             VStack(alignment: .leading, spacing: 4) {
@@ -71,14 +77,17 @@ struct DeviceDetailView: View {
                     MarqueeText(text: device.site, font: .caption, color: .secondary)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(width: infoWidth, alignment: .leading)
 
-            // Right column — mini latency chart (~50% of remaining space)
+            // Right column — mini latency chart (60% of remaining space)
             if hasLatency, let firstLatency = viewModel.latencyStates.first {
                 miniLatencyChart(data: firstLatency.data)
-                    .frame(maxWidth: .infinity)
+                    .frame(width: chartWidth)
             }
         }
+        .background(GeometryReader { geo in
+            Color.clear.onAppear { headerInnerWidth = geo.size.width }
+        })
         .padding(.vertical, 16)
         .padding(.horizontal, 12)
         .background(Color(.secondarySystemGroupedBackground))
