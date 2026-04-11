@@ -1,5 +1,5 @@
 // pwa/src/features/devices/DeviceDetailScreen.tsx
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useDeviceSearch } from './useDeviceSearch';
 import { useIncidents } from '../incidents/useIncidents';
@@ -48,9 +48,12 @@ function CollapsibleSection({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const panelId = `section-${title.toLowerCase().replace(/\s+/g, '-')}`;
   return (
     <div className="bg-slate-800 rounded-xl overflow-hidden">
       <button
+        aria-expanded={open}
+        aria-controls={panelId}
         className="w-full flex items-center justify-between px-4 py-3 text-left"
         onClick={() => setOpen((v) => !v)}
       >
@@ -74,7 +77,11 @@ function CollapsibleSection({
           />
         </svg>
       </button>
-      {open && <div className="border-t border-slate-700">{children}</div>}
+      {open && (
+        <div id={panelId} className="border-t border-slate-700">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -115,12 +122,17 @@ export function DeviceDetailScreen() {
   const { data: allIncidents } = useIncidents();
 
   const device = searchResults?.[0];
-  const deviceIncidents = (allIncidents ?? []).filter(
-    (inc) => inc.deviceName === decodedName,
+
+  const deviceIncidents = useMemo(
+    () => (allIncidents ?? []).filter((inc) => inc.deviceName === decodedName),
+    [allIncidents, decodedName],
   );
 
-  const alarmMap = buildDeviceAlarmMap(allIncidents ?? []);
-  const alarmSummary = alarmMap.get(decodedName);
+  const alarmSummary = useMemo(() => {
+    const map = buildDeviceAlarmMap(allIncidents ?? []);
+    return map.get(decodedName);
+  }, [allIncidents, decodedName]);
+
   const counts = alarmSummary?.counts ?? { red: 0, orange: 0, yellow: 0, green: 0, blue: 0 };
 
   return (
@@ -231,7 +243,7 @@ export function DeviceDetailScreen() {
           {/* ── Host Information (collapsed by default) ── */}
           <CollapsibleSection title="Host Information" defaultOpen={false}>
             <InfoRow label="Current State" value={STATUS_LABELS[device.status] ?? device.status} />
-            {device.description && <InfoRow label="Type" value={device.description} />}
+            {device.description && <InfoRow label="Description" value={device.description} />}
             {device.category && <InfoRow label="Category" value={device.category} />}
             {device.site && <InfoRow label="Site" value={device.site} />}
             {device.model && <InfoRow label="Model" value={device.model} />}

@@ -31,6 +31,7 @@ export function buildDeviceAlarmMap(incidents: Incident[]): Map<string, DeviceAl
       if (inc.severity === 'critical') entry.counts.red += 1;
       else if (inc.severity === 'major' || inc.severity === 'minor') entry.counts.orange += 1;
       else if (inc.severity === 'warning') entry.counts.yellow += 1;
+      else if (inc.severity === 'informational') entry.counts.blue += 1;
       activeByDevice.get(inc.deviceName)!.push(inc);
     } else {
       // resolved or closed

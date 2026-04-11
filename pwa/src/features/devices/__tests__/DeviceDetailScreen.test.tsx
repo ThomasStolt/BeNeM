@@ -160,4 +160,15 @@ describe('DeviceDetailScreen', () => {
     expect(screen.getByText('WARNING')).toBeInTheDocument();
     expect(screen.getByText('CRITICAL')).toBeInTheDocument();
   });
+
+  it('shows device not found state', () => {
+    vi.mocked(useDeviceSearch).mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useDeviceSearch>);
+
+    renderDetail('nonexistent-host');
+    expect(screen.getByText('Device not found')).toBeInTheDocument();
+  });
 });
