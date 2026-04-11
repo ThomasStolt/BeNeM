@@ -205,7 +205,7 @@ features defined here. Platform-specific behaviour is noted per feature.
 - React Query hooks: 5-min stale for categories/instances, 60s for timeseries
 
 ### Feature: Maintenance Windows
-**Status:** shipped-pwa
+**Status:** shipped-both
 **API:** Middleware `POST /api/proxy/maintenance/create` → BHNM `POST /api/maint_window_api.php`
 
 #### Behaviour (both platforms)
