@@ -58,8 +58,8 @@ export function DeviceRow({ device, alarmSummary }: DeviceRowProps) {
               }}
             >
               <div
-                className="flex w-max motion-reduce:animate-none"
-                style={{ animation: `marquee ${tickerDuration} linear infinite` }}
+                className="flex w-max animate-marquee motion-reduce:animate-none"
+                style={{ animationDuration: tickerDuration }}
                 aria-hidden="true"
               >
                 <span className="text-[10px] whitespace-nowrap pr-8 text-red-400">
