@@ -56,6 +56,8 @@ features defined here. Platform-specific behaviour is noted per feature.
 - v0.1.0.5: hosted at `https://benem.hurrikap.org` as a dedicated container alongside the middleware; minimal Settings screen for BHNM API key entry (localStorage)
 - v0.1.1: real incident detail screen (essentials: metadata + ACK action), swipe ACK/UnACK on list rows, polished Settings with PIN + test-connection via ha_status endpoint
 - Pull-to-refresh is hand-rolled in `components/PullToRefresh.tsx`; row swipe gestures use `react-swipeable`
+- v0.9.0: Duration fixed — widens `startTime` field lookup to cover `incident_open_time` and `open_time`
+- v0.9.0: Alarm badge fallback — when middleware cache cold, counts loaded lazily via `getincidentdetail` per row (React Query, `enabled: alarmCounts === null`); shimmer placeholders shown while loading
 
 ### Feature: Push Notifications (Web Push)
 **Status:** shipped-ios, shipped-pwa
@@ -146,6 +148,31 @@ features defined here. Platform-specific behaviour is noted per feature.
 - Debounced search input (300ms via useDeferredValue)
 - 120-second auto-refresh with RefreshCountdown
 - v0.8.0: `DeviceRow` redesigned — `DeviceTypeIcon` (status-coloured, 40 px), alarm badges (green/blue/yellow/orange/red from incident data), scrolling incident ticker at constant speed (visible only when active incidents exist, height preserved when empty)
+
+### Feature: Incident Detail
+**Status:** shipped-ios, shipped-pwa
+**API:** `POST /api/incident_api.php` (method=getincidentdetail)
+
+#### Behaviour (both platforms)
+- Fetches full incident detail on open: primary alarms, related alarms, incident state log
+- Status section: ACK/UnACK action + status badge + alarm color counts
+- Incident Info: ID, title, device, IP, alert type, created timestamp, duration, ACK details when acknowledged
+- Primary Alarms: state badge, type, name, output (HTML-stripped), timestamp — hidden when empty
+- Related Alarms: same structure, hidden when empty
+- Incident State Log: state badge, timestamp, username, comment — hidden when empty
+- Duration format: `Xd Xh Xm Xs` (leading zero units omitted)
+
+#### iOS-specific
+- Native SwiftUI List layout
+- `NetreoAPIService.fetchIncidentDetail` posts to `incident_api.php`
+
+#### PWA-specific
+- v0.9.0: `parseIncidentDetailResponse` + `getIncidentDetail` in `src/lib/api/incidents.ts`
+- `useIncidentDetail` hook (stale time 60s, keyed by `['incidentDetail', id]`)
+- `StateBadge` component for alarm/log state strings (distinct from `StatusBadge` which handles OPEN/ACKD/CLRD on list rows)
+- ACK/UnACK invalidates both `['incidents']` and `['incidentDetail', id]` queries
+
+---
 
 ### Feature: Device Detail
 **Status:** shipped-ios, shipped-pwa
