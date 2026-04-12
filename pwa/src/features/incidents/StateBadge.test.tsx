@@ -43,6 +43,31 @@ describe('StateBadge', () => {
     expect(container.firstChild).toHaveClass('bg-green-800');
   });
 
+  it('applies green styling for RESOLVED', () => {
+    const { container } = render(<StateBadge state="RESOLVED" />);
+    expect(container.firstChild).toHaveClass('bg-green-800');
+  });
+
+  it('applies green styling for CLOSED', () => {
+    const { container } = render(<StateBadge state="CLOSED" />);
+    expect(container.firstChild).toHaveClass('bg-green-800');
+  });
+
+  it('applies green styling for UP', () => {
+    const { container } = render(<StateBadge state="UP" />);
+    expect(container.firstChild).toHaveClass('bg-green-800');
+  });
+
+  it('applies green styling for NORMAL', () => {
+    const { container } = render(<StateBadge state="NORMAL" />);
+    expect(container.firstChild).toHaveClass('bg-green-800');
+  });
+
+  it('applies orange styling for UNREACHABLE', () => {
+    const { container } = render(<StateBadge state="UNREACHABLE" />);
+    expect(container.firstChild).toHaveClass('bg-orange-700');
+  });
+
   it('applies green styling for ALARMS CLEARED', () => {
     const { container } = render(<StateBadge state="ALARMS CLEARED" />);
     expect(container.firstChild).toHaveClass('bg-green-800');
