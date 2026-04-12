@@ -33,6 +33,7 @@ class DeviceListViewModel: ObservableObject {
             devices = page.devices
             totalRecords = page.totalRecords
             hasMore = page.devices.count < page.totalRecords
+            await ThresholdCache.shared.refresh(using: apiService)
         } catch {
             errorMessage = error.localizedDescription
         }

@@ -1,14 +1,48 @@
 import SwiftUI
 
+struct DeviceAlarmCounts {
+    let healthy: Int   // -1 = threshold cache not yet loaded (show "—")
+    let ack: Int
+    let warning: Int
+    let critical: Int
+}
+
+@MainActor
+private func deviceAlarmCounts(for deviceName: String, incidents: [NetreoIncident]) -> DeviceAlarmCounts {
+    let deviceIncidents = incidents.filter {
+        ($0.deviceName ?? "").caseInsensitiveCompare(deviceName) == .orderedSame
+    }
+    var ack = 0, warn = 0, crit = 0
+    for incident in deviceIncidents {
+        if incident.status == .acknowledged {
+            ack += 1
+        } else {
+            switch incident.severity {
+            case .critical, .major: crit += 1
+            case .warning, .minor:  warn += 1
+            case .informational: break
+            }
+        }
+    }
+    let thresholdsLoaded = !ThresholdCache.shared.counts.isEmpty
+    let thresholds = ThresholdCache.shared.count(for: deviceName)
+    let activeCount = crit + warn
+    let healthy = thresholdsLoaded ? max(0, thresholds - activeCount) : -1
+    return DeviceAlarmCounts(healthy: healthy, ack: ack, warning: warn, critical: crit)
+}
+
 struct DeviceListView: View {
     @StateObject private var viewModel: DeviceListViewModel
+    @ObservedObject var incidentViewModel: IncidentListViewModel
+    @ObservedObject private var thresholdCache = ThresholdCache.shared
     @State private var connectionStatus: ConnectionStatus = .unknown
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
     @AppStorage("netreo_active_connection_name") private var activeServerName = ""
     private let apiService: NetreoAPIService
 
-    init(apiService: NetreoAPIService) {
+    init(apiService: NetreoAPIService, incidentViewModel: IncidentListViewModel) {
         self.apiService = apiService
+        self.incidentViewModel = incidentViewModel
         _viewModel = StateObject(wrappedValue: DeviceListViewModel(apiService: apiService))
     }
 
@@ -17,7 +51,10 @@ struct DeviceListView: View {
             List {
                 ForEach(viewModel.displayedDevices) { device in
                     NavigationLink(destination: DeviceDetailView(device: device, apiService: apiService)) {
-                        DeviceRowView(device: device)
+                        DeviceRowView(
+                            device: device,
+                            alarmCounts: deviceAlarmCounts(for: device.name, incidents: incidentViewModel.incidents)
+                        )
                     }
                 }
 
@@ -124,29 +161,58 @@ struct DeviceListView: View {
 
 struct DeviceRowView: View {
     let device: NetreoDevice
+    let alarmCounts: DeviceAlarmCounts
 
     var body: some View {
-        HStack(spacing: 12) {
-            DeviceTypeIcon(typeClass: device.typeClass, size: 36, color: statusColor)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 12) {
+                DeviceTypeIcon(typeClass: device.typeClass, size: 36, color: statusColor)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(device.name)
-                    .font(.headline)
-                HStack(spacing: 4) {
-                    Text(device.ip)
-                    Text("·")
-                    Text(device.category)
-                    Text("·")
-                    Text(device.site)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(device.name)
+                        .font(.headline)
+                    HStack(spacing: 4) {
+                        Text(device.ip)
+                        Text("·")
+                        Text(device.category)
+                        Text("·")
+                        Text(device.site)
+                    }
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
                 }
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
+
+                Spacer()
             }
 
-            Spacer()
+            // Alarm badge strip
+            HStack(spacing: 0) {
+                alarmBadge(label: "HEALTHY", value: alarmCounts.healthy, color: .green, missing: alarmCounts.healthy == -1)
+                alarmBadge(label: "ACK",     value: alarmCounts.ack,     color: .blue)
+                alarmBadge(label: "WARNING", value: alarmCounts.warning, color: .orange)
+                alarmBadge(label: "CRITICAL",value: alarmCounts.critical,color: .red)
+            }
         }
         .padding(.vertical, 4)
+    }
+
+    private func alarmBadge(label: String, value: Int, color: Color, missing: Bool = false) -> some View {
+        VStack(spacing: 1) {
+            if missing {
+                Text("—")
+                    .font(.caption).fontWeight(.bold)
+                    .foregroundColor(Color(.systemGray4))
+            } else {
+                Text("\(value)")
+                    .font(.caption).fontWeight(.bold)
+                    .foregroundColor(value > 0 ? color : Color(.systemGray4))
+            }
+            Text(label)
+                .font(.system(size: 7))
+                .foregroundColor(Color(.systemGray3))
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private var statusColor: Color {

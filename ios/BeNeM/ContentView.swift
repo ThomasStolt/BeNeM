@@ -81,7 +81,7 @@ struct ContentView: View {
                 .tag(0)
             IncidentListView(viewModel: incidentViewModel, apiService: service, navResetID: incidentNavResetID, pendingIncidentID: $pendingIncidentID)
                 .tag(1)
-            DeviceListView(apiService: service)
+            DeviceListView(apiService: service, incidentViewModel: incidentViewModel)
                 .tag(2)
         }
         SettingsView(navResetID: settingsNavResetID)
