@@ -53,6 +53,8 @@ class DeviceDetailViewModel: ObservableObject {
     @Published var ackCount: Int = 0
     @Published var warningCount: Int = 0
     @Published var criticalCount: Int = 0
+    @Published var okServiceChecks: Int = 0
+    @Published var isLoadingServices: Bool = false
 
     private var devIndex: String?
     let apiService: NetreoAPIService
@@ -65,9 +67,11 @@ class DeviceDetailViewModel: ObservableObject {
 
     func load() async {
         loadPinnedInterfaces()
+        await ThresholdCache.shared.refresh(using: apiService)
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.loadIncidents() }
             group.addTask { await self.loadPerformanceStructure() }
+            group.addTask { await self.loadServices() }
         }
     }
 
@@ -116,7 +120,7 @@ class DeviceDetailViewModel: ObservableObject {
                        == deviceName.lowercased().components(separatedBy: ".").first
             }
             // Compute alarm counts from incidents
-            var healthy = 0, ack = 0, warn = 0, crit = 0
+            var ack = 0, warn = 0, crit = 0
             for incident in incidents {
                 if incident.status == .acknowledged {
                     ack += 1
@@ -128,8 +132,9 @@ class DeviceDetailViewModel: ObservableObject {
                     }
                 }
             }
-            if incidents.isEmpty { healthy = 1 }
-            healthyCount = healthy
+            let activeIncidents = crit + warn
+            let thresholds = ThresholdCache.shared.count(for: device.name)
+            healthyCount = max(0, thresholds + okServiceChecks - activeIncidents)
             ackCount = ack
             warningCount = warn
             criticalCount = crit
@@ -137,6 +142,16 @@ class DeviceDetailViewModel: ObservableObject {
             incidentsError = error.localizedDescription
         }
         isLoadingIncidents = false
+    }
+
+    // MARK: - Services
+
+    private func loadServices() async {
+        isLoadingServices = true
+        if let count = try? await apiService.fetchDeviceServices(deviceName: device.name) {
+            okServiceChecks = count
+        }
+        isLoadingServices = false
     }
 
     // MARK: - Performance Structure
