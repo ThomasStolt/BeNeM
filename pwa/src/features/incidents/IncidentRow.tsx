@@ -3,6 +3,7 @@ import type { Incident } from '../../lib/api/types';
 import { StatusBadge } from './StatusBadge';
 import { AlarmBadges } from './AlarmBadges';
 import { OverflowMarquee } from '../../components/OverflowMarquee';
+import { useIncidentDetail } from './useIncidentDetail';
 
 const EMPTY_COUNTS = { red: 0, orange: 0, yellow: 0, green: 0, blue: 0 };
 
@@ -16,7 +17,30 @@ function formatDuration(d: Date): string {
   return `${Math.round(totalHr / 24)}d`;
 }
 
+function ShimmerBadges() {
+  return (
+    <div className="flex gap-1">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <span
+          key={i}
+          data-testid="alarm-shimmer"
+          className="inline-block w-5 h-4 rounded bg-slate-700 animate-pulse"
+        />
+      ))}
+    </div>
+  );
+}
+
 export function IncidentRow({ incident }: { incident: Incident }) {
+  const needsCounts = incident.alarmCounts === null;
+  const { data: detail, isLoading: isDetailLoading } = useIncidentDetail(
+    incident.incidentId,
+    { enabled: needsCounts },
+  );
+
+  const alarmCounts = incident.alarmCounts ?? detail?.alarmCounts ?? null;
+  const isLoadingCounts = needsCounts && isDetailLoading;
+
   return (
     <Link
       to={`/incidents/${encodeURIComponent(incident.incidentId)}`}
@@ -43,7 +67,11 @@ export function IncidentRow({ incident }: { incident: Incident }) {
         <span className="shrink-0 text-[11px] text-slate-500">
           {formatDuration(incident.startTime)}
         </span>
-        <AlarmBadges counts={incident.alarmCounts ?? EMPTY_COUNTS} />
+        {isLoadingCounts ? (
+          <ShimmerBadges />
+        ) : (
+          <AlarmBadges counts={alarmCounts ?? EMPTY_COUNTS} />
+        )}
       </div>
     </Link>
   );
