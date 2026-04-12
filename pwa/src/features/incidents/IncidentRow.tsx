@@ -8,12 +8,12 @@ const EMPTY_COUNTS = { red: 0, orange: 0, yellow: 0, green: 0, blue: 0 };
 
 function formatDuration(d: Date): string {
   const diffMs = Date.now() - d.getTime();
-  const min = Math.round(diffMs / 60_000);
-  if (min < 1) return 'now';
-  if (min < 60) return `${min}m`;
-  const hr = Math.round(min / 60);
-  if (hr < 24) return `${hr}h`;
-  return `${Math.round(hr / 24)}d`;
+  const totalMin = diffMs / 60_000;
+  if (totalMin < 1) return 'now';
+  if (totalMin < 60) return `${Math.round(totalMin)}m`;
+  const totalHr = totalMin / 60;
+  if (totalHr < 24) return `${Math.round(totalHr)}h`;
+  return `${Math.round(totalHr / 24)}d`;
 }
 
 export function IncidentRow({ incident }: { incident: Incident }) {

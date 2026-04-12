@@ -37,6 +37,7 @@ vi.mock('../useIncidents', () => ({
         incidentState: 'ACKNOWLEDGED',
         startTime: new Date(Date.now() - 60 * 60_000),
         acknowledgedBy: 'oncall@example.com',
+        alarmCounts: null,
       },
     ],
     isLoading: false,
