@@ -63,10 +63,12 @@ function stripHtml(s: string): string {
 
 function parseDetailDate(raw: unknown): Date | null {
   if (typeof raw !== 'string' || !raw) return null;
+  // Try standard parse first (handles ISO 8601 with Z or offset)
   const d = new Date(raw);
   if (!isNaN(d.getTime())) return d;
-  // No-timezone ISO string — treat as local time
-  const d2 = new Date(raw.replace('T', ' '));
+  // BHNM returns timezone-naive strings like "2026-04-12T09:14:02".
+  // Append 'Z' to treat as UTC — consistent with iOS interpretation.
+  const d2 = new Date(raw + 'Z');
   return isNaN(d2.getTime()) ? null : d2;
 }
 
@@ -78,6 +80,19 @@ function alarmStateToColorKey(state: string): keyof AlarmCounts {
     case 'OK': case 'NORMAL': case 'RECOVERY': case 'CLEARED': case 'UP': return 'green';
     default: return 'blue';
   }
+}
+
+function parseAlarms(arr: unknown): IncidentAlarm[] {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((a): a is Record<string, unknown> => !!a && typeof a === 'object')
+    .map((a) => ({
+      state: String(a.state ?? ''),
+      type: String(a.type ?? ''),
+      name: String(a.name ?? ''),
+      output: stripHtml(String(a.output ?? '')),
+      time: parseDetailDate(a.time),
+    }));
 }
 
 function parseRow(row: Record<string, unknown>, index: number, forcedStatus?: IncidentStatus): Incident {
@@ -185,19 +200,6 @@ export function parseIncidentDetailResponse(raw: unknown): IncidentDetail {
     ? incident.detail
     : {}) as Record<string, unknown>;
 
-  function parseAlarms(arr: unknown): IncidentAlarm[] {
-    if (!Array.isArray(arr)) return [];
-    return arr
-      .filter((a): a is Record<string, unknown> => !!a && typeof a === 'object')
-      .map((a) => ({
-        state: String(a.state ?? ''),
-        type: String(a.type ?? ''),
-        name: String(a.name ?? ''),
-        output: stripHtml(String(a.output ?? '')),
-        time: parseDetailDate(a.time),
-      }));
-  }
-
   const primaryAlarms = parseAlarms(detail.primary_alarm_log);
   const relatedAlarms = parseAlarms(detail.relatedalarms);
 
@@ -249,6 +251,9 @@ export async function getIncidentDetail(
   config: BhnmConfig,
   incidentId: string,
 ): Promise<IncidentDetail> {
+  if (!incidentId) {
+    throw new ApiException({ kind: 'parse', message: 'incidentId is required' });
+  }
   const params: Record<string, string> = {
     pwd: config.apiKey,
     method: 'getincidentdetail',

@@ -226,4 +226,12 @@ describe('parseIncidentDetailResponse', () => {
   it('throws ApiException on missing incident key', () => {
     expect(() => parseIncidentDetailResponse({})).toThrow();
   });
+
+  it('returns empty arrays when detail key is missing', () => {
+    const d = parseIncidentDetailResponse({ incident: { incident_id: '1', incident_state: 'OPEN' } });
+    expect(d.primaryAlarms).toHaveLength(0);
+    expect(d.relatedAlarms).toHaveLength(0);
+    expect(d.incidentLog).toHaveLength(0);
+    expect(d.alarmCounts.red).toBe(0);
+  });
 });
