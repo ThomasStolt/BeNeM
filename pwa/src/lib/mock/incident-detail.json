@@ -1,0 +1,57 @@
+{
+  "incident": {
+    "incident_id": "58431",
+    "title": "CPU utilization high on core-switch-01",
+    "name": "core-switch-01",
+    "ip": "10.0.0.1",
+    "incident_state": "OPEN",
+    "primary_alarm_state": "CRITICAL",
+    "incident_open_time": "2026-04-12T09:14:02",
+    "acknowledged": 0,
+    "ack_time": null,
+    "ack_user": null,
+    "ack_comment": null,
+    "alert_type": "Host",
+    "detail": {
+      "primary_alarm_log": [
+        {
+          "state": "CRITICAL",
+          "type": "Host",
+          "name": "core-switch-01",
+          "output": "PING CRITICAL <br /> Packet loss = 100%",
+          "time": "2026-04-12T09:14:02"
+        },
+        {
+          "state": "MAJOR",
+          "type": "Service",
+          "name": "BGP-Peer",
+          "output": "BGP neighbor 10.0.0.1 is down",
+          "time": "2026-04-12T09:14:05"
+        }
+      ],
+      "relatedalarms": [
+        {
+          "state": "OK",
+          "type": "Service",
+          "name": "DNS-Check",
+          "output": "DNS resolution OK (12ms)",
+          "time": "2026-04-12T08:58:00"
+        }
+      ],
+      "incident_log": [
+        {
+          "state": "OPEN",
+          "time": "2026-04-12T09:14:02",
+          "username": "System",
+          "comment": ""
+        },
+        {
+          "state": "ACK",
+          "time": "2026-04-12T09:22:15",
+          "username": "thomas.stolt",
+          "comment": "Investigating — core switch unreachable"
+        }
+      ]
+    }
+  }
+}

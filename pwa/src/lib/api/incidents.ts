@@ -1,5 +1,5 @@
 import { fetchJson, postForm } from './client';
-import { AlarmCounts, ApiException, Incident, IncidentStatus, Severity } from './types';
+import { AlarmCounts, ApiException, Incident, IncidentAlarm, IncidentDetail, IncidentLogEntry, IncidentStatus, Severity } from './types';
 import type { BhnmConfig } from '../config';
 
 const SEVERITY_MAP: Record<string, Severity> = {
@@ -54,6 +54,47 @@ function coerceString(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
 }
 
+function stripHtml(s: string): string {
+  return s
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .trim();
+}
+
+function parseDetailDate(raw: unknown): Date | null {
+  if (typeof raw !== 'string' || !raw) return null;
+  // Try standard parse first (handles ISO 8601 with Z or offset)
+  const d = new Date(raw);
+  if (!isNaN(d.getTime())) return d;
+  // BHNM returns timezone-naive strings like "2026-04-12T09:14:02".
+  // Append 'Z' to treat as UTC — consistent with iOS interpretation.
+  const d2 = new Date(raw + 'Z');
+  return isNaN(d2.getTime()) ? null : d2;
+}
+
+function alarmStateToColorKey(state: string): keyof AlarmCounts {
+  switch (state.toUpperCase()) {
+    case 'CRITICAL': case 'DOWN': case 'OPEN': return 'red';
+    case 'MAJOR': case 'UNREACHABLE': return 'orange';
+    case 'WARNING': case 'MINOR': return 'yellow';
+    case 'OK': case 'NORMAL': case 'RECOVERY': case 'CLEARED': case 'UP': return 'green';
+    default: return 'blue';
+  }
+}
+
+function parseAlarms(arr: unknown): IncidentAlarm[] {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((a): a is Record<string, unknown> => !!a && typeof a === 'object')
+    .map((a) => ({
+      state: String(a.state ?? ''),
+      type: String(a.type ?? ''),
+      name: String(a.name ?? ''),
+      output: stripHtml(String(a.output ?? '')),
+      time: parseDetailDate(a.time),
+    }));
+}
+
 function parseRow(row: Record<string, unknown>, index: number, forcedStatus?: IncidentStatus): Incident {
   const incidentId = coerceId(row.incident_id ?? row.id, index);
   const stateString = typeof row.incident_state === 'string' ? row.incident_state : 'OPEN';
@@ -89,7 +130,12 @@ function parseRow(row: Record<string, unknown>, index: number, forcedStatus?: In
     severity: coerceSeverity(row),
     status,
     incidentState: stateString,
-    startTime: coerceStartTime(row.start_time ?? row.startTime),
+    // Field name fallback chain: BHNM REST uses start_time, legacy API uses
+    // incident_open_time; some older versions use open_time. Prefer the more
+    // specific names first.
+    startTime: coerceStartTime(
+      row.start_time ?? row.startTime ?? row.incident_open_time ?? row.open_time
+    ),
     acknowledgedBy: coerceString(row.acknowledged_by) ?? coerceString(row.acknowledgedBy),
     alarmCounts,
   };
@@ -138,6 +184,89 @@ export function parseIncidentsResponse(raw: unknown): Incident[] {
   }
 
   return [];
+}
+
+export function parseIncidentDetailResponse(raw: unknown): IncidentDetail {
+  const root: unknown = Array.isArray(raw) ? raw[0] : raw;
+  if (!root || typeof root !== 'object') {
+    throw new ApiException({ kind: 'parse', message: 'Invalid detail response' });
+  }
+  const obj = root as Record<string, unknown>;
+  const incident = obj.incident as Record<string, unknown> | undefined;
+  if (!incident) {
+    throw new ApiException({ kind: 'parse', message: 'No incident key in detail response' });
+  }
+  const detail = (typeof incident.detail === 'object' && incident.detail !== null
+    ? incident.detail
+    : {}) as Record<string, unknown>;
+
+  const primaryAlarms = parseAlarms(detail.primary_alarm_log);
+  const relatedAlarms = parseAlarms(detail.relatedalarms);
+
+  const incidentLog: IncidentLogEntry[] = Array.isArray(detail.incident_log)
+    ? (detail.incident_log as unknown[])
+        .filter((e): e is Record<string, unknown> => !!e && typeof e === 'object')
+        .map((e) => ({
+          state: String(e.state ?? ''),
+          time: parseDetailDate(e.time),
+          username: String(e.username ?? ''),
+          comment: String(e.comment ?? ''),
+        }))
+    : [];
+
+  const alarmCounts: AlarmCounts = { red: 0, orange: 0, yellow: 0, green: 0, blue: 0 };
+  for (const alarm of [...primaryAlarms, ...relatedAlarms]) {
+    alarmCounts[alarmStateToColorKey(alarm.state)]++;
+  }
+
+  const ackRaw = incident.acknowledged;
+  const acknowledged = ackRaw === 1 || ackRaw === '1' || ackRaw === true;
+
+  const deviceIp =
+    coerceString(incident.ip) ??
+    coerceString(incident.device_ip) ??
+    coerceString(incident.ip_address) ??
+    coerceString(incident.host_ip);
+
+  return {
+    incidentId: String(incident.incident_id ?? ''),
+    title: String(incident.title ?? ''),
+    deviceName: String(incident.name ?? ''),
+    deviceIp,
+    incidentState: String(incident.incident_state ?? ''),
+    alertType: coerceString(incident.alert_type),
+    openTime: parseDetailDate(incident.incident_open_time),
+    acknowledged,
+    ackTime: acknowledged ? parseDetailDate(incident.ack_time) : null,
+    ackUser: acknowledged ? coerceString(incident.ack_user) : null,
+    ackComment: acknowledged ? coerceString(incident.ack_comment) : null,
+    alarmCounts,
+    primaryAlarms,
+    relatedAlarms,
+    incidentLog,
+  };
+}
+
+export async function getIncidentDetail(
+  config: BhnmConfig,
+  incidentId: string,
+): Promise<IncidentDetail> {
+  if (!incidentId) {
+    throw new ApiException({ kind: 'parse', message: 'incidentId is required' });
+  }
+  const params: Record<string, string> = {
+    pwd: config.apiKey,
+    method: 'getincidentdetail',
+    incident_id: incidentId,
+  };
+  if (config.pin) params.pin = config.pin;
+  const raw = await postForm(
+    config.baseUrl,
+    '/api/incident_api.php',
+    params,
+    config.apiKey,
+  );
+  return parseIncidentDetailResponse(raw);
 }
 
 export async function getCachedIncidents(config: BhnmConfig): Promise<Incident[]> {

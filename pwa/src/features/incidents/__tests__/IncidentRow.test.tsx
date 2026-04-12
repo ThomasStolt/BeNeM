@@ -1,8 +1,16 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { IncidentRow } from '../IncidentRow';
 import type { Incident } from '../../../lib/api/types';
+
+vi.mock('../useIncidentDetail', () => ({
+  useIncidentDetail: vi.fn(() => ({ data: undefined, isLoading: false })),
+}));
+
+import { useIncidentDetail } from '../useIncidentDetail';
 
 // ResizeObserver not in jsdom
 beforeEach(() => {
@@ -27,10 +35,13 @@ const base: Incident = {
 };
 
 function renderRow(inc: Incident) {
+  const client = new QueryClient();
   return render(
-    <MemoryRouter>
-      <IncidentRow incident={inc} />
-    </MemoryRouter>,
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <IncidentRow incident={inc} />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
@@ -104,5 +115,50 @@ describe('IncidentRow', () => {
   it('renders day duration for incidents older than 24h', () => {
     renderRow({ ...base, startTime: new Date(Date.now() - 49 * 3_600_000) });
     expect(screen.getByText('2d')).toBeInTheDocument();
+  });
+
+  describe('alarm badge fallback (cold cache)', () => {
+    it('shows shimmer placeholders when alarmCounts is null and detail is loading', () => {
+      vi.mocked(useIncidentDetail).mockReturnValueOnce({
+        data: undefined,
+        isLoading: true,
+      } as ReturnType<typeof useIncidentDetail>);
+      renderRow({ ...base, alarmCounts: null });
+      expect(screen.queryByText('2')).not.toBeInTheDocument();
+      const shimmers = screen.getAllByTestId('alarm-shimmer');
+      expect(shimmers).toHaveLength(5);
+    });
+
+    it('shows counts from detail when alarmCounts is null and detail loaded', () => {
+      vi.mocked(useIncidentDetail).mockReturnValueOnce({
+        data: {
+          alarmCounts: { red: 3, orange: 1, yellow: 0, green: 2, blue: 0 },
+        } as any,
+        isLoading: false,
+      } as ReturnType<typeof useIncidentDetail>);
+      renderRow({ ...base, alarmCounts: null });
+      expect(screen.getByText('3')).toBeInTheDocument();
+      expect(screen.getByText('1')).toBeInTheDocument();
+      expect(screen.getByText('2')).toBeInTheDocument();
+    });
+
+    it('shows empty counts when alarmCounts is null and detail unavailable', () => {
+      vi.mocked(useIncidentDetail).mockReturnValueOnce({
+        data: undefined,
+        isLoading: false,
+      } as ReturnType<typeof useIncidentDetail>);
+      renderRow({ ...base, alarmCounts: null });
+      const zeros = screen.getAllByText('0');
+      expect(zeros.length).toBe(5);
+    });
+
+    it('calls useIncidentDetail with enabled:false when alarmCounts is already present', () => {
+      vi.mocked(useIncidentDetail).mockClear();
+      renderRow(base);
+      expect(vi.mocked(useIncidentDetail)).toHaveBeenCalledWith(
+        base.incidentId,
+        { enabled: false },
+      );
+    });
   });
 });

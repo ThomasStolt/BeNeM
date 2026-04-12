@@ -24,7 +24,7 @@ export function StateBadge({ state }: { state: string }) {
     <span
       className={`inline-block rounded text-[9px] font-bold px-1.5 py-0.5 leading-tight uppercase ${cls}`}
     >
-      {state}
+      {state.toUpperCase()}
     </span>
   );
 }
