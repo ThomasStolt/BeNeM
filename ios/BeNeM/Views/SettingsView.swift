@@ -193,74 +193,54 @@ struct SettingsView: View {
     private func serverRow(_ connection: SavedConnection) -> some View {
         let isActive = connection.id.uuidString == activeSavedConnectionID
         let isSwitching = switchingInProgress == connection.id
-        let rowContent = serverRowContent(connection, isActive: isActive, isSwitching: isSwitching)
 
-        // Swipe-to-edit uses @State editingConnection + .navigationDestination (NavigationLink
-        // is not supported inside swipeActions). Active row taps navigate via NavigationLink.
-        if isActive {
-            NavigationLink(destination: ServerConfigView(existingConnection: connection)) {
-                rowContent
-            }
-            .swipeActions(edge: .trailing) {
-                Button {
+        HStack(spacing: 0) {
+            serverRowContent(connection, isActive: isActive, isSwitching: isSwitching)
+                .contentShape(Rectangle())
+                .onTapGesture {
                     editingConnection = connection
                     showEditNavigation = true
-                } label: {
-                    Label("Edit", systemImage: "pencil")
                 }
-                .tint(.blue)
+        }
+        .swipeActions(edge: .trailing) {
+            Button {
+                editingConnection = connection
+                showEditNavigation = true
+            } label: {
+                Label("Edit", systemImage: "pencil")
             }
-        } else {
-            HStack(spacing: 0) {
-                rowContent
-                    .contentShape(Rectangle())
-                    .onTapGesture { switchingToConnection = connection }
-
-                Button {
-                    editingConnection = connection
-                    showEditNavigation = true
-                } label: {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(Color(.systemGray3))
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-            }
-            .swipeActions(edge: .trailing) {
-                Button {
-                    editingConnection = connection
-                    showEditNavigation = true
-                } label: {
-                    Label("Edit", systemImage: "pencil")
-                }
-                .tint(.blue)
-            }
+            .tint(.blue)
         }
     }
 
     private func serverRowContent(_ connection: SavedConnection, isActive: Bool, isSwitching: Bool) -> some View {
         let displayHost = connection.bhnmURL.isEmpty ? connection.middlewareURL : connection.bhnmURL
         return HStack(spacing: 10) {
-            // Active indicator — space reserved for all rows so icons stay aligned
-            ZStack {
+            // Radio circle — tapping selects (switch dialog) or edits (active)
+            Button {
                 if isActive {
+                    editingConnection = connection
+                    showEditNavigation = true
+                } else {
+                    switchingToConnection = connection
+                }
+            } label: {
+                ZStack {
                     Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [Color(red: 0.55, green: 1.0, blue: 0.55),
-                                         Color(red: 0.0,  green: 0.65, blue: 0.15)],
-                                center: UnitPoint(x: 0.35, y: 0.3),
-                                startRadius: 0,
-                                endRadius: 8
-                            )
-                        )
-                        .frame(width: 14, height: 14)
-                        .shadow(color: .green.opacity(0.55), radius: 4, x: 0, y: 2)
-                        .shadow(color: .black.opacity(0.25), radius: 1, x: 0, y: 1)
+                        .strokeBorder(isActive ? Color.accentColor : Color(.systemGray4), lineWidth: 2)
+                        .frame(width: 22, height: 22)
+                    if isActive {
+                        Circle()
+                            .fill(Color.accentColor)
+                            .frame(width: 22, height: 22)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.white)
+                    }
                 }
             }
-            .frame(width: 14)
+            .buttonStyle(.plain)
+            .frame(width: 22)
 
             ServerIconView(symbol: connection.symbol, accentColor: connection.accentColor, size: 36)
 
