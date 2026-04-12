@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -124,8 +125,8 @@ describe('IncidentRow', () => {
       } as ReturnType<typeof useIncidentDetail>);
       renderRow({ ...base, alarmCounts: null });
       expect(screen.queryByText('2')).not.toBeInTheDocument();
-      const shimmers = document.querySelectorAll('[data-testid="alarm-shimmer"]');
-      expect(shimmers.length).toBe(5);
+      const shimmers = screen.getAllByTestId('alarm-shimmer');
+      expect(shimmers).toHaveLength(5);
     });
 
     it('shows counts from detail when alarmCounts is null and detail loaded', () => {

@@ -20,9 +20,9 @@ function formatDuration(d: Date): string {
 function ShimmerBadges() {
   return (
     <div className="flex gap-1">
-      {Array.from({ length: 5 }).map((_, i) => (
+      {(['green', 'blue', 'yellow', 'orange', 'red'] as const).map((color) => (
         <span
-          key={i}
+          key={color}
           data-testid="alarm-shimmer"
           className="inline-block w-5 h-4 rounded bg-slate-700 animate-pulse"
         />
@@ -32,14 +32,18 @@ function ShimmerBadges() {
 }
 
 export function IncidentRow({ incident }: { incident: Incident }) {
+  // Cold-cache fallback: fetch detail per-row only when the middleware did not
+  // supply alarmCounts. Once loaded, results are cached for 60s (staleTime on
+  // useIncidentDetail). In production the middleware cache is warm on most
+  // refreshes, so this fan-out is rare.
   const needsCounts = incident.alarmCounts === null;
-  const { data: detail, isLoading: isDetailLoading } = useIncidentDetail(
+  const { data: detail, isLoading: isDetailLoading, isFetching: isDetailFetching } = useIncidentDetail(
     incident.incidentId,
     { enabled: needsCounts },
   );
 
   const alarmCounts = incident.alarmCounts ?? detail?.alarmCounts ?? null;
-  const isLoadingCounts = needsCounts && isDetailLoading;
+  const isLoadingCounts = needsCounts && (isDetailLoading || isDetailFetching);
 
   return (
     <Link
