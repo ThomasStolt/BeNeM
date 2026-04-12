@@ -48,9 +48,10 @@ struct ServerConfigView: View {
         isTesting
         || draftName.isEmpty
         || draftBhnmURL.isEmpty
+        || draftMiddlewareURL.isEmpty
         || draftApiKey.isEmpty
         || draftAckUser.isEmpty
-        || (draftNotificationsEnabled && (draftMiddlewareURL.isEmpty || draftPushSecret.isEmpty))
+        || (draftNotificationsEnabled && draftPushSecret.isEmpty)
         || (!isAddMode && !hasChanges)
     }
 
@@ -103,6 +104,12 @@ struct ServerConfigView: View {
                         .autocapitalization(.none)
                         .focused($focusedField, equals: .bhnmURL)
                 }
+                LabeledField("Middleware URL", placeholder: "https://bhnm-apns.yourcompany.com") {
+                    TextField("", text: $draftMiddlewareURL)
+                        .keyboardType(.URL)
+                        .autocapitalization(.none)
+                        .focused($focusedField, equals: .middlewareURL)
+                }
                 LabeledField("API Token", placeholder: "Required") {
                     SecureField("", text: $draftApiKey)
                         .focused($focusedField, equals: .apiKey)
@@ -121,15 +128,6 @@ struct ServerConfigView: View {
             // Push Notifications section
             Section("Push Notifications") {
                 Toggle("Enable Push Notifications", isOn: $draftNotificationsEnabled)
-
-                LabeledField("Middleware URL", placeholder: "https://bhnm-apns.yourcompany.com") {
-                    TextField("", text: $draftMiddlewareURL)
-                        .keyboardType(.URL)
-                        .autocapitalization(.none)
-                        .focused($focusedField, equals: .middlewareURL)
-                        .disabled(!draftNotificationsEnabled)
-                }
-                .opacity(draftNotificationsEnabled ? 1 : 0.4)
 
                 LabeledField("Webhook Secret", placeholder: "Required for push") {
                     SecureField("", text: $draftPushSecret)
@@ -263,14 +261,23 @@ struct ServerConfigView: View {
         }
         draftBhnmURL = bhnmURLString
 
-        // Normalize middleware URL if push is enabled
-        if draftNotificationsEnabled {
-            var mw = draftMiddlewareURL.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !mw.isEmpty, !mw.hasPrefix("http://"), !mw.hasPrefix("https://") {
-                mw = "https://\(mw)"
-            }
-            draftMiddlewareURL = mw
+        // Always normalize middleware URL (required for all connections)
+        var mwURLString = draftMiddlewareURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !mwURLString.hasPrefix("http://") && !mwURLString.hasPrefix("https://") {
+            mwURLString = "https://\(mwURLString)"
         }
+        draftMiddlewareURL = mwURLString
+
+        guard !mwURLString.isEmpty else {
+            testStatus = .failure
+            alertTitle = "Middleware URL Required"
+            alertMessage = "Enter the Middleware URL before saving. All API calls route through the middleware."
+            showingAlert = true
+            return
+        }
+
+        let testBase = mwURLString.trimmingSuffix("/")
+        let addProxyHeaders = true
 
         guard let bhnmURLParsed = URL(string: bhnmURLString), bhnmURLParsed.host != nil else {
             testStatus = .failure
@@ -278,17 +285,6 @@ struct ServerConfigView: View {
             alertMessage = "Could not parse \"\(bhnmURLString)\" as a URL."
             showingAlert = true
             return
-        }
-
-        // Build test URL and request
-        let testBase: String
-        let addProxyHeaders: Bool
-        if draftNotificationsEnabled && !draftMiddlewareURL.isEmpty {
-            testBase = draftMiddlewareURL.trimmingSuffix("/")
-            addProxyHeaders = true
-        } else {
-            testBase = bhnmURLString.trimmingSuffix("/")
-            addProxyHeaders = false
         }
 
         guard let testURL = URL(string: "\(testBase)/api/ha_status_api.php") else {
