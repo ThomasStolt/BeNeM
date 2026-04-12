@@ -1,8 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { AlarmBadges } from '../incidents/AlarmBadges';
+import { useIncidentDetail } from '../incidents/useIncidentDetail';
 import { buildDisplayId } from '../../lib/api/incidents';
 import type { Incident } from '../../lib/api/types';
+
+const EMPTY_COUNTS = { red: 0, orange: 0, yellow: 0, green: 0, blue: 0 };
+
+function ShimmerBadges() {
+  return (
+    <div className="flex gap-1">
+      {(['green', 'blue', 'yellow', 'orange', 'red'] as const).map((color) => (
+        <span key={color} className="inline-block w-5 h-4 rounded bg-slate-700 animate-pulse" />
+      ))}
+    </div>
+  );
+}
 
 interface Props {
   incidents: Incident[];
@@ -17,6 +30,14 @@ function TickerCard({
   dotCount?: number;
   activeDot?: number;
 }) {
+  const needsCounts = incident.alarmCounts === null;
+  const { data: detail, isLoading, isFetching } = useIncidentDetail(
+    incident.incidentId,
+    { enabled: needsCounts },
+  );
+  const alarmCounts = incident.alarmCounts ?? detail?.alarmCounts ?? null;
+  const isLoadingCounts = needsCounts && (isLoading || isFetching);
+
   return (
     <div className="p-3 px-3.5">
       {/* Row 1: OPEN tag · incident number · title (truncates) · page dots */}
@@ -48,11 +69,13 @@ function TickerCard({
         <span className="text-xs text-slate-400 truncate flex-1">
           {incident.deviceName ?? 'Unknown'}
         </span>
-        {incident.alarmCounts && (
-          <div className="shrink-0">
-            <AlarmBadges counts={incident.alarmCounts} />
-          </div>
-        )}
+        <div className="shrink-0">
+          {isLoadingCounts ? (
+            <ShimmerBadges />
+          ) : (
+            <AlarmBadges counts={alarmCounts ?? EMPTY_COUNTS} />
+          )}
+        </div>
       </div>
     </div>
   );
