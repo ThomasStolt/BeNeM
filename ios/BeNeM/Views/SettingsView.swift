@@ -19,6 +19,8 @@ struct SettingsView: View {
     @State private var showEditNavigation = false                   // paired with editingConnection
     @State private var navigateToAdd = false                        // drives + toolbar navigation
     @State private var showQRScanner = false                        // drives QR scanner sheet
+    @State private var deleteConfirmID: UUID? = nil
+    @State private var showDeleteActiveAlert = false
     @EnvironmentObject private var deepLinkHandler: DeepLinkHandler
     var body: some View {
         ZStack {
@@ -177,6 +179,11 @@ struct SettingsView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: switchingToConnection?.id)
+        .alert("Cannot Delete Active Server", isPresented: $showDeleteActiveAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Switch to another server before deleting this one.")
+        }
         .fullScreenCover(isPresented: $showQRScanner) {
             QRScannerView { scannedCode in
                 guard let url = URL(string: scannedCode), url.scheme == "benem" else { return }
@@ -218,6 +225,35 @@ struct SettingsView: View {
                 editingConnection = connection
                 showEditNavigation = true
             }
+
+            // Trash / confirm delete
+            Button {
+                if isActive {
+                    showDeleteActiveAlert = true
+                } else if deleteConfirmID == connection.id {
+                    deleteServer(connection)
+                } else {
+                    deleteConfirmID = connection.id
+                }
+            } label: {
+                if deleteConfirmID == connection.id {
+                    Text("Delete?")
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.red)
+                        .cornerRadius(6)
+                } else {
+                    Image(systemName: "trash")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(.systemGray3))
+                        .frame(width: 36, height: 36)
+                        .contentShape(Rectangle())
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, 4)
         }
         .swipeActions(edge: .trailing) {
             Button {
@@ -262,6 +298,14 @@ struct SettingsView: View {
 
     private func reload() {
         savedConnections = UserDefaults.standard.loadSavedConnections()
+    }
+
+    private func deleteServer(_ connection: SavedConnection) {
+        var connections = UserDefaults.standard.loadSavedConnections()
+        connections.removeAll { $0.id == connection.id }
+        UserDefaults.standard.saveSavedConnections(connections)
+        deleteConfirmID = nil
+        reload()
     }
 
     private func activateConnection(_ new: SavedConnection) {
