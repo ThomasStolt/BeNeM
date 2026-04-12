@@ -128,12 +128,14 @@ struct ContentView: View {
                 middlewareURL: oldConn.middlewareURL
             )
         }
+        // Always update the server name subtitle
         UserDefaults.standard.removeObject(forKey: "netreo_active_connection_name")
         guard !newID.isEmpty,
-              let conn = connections.first(where: { $0.id.uuidString == newID }),
-              conn.notificationsEnabled,
-              let token = AppDelegate.shared?.cachedDeviceToken else { return }
+              let conn = connections.first(where: { $0.id.uuidString == newID }) else { return }
         UserDefaults.standard.set(conn.name, forKey: "netreo_active_connection_name")
+        // Push registration is conditional on notifications being enabled and token available
+        guard conn.notificationsEnabled,
+              let token = AppDelegate.shared?.cachedDeviceToken else { return }
         UserDefaults.standard.set(conn.webhookSecret, forKey: "netreo_webhook_secret")
         AppDelegate.shared?.registerWithMiddleware(
             token: token,

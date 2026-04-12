@@ -73,6 +73,7 @@ class DeviceListViewModel: ObservableObject {
         devices = []
         searchResults = []
         searchQuery = ""
+        ThresholdCache.shared.invalidate()
         Task { await loadDevices() }
     }
 }

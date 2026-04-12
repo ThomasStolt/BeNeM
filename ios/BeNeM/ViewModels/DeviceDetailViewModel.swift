@@ -68,10 +68,10 @@ class DeviceDetailViewModel: ObservableObject {
     func load() async {
         loadPinnedInterfaces()
         await ThresholdCache.shared.refresh(using: apiService)
+        await loadServices()
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.loadIncidents() }
             group.addTask { await self.loadPerformanceStructure() }
-            group.addTask { await self.loadServices() }
         }
     }
 
