@@ -36,7 +36,7 @@ export function ConnectionBadge({ status, onRetry }: Props) {
       type="button"
       onClick={onRetry}
       className="p-1"
-      aria-label="Connection status — tap to refresh"
+      aria-label="Connection status — tap to retry"
     >
       <svg
         width="26"
