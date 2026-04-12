@@ -1,6 +1,6 @@
 # BHNM PWA
 
-React/TypeScript Progressive Web App (v0.8.0). Targets Android users via Web Push.
+React/TypeScript Progressive Web App (v0.9.0). Targets Android users via Web Push.
 iOS users are directed to the native app for reliable push notifications.
 
 > Part of the BeNeM monorepo. See `../CLAUDE.md` for cross-cutting rules,
@@ -31,7 +31,7 @@ pwa/
 │   │   ├── performance/            # Time-series metric charts
 │   │   ├── scanner/                # QR scanner for benem:// URLs
 │   │   └── settings/               # Server config, push registration
-│   ├── components/                 # Shared UI (AppLayout, TabBar, RefreshRing, IOSRedirectBanner, ...)
+│   ├── components/                 # Shared UI (AppHeader, TabBar, RefreshRing, ConnectionBadge, StateBadge, ...)
 │   └── lib/
 │       ├── api/                    # BHNM API client
 │       ├── serverStorage.ts        # Sync storage API backed by in-memory cache
@@ -56,6 +56,28 @@ Web Push payload arrives at `src/sw.ts`. On `notificationclick`:
 Payload contract: see `../shared/push-payload-spec.md`.
 
 ## Key Design Decisions
+
+### Unified App Header (`AppHeader`)
+
+All four main screens (Home, Incidents, Devices, Settings) use the shared `AppHeader` component (`src/components/AppHeader.tsx`). It accepts `title`, `isLoading`, `isError`, `dataUpdatedAt`, `intervalMs`, and `onRefresh` props and internally calls `useConfig()` to read `serverName` and `isConfigured`. Connection status is derived purely from props:
+
+- `!isConfigured` → `'disconnected'`
+- `isLoading` → `'checking'`
+- `isError` → `'disconnected'`
+- `dataUpdatedAt > 0` → `'connected'`
+- otherwise → `'unknown'`
+
+Settings passes no `dataUpdatedAt` — the ring is hidden and replaced by a same-width spacer.
+
+### RefreshRing Countdown
+
+`RefreshRing` (`src/components/RefreshRing.tsx`) renders at 40 px (up from 28 px) and shows an M:SS countdown (`1:18`, `0:45`, `2:00`) centred inside the SVG using a `<text>` element. The countdown is hidden while `isLoading` is true (spinning arc replaces the ring).
+
+### Incident Detail Data
+
+`IncidentDetailScreen` always calls `useIncidentDetail(id)` on mount to load full incident data from `getincidentdetail`. The list-level `useIncidents()` cache provides instant basic fields (displayId, status) while the detail fetch is in-flight.
+
+`IncidentRow` calls `useIncidentDetail(id, { enabled: alarmCounts === null })` to lazily load alarm counts when the middleware cache is cold. React Query caches the result for 60 s, so revisiting an incident detail is free.
 
 ### localStorage Encryption
 Sensitive fields (`apiKey`, `pin`, `pushWebhookSecret`) are encrypted at rest

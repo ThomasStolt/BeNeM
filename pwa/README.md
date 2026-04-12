@@ -4,20 +4,27 @@ React/TypeScript Progressive Web App for BMC Helix Network Management (BHNM) inc
 
 Part of the BeNeM monorepo. See `../CLAUDE.md` for cross-cutting rules and `../shared/feature-spec.md` for the canonical feature list.
 
-## Current Version: 0.8.0
+## Current Version: 0.9.0
 
-### What's New in v0.8.0
+### What's New in v0.9.0
 
-- **Device view iOS alignment (Phase 1)** — device list rows and detail screen now match the iOS native app:
-  - Device type icons (Linux/Tux, Windows, Router, Switch) in `shared/icons/` as canonical SVG assets; `DeviceTypeIcon` component colours the icon background by device status
-  - `DeviceRow` redesign — type icon on the left, alarm badges (green/blue/yellow/orange/red matching incident cards) on the right, scrolling incident ticker below the badges at constant speed
-  - `DeviceDetailScreen` — centred device name + IP as screen title; iOS-style header card (icon · category/site/status · latency mini chart); alarm summary bar (HEALTHY / ACK / WARNING / CRITICAL, greyed out when zero); collapsible "Host Information" (closed by default) and "Current Issues" sections with severity-badged incident table
-- **HEALTHY count** — computed per device as `thresholds + ok_service_checks − active_incidents`. Threshold counts fetched via a new middleware cache endpoint (`GET /api/v1/threshold-counts`) — the raw CSV is parsed server-side once per refresh interval rather than in every browser client
-- **Maintenance window improvements** — auto-generated timestamp prefix is read-only; 255-character total limit enforced in the UI
-- **SaaS compatibility** — PHP 8+ BHNM servers return `dev_index`, `category`, `site`, and other fields as integers; the PWA parser now accepts both integers and strings so performance charts and category/site labels work correctly on SaaS servers
+- **Incident detail iOS parity** — `IncidentDetailScreen` rebuilt to match the iOS app exactly:
+  - Calls `getincidentdetail` on mount to load full incident data
+  - **Status section** — icon ACK/UnACK button (✓ / ↩), `StatusBadge`, and all five alarm colour counts (green / blue / yellow / orange / red)
+  - **Incident Info card** — ID, title, device, IP, alert type, created timestamp, verbose duration (`Xd Xh Xm Xs`), and ACK details when acknowledged
+  - **Primary Alarms card** — state badge · type · name · HTML-stripped output · timestamp; hidden when empty
+  - **Related Alarms card** — same structure; hidden when empty
+  - **Incident State Log card** — state badge · timestamp · username · comment; hidden when empty
+  - New `StateBadge` component maps raw alarm/log state strings to coloured pills (distinct from the three-state `StatusBadge` used on list rows)
+  - New `useIncidentDetail` React Query hook (60 s stale time, query key `['incidentDetail', id]`)
+- **Incident duration fix** — list rows previously always showed "now"; `startTime` field lookup now covers `incident_open_time` and `open_time` in addition to `start_time`
+- **Alarm badge cold-cache fallback** — list rows where `alarmCounts` is null (middleware cache cold) lazily fetch counts via `getincidentdetail` per row and show animated shimmer placeholders while loading
+- **Unified app header** — all four main screens (Home, Incidents, Devices, Settings) share the same `AppHeader` component: connection-status badge (left) · B-icon + screen title + server name (centre) · refresh ring (right)
+- **RefreshRing countdown** — the circular refresh ring grows from 28 px to 40 px and displays an M:SS countdown centred inside (e.g. `1:18`, `0:45`, `2:00`)
 
 ### Previous Versions
 
+- **v0.8.0** — Device view iOS alignment (device type icons, `DeviceRow` redesign, `DeviceDetailScreen` iOS parity, HEALTHY count, maintenance window improvements, SaaS compatibility)
 - **v0.7.0** — iOS-style Dashboard, Settings iOS parity, QR scanning fixes, tab bar on all screens, app icon, error boundary, proxy auth
 - **v0.6.0** — Performance charts, QR server onboarding, Web Push, localStorage encryption
 - **v0.5.0** — Inline performance charts in Device Detail with Recharts

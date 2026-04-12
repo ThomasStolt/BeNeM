@@ -112,6 +112,7 @@ features defined here. Platform-specific behaviour is noted per feature.
 #### PWA-specific
 - v0.3.0: React Router NavLink-based tab bar, fixed bottom position
 - v0.7.0: Added Settings tab (4 tabs total), persistent on all screens including Settings
+- v0.9.0: Unified `AppHeader` component across all 4 screens — connection-status badge (left) · B-icon + screen title + server name (centre) · 40 px `RefreshRing` with M:SS countdown (right; hidden on Settings which has no auto-refresh). `ConnectionBadge` exposes `data-status` attribute for reliable test assertions.
 
 ### Feature: Multi-Server Management
 **Status:** shipped-ios, shipped-pwa
