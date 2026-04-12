@@ -70,7 +70,7 @@ function LogRow({ entry }: { entry: IncidentLogEntry }) {
 
 export function IncidentDetailScreen() {
   const { id } = useParams();
-  const { data: incidents, isLoading } = useIncidents();
+  const { data: incidents, isLoading, isFetching } = useIncidents();
   const {
     data: detail,
     isLoading: isDetailLoading,
@@ -85,7 +85,7 @@ export function IncidentDetailScreen() {
 
   const incident = incidents?.find((i) => i.incidentId === id);
 
-  if (isLoading && !incident) {
+  if ((isLoading || isFetching) && !incident) {
     return (
       <div className="p-6">
         <Link to="/incidents" className="text-sm text-slate-400 hover:text-slate-200">
@@ -176,7 +176,7 @@ export function IncidentDetailScreen() {
             </div>
           ) : isAcking ? (
             <div className="w-9 h-9 flex items-center justify-center flex-shrink-0">
-              <span className="text-sky-400 animate-spin text-lg">↻</span>
+              <span className="text-sky-400 animate-spin text-lg" aria-hidden="true">↻</span>
             </div>
           ) : (
             <button
@@ -224,9 +224,9 @@ export function IncidentDetailScreen() {
             </div>
           </div>
           <div className="px-3">
-            {infoRows.map(([label, value]) => (
+            {infoRows.map(([label, value], idx) => (
               <div
-                key={label}
+                key={idx}
                 className="flex justify-between items-baseline gap-2 py-1.5 border-b border-slate-800/40 last:border-0 text-sm"
               >
                 <span className="text-slate-500 flex-shrink-0">{label}</span>
