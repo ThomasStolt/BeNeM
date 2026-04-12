@@ -129,10 +129,7 @@ struct SettingsView: View {
                 }
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
-                        ConnectionBadgeButton(
-                            status: (!storedMiddlewareURL.isEmpty && !activeSavedConnectionID.isEmpty)
-                                ? .connected : .disconnected
-                        ) { /* Settings makes no live API calls */ }
+                        ConnectionBadgeButton(status: .unknown) { /* Settings makes no live API calls */ }
                     }
                     ToolbarItem(placement: .principal) {
                         VStack(spacing: 1) {
