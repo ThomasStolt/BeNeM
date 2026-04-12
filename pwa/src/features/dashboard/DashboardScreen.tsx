@@ -11,10 +11,11 @@ import { EmptyState } from '../../components/EmptyState';
 
 export function DashboardScreen() {
   const queryClient = useQueryClient();
-  const { data: summary, isLoading: summaryLoading, isError, error, dataUpdatedAt } = useTacticalSummary();
-  const { data: incidents, isLoading: incidentsLoading } = useIncidents();
+  const { data: summary, isLoading: summaryLoading, isError: summaryError, error, dataUpdatedAt } = useTacticalSummary();
+  const { data: incidents, isLoading: incidentsLoading, isError: incidentsError } = useIncidents();
 
   const isLoading = summaryLoading || incidentsLoading;
+  const isError = summaryError || incidentsError;
 
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries();

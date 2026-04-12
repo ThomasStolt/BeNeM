@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIncidents } from './useIncidents';
@@ -21,10 +22,10 @@ export function IncidentListScreen() {
   const { data, isLoading, isError, error, refetch, dataUpdatedAt } = useIncidents();
   const queryClient = useQueryClient();
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ['incidents'] });
     await refetch();
-  };
+  }, [queryClient, refetch]);
 
   return (
     <PullToRefresh onRefresh={onRefresh}>

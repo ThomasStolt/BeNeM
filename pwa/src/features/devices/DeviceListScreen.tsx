@@ -1,4 +1,4 @@
-import { useState, useDeferredValue, useMemo } from 'react';
+import { useState, useDeferredValue, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useConfig } from '../../lib/config';
@@ -27,6 +27,10 @@ export function DeviceListScreen() {
     [allIncidents, thresholdCounts],
   );
 
+  const handleRefresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['devices'] });
+  }, [queryClient]);
+
   const devices = result?.devices;
   const totalRecords = result?.totalRecords ?? 0;
   const totalPages = totalRecords > 0 ? Math.ceil(totalRecords / PAGE_SIZE) : 0;
@@ -41,7 +45,7 @@ export function DeviceListScreen() {
         isLoading={isLoading}
         isError={isError}
         dataUpdatedAt={dataUpdatedAt}
-        onRefresh={() => queryClient.invalidateQueries({ queryKey: ['devices'] })}
+        onRefresh={handleRefresh}
       />
 
       {!config.isConfigured && (
