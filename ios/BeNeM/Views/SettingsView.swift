@@ -186,21 +186,38 @@ struct SettingsView: View {
     }
 
     // MARK: - Server row
-    // Active row → NavigationLink to edit. Inactive row → onTapGesture → confirmation dialog.
+    // Circle button: inactive → switch dialog, active → edit.
+    // Info area (icon + text + progress): tap navigates to edit.
     // Swipe left on any row shows Edit action.
 
     @ViewBuilder
     private func serverRow(_ connection: SavedConnection) -> some View {
         let isActive = connection.id.uuidString == activeSavedConnectionID
-        let isSwitching = switchingInProgress == connection.id
 
         HStack(spacing: 0) {
-            serverRowContent(connection, isActive: isActive, isSwitching: isSwitching)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    editingConnection = connection
-                    showEditNavigation = true
+            // Radio circle button — standalone tap target
+            radioCircleButton(connection: connection, isActive: isActive)
+
+            // Info area — tap navigates to edit
+            HStack(spacing: 10) {
+                ServerIconView(symbol: connection.symbol, accentColor: connection.accentColor, size: 36)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(connection.name).font(.body)
+                    let displayHost = connection.bhnmURL.isEmpty ? connection.middlewareURL : connection.bhnmURL
+                    Text(hostname(displayHost))
+                        .font(.caption)
+                        .foregroundColor(isActive ? .green : .secondary)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if switchingInProgress == connection.id { ProgressView() }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                editingConnection = connection
+                showEditNavigation = true
+            }
         }
         .swipeActions(edge: .trailing) {
             Button {
@@ -213,46 +230,32 @@ struct SettingsView: View {
         }
     }
 
-    private func serverRowContent(_ connection: SavedConnection, isActive: Bool, isSwitching: Bool) -> some View {
-        let displayHost = connection.bhnmURL.isEmpty ? connection.middlewareURL : connection.bhnmURL
-        return HStack(spacing: 10) {
-            // Radio circle — tapping selects (switch dialog) or edits (active)
-            Button {
+    private func radioCircleButton(connection: SavedConnection, isActive: Bool) -> some View {
+        Button {
+            if isActive {
+                editingConnection = connection
+                showEditNavigation = true
+            } else {
+                switchingToConnection = connection
+            }
+        } label: {
+            ZStack {
+                Circle()
+                    .strokeBorder(isActive ? Color.accentColor : Color(.systemGray4), lineWidth: 2)
+                    .frame(width: 22, height: 22)
                 if isActive {
-                    editingConnection = connection
-                    showEditNavigation = true
-                } else {
-                    switchingToConnection = connection
-                }
-            } label: {
-                ZStack {
                     Circle()
-                        .strokeBorder(isActive ? Color.accentColor : Color(.systemGray4), lineWidth: 2)
+                        .fill(Color.accentColor)
                         .frame(width: 22, height: 22)
-                    if isActive {
-                        Circle()
-                            .fill(Color.accentColor)
-                            .frame(width: 22, height: 22)
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.white)
-                    }
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white)
                 }
             }
-            .buttonStyle(.plain)
-            .frame(width: 22)
-
-            ServerIconView(symbol: connection.symbol, accentColor: connection.accentColor, size: 36)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(connection.name).font(.body)
-                Text(hostname(displayHost))
-                    .font(.caption).foregroundColor(isActive ? .green : .secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            if isSwitching { ProgressView() }
         }
+        .buttonStyle(.plain)
+        .frame(width: 22)
+        .padding(.trailing, 10)
     }
 
     // MARK: - Actions
