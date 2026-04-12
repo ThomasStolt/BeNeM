@@ -21,8 +21,12 @@ export function RefreshRing({ lastUpdatedAt, intervalMs, isLoading, onRefresh }:
 
   const elapsed = now - lastUpdatedAt;
   const progress = Math.min(1, elapsed / intervalMs);
+  const remaining = Math.max(0, intervalMs - elapsed);
+  const countdownText = `${Math.floor(remaining / 60_000)}:${String(
+    Math.floor((remaining % 60_000) / 1_000),
+  ).padStart(2, '0')}`;
 
-  const size = 28;
+  const size = 40;
   const strokeWidth = 2;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -65,6 +69,18 @@ export function RefreshRing({ lastUpdatedAt, intervalMs, isLoading, onRefresh }:
             transform={`rotate(-90 ${size / 2} ${size / 2})`}
             style={{ transition: 'stroke-dashoffset 1s linear' }}
           />
+          <text
+            x={size / 2}
+            y={size / 2}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize="9"
+            fontWeight="700"
+            fill="#64748b"
+            style={{ fontFamily: 'inherit', letterSpacing: '-0.03em' }}
+          >
+            {countdownText}
+          </text>
         </svg>
       )}
     </button>
