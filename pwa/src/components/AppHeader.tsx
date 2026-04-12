@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useConfig } from '../lib/config';
 import { ConnectionBadge, type ConnectionStatus } from './ConnectionBadge';
 import { RefreshRing } from './RefreshRing';
@@ -20,7 +21,9 @@ export function AppHeader({
   onRefresh,
 }: AppHeaderProps) {
   const config = useConfig();
-  const handleRefresh = onRefresh ?? (() => {});
+  const handleRefresh = useCallback(() => {
+    onRefresh?.();
+  }, [onRefresh]);
 
   const derivedStatus: ConnectionStatus =
     !config.isConfigured ? 'disconnected' :

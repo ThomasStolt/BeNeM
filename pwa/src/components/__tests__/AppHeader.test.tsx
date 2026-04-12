@@ -18,7 +18,7 @@ vi.mock('../../lib/config', () => ({
 import { useConfig } from '../../lib/config';
 
 beforeEach(() => {
-  vi.stubGlobal('ResizeObserver', vi.fn(() => ({ observe: vi.fn(), disconnect: vi.fn() })));
+  vi.stubGlobal('ResizeObserver', vi.fn(() => ({ observe: vi.fn(), unobserve: vi.fn(), disconnect: vi.fn() })));
 });
 
 describe('AppHeader', () => {
@@ -62,6 +62,7 @@ describe('AppHeader', () => {
       isConfigured: false, ackUser: '', bhnmUrl: '',
     });
     render(<AppHeader title="Home" />);
-    expect(screen.getByRole('button', { name: /connection status/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /connection status/i }))
+      .toHaveAttribute('data-status', 'disconnected');
   });
 });
