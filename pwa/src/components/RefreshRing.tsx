@@ -30,7 +30,7 @@ export function RefreshRing({ lastUpdatedAt, intervalMs, isLoading, onRefresh }:
   const strokeWidth = 2;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const dashOffset = circumference * (1 - progress);
+  const dashOffset = circumference * progress;
 
   return (
     <button

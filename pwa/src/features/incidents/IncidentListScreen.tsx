@@ -66,7 +66,7 @@ export function IncidentListScreen() {
 
       {data && data.length > 0 && (
         <ul role="list" data-testid="incident-list">
-          {data.map((incident) => (
+          {[...data].sort((a, b) => b.incidentId - a.incidentId).map((incident) => (
             <li key={incident.incidentId}>
               <SwipeableIncidentRow incident={incident} />
             </li>
