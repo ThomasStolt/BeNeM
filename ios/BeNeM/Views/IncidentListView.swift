@@ -9,6 +9,7 @@ struct IncidentListView: View {
     @Binding private var pendingIncidentID: String?
     @AppStorage("netreo_ack_user") private var ackUser = ""
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
+    @AppStorage("netreo_active_connection_name") private var activeServerName = ""
     private let apiService: NetreoAPIService
 
     init(viewModel: IncidentListViewModel, apiService: NetreoAPIService, navResetID: UUID, pendingIncidentID: Binding<String?>) {
@@ -36,13 +37,20 @@ struct IncidentListView: View {
                     }
                 }
                 ToolbarItem(placement: .principal) {
-                    HStack(spacing: 6) {
-                        Image("BMCHelixLogo")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 24, height: 24)
-                        Text("Active Incidents")
-                            .font(.system(size: 18, weight: .bold, design: .default))
+                    VStack(spacing: 1) {
+                        HStack(spacing: 6) {
+                            Image("BMCHelixLogo")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 22, height: 22)
+                            Text("Incidents")
+                                .font(.system(size: 17, weight: .bold))
+                        }
+                        if !activeServerName.isEmpty {
+                            Text(activeServerName)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
                 ToolbarItemGroup(placement: .navigationBarTrailing) {

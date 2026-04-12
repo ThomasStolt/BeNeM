@@ -9,6 +9,8 @@ struct SettingsView: View {
     @AppStorage("refresh_interval")     private var refreshInterval: Double = 120.0
     @AppStorage("maxDevicesCount")      private var maxDevicesCount: Int = 20
     @AppStorage("netreo_active_connection_id") private var activeSavedConnectionID = ""
+    @AppStorage("netreo_base_url")               private var storedMiddlewareURL = ""
+    @AppStorage("netreo_active_connection_name") private var activeServerName = ""
 
     @State private var savedConnections: [SavedConnection] = []
     @State private var switchingToConnection: SavedConnection? = nil
@@ -126,6 +128,29 @@ struct SettingsView: View {
                     ServerConfigView(existingConnection: nil)
                 }
                 .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        ConnectionBadgeButton(
+                            status: (!storedMiddlewareURL.isEmpty && !activeSavedConnectionID.isEmpty)
+                                ? .connected : .disconnected
+                        ) { /* Settings makes no live API calls */ }
+                    }
+                    ToolbarItem(placement: .principal) {
+                        VStack(spacing: 1) {
+                            HStack(spacing: 6) {
+                                Image("BMCHelixLogo")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 22, height: 22)
+                                Text("Settings")
+                                    .font(.system(size: 17, weight: .bold))
+                            }
+                            if !activeServerName.isEmpty {
+                                Text(activeServerName)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button { navigateToAdd = true } label: {
                             Image(systemName: "plus")
@@ -269,6 +294,7 @@ struct SettingsView: View {
         UserDefaults.standard.set(new.pin,            forKey: "netreo_pin")
         UserDefaults.standard.set(new.ackUser,        forKey: "netreo_ack_user")
         UserDefaults.standard.set(new.webhookSecret,  forKey: "netreo_webhook_secret")
+        UserDefaults.standard.set(new.name,           forKey: "netreo_active_connection_name")
         activeSavedConnectionID = new.id.uuidString
         // Push registration for the new connection fires via ContentView.onChange(of: activeConnectionID)
 

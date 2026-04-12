@@ -4,6 +4,7 @@ struct DeviceListView: View {
     @StateObject private var viewModel: DeviceListViewModel
     @State private var connectionStatus: ConnectionStatus = .unknown
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
+    @AppStorage("netreo_active_connection_name") private var activeServerName = ""
     private let apiService: NetreoAPIService
 
     init(apiService: NetreoAPIService) {
@@ -66,17 +67,24 @@ struct DeviceListView: View {
                     }
                 }
                 ToolbarItem(placement: .principal) {
-                    HStack(spacing: 6) {
-                        Image("BMCHelixLogo")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 24, height: 24)
-                        if viewModel.totalRecords > 0 {
-                            Text("Devices (\(viewModel.totalRecords))")
-                                .font(.system(size: 18, weight: .bold))
-                        } else {
-                            Text("Devices")
-                                .font(.system(size: 18, weight: .bold))
+                    VStack(spacing: 1) {
+                        HStack(spacing: 6) {
+                            Image("BMCHelixLogo")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 22, height: 22)
+                            if viewModel.totalRecords > 0 {
+                                Text("Devices (\(viewModel.totalRecords))")
+                                    .font(.system(size: 17, weight: .bold))
+                            } else {
+                                Text("Devices")
+                                    .font(.system(size: 17, weight: .bold))
+                            }
+                        }
+                        if !activeServerName.isEmpty {
+                            Text(activeServerName)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
                         }
                     }
                 }
