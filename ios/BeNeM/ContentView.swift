@@ -76,7 +76,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private var mainTabs: some View {
-        if !bhnmURL.isEmpty && !apiKey.isEmpty, let service = apiService {
+        if !baseURL.isEmpty && !apiKey.isEmpty, let service = apiService {
             DashboardView(apiService: service, incidentViewModel: incidentViewModel, selectedTab: $selectedTab, navResetID: homeNavResetID)
                 .tag(0)
             IncidentListView(viewModel: incidentViewModel, apiService: service, navResetID: incidentNavResetID, pendingIncidentID: $pendingIncidentID)
@@ -152,21 +152,17 @@ struct ContentView: View {
     }
 
     private func updateAPIService() {
-        guard !bhnmURL.isEmpty && !apiKey.isEmpty else {
+        guard !baseURL.isEmpty && !apiKey.isEmpty else {
             apiService = nil
             return
         }
         let apiVersion = NetreoAPIConfiguration.APIVersion(rawValue: apiVersionString) ?? .legacy
-        // Route through middleware when configured; connect directly to BHNM otherwise
-        let serviceBaseURL = baseURL.isEmpty ? bhnmURL : baseURL
-        let serviceProxyToken = baseURL.isEmpty ? "" : webhookSecret
-        let serviceBhnmURL = baseURL.isEmpty ? "" : bhnmURL
         let configuration = NetreoAPIConfiguration(
-            baseURL: serviceBaseURL,
-            bhnmURL: serviceBhnmURL,
+            baseURL: baseURL,
+            bhnmURL: bhnmURL,
             apiKey: apiKey,
             pin: pin.isEmpty ? nil : pin,
-            proxyToken: serviceProxyToken,
+            proxyToken: webhookSecret,
             version: apiVersion,
             timeout: timeout,
             retryCount: Int(retryCount)
@@ -178,6 +174,11 @@ struct ContentView: View {
         homeNavResetID = UUID()
         incidentNavResetID = UUID()
         settingsNavResetID = UUID()
+        // Sync active server name for toolbar subtitle
+        let connections = UserDefaults.standard.loadSavedConnections()
+        if let active = connections.first(where: { $0.id.uuidString == activeConnectionID }) {
+            UserDefaults.standard.set(active.name, forKey: "netreo_active_connection_name")
+        }
     }
 }
 
