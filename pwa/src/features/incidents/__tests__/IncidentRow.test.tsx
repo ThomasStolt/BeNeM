@@ -95,4 +95,14 @@ describe('IncidentRow', () => {
     renderRow({ ...base, deviceName: null });
     expect(screen.getAllByText('10.0.0.1').length).toBeGreaterThan(0);
   });
+
+  it('shows Unknown when both deviceName and deviceIp are null', () => {
+    renderRow({ ...base, deviceName: null, deviceIp: null });
+    expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
+  });
+
+  it('renders day duration for incidents older than 24h', () => {
+    renderRow({ ...base, startTime: new Date(Date.now() - 49 * 3_600_000) });
+    expect(screen.getByText('2d')).toBeInTheDocument();
+  });
 });

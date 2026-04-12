@@ -17,6 +17,10 @@ export function OverflowMarquee({ text, className = '', speed = 40 }: Props) {
   const measureRef = useRef<HTMLSpanElement>(null);
   const [overflows, setOverflows] = useState(false);
   const [animDuration, setAnimDuration] = useState('8s');
+  const prefersReducedMotion =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   useEffect(() => {
     function measure() {
@@ -69,8 +73,12 @@ export function OverflowMarquee({ text, className = '', speed = 40 }: Props) {
       {overflows ? (
         // Dual-copy track — animates from 0 to -50% (= one full copy width + gap)
         <div
-          className="flex w-max animate-marquee motion-reduce:animate-none"
-          style={{ animationDuration: animDuration }}
+          className="flex w-max"
+          style={{
+            animation: prefersReducedMotion
+              ? 'none'
+              : `marquee ${animDuration} linear infinite`,
+          }}
         >
           <span className="whitespace-nowrap" style={{ paddingRight: `${GAP_PX}px` }}>
             {text}

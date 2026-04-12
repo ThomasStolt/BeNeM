@@ -20,8 +20,9 @@ beforeEach(() => {
 describe('OverflowMarquee', () => {
   it('renders text in static mode when dimensions are equal (no overflow)', () => {
     const { container } = render(<OverflowMarquee text="Short text" />);
-    // In jsdom scrollWidth = clientWidth = 0 → no overflow → no animate-marquee
-    expect(container.querySelector('.animate-marquee')).not.toBeInTheDocument();
+    // In jsdom scrollWidth = clientWidth = 0 → no overflow → no animated track
+    const track = container.querySelector('.flex.w-max') as HTMLElement | null;
+    expect(track).not.toBeInTheDocument();
     expect(screen.getAllByText('Short text').length).toBeGreaterThan(0);
   });
 
@@ -37,7 +38,9 @@ describe('OverflowMarquee', () => {
       roCallback([], null as unknown as ResizeObserver);
     });
 
-    expect(container.querySelector('.animate-marquee')).toBeInTheDocument();
+    const track = container.querySelector('.flex.w-max') as HTMLElement;
+    expect(track).toBeInTheDocument();
+    expect(track.style.animation).toContain('marquee');
   });
 
   it('renders two text copies in overflow mode (for seamless loop)', () => {
@@ -52,7 +55,7 @@ describe('OverflowMarquee', () => {
       roCallback([], null as unknown as ResizeObserver);
     });
 
-    const track = container.querySelector('.animate-marquee') as HTMLElement;
+    const track = container.querySelector('.flex.w-max') as HTMLElement;
     expect(track.querySelectorAll('span')).toHaveLength(2);
   });
 
@@ -69,8 +72,8 @@ describe('OverflowMarquee', () => {
       roCallback([], null as unknown as ResizeObserver);
     });
 
-    const track = container.querySelector('.animate-marquee') as HTMLElement;
-    expect(track.style.animationDuration).toBe('4.96s');
+    const track = container.querySelector('.flex.w-max') as HTMLElement;
+    expect(track.style.animation).toContain('4.96s');
   });
 
   it('disconnects the ResizeObserver on unmount', () => {
