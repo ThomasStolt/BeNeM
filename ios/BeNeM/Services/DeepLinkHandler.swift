@@ -142,18 +142,6 @@ final class DeepLinkHandler: ObservableObject {
         }
 
         ud.saveSavedConnections(connections)
-        ud.set(upsertedID.uuidString, forKey: "netreo_active_connection_id")
-
-        // 3. Re-register push if notificationsEnabled
-        if imp.notificationsEnabled,
-           let token = AppDelegate.shared?.cachedDeviceToken,
-           let conn = connections.first(where: { $0.id == upsertedID }) {
-            AppDelegate.shared?.registerWithMiddleware(
-                token: token,
-                secret: conn.webhookSecret,
-                middlewareURL: conn.middlewareURL
-            )
-        }
 
         pendingImport = nil
         NotificationCenter.default.post(name: .deepLinkConnectionApplied, object: nil)
