@@ -4,26 +4,18 @@ React/TypeScript Progressive Web App for BMC Helix Network Management (BHNM) inc
 
 Part of the BeNeM monorepo. See `../CLAUDE.md` for cross-cutting rules and `../shared/feature-spec.md` for the canonical feature list.
 
-## Current Version: 0.9.0
+## Current Version: 0.10.0
 
-### What's New in v0.9.0
+### What's New in v0.10.0
 
-- **Incident detail iOS parity** — `IncidentDetailScreen` rebuilt to match the iOS app exactly:
-  - Calls `getincidentdetail` on mount to load full incident data
-  - **Status section** — icon ACK/UnACK button (✓ / ↩), `StatusBadge`, and all five alarm colour counts (green / blue / yellow / orange / red)
-  - **Incident Info card** — ID, title, device, IP, alert type, created timestamp, verbose duration (`Xd Xh Xm Xs`), and ACK details when acknowledged
-  - **Primary Alarms card** — state badge · type · name · HTML-stripped output · timestamp; hidden when empty
-  - **Related Alarms card** — same structure; hidden when empty
-  - **Incident State Log card** — state badge · timestamp · username · comment; hidden when empty
-  - New `StateBadge` component maps raw alarm/log state strings to coloured pills (distinct from the three-state `StatusBadge` used on list rows)
-  - New `useIncidentDetail` React Query hook (60 s stale time, query key `['incidentDetail', id]`)
-- **Incident duration fix** — list rows previously always showed "now"; `startTime` field lookup now covers `incident_open_time` and `open_time` in addition to `start_time`
-- **Alarm badge cold-cache fallback** — list rows where `alarmCounts` is null (middleware cache cold) lazily fetch counts via `getincidentdetail` per row and show animated shimmer placeholders while loading
-- **Unified app header** — all four main screens (Home, Incidents, Devices, Settings) share the same `AppHeader` component: connection-status badge (left) · B-icon + screen title + server name (centre) · refresh ring (right)
-- **RefreshRing countdown** — the circular refresh ring grows from 28 px to 40 px and displays an M:SS countdown centred inside (e.g. `1:18`, `0:45`, `2:00`)
+- **BMC Helix logo in AppHeader** — the placeholder blue "B" square is replaced by the actual BMC Helix logo image, matching the iOS app header
+- **Incident ticker redesigned** — 2-row layout: row 1 shows a red OPEN badge + incident number + title (truncated with `…`) + page-position dots; row 2 shows device name + alarm colour badges; ticker cycles through the 3 **newest** critical/major open incidents (was oldest 3); alarm counts fetched lazily via `useIncidentDetail` when not in the middleware cache (shimmer while loading)
+- **Incident list sorted newest-first** — incidents are sorted descending by incident ID; highest (most recent) number shown at top
+- **RefreshRing direction** — ring now starts full and drains counter-clockwise as the countdown ticks down, matching iOS behaviour
 
 ### Previous Versions
 
+- **v0.9.0** — Incident detail iOS parity, alarm badge cold-cache fallback, unified AppHeader, M:SS RefreshRing countdown
 - **v0.8.0** — Device view iOS alignment (device type icons, `DeviceRow` redesign, `DeviceDetailScreen` iOS parity, HEALTHY count, maintenance window improvements, SaaS compatibility)
 - **v0.7.0** — iOS-style Dashboard, Settings iOS parity, QR scanning fixes, tab bar on all screens, app icon, error boundary, proxy auth
 - **v0.6.0** — Performance charts, QR server onboarding, Web Push, localStorage encryption

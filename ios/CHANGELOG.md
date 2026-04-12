@@ -12,6 +12,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [2.7.0] — 2026-04-12
+
+### Added
+
+- **Alarm badge strip on device list rows** — each device row now shows a HEALTHY / ACK / WARNING / CRITICAL badge strip derived from the global incident list and the new threshold cache; HEALTHY shows `—` until the cache warms
+- **ThresholdCache** — new `@MainActor` singleton (`Models/ThresholdCache.swift`) fetches `GET /api/v1/threshold-counts` from the middleware once every 10 minutes; cache is invalidated automatically when the active server changes
+- **Real HEALTHY count in device detail** — alarm bar now computes `max(0, thresholds + ok_service_checks − active_incidents)` using the threshold cache and a new `fetchDeviceServices()` API call; replaces the old binary 0/1 formula
+- **Active server name subtitle** — all four tab toolbars (Home, Incidents, Devices, Settings) now show the active server's human-readable name below the screen title; updates instantly on server switch
+- **Settings: ConnectionBadge** — the Settings toolbar now shows the chain-link connection indicator on the left, matching the other three tabs
+- **M:SS countdown in AutoRefreshButton** — the circular ring now displays the remaining time as `M:SS` text inside the ring (e.g. `1:38`); the ring starts full and drains counter-clockwise, replacing the static arrow icon
+- **Settings: radio-circle server select** — the passive green dot is replaced by a tappable 22 px circle: filled blue with checkmark when active, empty outline when inactive; tapping the circle opens the switch dialog; tapping the server name navigates to edit for all rows
+- **Settings: inline delete with confirmation** — each server row has a trash icon; first tap turns it red and shows "Delete?"; second tap deletes the server; attempting to delete the active server shows a blocking alert
+
+### Changed
+
+- **QR import no longer auto-switches active server** — scanning a `benem://` QR code adds the server to the list without activating it; the user must switch manually via the radio-circle button
+- **Middleware URL is always required** — middleware URL is now in the Connection section of server configuration (not the Push section) and is a mandatory field; the app never connects directly to BHNM; the direct-BHNM fallback in `ContentView` is removed
+
+### Fixed
+
+- **Middleware URL guard order** — the empty-guard in `ServerConfigView` now fires on the raw trimmed string before `https://` prefix injection, preventing the guard from always passing on empty input
+- **Middleware URL preserved when push disabled** — toggling off push notifications no longer blanks the stored middleware URL
+- **Proxy token header suppressed when webhook secret is empty** — `X-Proxy-Token` is only sent when a webhook secret is configured
+- **ThresholdCache invalidated on server switch** — switching servers immediately invalidates the threshold cache so stale counts from the previous server are never shown
+- **Server name subtitle shown on cold launch** — `netreo_active_connection_name` is now written in `updateAPIService()` (called on `.onAppear`) in addition to `handleConnectionChange`, so the subtitle appears correctly without requiring a server switch
+
+---
+
 ## [2.6.0] — 2026-04-07
 
 ### Security
