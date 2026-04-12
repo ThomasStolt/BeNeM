@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { AppHeader } from '../../components/AppHeader';
 import { useConfig, notifyConfigChanged } from '../../lib/config';
 import {
   loadServers,
@@ -162,9 +163,7 @@ export function SettingsScreen() {
 
   return (
     <div className="min-h-full">
-      <header className="px-4 py-3 border-b border-slate-800 flex items-center justify-center">
-        <h1 className="text-lg font-semibold">Settings</h1>
-      </header>
+      <AppHeader title="Settings" />
 
       <div className="p-4 space-y-6 max-w-md">
         {view === 'list' && (
