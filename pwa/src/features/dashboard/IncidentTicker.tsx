@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { SeverityBadge } from '../incidents/SeverityBadge';
+import { AlarmBadges } from '../incidents/AlarmBadges';
 import { buildDisplayId } from '../../lib/api/incidents';
 import type { Incident } from '../../lib/api/types';
 
@@ -11,17 +11,28 @@ interface Props {
 function TickerCard({ incident }: { incident: Incident }) {
   return (
     <div className="p-3 px-3.5">
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <SeverityBadge severity={incident.severity} />
-        <span className="text-[11px] text-slate-500">
+      {/* Row 1: OPEN tag · incident number · title (truncates with …) */}
+      <div className="flex items-center gap-1.5 min-w-0 mb-1.5">
+        <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-700 text-white leading-tight">
+          OPEN
+        </span>
+        <span className="shrink-0 text-[11px] text-slate-500 font-mono">
           {buildDisplayId(incident.incidentId)}
         </span>
+        <span className="text-[13px] text-slate-100 truncate">
+          {incident.summary}
+        </span>
       </div>
-      <div className="text-[13px] text-slate-100 mb-1 truncate">
-        {incident.summary}
-      </div>
-      <div className="text-xs text-slate-400">
-        {incident.deviceName ?? 'Unknown'}
+      {/* Row 2: device name · alarm badges */}
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="text-xs text-slate-400 truncate flex-1">
+          {incident.deviceName ?? 'Unknown'}
+        </span>
+        {incident.alarmCounts && (
+          <div className="shrink-0">
+            <AlarmBadges counts={incident.alarmCounts} />
+          </div>
+        )}
       </div>
     </div>
   );
