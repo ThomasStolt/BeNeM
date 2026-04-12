@@ -2,9 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { AlarmBadges } from '../incidents/AlarmBadges';
 import { buildDisplayId } from '../../lib/api/incidents';
-import type { AlarmCounts, Incident } from '../../lib/api/types';
-
-const EMPTY_COUNTS: AlarmCounts = { green: 0, blue: 0, yellow: 0, orange: 0, red: 0 };
+import type { Incident } from '../../lib/api/types';
 
 interface Props {
   incidents: Incident[];
@@ -50,9 +48,11 @@ function TickerCard({
         <span className="text-xs text-slate-400 truncate flex-1">
           {incident.deviceName ?? 'Unknown'}
         </span>
-        <div className="shrink-0">
-          <AlarmBadges counts={incident.alarmCounts ?? EMPTY_COUNTS} />
-        </div>
+        {incident.alarmCounts && (
+          <div className="shrink-0">
+            <AlarmBadges counts={incident.alarmCounts} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -62,6 +62,7 @@ export function IncidentTicker({ incidents }: Props) {
   const urgent = incidents
     .filter((i) => i.status === 'active' && i.incidentState.toUpperCase() !== 'ALARMS CLEARED'
       && (i.severity === 'critical' || i.severity === 'major'))
+    .sort((a, b) => Number(b.incidentId) - Number(a.incidentId))
     .slice(0, 3);
 
   const [displayIndex, setDisplayIndex] = useState(0);
