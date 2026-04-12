@@ -241,7 +241,7 @@ features defined here. Platform-specific behaviour is noted per feature.
 - Filter button in header with active state indicator
 
 ### Feature: Threshold Cache
-**Status:** shipped-pwa (middleware-side; iOS reads thresholds indirectly via incidents)
+**Status:** shipped-both
 **API:** `GET /api/v1/threshold-counts` (middleware), `POST /fw/index.php?r=restful/devices/list-thresholds-csv` (BHNM, server-side only)
 
 #### Behaviour
@@ -260,6 +260,13 @@ features defined here. Platform-specific behaviour is noted per feature.
 - v0.8.0: `useThresholds()` hook (10-min stale time, all devices), `useDeviceServices()` hook (5-min stale time, per device)
 - HEALTHY badge in device list rows: `thresholds − active_incidents`
 - HEALTHY column in device detail alarm bar: `thresholds + ok_service_checks − active_incidents`
+
+#### iOS-specific
+- `ThresholdCache.shared` singleton (`Models/ThresholdCache.swift`); refreshes on `DeviceListViewModel.loadDevices()` and `DeviceDetailViewModel.load()`
+- HEALTHY in device list: `max(0, ThresholdCache[name] − activeIncidents)` — shows `—` when cache not yet loaded
+- HEALTHY in device detail alarm bar: `max(0, ThresholdCache[name] + okServiceChecks − activeIncidents)`
+- `fetchThresholdCounts()` in `NetreoAPIService`: `GET /api/v1/threshold-counts`, proxy-authenticated
+- `fetchDeviceServices(deviceName:)` in `NetreoAPIService`: `POST /fw/index.php?r=restful/devices/services`, returns enabled+OK service check count
 
 ---
 
