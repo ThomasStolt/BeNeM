@@ -36,6 +36,39 @@ export class ApiException extends Error {
   }
 }
 
+export interface IncidentAlarm {
+  state: string;    // e.g. "CRITICAL", "MAJOR", "OK"
+  type: string;     // e.g. "Host", "Service", "Threshold"
+  name: string;
+  output: string;   // HTML-stripped alarm output
+  time: Date | null;
+}
+
+export interface IncidentLogEntry {
+  state: string;
+  time: Date | null;
+  username: string;
+  comment: string;
+}
+
+export interface IncidentDetail {
+  incidentId: string;
+  title: string;
+  deviceName: string;
+  deviceIp: string | null;
+  incidentState: string;
+  alertType: string | null;
+  openTime: Date | null;
+  acknowledged: boolean;
+  ackTime: Date | null;
+  ackUser: string | null;
+  ackComment: string | null;
+  alarmCounts: AlarmCounts;          // computed from primary + related alarms
+  primaryAlarms: IncidentAlarm[];
+  relatedAlarms: IncidentAlarm[];
+  incidentLog: IncidentLogEntry[];
+}
+
 export interface PerformanceCategory {
   id: string;
   category: string;
