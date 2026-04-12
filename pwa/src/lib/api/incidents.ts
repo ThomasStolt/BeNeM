@@ -89,6 +89,9 @@ function parseRow(row: Record<string, unknown>, index: number, forcedStatus?: In
     severity: coerceSeverity(row),
     status,
     incidentState: stateString,
+    // Field name fallback chain: BHNM REST uses start_time, legacy API uses
+    // incident_open_time; some older versions use open_time. Prefer the more
+    // specific names first.
     startTime: coerceStartTime(
       row.start_time ?? row.startTime ?? row.incident_open_time ?? row.open_time
     ),

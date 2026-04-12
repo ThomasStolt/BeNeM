@@ -104,6 +104,36 @@ describe('parseIncidentsResponse', () => {
     const incidents = parseIncidentsResponse(payload);
     expect(incidents[0].startTime.getTime()).toBe(1712332800 * 1000);
   });
+
+  it('parses start_time from startTime camelCase field when start_time absent', () => {
+    const payload = {
+      active_incidents: [
+        {
+          incident_id: 101,
+          title: 'camel',
+          name: 'host3',
+          incident_state: 'OPEN',
+          severity: 'minor',
+          startTime: 1712332800,
+        },
+      ],
+    };
+    const incidents = parseIncidentsResponse(payload);
+    expect(incidents[0].startTime.getTime()).toBe(1712332800 * 1000);
+  });
+
+  it('startTime falls back to a recent Date when all time fields absent', () => {
+    const before = Date.now();
+    const payload = {
+      active_incidents: [
+        { incident_id: 102, title: 'no-time', name: 'host4', incident_state: 'OPEN', severity: 'major' },
+      ],
+    };
+    const incidents = parseIncidentsResponse(payload);
+    const after = Date.now();
+    expect(incidents[0].startTime.getTime()).toBeGreaterThanOrEqual(before);
+    expect(incidents[0].startTime.getTime()).toBeLessThanOrEqual(after);
+  });
 });
 
 describe('parseAckResponse', () => {
