@@ -128,10 +128,12 @@ struct ContentView: View {
                 middlewareURL: oldConn.middlewareURL
             )
         }
+        UserDefaults.standard.removeObject(forKey: "netreo_active_connection_name")
         guard !newID.isEmpty,
               let conn = connections.first(where: { $0.id.uuidString == newID }),
               conn.notificationsEnabled,
               let token = AppDelegate.shared?.cachedDeviceToken else { return }
+        UserDefaults.standard.set(conn.name, forKey: "netreo_active_connection_name")
         UserDefaults.standard.set(conn.webhookSecret, forKey: "netreo_webhook_secret")
         AppDelegate.shared?.registerWithMiddleware(
             token: token,
@@ -174,11 +176,6 @@ struct ContentView: View {
         homeNavResetID = UUID()
         incidentNavResetID = UUID()
         settingsNavResetID = UUID()
-        // Sync active server name for toolbar subtitle
-        let connections = UserDefaults.standard.loadSavedConnections()
-        if let active = connections.first(where: { $0.id.uuidString == activeConnectionID }) {
-            UserDefaults.standard.set(active.name, forKey: "netreo_active_connection_name")
-        }
     }
 }
 
