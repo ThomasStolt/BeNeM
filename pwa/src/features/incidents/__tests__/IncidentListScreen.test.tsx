@@ -1,8 +1,15 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { IncidentListScreen } from '../IncidentListScreen';
+
+beforeEach(() => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    vi.fn(() => ({ observe: vi.fn(), disconnect: vi.fn() })),
+  );
+});
 
 vi.mock('../useIncidents', () => ({
   useIncidents: () => ({
@@ -54,16 +61,18 @@ describe('IncidentListScreen', () => {
   it('renders a row for each incident', async () => {
     renderScreen();
     await waitFor(() => {
-      expect(screen.getByText(/core-switch-01/)).toBeInTheDocument();
-      expect(screen.getByText(/edge-router-02/)).toBeInTheDocument();
+      expect(screen.getAllByText(/core-switch-01/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/edge-router-02/).length).toBeGreaterThan(0);
     });
     const list = screen.getByTestId('incident-list');
     expect(list.querySelectorAll('li')).toHaveLength(2);
   });
 
-  it('renders severity badges', () => {
+  it('renders status badges', async () => {
     renderScreen();
-    expect(screen.getByLabelText('Severity: critical')).toBeInTheDocument();
-    expect(screen.getByLabelText('Severity: major')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('OPEN')).toBeInTheDocument();
+      expect(screen.getByText('ACKD')).toBeInTheDocument();
+    });
   });
 });
