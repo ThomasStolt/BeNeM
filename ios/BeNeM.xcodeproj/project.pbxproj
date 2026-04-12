@@ -37,6 +37,7 @@
 		DD0001000000000000000001 /* DeviceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0001000000000000000002 /* DeviceDetailView.swift */; };
 		MW0001000000000000000001 /* MaintenanceWindowSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = MW0001000000000000000002 /* MaintenanceWindowSheet.swift */; };
 		EE0001000000000000000001 /* SavedConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0001000000000000000002 /* SavedConnection.swift */; };
+		TC0001000000000000000001 /* ThresholdCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = TC0001000000000000000002 /* ThresholdCache.swift */; };
 		FF0001000000000000000001 /* Data+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0001000000000000000002 /* Data+Hex.swift */; };
 		FF0001000000000000000003 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0001000000000000000004 /* Secrets.swift */; };
 		GG0001000000000000000001 /* DeepLinkHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = GG0001000000000000000002 /* DeepLinkHandler.swift */; };
@@ -74,6 +75,7 @@
 		DD0001000000000000000002 /* DeviceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDetailView.swift; sourceTree = "<group>"; };
 		MW0001000000000000000002 /* MaintenanceWindowSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaintenanceWindowSheet.swift; sourceTree = "<group>"; };
 		EE0001000000000000000002 /* SavedConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedConnection.swift; sourceTree = "<group>"; };
+		TC0001000000000000000002 /* ThresholdCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThresholdCache.swift; sourceTree = "<group>"; };
 		FF0001000000000000000002 /* Data+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Data+Hex.swift"; sourceTree = "<group>"; };
 		FF0001000000000000000004 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
 		GG0001000000000000000002 /* DeepLinkHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkHandler.swift; sourceTree = "<group>"; };
@@ -170,6 +172,7 @@
 				A11234567890005B /* NetreoDevice.swift */,
 				BB0001000000000000000002 /* GroupSummary.swift */,
 				EE0001000000000000000002 /* SavedConnection.swift */,
+				TC0001000000000000000002 /* ThresholdCache.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -324,6 +327,7 @@
 				DD0001000000000000000001 /* DeviceDetailView.swift in Sources */,
 				MW0001000000000000000001 /* MaintenanceWindowSheet.swift in Sources */,
 				EE0001000000000000000001 /* SavedConnection.swift in Sources */,
+				TC0001000000000000000001 /* ThresholdCache.swift in Sources */,
 				FF0001000000000000000001 /* Data+Hex.swift in Sources */,
 				FF0001000000000000000003 /* Secrets.swift in Sources */,
 				GG0001000000000000000001 /* DeepLinkHandler.swift in Sources */,

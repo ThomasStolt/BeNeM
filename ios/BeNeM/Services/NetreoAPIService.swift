@@ -1224,7 +1224,62 @@ class NetreoAPIService: ObservableObject {
         
         return incidents
     }
-    
+
+    // MARK: - Threshold Cache
+
+    /// Fetches pre-aggregated threshold counts per device from the middleware cache.
+    /// Returns a dictionary mapping device name → threshold count.
+    func fetchThresholdCounts() async throws -> [String: Int] {
+        guard let url = URL(string: "\(configuration.baseURL)/api/v1/threshold-counts") else {
+            throw URLError(.badURL)
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        addProxyToken(&request)
+        let (data, response) = try await urlSession.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return [:]
+        }
+        var result: [String: Int] = [:]
+        for (key, value) in raw {
+            if let intVal = value as? Int {
+                result[key] = intVal
+            } else if let numVal = value as? NSNumber {
+                result[key] = numVal.intValue
+            }
+        }
+        return result
+    }
+
+    /// Fetches the count of enabled + OK service checks for a device.
+    func fetchDeviceServices(deviceName: String) async throws -> Int {
+        guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/devices/services") else {
+            throw URLError(.badURL)
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        addProxyToken(&request)
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var params = [
+            URLQueryItem(name: "password", value: configuration.apiKey),
+            URLQueryItem(name: "name",     value: deviceName)
+        ]
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
+        let (data, _) = try await urlSession.data(for: request)
+        guard let raw = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return 0
+        }
+        return raw.filter { item in
+            let enabled = (item["enabled"] as? Bool) ?? ((item["enabled"] as? Int) == 1)
+            let status  = (item["status"] as? String ?? "").lowercased()
+            return enabled && (status == "ok" || status == "up")
+        }.count
+    }
+
 }
 
 enum AlarmColor: String, CaseIterable, Hashable {
