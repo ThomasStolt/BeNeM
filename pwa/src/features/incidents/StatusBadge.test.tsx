@@ -39,4 +39,20 @@ describe('StatusBadge', () => {
     expect(screen.getByText('CLRD')).toBeInTheDocument();
     expect(container.firstChild).toHaveClass('bg-emerald-600');
   });
+
+  it('shows CLRD in green when incidentState is ALARMS CLEARED even if acknowledged', () => {
+    const { container } = render(
+      <StatusBadge status="acknowledged" incidentState="ALARMS CLEARED" />,
+    );
+    expect(screen.getByText('CLRD')).toBeInTheDocument();
+    expect(container.firstChild).toHaveClass('bg-emerald-600');
+  });
+
+  it('shows CLRD in green for closed incidents (colour check)', () => {
+    const { container } = render(
+      <StatusBadge status="closed" incidentState="CLOSED" />,
+    );
+    expect(screen.getByText('CLRD')).toBeInTheDocument();
+    expect(container.firstChild).toHaveClass('bg-emerald-600');
+  });
 });
