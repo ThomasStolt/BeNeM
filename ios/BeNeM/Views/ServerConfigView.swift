@@ -262,22 +262,29 @@ struct ServerConfigView: View {
         draftBhnmURL = bhnmURLString
 
         // Always normalize middleware URL (required for all connections)
-        var mwURLString = draftMiddlewareURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !mwURLString.hasPrefix("http://") && !mwURLString.hasPrefix("https://") {
-            mwURLString = "https://\(mwURLString)"
-        }
-        draftMiddlewareURL = mwURLString
-
-        guard !mwURLString.isEmpty else {
+        let mwURLStringRaw = draftMiddlewareURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !mwURLStringRaw.isEmpty else {
             testStatus = .failure
             alertTitle = "Middleware URL Required"
             alertMessage = "Enter the Middleware URL before saving. All API calls route through the middleware."
             showingAlert = true
             return
         }
+        var mwURLString = mwURLStringRaw
+        if !mwURLString.hasPrefix("http://") && !mwURLString.hasPrefix("https://") {
+            mwURLString = "https://\(mwURLString)"
+        }
+        draftMiddlewareURL = mwURLString
+
+        guard let mwURLParsed = URL(string: mwURLString), mwURLParsed.host != nil else {
+            testStatus = .failure
+            alertTitle = "Invalid URL"
+            alertMessage = "Could not parse \"\(mwURLString)\" as a middleware URL."
+            showingAlert = true
+            return
+        }
 
         let testBase = mwURLString.trimmingSuffix("/")
-        let addProxyHeaders = true
 
         guard let bhnmURLParsed = URL(string: bhnmURLString), bhnmURLParsed.host != nil else {
             testStatus = .failure
@@ -297,9 +304,9 @@ struct ServerConfigView: View {
 
         var request = URLRequest(url: testURL, timeoutInterval: 15)
         request.httpMethod = "POST"
-        if addProxyHeaders {
+        request.setValue(bhnmURLString, forHTTPHeaderField: "X-BHNM-Target")
+        if !draftPushSecret.isEmpty {
             request.setValue(draftPushSecret, forHTTPHeaderField: "X-Proxy-Token")
-            request.setValue(bhnmURLString, forHTTPHeaderField: "X-BHNM-Target")
         }
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
@@ -384,9 +391,7 @@ struct ServerConfigView: View {
 
     private func saveConnection(bhnmURLString: String) {
         let trimmedName = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let middlewareURL = draftNotificationsEnabled
-            ? draftMiddlewareURL.trimmingCharacters(in: .whitespacesAndNewlines)
-            : ""
+        let middlewareURL = draftMiddlewareURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let webhookSecret = draftNotificationsEnabled
             ? draftPushSecret.trimmingCharacters(in: .whitespacesAndNewlines)
             : ""
