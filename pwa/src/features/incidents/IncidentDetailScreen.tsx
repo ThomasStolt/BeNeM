@@ -50,26 +50,20 @@ function AlarmRow({ alarm }: { alarm: IncidentAlarm }) {
 }
 
 function LogRow({ entry }: { entry: IncidentLogEntry }) {
-  const STATE_LABEL: Record<string, string> = {
-    OPEN: 'Opened',
-    ACK: 'Acknowledged',
-    ACKNOWLEDGED: 'Acknowledged',
-    CLOSED: 'Closed',
-    CLEARED: 'Cleared',
-    'ALARMS CLEARED': 'Alarms Cleared',
-    RESOLVED: 'Resolved',
-  };
-  const label = STATE_LABEL[entry.state.toUpperCase()] ?? entry.state;
   return (
     <div className="py-2 border-b border-slate-950 last:border-0">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
-          {label}
-        </span>
+      <div className="flex items-center justify-between mb-1">
+        <StateBadge state={entry.state} />
         {entry.time && (
           <span className="text-[10px] text-slate-600">{formatTimestamp(entry.time)}</span>
         )}
       </div>
+      {entry.username && (
+        <p className="text-[11px] text-slate-500">{entry.username}</p>
+      )}
+      {entry.comment && (
+        <p className="text-[11px] text-slate-400">{entry.comment}</p>
+      )}
     </div>
   );
 }
@@ -117,13 +111,6 @@ export function IncidentDetailScreen() {
   const isAcked = incident.status === 'acknowledged';
   const alarmCounts = detail?.alarmCounts ?? incident.alarmCounts ?? EMPTY_COUNTS;
 
-  // Suppress title if it would be a duplicate of an alarm output (avoids DOM duplicates)
-  const alarmOutputs = new Set([
-    ...(detail?.primaryAlarms ?? []).map((a) => a.output).filter(Boolean),
-    ...(detail?.relatedAlarms ?? []).map((a) => a.output).filter(Boolean),
-  ]);
-  const showTitle = detail?.title && !alarmOutputs.has(detail.title);
-
   const handleToggleAck = async () => {
     setIsAcking(true);
     setToast(null);
@@ -147,6 +134,7 @@ export function IncidentDetailScreen() {
   const infoRows: [string, string][] = [
     ['Incident ID', incident.incidentId],
     ...(detail ? ([
+      ['Title', detail.title],
       ['Device', detail.deviceName],
       ...(detail.deviceIp ? [['IP', detail.deviceIp]] : []),
       ...(detail.alertType ? [['Alert Type', detail.alertType]] : []),
@@ -234,9 +222,6 @@ export function IncidentDetailScreen() {
             <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
               Incident Info
             </div>
-            {showTitle && (
-              <p className="text-sm text-slate-200 leading-snug mt-0.5">{detail!.title}</p>
-            )}
           </div>
           <div className="px-3">
             {infoRows.map(([label, value]) => (

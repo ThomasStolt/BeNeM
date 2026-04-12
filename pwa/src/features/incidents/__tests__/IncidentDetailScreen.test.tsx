@@ -120,7 +120,8 @@ describe('IncidentDetailScreen', () => {
 
   it('renders OPEN status badge', () => {
     renderDetail('58431');
-    expect(screen.getByText('OPEN')).toBeInTheDocument();
+    // 'OPEN' appears in both StatusBadge and incident log StateBadge
+    expect(screen.getAllByText('OPEN').length).toBeGreaterThan(0);
   });
 
   it('renders alarm counts from detail', () => {
@@ -150,7 +151,8 @@ describe('IncidentDetailScreen', () => {
   it('renders Related Alarms section when alarms present', () => {
     renderDetail('58432');
     expect(screen.getByText(/Related Alarms/)).toBeInTheDocument();
-    expect(screen.getByText('Interface down')).toBeInTheDocument();
+    // 'Interface down' appears in both the Title row and the alarm output
+    expect(screen.getAllByText('Interface down').length).toBeGreaterThan(0);
   });
 
   it('renders Incident State Log section', () => {
@@ -165,12 +167,14 @@ describe('IncidentDetailScreen', () => {
 
   it('renders ACK user in Incident Info for acknowledged incident', () => {
     renderDetail('58432');
-    expect(screen.getByText('oncall@example.com')).toBeInTheDocument();
+    // 'oncall@example.com' appears in both ACK User info row and log entry username
+    expect(screen.getAllByText('oncall@example.com').length).toBeGreaterThan(0);
   });
 
   it('renders ACK comment for acknowledged incident', () => {
     renderDetail('58432');
-    expect(screen.getByText('Looking into it')).toBeInTheDocument();
+    // 'Looking into it' appears in both ACK Comment info row and log entry comment
+    expect(screen.getAllByText('Looking into it').length).toBeGreaterThan(0);
   });
 
   it('shows not-found message for unknown incident', () => {
