@@ -1,10 +1,11 @@
-import { useState, useDeferredValue, useMemo } from 'react';
+import { useState, useDeferredValue, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useConfig } from '../../lib/config';
 import { useDevices, PAGE_SIZE } from './useDevices';
 import { useDeviceSearch } from './useDeviceSearch';
 import { DeviceRow } from './DeviceRow';
-import { RefreshCountdown } from '../../components/RefreshCountdown';
+import { AppHeader } from '../../components/AppHeader';
 import { EmptyState } from '../../components/EmptyState';
 import { useIncidents } from '../incidents/useIncidents';
 import { buildDeviceAlarmMap } from '../../lib/deviceAlarms';
@@ -12,6 +13,7 @@ import { useThresholds } from './useThresholds';
 
 export function DeviceListScreen() {
   const config = useConfig();
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
   const [searchInput, setSearchInput] = useState('');
   const deferredQuery = useDeferredValue(searchInput);
@@ -25,6 +27,10 @@ export function DeviceListScreen() {
     [allIncidents, thresholdCounts],
   );
 
+  const handleRefresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['devices'] });
+  }, [queryClient]);
+
   const devices = result?.devices;
   const totalRecords = result?.totalRecords ?? 0;
   const totalPages = totalRecords > 0 ? Math.ceil(totalRecords / PAGE_SIZE) : 0;
@@ -34,21 +40,13 @@ export function DeviceListScreen() {
 
   return (
     <div className="min-h-full">
-      <header className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Devices</h1>
-          {!isSearchActive && devices && devices.length > 0 && (
-            <p className="text-xs text-slate-500">
-              Page {page + 1}{totalPages > 0 ? ` of ${totalPages}` : ''}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          {dataUpdatedAt > 0 && (
-            <RefreshCountdown lastUpdatedAt={dataUpdatedAt} intervalMs={120_000} />
-          )}
-        </div>
-      </header>
+      <AppHeader
+        title="Devices"
+        isLoading={isLoading}
+        isError={isError}
+        dataUpdatedAt={dataUpdatedAt}
+        onRefresh={handleRefresh}
+      />
 
       {!config.isConfigured && (
         <EmptyState

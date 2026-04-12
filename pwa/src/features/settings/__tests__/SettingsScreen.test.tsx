@@ -82,8 +82,8 @@ describe('SettingsScreen', () => {
     await user.type(document.getElementById('server-api-key')!, 'new-key');
     await user.click(screen.getByRole('button', { name: /save/i }));
 
-    // Back to list — should show new server
-    expect(screen.getByText('New Server')).toBeInTheDocument();
+    // Back to list — should show new server (name may appear in header subtitle too)
+    expect(screen.getAllByText('New Server').length).toBeGreaterThanOrEqual(2);
     expect(loadServers()).toHaveLength(1);
     expect(loadServers()[0].apiKey).toBe('new-key');
   });
