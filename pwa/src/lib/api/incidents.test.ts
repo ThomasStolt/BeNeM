@@ -70,6 +70,40 @@ describe('parseIncidentsResponse', () => {
   it('returns empty array on unrecognised shape', () => {
     expect(parseIncidentsResponse({})).toEqual([]);
   });
+
+  it('parses start_time from incident_open_time field when start_time absent', () => {
+    const payload = {
+      active_incidents: [
+        {
+          incident_id: 99,
+          title: 'test',
+          name: 'host',
+          incident_state: 'OPEN',
+          severity: 'critical',
+          incident_open_time: 1712332800,
+        },
+      ],
+    };
+    const incidents = parseIncidentsResponse(payload);
+    expect(incidents[0].startTime.getTime()).toBe(1712332800 * 1000);
+  });
+
+  it('parses start_time from open_time field when start_time absent', () => {
+    const payload = {
+      active_incidents: [
+        {
+          incident_id: 100,
+          title: 'test2',
+          name: 'host2',
+          incident_state: 'OPEN',
+          severity: 'major',
+          open_time: 1712332800,
+        },
+      ],
+    };
+    const incidents = parseIncidentsResponse(payload);
+    expect(incidents[0].startTime.getTime()).toBe(1712332800 * 1000);
+  });
 });
 
 describe('parseAckResponse', () => {

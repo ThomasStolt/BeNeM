@@ -89,7 +89,9 @@ function parseRow(row: Record<string, unknown>, index: number, forcedStatus?: In
     severity: coerceSeverity(row),
     status,
     incidentState: stateString,
-    startTime: coerceStartTime(row.start_time ?? row.startTime),
+    startTime: coerceStartTime(
+      row.start_time ?? row.startTime ?? row.incident_open_time ?? row.open_time
+    ),
     acknowledgedBy: coerceString(row.acknowledged_by) ?? coerceString(row.acknowledgedBy),
     alarmCounts,
   };
