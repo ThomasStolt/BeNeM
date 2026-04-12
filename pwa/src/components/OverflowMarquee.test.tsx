@@ -52,7 +52,8 @@ describe('OverflowMarquee', () => {
       roCallback([], null as unknown as ResizeObserver);
     });
 
-    expect(screen.getAllByText('Long title')).toHaveLength(2);
+    const track = container.querySelector('.animate-marquee') as HTMLElement;
+    expect(track.querySelectorAll('span')).toHaveLength(2);
   });
 
   it('sets animationDuration on the track from text width and speed', () => {

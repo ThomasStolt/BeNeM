@@ -24,12 +24,7 @@ export function OverflowMarquee({ text, className = '', speed = 40 }: Props) {
       const measureEl = measureRef.current;
       if (!clip || !measureEl) return;
 
-      // Temporarily populate measurement span with text for measurement
-      measureEl.textContent = text;
       const textWidth = measureEl.scrollWidth;
-
-      // Clear the text immediately after measuring to keep it hidden from queries
-      measureEl.textContent = '';
 
       const containerWidth = clip.clientWidth;
       const doesOverflow = textWidth > containerWidth;
@@ -56,7 +51,6 @@ export function OverflowMarquee({ text, className = '', speed = 40 }: Props) {
       }
     >
       {/* Hidden measurement span — always in DOM, out of flow, never animated */}
-      {/* No text content initially to prevent findByText from finding it during test assertions */}
       <span
         ref={measureRef}
         data-testid="marquee-measure"
@@ -67,7 +61,9 @@ export function OverflowMarquee({ text, className = '', speed = 40 }: Props) {
           pointerEvents: 'none',
         }}
         aria-hidden="true"
-      />
+      >
+        {text}
+      </span>
 
 
       {overflows ? (
