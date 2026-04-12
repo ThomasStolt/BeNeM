@@ -80,7 +80,7 @@ struct AutoRefreshButton: View {
     @State private var elapsed: Double = 0
     private let ticker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
-    private var progress: Double { min(elapsed / interval, 1.0) }
+    private var progress: Double { max(0, (interval - elapsed) / interval) }
 
     private var countdownLabel: String {
         let remaining = max(0, interval - elapsed)
