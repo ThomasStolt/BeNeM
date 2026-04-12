@@ -82,6 +82,13 @@ struct AutoRefreshButton: View {
 
     private var progress: Double { min(elapsed / interval, 1.0) }
 
+    private var countdownLabel: String {
+        let remaining = max(0, interval - elapsed)
+        let minutes = Int(remaining) / 60
+        let seconds = Int(remaining) % 60
+        return "\(minutes):\(String(format: "%02d", seconds))"
+    }
+
     var body: some View {
         ZStack {
             // Countdown ring — hidden while loading
@@ -99,11 +106,12 @@ struct AutoRefreshButton: View {
                 ProgressView()
                     .scaleEffect(0.7)
             } else {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 11, weight: .medium))
+                Text(countdownLabel)
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundColor(Color(.systemGray3))
             }
         }
-        .frame(width: 26, height: 26)
+        .frame(width: 32, height: 32)
         .contentShape(Rectangle())
         .onTapGesture {
             guard !isLoading else { return }
