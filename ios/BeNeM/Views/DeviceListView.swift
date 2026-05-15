@@ -81,6 +81,13 @@ struct DeviceListView: View {
                             alarmSummary: deviceAlarmSummary(for: device.name, incidents: incidentViewModel.incidents)
                         )
                     }
+                    .listRowBackground(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(.secondarySystemGroupedBackground))
+                            .padding(.vertical, 2)
+                    )
+                    .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
+                    .listRowSeparator(.hidden)
                 }
 
                 if !viewModel.searchQuery.isEmpty && viewModel.searchQuery.count >= 2 {
@@ -88,11 +95,13 @@ struct DeviceListView: View {
                     if viewModel.isSearching {
                         HStack { Spacer(); ProgressView(); Spacer() }
                             .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     } else if viewModel.searchResults.isEmpty {
                         Text("No devices found")
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity)
                             .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     }
                 } else if viewModel.hasMore {
                     // Browse mode — load more
@@ -108,11 +117,15 @@ struct DeviceListView: View {
                         Spacer()
                     }
                     .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
                     .onAppear {
                         Task { await viewModel.loadMoreDevices() }
                     }
                 }
             }
+            .listStyle(.plain)
+            .background(Color(.systemGroupedBackground))
+            .padding(.horizontal)
             .searchable(text: $viewModel.searchQuery, prompt: "Search devices...")
             .onChange(of: viewModel.searchQuery) { query in
                 Task {
@@ -263,7 +276,8 @@ struct DeviceRowView: View {
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 12)
     }
 
     private var metaLine: String {

@@ -146,6 +146,7 @@ features defined here. Platform-specific behaviour is noted per feature.
 #### iOS-specific
 - Native SwiftUI List with UID-based identity
 - v2.8.0: Device list row redesigned to PWA-parity layout — icon (34 px, status-coloured) + left info column (name / IP / category · site) + right column (5-chip alarm badges + incident ticker). Row compacted: 4 pt vertical padding, 10 pt secondary text.
+- v2.8.1: Device list card styling — rows rendered as individual rounded cards matching the Incidents list (`.listStyle(.plain)`, grouped background, horizontal padding). Row padding: 6 pt vertical, 12 pt horizontal.
 - Alarm chips use 5 severity colours: green (threshold-based healthy count, `AlarmColor.green.color`) · blue (ack + informational) · yellow (warning, dark text for readability) · orange (major + minor) · red (critical). Zero-count chips show grey outline; green shows "—" when threshold cache not yet loaded.
 - Per-row incident ticker reuses `MarqueeText.swift`; shows active incident summaries joined by " · ", sorted critical-first. Fixed-height spacer preserves row height when no incidents are active.
 - Category and site names resolved from BHNM list APIs (`restful/category/list`, `restful/site/list`) before device fetch; handles both string IDs (on-prem) and integer IDs (SaaS).
@@ -209,7 +210,8 @@ features defined here. Platform-specific behaviour is noted per feature.
 5. Host Current Issues card (collapsible)
 6. Performance charts (expandable per category)
 
-- Host current issues: filtered from incident list by device name
+- Host current issues: filtered from incident list by device name; tapping a row navigates to IncidentDetailView
+- v2.8.1 (iOS): each incident row in the "HOST CURRENT ISSUES" card is a `NavigationLink` to `IncidentDetailView`; chevron indicator shown automatically
 - Inline performance charts: expandable category cards
 - Performance data: category discovery → instance filtering → timeseries batch fetch (Last 24 Hours)
 

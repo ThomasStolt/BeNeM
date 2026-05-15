@@ -12,6 +12,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [2.8.1] — 2026-05-15
+
+### Added
+
+- **Incident tap-through from Device Detail** — tapping any row in the "HOST CURRENT ISSUES" card now navigates to `IncidentDetailView`, matching the behaviour of the main Incidents tab.
+
+### Changed
+
+- **Device list card styling** — device rows are now rendered as individual rounded cards (matching the Incidents list), using `.listStyle(.plain)` with a grouped background and horizontal padding. Row internal padding updated to 6 pt vertical / 12 pt horizontal.
+
+---
+
 ## [2.8.0] — 2026-05-15
 
 ### Added

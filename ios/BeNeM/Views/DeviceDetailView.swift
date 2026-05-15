@@ -326,25 +326,33 @@ struct DeviceDetailView: View {
                         HStack {
                             Text("TYPE").frame(width: 70, alignment: .leading)
                             Text("DESCRIPTION").frame(maxWidth: .infinity, alignment: .leading)
-                            Text("DURATION").frame(width: 80, alignment: .trailing)
+                            Text("DURATION").frame(width: 70, alignment: .trailing)
+                            Spacer().frame(width: 28)
                         }
                         .font(.caption2).foregroundColor(.secondary)
                         .padding(.horizontal, 16).padding(.top, 6).padding(.bottom, 4)
                         Divider()
                         ForEach(viewModel.incidents) { incident in
-                            HStack(alignment: .top) {
-                                Text(incident.category ?? incident.severity.rawValue.capitalized)
-                                    .font(.caption).foregroundColor(incident.severity.color)
-                                    .frame(width: 70, alignment: .leading)
-                                Text(incident.summary)
-                                    .font(.caption)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .lineLimit(2)
-                                Text(durationString(from: incident.startTime))
-                                    .font(.caption2).foregroundColor(.secondary)
-                                    .frame(width: 80, alignment: .trailing)
+                            NavigationLink(destination: IncidentDetailView(
+                                incident: incident,
+                                apiService: viewModel.apiService,
+                                preloadedAlarmCounts: nil
+                            )) {
+                                HStack(alignment: .top) {
+                                    Text(incident.category ?? incident.severity.rawValue.capitalized)
+                                        .font(.caption).foregroundColor(incident.severity.color)
+                                        .frame(width: 70, alignment: .leading)
+                                    Text(incident.summary)
+                                        .font(.caption)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .lineLimit(2)
+                                    Text(durationString(from: incident.startTime))
+                                        .font(.caption2).foregroundColor(.secondary)
+                                        .frame(width: 70, alignment: .trailing)
+                                }
+                                .padding(.horizontal, 16).padding(.vertical, 6)
                             }
-                            .padding(.horizontal, 16).padding(.vertical, 6)
+                            .buttonStyle(.plain)
                             Divider().padding(.leading, 16)
                         }
                     }
