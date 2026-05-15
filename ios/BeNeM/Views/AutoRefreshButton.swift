@@ -112,7 +112,7 @@ struct AutoRefreshButton: View {
                     .foregroundColor(.secondary)
             }
         }
-        .frame(width: 40, height: 40)
+        .frame(width: 30, height: 30)
         .contentShape(Rectangle())
         .onTapGesture {
             guard !isLoading else { return }
