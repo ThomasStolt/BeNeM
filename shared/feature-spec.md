@@ -108,6 +108,8 @@ features defined here. Platform-specific behaviour is noted per feature.
 
 #### iOS-specific
 - Native UITabBarController / SwiftUI TabView
+- All four toolbars show the active server name as a subtitle, resolved via `resolveActiveServerName()` with a fallback chain (active-ID match → apiKey+middlewareURL match → sole saved connection → BHNM host → middleware host → "BeNeM"), so the name shows for legacy/migrated/single-server/QR-imported configs, not only when `activeConnectionID` resolves
+- `AutoRefreshButton` ring matches the PWA `RefreshRing` proportions (40 px, centered tight monospace M:SS, counter-clockwise drain) but uses iOS-adaptive colors (system track, accent progress arc) instead of the PWA's fixed dark-theme palette
 
 #### PWA-specific
 - v0.3.0: React Router NavLink-based tab bar, fixed bottom position
