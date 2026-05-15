@@ -178,11 +178,18 @@ struct ContentView: View {
         homeNavResetID = UUID()
         incidentNavResetID = UUID()
         settingsNavResetID = UUID()
-        // Sync active server name for toolbar subtitle (covers app startup path)
+        // Sync active server name for toolbar subtitle (covers app startup path).
+        // updateAPIService() already early-returns when baseURL/apiKey are empty,
+        // so a working config is guaranteed here and the resolver never returns "".
         let connections = UserDefaults.standard.loadSavedConnections()
-        if let active = connections.first(where: { $0.id.uuidString == activeConnectionID }) {
-            UserDefaults.standard.set(active.name, forKey: "netreo_active_connection_name")
-        }
+        let resolvedName = resolveActiveServerName(
+            connections: connections,
+            activeConnectionID: activeConnectionID,
+            middlewareURL: baseURL,
+            bhnmURL: bhnmURL,
+            apiKey: apiKey
+        )
+        UserDefaults.standard.set(resolvedName, forKey: "netreo_active_connection_name")
     }
 }
 
