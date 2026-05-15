@@ -145,15 +145,17 @@ features defined here. Platform-specific behaviour is noted per feature.
 
 #### iOS-specific
 - Native SwiftUI List with UID-based identity
-- v2.8.0: Device list row redesigned to PWA-parity layout — icon (40px) + left info column (name/IP/category·site) + right column (5-chip alarm badges + incident ticker)
-- Alarm chips use 5 raw severity colours: green (healthy/threshold-based) · blue (ack+informational) · yellow (warning) · orange (major+minor) · red (critical). Zero counts shown as grey outlined chips; green shows "—" when threshold cache not yet loaded.
-- Per-row incident ticker reuses `MarqueeText.swift`; shows active incident summaries joined by " · ", sorted highest-severity first. Hidden (stable-height spacer) when no active incidents.
+- v2.8.0: Device list row redesigned to PWA-parity layout — icon (34 px, status-coloured) + left info column (name / IP / category · site) + right column (5-chip alarm badges + incident ticker). Row compacted: 4 pt vertical padding, 10 pt secondary text.
+- Alarm chips use 5 severity colours: green (threshold-based healthy count, `AlarmColor.green.color`) · blue (ack + informational) · yellow (warning, dark text for readability) · orange (major + minor) · red (critical). Zero-count chips show grey outline; green shows "—" when threshold cache not yet loaded.
+- Per-row incident ticker reuses `MarqueeText.swift`; shows active incident summaries joined by " · ", sorted critical-first. Fixed-height spacer preserves row height when no incidents are active.
+- Category and site names resolved from BHNM list APIs (`restful/category/list`, `restful/site/list`) before device fetch; handles both string IDs (on-prem) and integer IDs (SaaS).
 
 #### PWA-specific
 - v0.4.0: Window-based pagination with independent React Query entries per page
 - Debounced search input (300ms via useDeferredValue)
 - 120-second auto-refresh with RefreshCountdown
 - v0.8.0: `DeviceRow` redesigned — `DeviceTypeIcon` (status-coloured, 40 px), alarm badges (green/blue/yellow/orange/red from incident data), scrolling incident ticker at constant speed (visible only when active incidents exist, height preserved when empty)
+- v0.10.0+: Category and site names resolved from BHNM list APIs in parallel with device fetch (`fetchNameMap`); handles integer IDs (SaaS) and string IDs (on-prem). Raw numeric ID shown as fallback if resolution fails.
 
 ### Feature: Incident Detail
 **Status:** shipped-ios, shipped-pwa

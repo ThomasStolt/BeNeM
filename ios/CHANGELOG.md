@@ -12,6 +12,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [2.8.0] — 2026-05-15
+
+### Added
+
+- **Device list PWA-parity row layout** — each row now shows a status-coloured icon, a left info column (name / IP / category · site), and a right column with 5-chip alarm badges plus a scrolling incident ticker. Replaces the previous HEALTHY / ACK / WARNING / CRITICAL badge strip.
+- **5-chip alarm badges** — green (healthy = thresholds − active incidents), blue (acknowledged + informational), yellow (warning severity), orange (major + minor), red (critical). Zero-count chips show a grey outline. Green shows "—" while the threshold cache is loading.
+- **Per-row incident ticker** — active incident summaries scroll horizontally below the chips (critical-first, joined by " · ") reusing `MarqueeText.swift`. A fixed-height spacer keeps row height stable when no incidents are active.
+
+### Changed
+
+- **Device row compacted** — icon 40 → 34 px, vertical padding 6 → 4 pt, secondary text 11 → 10 pt, tighter internal spacing throughout.
+- **Green chip colour** — uses `AlarmColor.green.color` (forest green, consistent with the home screen and incident list) instead of SwiftUI's system green.
+
+### Fixed
+
+- **Category / site names on SaaS BHNM** — `ensureCategoryCache` and `ensureSiteCache` now accept integer IDs (returned by SaaS-hosted BHNM) in addition to string IDs (on-prem); device rows now show human-readable category and site names on both deployment types.
+- **ThresholdCache case-insensitive lookup** — `ThresholdCache.count(for:)` uses `caseInsensitiveCompare` so device names differing only in case correctly resolve to their threshold count.
+- **fetchThresholdCounts nested dict** — the middleware wraps threshold data as `{"cache_age_seconds": N, "counts": {...}}`; the parser now reads the nested `counts` dict instead of the top-level object (which returned 0 for every device).
+
+---
+
 ## [2.7.0] — 2026-04-12
 
 ### Added

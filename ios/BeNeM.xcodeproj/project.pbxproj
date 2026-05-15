@@ -7,10 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		F1F10DD12CE00004 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00003 /* QRScannerView.swift */; };
-		F1F10DD12CE00002 /* FloppyDiskIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00001 /* FloppyDiskIcon.swift */; };
-		F1F10DD12CE00100 /* DeviceTypeIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00099 /* DeviceTypeIcon.swift */; };
-		F1F10DD12CE00102 /* MarqueeText.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00101 /* MarqueeText.swift */; };
 		8C6281232E64CF2300522D09 /* NetreoIncident.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6281222E64CF2300522D09 /* NetreoIncident.swift */; };
 		8C6281282E64CF6D00522D09 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6281262E64CF6D00522D09 /* DashboardView.swift */; };
 		8C6281292E64CF6D00522D09 /* IncidentListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6281272E64CF6D00522D09 /* IncidentListView.swift */; };
@@ -35,9 +31,11 @@
 		BB000100000000000000000D /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000100000000000000000E /* SplashView.swift */; };
 		CC0001000000000000000001 /* DeviceDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0001000000000000000002 /* DeviceDetailViewModel.swift */; };
 		DD0001000000000000000001 /* DeviceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0001000000000000000002 /* DeviceDetailView.swift */; };
-		MW0001000000000000000001 /* MaintenanceWindowSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = MW0001000000000000000002 /* MaintenanceWindowSheet.swift */; };
 		EE0001000000000000000001 /* SavedConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0001000000000000000002 /* SavedConnection.swift */; };
-		TC0001000000000000000001 /* ThresholdCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = TC0001000000000000000002 /* ThresholdCache.swift */; };
+		F1F10DD12CE00002 /* FloppyDiskIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00001 /* FloppyDiskIcon.swift */; };
+		F1F10DD12CE00004 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00003 /* QRScannerView.swift */; };
+		F1F10DD12CE00100 /* DeviceTypeIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00099 /* DeviceTypeIcon.swift */; };
+		F1F10DD12CE00102 /* MarqueeText.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00101 /* MarqueeText.swift */; };
 		FF0001000000000000000001 /* Data+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0001000000000000000002 /* Data+Hex.swift */; };
 		FF0001000000000000000003 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0001000000000000000004 /* Secrets.swift */; };
 		GG0001000000000000000001 /* DeepLinkHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = GG0001000000000000000002 /* DeepLinkHandler.swift */; };
@@ -46,6 +44,8 @@
 		II0001000000000000000003 /* ServerConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = II0001000000000000000004 /* ServerConfigView.swift */; };
 		JJ0001000000000000000001 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = JJ0001000000000000000002 /* KeychainHelper.swift */; };
 		KK0001000000000000000001 /* ActiveServerName.swift in Sources */ = {isa = PBXBuildFile; fileRef = KK0001000000000000000002 /* ActiveServerName.swift */; };
+		MW0001000000000000000001 /* MaintenanceWindowSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = MW0001000000000000000002 /* MaintenanceWindowSheet.swift */; };
+		TC0001000000000000000001 /* ThresholdCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = TC0001000000000000000002 /* ThresholdCache.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -74,9 +74,11 @@
 		BB000100000000000000000E /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		CC0001000000000000000002 /* DeviceDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDetailViewModel.swift; sourceTree = "<group>"; };
 		DD0001000000000000000002 /* DeviceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDetailView.swift; sourceTree = "<group>"; };
-		MW0001000000000000000002 /* MaintenanceWindowSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaintenanceWindowSheet.swift; sourceTree = "<group>"; };
 		EE0001000000000000000002 /* SavedConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedConnection.swift; sourceTree = "<group>"; };
-		TC0001000000000000000002 /* ThresholdCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThresholdCache.swift; sourceTree = "<group>"; };
+		F1F10DD12CE00001 /* FloppyDiskIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloppyDiskIcon.swift; sourceTree = "<group>"; };
+		F1F10DD12CE00003 /* QRScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScannerView.swift; sourceTree = "<group>"; };
+		F1F10DD12CE00099 /* DeviceTypeIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceTypeIcon.swift; sourceTree = "<group>"; };
+		F1F10DD12CE00101 /* MarqueeText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarqueeText.swift; sourceTree = "<group>"; };
 		FF0001000000000000000002 /* Data+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Data+Hex.swift"; sourceTree = "<group>"; };
 		FF0001000000000000000004 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
 		GG0001000000000000000002 /* DeepLinkHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkHandler.swift; sourceTree = "<group>"; };
@@ -85,10 +87,8 @@
 		II0001000000000000000004 /* ServerConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConfigView.swift; sourceTree = "<group>"; };
 		JJ0001000000000000000002 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		KK0001000000000000000002 /* ActiveServerName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveServerName.swift; sourceTree = "<group>"; };
-		F1F10DD12CE00003 /* QRScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScannerView.swift; sourceTree = "<group>"; };
-		F1F10DD12CE00001 /* FloppyDiskIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloppyDiskIcon.swift; sourceTree = "<group>"; };
-		F1F10DD12CE00099 /* DeviceTypeIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceTypeIcon.swift; sourceTree = "<group>"; };
-		F1F10DD12CE00101 /* MarqueeText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarqueeText.swift; sourceTree = "<group>"; };
+		MW0001000000000000000002 /* MaintenanceWindowSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaintenanceWindowSheet.swift; sourceTree = "<group>"; };
+		TC0001000000000000000002 /* ThresholdCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThresholdCache.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -100,28 +100,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		CHECKSC00000000000000001 /* Check Secrets.swift exists */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			name = "Check Secrets.swift exists";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "if [ ! -f \"$SRCROOT/BeNeM/Secrets.swift\" ]; then\n  echo \"warning: Secrets.swift is missing. Copy BeNeM/Secrets.swift.template \\u2192 BeNeM/Secrets.swift and fill in your 64-char hex key.\"\nfi\n";
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXGroup section */
 		A11234567890000C = {
@@ -148,14 +126,6 @@
 				A11234567890000J /* Preview Content */,
 			);
 			path = BeNeM;
-			sourceTree = "<group>";
-		};
-		FF0001000000000000000005 /* Extensions */ = {
-			isa = PBXGroup;
-			children = (
-				FF0001000000000000000002 /* Data+Hex.swift */,
-			);
-			path = Extensions;
 			sourceTree = "<group>";
 		};
 		A11234567890000E /* Products */ = {
@@ -234,6 +204,14 @@
 			path = "Preview Content";
 			sourceTree = "<group>";
 		};
+		FF0001000000000000000005 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				FF0001000000000000000002 /* Data+Hex.swift */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -299,6 +277,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		CHECKSC00000000000000001 /* Check Secrets.swift exists */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Check Secrets.swift exists";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ ! -f \"$SRCROOT/BeNeM/Secrets.swift\" ]; then\n  echo \"warning: Secrets.swift is missing. Copy BeNeM/Secrets.swift.template \\u2192 BeNeM/Secrets.swift and fill in your 64-char hex key.\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A11234567890000M /* Sources */ = {
@@ -474,7 +474,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BeNeM/BeNeM.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 21;
+				CURRENT_PROJECT_VERSION = 22;
 				DEVELOPMENT_ASSET_PATHS = "\"BeNeM/Preview Content\"";
 				DEVELOPMENT_TEAM = 8L27BJGYXP;
 				ENABLE_PREVIEWS = YES;
@@ -486,7 +486,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.7.0;
+				MARKETING_VERSION = 2.8.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tstolt.benem;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -502,7 +502,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BeNeM/BeNeM.release.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 21;
+				CURRENT_PROJECT_VERSION = 22;
 				DEVELOPMENT_ASSET_PATHS = "\"BeNeM/Preview Content\"";
 				DEVELOPMENT_TEAM = 8L27BJGYXP;
 				ENABLE_PREVIEWS = YES;
@@ -514,7 +514,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.7.0;
+				MARKETING_VERSION = 2.8.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tstolt.benem;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
