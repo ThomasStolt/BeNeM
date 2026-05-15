@@ -2,7 +2,6 @@ import SwiftUI
 
 struct IncidentListView: View {
     @ObservedObject private var viewModel: IncidentListViewModel
-    @State private var showingFilters = false
     @State private var connectionStatus: ConnectionStatus = .unknown
     @State private var navPath = NavigationPath()
     let navResetID: UUID
@@ -53,19 +52,13 @@ struct IncidentListView: View {
                         }
                     }
                 }
-                ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    Button(action: { showingFilters.toggle() }) {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
-                    }
+                ToolbarItem(placement: .navigationBarTrailing) {
                     AutoRefreshButton(
                         interval: refreshInterval,
                         isLoading: viewModel.isLoading,
                         action: viewModel.refreshIncidents
                     )
                 }
-            }
-            .sheet(isPresented: $showingFilters) {
-                FiltersView(viewModel: viewModel)
             }
             .onChange(of: viewModel.isLoading) { _, loading in
                 guard !loading else { return }
