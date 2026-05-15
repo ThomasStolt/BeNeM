@@ -128,11 +128,25 @@ struct ContentView: View {
                 middlewareURL: oldConn.middlewareURL
             )
         }
-        // Always update the server name subtitle
-        UserDefaults.standard.removeObject(forKey: "netreo_active_connection_name")
+        // No working config at all (active connection deleted, nothing
+        // configured) → clear the subtitle so a disconnected app shows none.
+        if newID.isEmpty && baseURL.isEmpty && apiKey.isEmpty {
+            UserDefaults.standard.removeObject(forKey: "netreo_active_connection_name")
+            return
+        }
+        // Otherwise always write a resolved name — covers legacy/migrated/
+        // single-server configs where newID does not resolve to a saved row.
+        let resolvedName = resolveActiveServerName(
+            connections: connections,
+            activeConnectionID: newID,
+            middlewareURL: baseURL,
+            bhnmURL: bhnmURL,
+            apiKey: apiKey
+        )
+        UserDefaults.standard.set(resolvedName, forKey: "netreo_active_connection_name")
+        // Push registration still needs the concrete saved connection for newID.
         guard !newID.isEmpty,
               let conn = connections.first(where: { $0.id.uuidString == newID }) else { return }
-        UserDefaults.standard.set(conn.name, forKey: "netreo_active_connection_name")
         // Push registration is conditional on notifications being enabled and token available
         guard conn.notificationsEnabled,
               let token = AppDelegate.shared?.cachedDeviceToken else { return }
