@@ -1240,11 +1240,12 @@ class NetreoAPIService: ObservableObject {
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             throw URLError(.badServerResponse)
         }
-        guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let countsDict = raw["counts"] as? [String: Any] else {
             return [:]
         }
         var result: [String: Int] = [:]
-        for (key, value) in raw {
+        for (key, value) in countsDict {
             if let intVal = value as? Int {
                 result[key] = intVal
             } else if let numVal = value as? NSNumber {
