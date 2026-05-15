@@ -104,14 +104,15 @@ struct AutoRefreshButton: View {
 
             if isLoading {
                 ProgressView()
-                    .scaleEffect(0.7)
+                    .scaleEffect(0.8)
             } else {
                 Text(countdownLabel)
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundColor(Color(.systemGray3))
+                    .kerning(-0.3)
+                    .foregroundColor(.secondary)
             }
         }
-        .frame(width: 32, height: 32)
+        .frame(width: 40, height: 40)
         .contentShape(Rectangle())
         .onTapGesture {
             guard !isLoading else { return }
