@@ -22,8 +22,10 @@ final class ThresholdCache: ObservableObject {
     }
 
     /// Threshold count for a given device name. Returns 0 if the device is not in the cache.
+    /// Device name lookup is case-insensitive to match incident device names.
     func count(for deviceName: String) -> Int {
-        counts[deviceName] ?? 0
+        let key = counts.keys.first { $0.caseInsensitiveCompare(deviceName) == .orderedSame }
+        return key.flatMap { counts[$0] } ?? 0
     }
 
     /// Invalidate cache so the next refresh() call fetches fresh data.

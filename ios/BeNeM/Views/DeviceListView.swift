@@ -1,34 +1,59 @@
 import SwiftUI
 
-struct DeviceAlarmCounts {
-    let healthy: Int   // -1 = threshold cache not yet loaded (show "—")
-    let ack: Int
-    let warning: Int
-    let critical: Int
+private let incidentSeverityOrder: [NetreoIncident.IncidentSeverity] = [
+    .critical, .major, .minor, .warning, .informational
+]
+
+struct DeviceAlarmColorCounts {
+    let green: Int   // healthy (threshold − active); -1 = threshold cache not yet loaded
+    let blue: Int    // acknowledged + informational
+    let yellow: Int  // warning severity (unack)
+    let orange: Int  // major + minor severity (unack)
+    let red: Int     // critical severity (unack)
+}
+
+struct DeviceAlarmSummary {
+    let counts: DeviceAlarmColorCounts
+    let activeSummaries: [String]  // incident summaries, highest-severity first (drives ticker)
 }
 
 @MainActor
-private func deviceAlarmCounts(for deviceName: String, incidents: [NetreoIncident]) -> DeviceAlarmCounts {
+private func deviceAlarmSummary(for deviceName: String, incidents: [NetreoIncident]) -> DeviceAlarmSummary {
     let deviceIncidents = incidents.filter {
         ($0.deviceName ?? "").caseInsensitiveCompare(deviceName) == .orderedSame
     }
-    var ack = 0, warn = 0, crit = 0
+
+    var blue = 0, yellow = 0, orange = 0, red = 0
+    var activeIncidents: [NetreoIncident] = []
+
     for incident in deviceIncidents {
         if incident.status == .acknowledged {
-            ack += 1
-        } else {
+            blue += 1
+        } else if incident.status == .active {
             switch incident.severity {
-            case .critical, .major: crit += 1
-            case .warning, .minor:  warn += 1
-            case .informational: break
+            case .critical:       red += 1
+            case .major, .minor:  orange += 1
+            case .warning:        yellow += 1
+            case .informational:  blue += 1
             }
+            activeIncidents.append(incident)
         }
+        // resolved / closed: skip
     }
+
     let thresholdsLoaded = !ThresholdCache.shared.counts.isEmpty
     let thresholds = ThresholdCache.shared.count(for: deviceName)
-    let activeCount = crit + warn
-    let healthy = thresholdsLoaded ? max(0, thresholds - activeCount) : -1
-    return DeviceAlarmCounts(healthy: healthy, ack: ack, warning: warn, critical: crit)
+    let green = thresholdsLoaded ? max(0, thresholds - activeIncidents.count) : -1
+
+    let sorted = activeIncidents.sorted {
+        (incidentSeverityOrder.firstIndex(of: $0.severity) ?? 99) <
+        (incidentSeverityOrder.firstIndex(of: $1.severity) ?? 99)
+    }
+
+    return DeviceAlarmSummary(
+        counts: DeviceAlarmColorCounts(green: green, blue: blue, yellow: yellow, orange: orange, red: red),
+        activeSummaries: sorted.map { $0.summary }
+    )
 }
 
 struct DeviceListView: View {
@@ -53,7 +78,7 @@ struct DeviceListView: View {
                     NavigationLink(destination: DeviceDetailView(device: device, apiService: apiService)) {
                         DeviceRowView(
                             device: device,
-                            alarmCounts: deviceAlarmCounts(for: device.name, incidents: incidentViewModel.incidents)
+                            alarmSummary: deviceAlarmSummary(for: device.name, incidents: incidentViewModel.incidents)
                         )
                     }
                 }
@@ -159,60 +184,90 @@ struct DeviceListView: View {
     }
 }
 
-struct DeviceRowView: View {
-    let device: NetreoDevice
-    let alarmCounts: DeviceAlarmCounts
+struct AlarmChipsView: View {
+    let counts: DeviceAlarmColorCounts
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 12) {
-                DeviceTypeIcon(typeClass: device.typeClass, size: 36, color: statusColor)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(device.name)
-                        .font(.headline)
-                    HStack(spacing: 4) {
-                        Text(device.ip)
-                        Text("·")
-                        Text(device.category)
-                        Text("·")
-                        Text(device.site)
-                    }
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                }
-
-                Spacer()
-            }
-
-            // Alarm badge strip
-            HStack(spacing: 0) {
-                alarmBadge(label: "HEALTHY", value: alarmCounts.healthy, color: .green, missing: alarmCounts.healthy == -1)
-                alarmBadge(label: "ACK",     value: alarmCounts.ack,     color: .blue)
-                alarmBadge(label: "WARNING", value: alarmCounts.warning, color: .orange)
-                alarmBadge(label: "CRITICAL",value: alarmCounts.critical,color: .red)
-            }
+        HStack(spacing: 3) {
+            chip(count: counts.green,  color: .green,  textColor: .white)
+            chip(count: counts.blue,   color: .blue,   textColor: .white)
+            chip(count: counts.yellow, color: .yellow, textColor: Color(.label))
+            chip(count: counts.orange, color: .orange, textColor: .white)
+            chip(count: counts.red,    color: .red,    textColor: .white)
         }
-        .padding(.vertical, 4)
     }
 
-    private func alarmBadge(label: String, value: Int, color: Color, missing: Bool = false) -> some View {
-        VStack(spacing: 1) {
-            if missing {
-                Text("—")
-                    .font(.caption).fontWeight(.bold)
-                    .foregroundColor(Color(.systemGray4))
-            } else {
-                Text("\(value)")
-                    .font(.caption).fontWeight(.bold)
-                    .foregroundColor(value > 0 ? color : Color(.systemGray4))
+    private func chip(count: Int, color: Color, textColor: Color) -> some View {
+        let active = count > 0
+        let missing = count == -1
+        // zero and missing share the same outlined shell — the glyph (0 vs —) differentiates them
+        let resolvedText: Color = active  ? textColor
+                                : missing ? Color(.secondaryLabel)
+                                :           Color(.systemGray4)
+        return Text(missing ? "—" : "\(count)")
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundColor(resolvedText)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(active ? color : Color.clear)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 3)
+                            .stroke(active ? Color.clear : Color(.systemGray5), lineWidth: 1)
+                    )
+            )
+    }
+}
+
+struct DeviceRowView: View {
+    let device: NetreoDevice
+    let alarmSummary: DeviceAlarmSummary
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            DeviceTypeIcon(typeClass: device.typeClass, size: 40, color: statusColor)
+
+            // Left info column
+            VStack(alignment: .leading, spacing: 2) {
+                Text(device.name)
+                    .font(.subheadline).fontWeight(.semibold)
+                    .lineLimit(1)
+                Text(device.ip)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(.secondary)
+                if !metaLine.isEmpty {
+                    Text(metaLine)
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
             }
-            Text(label)
-                .font(.system(size: 7))
-                .foregroundColor(Color(.systemGray3))
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Right column: alarm chips + incident ticker
+            VStack(alignment: .trailing, spacing: 4) {
+                AlarmChipsView(counts: alarmSummary.counts)
+                if alarmSummary.activeSummaries.isEmpty {
+                    Spacer().frame(height: 14)
+                } else {
+                    let tickerText = alarmSummary.activeSummaries.joined(separator: " · ")
+                    MarqueeText(
+                        text: tickerText,
+                        font: .system(size: 10),
+                        color: .red
+                    )
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .id(tickerText)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+    }
+
+    private var metaLine: String {
+        [device.category, device.site].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     private var statusColor: Color {
