@@ -45,6 +45,7 @@
 		II0001000000000000000001 /* IconPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = II0001000000000000000002 /* IconPickerSheet.swift */; };
 		II0001000000000000000003 /* ServerConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = II0001000000000000000004 /* ServerConfigView.swift */; };
 		JJ0001000000000000000001 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = JJ0001000000000000000002 /* KeychainHelper.swift */; };
+		KK0001000000000000000001 /* ActiveServerName.swift in Sources */ = {isa = PBXBuildFile; fileRef = KK0001000000000000000002 /* ActiveServerName.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -83,6 +84,7 @@
 		II0001000000000000000002 /* IconPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconPickerSheet.swift; sourceTree = "<group>"; };
 		II0001000000000000000004 /* ServerConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConfigView.swift; sourceTree = "<group>"; };
 		JJ0001000000000000000002 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+		KK0001000000000000000002 /* ActiveServerName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveServerName.swift; sourceTree = "<group>"; };
 		F1F10DD12CE00003 /* QRScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScannerView.swift; sourceTree = "<group>"; };
 		F1F10DD12CE00001 /* FloppyDiskIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloppyDiskIcon.swift; sourceTree = "<group>"; };
 		F1F10DD12CE00099 /* DeviceTypeIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceTypeIcon.swift; sourceTree = "<group>"; };
@@ -173,6 +175,7 @@
 				BB0001000000000000000002 /* GroupSummary.swift */,
 				EE0001000000000000000002 /* SavedConnection.swift */,
 				TC0001000000000000000002 /* ThresholdCache.swift */,
+				KK0001000000000000000002 /* ActiveServerName.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -332,6 +335,7 @@
 				FF0001000000000000000003 /* Secrets.swift in Sources */,
 				GG0001000000000000000001 /* DeepLinkHandler.swift in Sources */,
 				JJ0001000000000000000001 /* KeychainHelper.swift in Sources */,
+				KK0001000000000000000001 /* ActiveServerName.swift in Sources */,
 				II0001000000000000000001 /* IconPickerSheet.swift in Sources */,
 				II0001000000000000000003 /* ServerConfigView.swift in Sources */,
 				F1F10DD12CE00004 /* QRScannerView.swift in Sources */,
