@@ -145,6 +145,9 @@ features defined here. Platform-specific behaviour is noted per feature.
 
 #### iOS-specific
 - Native SwiftUI List with UID-based identity
+- v2.8.0: Device list row redesigned to PWA-parity layout — icon (40px) + left info column (name/IP/category·site) + right column (5-chip alarm badges + incident ticker)
+- Alarm chips use 5 raw severity colours: green (healthy/threshold-based) · blue (ack+informational) · yellow (warning) · orange (major+minor) · red (critical). Zero counts shown as grey outlined chips; green shows "—" when threshold cache not yet loaded.
+- Per-row incident ticker reuses `MarqueeText.swift`; shows active incident summaries joined by " · ", sorted highest-severity first. Hidden (stable-height spacer) when no active incidents.
 
 #### PWA-specific
 - v0.4.0: Window-based pagination with independent React Query entries per page
