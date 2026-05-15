@@ -189,7 +189,7 @@ struct AlarmChipsView: View {
 
     var body: some View {
         HStack(spacing: 3) {
-            chip(count: counts.green,  color: Color(red: 0.02, green: 0.588, blue: 0.412),  textColor: .white)
+            chip(count: counts.green,  color: AlarmColor.green.color,  textColor: .white)
             chip(count: counts.blue,   color: .blue,   textColor: .white)
             chip(count: counts.yellow, color: .yellow, textColor: Color(.label))
             chip(count: counts.orange, color: .orange, textColor: .white)
