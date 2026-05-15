@@ -117,6 +117,26 @@ describe('parseDevicesResponse', () => {
     const result = parseDevicesResponse(raw);
     expect(result.devices[0].status).toBe('unknown');
   });
+
+  it('resolves numeric category/site IDs to names when name maps provided', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'raspi-054', ip: '192.168.1.1', category: 23, site: 19 }
+    ]}}];
+    const categoryNames = new Map([['23', 'Linux Servers']]);
+    const siteNames = new Map([['19', 'Home Lab']]);
+    const result = parseDevicesResponse(raw, categoryNames, siteNames);
+    expect(result.devices[0].category).toBe('Linux Servers');
+    expect(result.devices[0].site).toBe('Home Lab');
+  });
+
+  it('falls back to raw ID when no name map entry exists', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'host', ip: '1.2.3.4', category: 42, site: 7 }
+    ]}}];
+    const result = parseDevicesResponse(raw, new Map(), new Map());
+    expect(result.devices[0].category).toBe('42');
+    expect(result.devices[0].site).toBe('7');
+  });
 });
 
 describe('parseDeviceFindResponse', () => {
