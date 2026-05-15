@@ -76,7 +76,9 @@ class NetreoAPIService: ObservableObject {
         guard let (data, _) = try? await urlSession.data(for: request),
               let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
         for item in json {
-            if let id = item["id"] as? String, let name = item["name"] as? String {
+            // SaaS BHNM returns id as Int; on-prem returns it as String
+            let id = (item["id"] as? String) ?? (item["id"] as? Int).map(String.init) ?? ""
+            if let name = item["name"] as? String, !id.isEmpty {
                 categoryNameCache?[id] = name
             }
         }
@@ -96,7 +98,9 @@ class NetreoAPIService: ObservableObject {
         guard let (data, _) = try? await urlSession.data(for: request),
               let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
         for item in json {
-            if let id = item["id"] as? String, let name = item["name"] as? String {
+            // SaaS BHNM returns id as Int; on-prem returns it as String
+            let id = (item["id"] as? String) ?? (item["id"] as? Int).map(String.init) ?? ""
+            if let name = item["name"] as? String, !id.isEmpty {
                 siteNameCache?[id] = name
             }
         }

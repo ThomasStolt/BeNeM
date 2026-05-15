@@ -225,20 +225,20 @@ struct DeviceRowView: View {
     let alarmSummary: DeviceAlarmSummary
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            DeviceTypeIcon(typeClass: device.typeClass, size: 40, color: statusColor)
+        HStack(alignment: .center, spacing: 10) {
+            DeviceTypeIcon(typeClass: device.typeClass, size: 34, color: statusColor)
 
             // Left info column
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(device.name)
                     .font(.subheadline).fontWeight(.semibold)
                     .lineLimit(1)
                 Text(device.ip)
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(.system(size: 10, design: .monospaced))
                     .foregroundColor(.secondary)
                 if !metaLine.isEmpty {
                     Text(metaLine)
-                        .font(.system(size: 11))
+                        .font(.system(size: 10))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
@@ -246,10 +246,10 @@ struct DeviceRowView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             // Right column: alarm chips + incident ticker
-            VStack(alignment: .trailing, spacing: 4) {
+            VStack(alignment: .trailing, spacing: 3) {
                 AlarmChipsView(counts: alarmSummary.counts)
                 if alarmSummary.activeSummaries.isEmpty {
-                    Spacer().frame(height: 14)
+                    Spacer().frame(height: 12)
                 } else {
                     let tickerText = alarmSummary.activeSummaries.joined(separator: " · ")
                     MarqueeText(
@@ -263,7 +263,7 @@ struct DeviceRowView: View {
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 4)
     }
 
     private var metaLine: String {
