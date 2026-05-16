@@ -31,8 +31,6 @@ services:
     build:
       context: ..
       dockerfile: pwa/Dockerfile
-      args:
-        VITE_QR_ENCRYPTION_KEY: ${BENEM_SECRET_KEY}
     expose:
       - "80"
     restart: unless-stopped

@@ -1,10 +1,3 @@
-import { decrypt, decryptCompressed } from './crypto';
-
-/** Read the QR encryption key lazily so it picks up env stubs in tests. */
-function getQRKey(): string {
-  return import.meta.env.VITE_QR_ENCRYPTION_KEY ?? '';
-}
-
 export interface ParsedServerConfig {
   name: string;
   baseUrl: string;
@@ -16,21 +9,16 @@ export interface ParsedServerConfig {
   pushWebhookSecret?: string;
 }
 
-/** Decode base64url (no-padding, URL-safe alphabet) to bytes. */
-function base64urlToBytes(b64url: string): Uint8Array {
-  // Convert base64url → standard base64
-  let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
-  // Restore padding
-  const remainder = b64.length % 4;
-  if (remainder === 2) b64 += '==';
-  else if (remainder === 3) b64 += '=';
-
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
+async function redeemBlob(blob: string): Promise<Record<string, unknown>> {
+  const res = await fetch('/bhnm/api/v1/qr-redeem', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ blob }),
+  });
+  if (!res.ok) {
+    throw new Error('QR code could not be decrypted. Please regenerate it from the admin console.');
   }
-  return bytes;
+  return res.json();
 }
 
 export async function parseQRUrl(urlString: string): Promise<ParsedServerConfig> {
@@ -50,16 +38,11 @@ export async function parseQRUrl(urlString: string): Promise<ParsedServerConfig>
   // Compact format: single `p` parameter (base64url, zlib-compressed, AES-256-GCM)
   const compactParam = params.get('p');
   if (compactParam) {
-    if (!getQRKey() || getQRKey().length !== 64) {
-      throw new Error('QR encryption key is not configured (set VITE_QR_ENCRYPTION_KEY)');
-    }
-    const blob = base64urlToBytes(compactParam);
-    const json = await decryptCompressed(blob, getQRKey());
-    const data = JSON.parse(json);
+    const data = await redeemBlob(compactParam);
 
     // Middleware uses snake_case field names: bhnm_url, api_key, middleware_url, push_secret
-    const bhnmUrl = data.bhnm_url ?? data.bhnmURL ?? '';
-    const apiKey = data.api_key ?? data.apiKey ?? '';
+    const bhnmUrl = (data.bhnm_url ?? data.bhnmURL ?? '') as string;
+    const apiKey = (data.api_key ?? data.apiKey ?? '') as string;
 
     if (!bhnmUrl || !apiKey) {
       throw new Error('Missing required fields in QR code');
@@ -74,48 +57,28 @@ export async function parseQRUrl(urlString: string): Promise<ParsedServerConfig>
       throw new Error('Invalid server URL in QR code');
     }
 
-    const middlewareUrl = data.middleware_url || data.middlewareURL || '';
-    const ackUser = data.user || data.ackUser || undefined;
+    const middlewareUrl = (data.middleware_url || data.middlewareURL || '') as string;
+    const ackUser = (data.user || data.ackUser || undefined) as string | undefined;
 
     return {
-      name: data.name ?? 'BHNM Server',
+      name: (data.name ?? 'BHNM Server') as string,
       baseUrl: '/bhnm',
       bhnmUrl,
       apiKey,
-      pin: data.pin || undefined,
+      pin: (data.pin || undefined) as string | undefined,
       ackUser,
       pushMiddlewareUrl: middlewareUrl || undefined,
-      pushWebhookSecret: data.push_secret || data.pushSecret || undefined,
+      pushWebhookSecret: (data.push_secret || data.pushSecret || undefined) as string | undefined,
     };
   }
 
-  // Legacy format: individual encrypted parameters (no zlib, just AES-GCM)
-  const serverParam = params.get('server');
-  const apiKeyParam = params.get('api_key');
-  if (!serverParam || !apiKeyParam) {
-    throw new Error('No configuration data in QR code');
+  // Legacy format: individual encrypted parameters — no longer supported client-side.
+  // Regenerate the QR code from the admin console to get a current compact-format code.
+  if (params.get('server') || params.get('api_key')) {
+    throw new Error(
+      'This QR code uses an older format. Please regenerate it from the admin console.',
+    );
   }
 
-  if (!getQRKey() || getQRKey().length !== 64) {
-    throw new Error('QR encryption key is not configured (set VITE_QR_ENCRYPTION_KEY)');
-  }
-  const server = await decrypt(base64urlToBytes(serverParam), getQRKey());
-  const apiKey = await decrypt(base64urlToBytes(apiKeyParam), getQRKey());
-
-  const pinParam = params.get('pin');
-  const pin = pinParam ? await decrypt(base64urlToBytes(pinParam), getQRKey()) : undefined;
-
-  const nameParam = params.get('name');
-  const name = nameParam ? await decrypt(base64urlToBytes(nameParam), getQRKey()) : 'BHNM Server';
-
-  return {
-    name,
-    baseUrl: '/bhnm',
-    bhnmUrl: server,
-    apiKey,
-    pin: pin || undefined,
-    ackUser: undefined,
-    pushMiddlewareUrl: undefined,
-    pushWebhookSecret: undefined,
-  };
+  throw new Error('No configuration data in QR code');
 }

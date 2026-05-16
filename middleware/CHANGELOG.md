@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.6.1] - 2026-05-16
+
+### Security
+
+- **Authenticated `/internal/cache/reload`** — endpoint now requires `X-Proxy-Token` (matching all other protected endpoints); Caddyfile blocks all `/internal*` paths externally as defence-in-depth
+- **Server-side QR decryption** — new `POST /api/v1/qr-redeem` endpoint decrypts compact QR blobs using `BENEM_SECRET_KEY` on the server; `BENEM_SECRET_KEY` is no longer passed as a Docker build arg or embedded in the PWA JS bundle
+
+---
+
 ## [2.6.0] - 2026-04-12
 
 ### Added

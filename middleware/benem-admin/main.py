@@ -387,10 +387,12 @@ def restart_container(request: Request):
 async def _notify_cache_reload(server_id: str) -> None:
     """Tell the middleware to reload cache config for a server."""
     try:
+        headers = {"X-Proxy-Token": PROXY_TOKEN} if PROXY_TOKEN else {}
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(
                 f"{MIDDLEWARE_INTERNAL_URL}/internal/cache/reload",
                 json={"server_id": server_id},
+                headers=headers,
             )
     except Exception as e:
         print(f"[Admin] Failed to notify middleware cache reload for {server_id}: {e}")

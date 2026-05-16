@@ -10,8 +10,6 @@ RUN npm ci
 
 # Copy source and build
 COPY pwa/ ./
-ARG VITE_QR_ENCRYPTION_KEY
-ENV VITE_QR_ENCRYPTION_KEY=$VITE_QR_ENCRYPTION_KEY
 RUN npm run build
 
 # ─── Stage 2: Serve ───────────────────────────────────────────────────────────

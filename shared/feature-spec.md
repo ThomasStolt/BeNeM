@@ -389,8 +389,7 @@ Middleware → BHNM (`POST /api/maint_window_api.php`, form-encoded):
 
 #### PWA-specific
 - v0.5.0: html5-qrcode camera overlay from Settings
-- Web Crypto API for AES-256-GCM decryption
-- Encryption key via VITE_QR_ENCRYPTION_KEY build env var (mapped from BENEM_SECRET_KEY at Docker build time)
 - Camera availability check hides button when no camera
 - Error states: permission denied, invalid QR, decryption failure
 - v0.7.0: Duplicate detection by Server Name + BHNM URL + User Name; QR-scanned servers marked as `isQrProvisioned` with read-only fields
+- v0.10.1: Decryption moved server-side — PWA sends blob to `POST /bhnm/api/v1/qr-redeem`; `BENEM_SECRET_KEY` no longer embedded in JS bundle; legacy-format QR codes prompt regeneration

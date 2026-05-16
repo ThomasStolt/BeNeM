@@ -23,6 +23,11 @@
         reverse_proxy benem-admin:8001
     }
 
+    # Internal endpoints are container-to-container only; block external access.
+    handle /internal* {
+        respond 403
+    }
+
     # bhnm-apns push middleware (all other paths, unchanged)
     handle {
         reverse_proxy bhnm-apns:8889

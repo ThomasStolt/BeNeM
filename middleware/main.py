@@ -1,16 +1,19 @@
-VERSION = "2.6.0"
+VERSION = "2.6.1"
 
 from contextlib import asynccontextmanager
+import base64
 import ipaddress
 import json
 import socket
+import zlib
 from urllib.parse import parse_qs, urlparse
 import httpx
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, field_validator
 
-from config import MIDDLEWARE_PORT, VAPID_PUBLIC_KEY, BHNM_TLS_VERIFY, SERVERS_JSON_PATH, PROXY_TIMEOUT, PROXY_TOKEN
+from config import MIDDLEWARE_PORT, VAPID_PUBLIC_KEY, BHNM_TLS_VERIFY, SERVERS_JSON_PATH, PROXY_TIMEOUT, PROXY_TOKEN, BENEM_SECRET_KEY
 from database import init_db, save_token, get_tokens_for_secret, get_all_tokens, delete_token, \
     save_web_push_subscription, get_web_push_subscriptions_for_secret, delete_web_push_subscription
 from apns import send_to_all
@@ -408,7 +411,8 @@ async def cached_incidents(request: Request):
 
 @app.post("/internal/cache/reload")
 async def cache_reload(request: Request):
-    """Trigger cache reload for a server. Called by admin portal."""
+    """Trigger cache reload for a server. Called by admin portal (internal only)."""
+    _verify_proxy_token(request)
     try:
         body = await request.json()
     except Exception:
@@ -420,6 +424,35 @@ async def cache_reload(request: Request):
     tactical_cache.reload_server(server_id)
     threshold_cache.reload_server(server_id)
     return {"status": "ok", "server_id": server_id}
+
+
+@app.post("/api/v1/qr-redeem")
+async def qr_redeem(request: Request):
+    """Decrypt a compact QR config blob server-side so the key never enters the PWA bundle."""
+    if not BENEM_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="QR decryption is not configured on this server")
+    try:
+        key = bytes.fromhex(BENEM_SECRET_KEY)
+    except ValueError:
+        raise HTTPException(status_code=503, detail="QR decryption is not configured on this server")
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Request body must be JSON")
+
+    blob_b64url = body.get("blob", "").strip()
+    if not blob_b64url:
+        raise HTTPException(status_code=400, detail="blob is required")
+
+    try:
+        pad = (4 - len(blob_b64url) % 4) % 4
+        raw = base64.urlsafe_b64decode(blob_b64url + "=" * pad)
+        nonce, ct = raw[:12], raw[12:]
+        compressed = AESGCM(key).decrypt(nonce, ct, None)
+        return json.loads(zlib.decompress(compressed))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid or undecryptable QR payload")
 
 
 # ── Cached Tactical Overview Endpoint ──────────────────────────────────────
