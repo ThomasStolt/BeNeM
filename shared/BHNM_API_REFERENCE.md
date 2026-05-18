@@ -20,9 +20,6 @@ parameter names, and different request encoding. Do not mix them.
 | Routing          | Via `?r=restful/{resource}/{action}`                         | Via `method=` form field            |
 | Response wrapper | Array `[{...}]`                                              | Varies                              |
 
-The high-performance time series endpoint (`timeseries-metrics`) lives on the **Legacy API**
-and offers significantly better performance than older alternatives. Always use it.
-
 ---
 
 ## Authentication
