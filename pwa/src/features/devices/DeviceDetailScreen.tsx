@@ -1,6 +1,6 @@
 // pwa/src/features/devices/DeviceDetailScreen.tsx
 import { useState, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useDeviceSearch } from './useDeviceSearch';
 import { useIncidents } from '../incidents/useIncidents';
 import { SeverityBadge } from '../incidents/SeverityBadge';
@@ -105,14 +105,15 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
 // ── Incident table row ────────────────────────────────────────────
 function IssueRow({ incident }: { incident: Incident }) {
   return (
-    <div
-      className="grid px-4 py-2.5 border-b border-slate-700 last:border-0"
+    <Link
+      to={`/incidents/${incident.incidentId}`}
+      className="grid px-4 py-2.5 border-b border-slate-700 last:border-0 hover:bg-slate-700/50 active:bg-slate-700 transition-colors"
       style={{ gridTemplateColumns: '80px 1fr 56px', gap: '8px', alignItems: 'start' }}
     >
       <SeverityBadge severity={incident.severity} />
       <p className="text-xs text-slate-200 line-clamp-2">{incident.summary}</p>
       <p className="text-[11px] text-slate-500 text-right">{duration(incident.startTime)}</p>
-    </div>
+    </Link>
   );
 }
 
