@@ -11,8 +11,41 @@ const STATUS_MAP: Record<string, DeviceStatus> = {
   maintenance: 'maintenance', MAINTENANCE: 'maintenance',
 };
 
-function coerceStatus(v: unknown): DeviceStatus {
-  if (typeof v === 'string') return STATUS_MAP[v] ?? 'unknown';
+function coerceStatus(entry: Record<string, unknown>): DeviceStatus {
+  // 1. alarm_color string: "green" → up, "red" → critical, "orange"/"yellow" → warning
+  const ac = entry.alarm_color;
+  if (typeof ac === 'string') {
+    const lower = ac.toLowerCase();
+    if (lower === 'green') return 'up';
+    if (lower === 'red') return 'critical';
+    if (lower === 'orange' || lower === 'yellow') return 'warning';
+    // alarm_color as string-encoded int: "0" → up, "1"/"2" → warning, "3" → critical
+    const n = parseInt(ac, 10);
+    if (!isNaN(n)) {
+      if (n === 0) return 'up';
+      if (n === 1 || n === 2) return 'warning';
+      if (n === 3) return 'critical';
+    }
+  }
+  // 2. alarm_color int: 0 → up, 1/2 → warning, 3 → critical
+  if (typeof ac === 'number') {
+    if (ac === 0) return 'up';
+    if (ac === 1 || ac === 2) return 'warning';
+    if (ac === 3) return 'critical';
+  }
+  // 3. status string field
+  if (typeof entry.status === 'string') {
+    const mapped = STATUS_MAP[entry.status];
+    if (mapped) return mapped;
+  }
+  // 4. up_status int: 1 → up, 0 → down
+  if (typeof entry.up_status === 'number') {
+    return entry.up_status === 1 ? 'up' : 'down';
+  }
+  // 5. infer from poll + monitor flags (mirrors iOS final fallback)
+  const poll    = entry.poll === '1'    || entry.poll    === 1 || entry.poll    === true;
+  const monitor = entry.monitor === '1' || entry.monitor === 1 || entry.monitor === true;
+  if (poll && monitor) return 'up';
   return 'unknown';
 }
 
@@ -80,7 +113,7 @@ function parseDevice(
     serialNumber: coerceString(entry.serial_number) || coerceString(entry.serialNumber),
     description: coerceString(entry.description),
     deviceIndex: coerceStringOrNum(entry.dev_index) || coerceStringOrNum(entry.deviceIndex),
-    status: coerceStatus(entry.status),
+    status: coerceStatus(entry),
   };
 }
 

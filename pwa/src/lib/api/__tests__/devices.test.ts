@@ -118,6 +118,76 @@ describe('parseDevicesResponse', () => {
     expect(result.devices[0].status).toBe('unknown');
   });
 
+  it('derives "up" from alarm_color string "green"', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'host', ip: '1.2.3.4', dev_index: '1', alarm_color: 'green' }
+    ]}}];
+    expect(parseDevicesResponse(raw).devices[0].status).toBe('up');
+  });
+
+  it('derives "critical" from alarm_color string "red"', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'host', ip: '1.2.3.4', dev_index: '1', alarm_color: 'red' }
+    ]}}];
+    expect(parseDevicesResponse(raw).devices[0].status).toBe('critical');
+  });
+
+  it('derives "warning" from alarm_color string "orange"', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'host', ip: '1.2.3.4', dev_index: '1', alarm_color: 'orange' }
+    ]}}];
+    expect(parseDevicesResponse(raw).devices[0].status).toBe('warning');
+  });
+
+  it('derives "up" from alarm_color int 0', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'host', ip: '1.2.3.4', dev_index: '1', alarm_color: 0 }
+    ]}}];
+    expect(parseDevicesResponse(raw).devices[0].status).toBe('up');
+  });
+
+  it('derives "critical" from alarm_color int 3', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'host', ip: '1.2.3.4', dev_index: '1', alarm_color: 3 }
+    ]}}];
+    expect(parseDevicesResponse(raw).devices[0].status).toBe('critical');
+  });
+
+  it('derives "up" from alarm_color string-encoded "0"', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'host', ip: '1.2.3.4', dev_index: '1', alarm_color: '0' }
+    ]}}];
+    expect(parseDevicesResponse(raw).devices[0].status).toBe('up');
+  });
+
+  it('derives "up" from up_status 1 when no alarm_color or status', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'host', ip: '1.2.3.4', dev_index: '1', up_status: 1 }
+    ]}}];
+    expect(parseDevicesResponse(raw).devices[0].status).toBe('up');
+  });
+
+  it('derives "down" from up_status 0', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'host', ip: '1.2.3.4', dev_index: '1', up_status: 0 }
+    ]}}];
+    expect(parseDevicesResponse(raw).devices[0].status).toBe('down');
+  });
+
+  it('derives "up" from poll+monitor flags when all else absent', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'host', ip: '1.2.3.4', dev_index: '1', poll: '1', monitor: '1' }
+    ]}}];
+    expect(parseDevicesResponse(raw).devices[0].status).toBe('up');
+  });
+
+  it('returns "unknown" when poll is true but monitor is false', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'host', ip: '1.2.3.4', dev_index: '1', poll: '1', monitor: '0' }
+    ]}}];
+    expect(parseDevicesResponse(raw).devices[0].status).toBe('unknown');
+  });
+
   it('resolves numeric category/site IDs to names when name maps provided', () => {
     const raw = [{ data: { totalRecords: 1, devices: [
       { name: 'raspi-054', ip: '192.168.1.1', category: 23, site: 19 }
