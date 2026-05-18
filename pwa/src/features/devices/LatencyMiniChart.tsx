@@ -29,12 +29,15 @@ function MiniChartSvg({ points }: MiniChartSvgProps) {
   const current = values[values.length - 1];
   const lastCoord = coords[coords.length - 1];
 
-  const formatVal = (v: number) =>
-    v >= 1000 ? `${(v / 1000).toFixed(1)}s` : `${Math.round(v)}ms`;
+  const formatVal = (v: number) => {
+    if (v >= 1000) return `${(v / 1000).toFixed(1)}s`;
+    if (v < 1)     return `${v.toFixed(2)}ms`;
+    if (v < 10)    return `${v.toFixed(1)}ms`;
+    return `${Math.round(v)}ms`;
+  };
 
   return (
     <div className="flex flex-col min-w-0 w-full" style={{ height: '64px' }}>
-      <span className="text-[10px] text-slate-500 text-right mb-0.5">Latency</span>
       <div className="flex-1 relative min-h-0">
         <svg
           viewBox={`0 0 ${W} ${H}`}
