@@ -9,6 +9,7 @@ import { PerformanceSection } from '../performance/PerformanceSection';
 import { MaintenanceDialog } from './MaintenanceDialog';
 import { LatencyMiniChart } from './LatencyMiniChart';
 import { DeviceTypeIcon } from '../../components/DeviceTypeIcon';
+import { OverflowMarquee } from '../../components/OverflowMarquee';
 import { createMaintenanceWindow } from '../../lib/api/maintenance';
 import { useConfig } from '../../lib/config';
 import { classifyDevice } from '../../lib/deviceType';
@@ -167,15 +168,15 @@ export function DeviceDetailScreen() {
             {/* Info column */}
             <div className="flex flex-col justify-center gap-1 min-w-0" style={{ flex: '0 0 38%' }}>
               {device.description && (
-                <p className="text-[11px] text-slate-400 flex items-center gap-1">
-                  <svg viewBox="0 0 24 24" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
+                <div className="flex items-center gap-1 min-w-0">
+                  <svg viewBox="0 0 24 24" className="w-3 h-3 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
                     <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
                     <line x1="6" y1="6" x2="6.01" y2="6" />
                     <line x1="6" y1="18" x2="6.01" y2="18" />
                   </svg>
-                  {device.description}
-                </p>
+                  <OverflowMarquee text={device.description} className="text-[11px] text-slate-400 min-w-0" speed={30} />
+                </div>
               )}
               {device.category && (
                 <p className="text-[11px] text-slate-400 flex items-center gap-1">
