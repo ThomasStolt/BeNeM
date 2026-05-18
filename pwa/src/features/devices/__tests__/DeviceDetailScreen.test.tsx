@@ -83,7 +83,7 @@ describe('DeviceDetailScreen', () => {
     expect(screen.getByText('ABC123')).toBeInTheDocument();
   });
 
-  it('shows "No current issues" when no incidents', () => {
+  it('shows "No current issues" when no incidents', async () => {
     vi.mocked(useDeviceSearch).mockReturnValue({
       data: [mockDevice],
       isLoading: false,
@@ -91,10 +91,11 @@ describe('DeviceDetailScreen', () => {
     } as ReturnType<typeof useDeviceSearch>);
 
     renderDetail('raspi-054');
+    await userEvent.click(screen.getByText('Current Issues'));
     expect(screen.getByText('No current issues')).toBeInTheDocument();
   });
 
-  it('shows matching incidents in Current Issues table', () => {
+  it('shows matching incidents in Current Issues table', async () => {
     vi.mocked(useDeviceSearch).mockReturnValue({
       data: [mockDevice],
       isLoading: false,
@@ -132,6 +133,7 @@ describe('DeviceDetailScreen', () => {
     } as unknown as ReturnType<typeof useIncidents>);
 
     renderDetail('raspi-054');
+    await userEvent.click(screen.getByText('Current Issues'));
     expect(screen.getByText('High CPU')).toBeInTheDocument();
     expect(screen.queryByText('Disk full')).not.toBeInTheDocument();
   });

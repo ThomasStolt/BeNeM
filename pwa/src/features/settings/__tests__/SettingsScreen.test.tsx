@@ -48,7 +48,7 @@ describe('SettingsScreen', () => {
 
   it('renders the About section with version', () => {
     renderScreen();
-    expect(screen.getByText(/0\.10\.0/)).toBeInTheDocument();
+    expect(screen.getByText(/0\.10\.1/)).toBeInTheDocument();
   });
 
   it('shows server name when a server exists', () => {
