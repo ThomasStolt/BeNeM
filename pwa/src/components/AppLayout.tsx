@@ -4,9 +4,11 @@ import { IOSRedirectBanner } from './IOSRedirectBanner';
 
 export function AppLayout() {
   return (
-    <div className="min-h-full pb-14">
+    <div className="flex flex-col h-dvh">
       <IOSRedirectBanner />
-      <Outlet />
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <Outlet />
+      </div>
       <TabBar />
     </div>
   );
