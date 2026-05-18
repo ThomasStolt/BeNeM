@@ -12,6 +12,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [2.8.3] — 2026-05-18
+
+### Changed
+
+- **Device Detail nav bar** — title area now shows the device name (bold) with IP address directly below in monospaced text, matching the PWA layout.
+- **Device Detail header card** — middle column redesigned to show system description, category, site, and status; replaces the previous name/IP layout.
+- **Maintenance Window card position** — moved directly above "Host Information", consistent with PWA.
+- **Current Issues collapsed by default** — section now starts closed; shows `(0)` in grey when no active incidents, red badge when incidents are present.
+
+### Fixed
+
+- **`build_and_deploy.sh`** — script now correctly targets the `Release-iphoneos` build output when installing to a physical device.
+
+---
+
 ## [2.8.1] — 2026-05-15
 
 ### Added

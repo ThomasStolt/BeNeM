@@ -16,9 +16,9 @@ struct DeviceDetailView: View {
             VStack(spacing: 16) {
                 headerSection(device)
                 alarmBar
+                maintenanceCard
                 hostInfoSection(device)
                 issuesSection
-                maintenanceCard
                 if device.typeClass.isServer {
                     serverUtilizationSection
                 }
@@ -29,8 +29,18 @@ struct DeviceDetailView: View {
             }
             .padding(.bottom, 24)
         }
-        .navigationTitle(device.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                VStack(spacing: 1) {
+                    Text(device.name)
+                        .font(.headline).fontWeight(.semibold)
+                    Text(device.ip)
+                        .font(.caption).foregroundColor(.secondary)
+                        .fontDesign(.monospaced)
+                }
+            }
+        }
         .task { await viewModel.load() }
         .sheet(isPresented: $showMaintenanceSheet) {
             MaintenanceWindowSheet(
@@ -60,10 +70,16 @@ struct DeviceDetailView: View {
             )
             .frame(width: iconWidth)
 
-            // Middle column — name, IP, category, site
+            // Middle column — device type, category, site, status
             VStack(alignment: .leading, spacing: 4) {
-                MarqueeText(text: device.name, font: .headline, fontWeight: .bold, color: .primary)
-                MarqueeText(text: device.ip, font: .subheadline, color: .secondary)
+                if !device.description.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "cpu")
+                            .font(.caption2).foregroundColor(.secondary)
+                            .frame(width: 12)
+                        MarqueeText(text: device.description, font: .caption, color: .secondary)
+                    }
+                }
                 HStack(spacing: 4) {
                     Image(systemName: "folder")
                         .font(.caption2).foregroundColor(.secondary)
@@ -75,6 +91,14 @@ struct DeviceDetailView: View {
                         .font(.caption2).foregroundColor(.secondary)
                         .frame(width: 12)
                     MarqueeText(text: device.site, font: .caption, color: .secondary)
+                }
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(statusColor(device.status))
+                        .frame(width: 8, height: 8)
+                    Text(device.status.rawValue.uppercased())
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundColor(statusColor(device.status))
                 }
             }
             .frame(width: infoWidth, alignment: .leading)
@@ -278,7 +302,7 @@ struct DeviceDetailView: View {
 
     // MARK: - Current Issues (collapsible card, open by default)
 
-    @State private var issuesExpanded = true
+    @State private var issuesExpanded = false
 
     private var issuesSection: some View {
         VStack(spacing: 0) {
@@ -287,7 +311,11 @@ struct DeviceDetailView: View {
                     .font(.caption).fontWeight(.semibold)
                     .foregroundColor(.secondary)
                 Spacer()
-                if !viewModel.incidents.isEmpty {
+                if viewModel.incidents.isEmpty {
+                    Text("(0)")
+                        .font(.caption2).fontWeight(.semibold)
+                        .foregroundColor(.secondary)
+                } else {
                     Text("\(viewModel.incidents.count)")
                         .font(.caption2).fontWeight(.bold)
                         .foregroundColor(.white)

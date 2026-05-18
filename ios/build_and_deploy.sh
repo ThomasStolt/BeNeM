@@ -33,12 +33,13 @@ xcodebuild \
     -project "$PROJECT" \
     -scheme "$SCHEME" \
     -destination "$DESTINATION" \
+    -configuration Release \
     -allowProvisioningUpdates \
     clean build
 
 if [ -n "$DEVICE_ID" ]; then
     APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "BeNeM.app" \
-        -path "*/Debug-iphoneos/*" -not -path "*/Index.noindex/*" 2>/dev/null | head -1)
+        -path "*/Release-iphoneos/*" -not -path "*/Index.noindex/*" 2>/dev/null | head -1)
     if [ -z "$APP_PATH" ]; then
         echo "ERROR: Could not find BeNeM.app in DerivedData." >&2
         exit 1
