@@ -67,6 +67,9 @@ function CollapsibleSection({
               {badge}
             </span>
           )}
+          {badge !== undefined && badge === 0 && (
+            <span className="text-[11px] font-semibold text-slate-500">(0)</span>
+          )}
         </div>
         <svg
           viewBox="0 0 20 20"
@@ -276,7 +279,7 @@ export function DeviceDetailScreen() {
           <CollapsibleSection
             title="Current Issues"
             badge={deviceIncidents.length}
-            defaultOpen={true}
+            defaultOpen={false}
           >
             {deviceIncidents.length === 0 ? (
               <div className="px-4 py-5 flex items-center justify-center gap-2 text-slate-400 text-sm">
