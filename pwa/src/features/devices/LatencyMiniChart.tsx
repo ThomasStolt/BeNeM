@@ -29,11 +29,17 @@ function MiniChartSvg({ points }: MiniChartSvgProps) {
   const current = values[values.length - 1];
   const lastCoord = coords[coords.length - 1];
 
-  const formatVal = (v: number) => {
-    if (v >= 1000) return `${(v / 1000).toFixed(1)}s`;
-    if (v < 1)     return `${v.toFixed(2)}ms`;
-    if (v < 10)    return `${v.toFixed(1)}ms`;
-    return `${Math.round(v)}ms`;
+  // Values are in seconds (BHNM timeseries unit)
+  const formatLatency = (s: number) => {
+    if (s < 0.001) return `${Math.round(s * 1_000_000)} µs`;
+    if (s < 1)     return `${(s * 1000).toFixed(1)} ms`;
+    return `${s.toFixed(2)} s`;
+  };
+  // Axis label: compact, no decimals for µs
+  const formatAxis = (s: number) => {
+    if (s < 0.001) return `${Math.round(s * 1_000_000)} µs`;
+    if (s < 1)     return `${Math.round(s * 1000)} ms`;
+    return `${s.toFixed(1)} s`;
   };
 
   return (
@@ -48,7 +54,7 @@ function MiniChartSvg({ points }: MiniChartSvgProps) {
           <path d={linePath} fill="none" stroke="#0ea5e9" strokeWidth="2" />
           <circle cx={lastCoord.x} cy={lastCoord.y} r="3" fill="#0ea5e9" />
           <text x="2" y="10" fill="#6b7280" fontSize="8">
-            {formatVal(maxVal)}
+            {formatAxis(maxVal)}
           </text>
           <text x="2" y={H - 2} fill="#6b7280" fontSize="8">
             0
@@ -56,7 +62,7 @@ function MiniChartSvg({ points }: MiniChartSvgProps) {
         </svg>
       </div>
       <span className="text-[12px] font-bold text-sky-400 text-right mt-0.5">
-        {formatVal(current)}
+        Last: {formatLatency(current)}
       </span>
     </div>
   );
