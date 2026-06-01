@@ -417,7 +417,10 @@ def server_card_readonly(request: Request, server_id: str = ""):
 def server_edit_form(request: Request, server_id: str = ""):
     """Return an editable server card fragment (HTMX). Empty server_id = new server."""
     if not auth.is_authenticated(request):
-        return HTMLResponse("", status_code=401)
+        return HTMLResponse(
+            '<div class="alert alert-red">Session expired — <a href="/admin/login" style="color:inherit;text-decoration:underline;">log in again</a>.</div>',
+            status_code=401,
+        )
     if server_id:
         server = get_server(server_id)
         if not server:

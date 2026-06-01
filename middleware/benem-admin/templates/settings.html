@@ -25,9 +25,9 @@
   }
 </style>
 <script>
-  // Allow HTMX to swap content from error responses (e.g. 422 validation errors)
   document.body.addEventListener('htmx:beforeSwap', function(evt) {
-    if (evt.detail.xhr.status === 422 || evt.detail.xhr.status === 404) {
+    var s = evt.detail.xhr.status;
+    if (s === 422 || s === 404 || s === 401) {
       evt.detail.shouldSwap = true;
       evt.detail.isError = false;
     }
