@@ -1,7 +1,7 @@
 <div class="card server-card" id="server-{{ s.id or 'new' }}">
   <h2>{{ 'New Server' if is_new else 'Edit: ' + s.name }}</h2>
   <form hx-post="/admin/settings/servers/{{ 'add' if is_new else 'edit' }}"
-        hx-target="#server-{{ s.id or 'new' }}"
+        hx-target="closest .server-card"
         hx-swap="outerHTML">
     {% if not is_new %}
     <input type="hidden" name="original_id" value="{{ s.id }}">
@@ -52,7 +52,7 @@
       {% else %}
       <button type="button" class="btn btn-ghost btn-sm"
               hx-get="/admin/settings/servers/card?server_id={{ s.id }}"
-              hx-target="#server-{{ s.id }}"
+              hx-target="closest .server-card"
               hx-swap="outerHTML">Cancel</button>
       {% endif %}
     </div>

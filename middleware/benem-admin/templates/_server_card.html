@@ -28,26 +28,25 @@
       <dd>{{ 'Enabled (' + s.cache_refresh_seconds|string + 's)' if s.cache_enabled else 'Disabled' }}</dd>
     </div>
   </dl>
-  <div id="test-results-{{ s.id }}"></div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <button class="btn btn-ghost btn-sm"
             hx-get="/admin/settings/servers/edit-form?server_id={{ s.id }}"
-            hx-target="#server-{{ s.id }}"
+            hx-target="closest .server-card"
             hx-swap="outerHTML">Edit</button>
     <button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(34,217,138,0.35);"
             hx-post="/admin/settings/servers/test"
             hx-vals='{"server_id": "{{ s.id }}"}'
-            hx-target="#test-results-{{ s.id }}"
-            hx-swap="innerHTML"
-            hx-indicator="#test-spin-{{ s.id }}">
+            hx-target="next .test-results"
+            hx-swap="innerHTML">
       Test Connection
-      <span id="test-spin-{{ s.id }}" class="htmx-indicator" style="font-size:11px;">...</span>
+      <span class="htmx-indicator" style="font-size:11px;">...</span>
     </button>
     <button class="btn btn-danger btn-sm"
             hx-post="/admin/settings/servers/delete"
             hx-vals='{"server_id": "{{ s.id }}"}'
-            hx-target="#server-{{ s.id }}"
+            hx-target="closest .server-card"
             hx-swap="outerHTML"
             hx-confirm="Delete server '{{ s.name }}'? This cannot be undone.">Delete</button>
+    <div class="test-results" style="flex-basis:100%;margin:0;padding:0;"></div>
   </div>
 </div>
