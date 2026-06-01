@@ -8,6 +8,7 @@ SECRET = pyotp.random_base32()
 
 # Set env before importing main
 os.environ.setdefault("TOTP_SECRET", SECRET)
+os.environ.setdefault("SESSION_SECRET", "test-session-secret-32-chars-min!")
 os.environ.setdefault("BENEM_SECRET_KEY", "a" * 64)
 os.environ.setdefault("SERVERS_JSON_PATH", "/nonexistent/servers.json")
 

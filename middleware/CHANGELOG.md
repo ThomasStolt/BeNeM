@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [benem-admin 1.6.1] - 2026-06-01
+
+### Fixed
+
+- **Edit / Delete / Save / Cancel buttons silently broken for servers whose ID contains special CSS characters** (e.g. a dot, colon, or bracket) — `hx-target="#server-prod.main"` was parsed by the browser as a CSS selector requiring both `id="server-prod"` and `class="main"`, causing `htmx:targetError` before any network request was sent. Fixed by replacing all server-ID-based `hx-target` values with DOM-relative selectors (`closest .server-card`, `next .test-results`) that are independent of the ID string.
+- **HTMX CDN dependency removed** — `htmx.min.js` (1.9.12) is now bundled in `static/`; a CDN outage or network restriction previously caused all admin interactions to silently fail.
+- **Silent session-expiry on HTMX fragments** — `server_edit_form` now returns a visible "Session expired" error fragment on 401 instead of an empty body; `htmx:beforeSwap` allows 401 responses to swap into the DOM so the error is shown.
+
+---
+
 ## [2.6.1] - 2026-05-16
 
 ### Security

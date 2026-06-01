@@ -3,6 +3,8 @@ import pytest
 import pyotp
 from unittest.mock import patch
 
+os.environ.setdefault("SESSION_SECRET", "test-session-secret-32-chars-min!")
+
 from auth import verify_totp, create_session_token, verify_session_token
 
 SECRET = pyotp.random_base32()
