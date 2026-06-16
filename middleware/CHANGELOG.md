@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [benem-admin 1.6.2] - 2026-06-16
+
+### Fixed
+
+- **Connection test and health-dot reported false `HTTP 400` failures against working BHNM servers** — both the detailed connection test (`connection_test.py`) and the passive health-dot check (`server_health`) posted to the Open 3.0 endpoint `/api/incident_api.php` using the *Legacy* API auth parameter `password=`. That endpoint requires `pwd=`, so BHNM rejected every probe with `400 Bad Request` even when the server, credentials, and scheme were correct. Switched both probes to `pwd=`, matching what the production incident/tactical caches already send. (The scheme is irrelevant — `http://` BHNM servers on non-standard ports such as `:9443` work fine.)
+
+---
+
 ## [benem-admin 1.6.1] - 2026-06-01
 
 ### Fixed

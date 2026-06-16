@@ -1,4 +1,4 @@
-VERSION = "1.6.1"
+VERSION = "1.6.2"
 
 import base64
 import io
@@ -563,7 +563,7 @@ async def server_health(request: Request, id: str = ""):
         )
     tls_verify = os.environ.get("BHNM_TLS_VERIFY", "true").lower() != "false"
     try:
-        form: dict = {"password": server.api_key, "method": "getdevices", "max": "1"}
+        form: dict = {"pwd": server.api_key, "method": "getdevices", "max": "1"}
         if server.pin:
             form["pin"] = server.pin
         async with httpx.AsyncClient(timeout=5.0, verify=tls_verify) as client:

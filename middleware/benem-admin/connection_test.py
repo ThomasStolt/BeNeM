@@ -39,7 +39,7 @@ def run_test(url: str, api_key: str, pin: str = "") -> list[TestResult]:
 
     # Step 3: API authentication
     try:
-        form: dict = {"password": api_key, "method": "getincidents", "max": "1"}
+        form: dict = {"pwd": api_key, "method": "getincidents", "max": "1"}
         if pin:
             form["pin"] = pin
         with httpx.Client(timeout=10.0, verify=True) as client:
