@@ -239,6 +239,35 @@ docker compose up -d
 
 ---
 
+## Troubleshooting
+
+### Connection test fails / iOS app shows `502 Bad Gateway: could not connect to BHNM server`
+
+The most common cause is a **scheme or TLS mismatch** with the BHNM server. Work through it in this order:
+
+1. **Use the right scheme.** Many BHNM appliances serve HTTPS on a non-standard port (e.g. `:9443`). Pointing `http://` at a TLS port returns `400 Bad Request` (`"You're speaking plain HTTP to an SSL-enabled server port"`) on *every* request. Set the server URL to `https://host:9443`. Rule of thumb: any `:443`/`:9443` port is HTTPS.
+
+2. **Self-signed or expired certs → set `BHNM_TLS_VERIFY=false`.** On-prem BHNM appliances commonly ship a self-signed cert (and it's often expired). With verification on, both the proxy and the caches fail to connect (surfacing as the `502` above) and the admin connection test fails with `CERTIFICATE_VERIFY_FAILED`. Set `BHNM_TLS_VERIFY=false` in `.env`.
+
+   > ⚠️ `BHNM_TLS_VERIFY` is **global** — it applies to every HTTPS BHNM server, not per-server. If any server in your fleet uses a self-signed cert, verification is off for all of them.
+
+3. **Recreate the containers after editing `.env`.** `BHNM_TLS_VERIFY` is read once at startup, and `env_file` is only re-read when a container is *created*. A plain `docker restart` keeps the old value — you must recreate:
+   ```bash
+   docker compose up -d --force-recreate
+   ```
+   This applies to **both** `bhnm-apns` (the proxy/cache the iOS app and PWA hit) and `benem-admin` (the connection test). Recreating only one leaves the other on the stale value — a green admin connection test with a `502` in the app is the classic symptom of having recreated only `benem-admin`.
+
+A quick way to test the proxy path directly (bypassing the app):
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" \
+  https://your-domain.example.com/api/v1/incidents \
+  -H "X-Proxy-Token: <api_key from servers.json>" \
+  -H "X-BHNM-Target: https://host:9443"
+```
+`200` = working; `502` = the middleware container still can't connect (recheck steps 1–3).
+
+---
+
 ## Admin Portal
 
 The `benem-admin` service provides a dark-mode web UI accessible at `https://your-domain.example.com/admin/`. It is protected by TOTP authentication (Google Authenticator, 1Password, Authy).
