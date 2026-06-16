@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [benem-admin 1.6.3] - 2026-06-16
+
+### Fixed
+
+- **Connection test ignored `BHNM_TLS_VERIFY`, producing false negatives for BHNM servers with self-signed or expired certificates** — `connection_test.py` hard-coded `verify=True` on both the reachability GET and the API-auth POST, so on-prem BHNM appliances (whose certs are typically self-signed *and* often expired) failed the test even when the runtime cache/proxy reached them fine. The test now reads `BHNM_TLS_VERIFY` from the environment (inherited by the admin container via `env_file: .env`), matching the rest of the middleware. Set `BHNM_TLS_VERIFY=false` to test such servers.
+- **Reachability step mislabelled "HTTPS" regardless of scheme** — the step is now labelled "HTTPS Reachability" or "HTTP Reachability" based on the configured URL's actual scheme, so an `http://` URL pointed at a TLS-only port (Apache `400: You're speaking plain HTTP to an SSL-enabled server port`) is no longer disguised as an HTTPS check.
+
+---
+
 ## [benem-admin 1.6.2] - 2026-06-16
 
 ### Fixed
