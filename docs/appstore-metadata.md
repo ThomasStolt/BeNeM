@@ -20,7 +20,7 @@ Browse and search your entire device inventory. Each device row shows its alarm 
 The Home screen gives you a dashboard view of your network health by Category, Site, and Business Workflow — aggregate host, service, threshold, and anomaly counts with colour-coded severity badges.
 
 **Push notifications**
-Receive Time Sensitive push notifications the moment BHNM raises an incident. Tap the notification to jump directly to the incident detail. Works in the background and when the app is closed.
+Receive push notifications the moment BHNM raises an incident. Tap the notification to jump directly to the incident detail. Works in the background and when the app is closed.
 
 **Performance charts**
 Device detail screens show live performance charts for CPU, memory, disk, latency, and network interfaces — fetched directly from BHNM's time-series data.

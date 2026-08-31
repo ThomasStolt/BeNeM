@@ -51,11 +51,11 @@ See `shared/DECISION.md` for the full platform strategy rationale.
 
 ### 3.1 Vision
 
-BeNeM is the go-to **lightweight mobile client** for BHNM users who want to check network health, triage incidents, and acknowledge alerts from a phone or tablet without using the full BHNM web UI. Its primary differentiator is **reliable push notification delivery** — including when the phone is locked and in Focus Mode (iOS).
+BeNeM is the go-to **lightweight mobile client** for BHNM users who want to check network health, triage incidents, and acknowledge alerts from a phone or tablet without using the full BHNM web UI. Its primary differentiator is **reliable push notification delivery** — timely alerts to a locked device via a stable native APNs channel that does not silently drop, respecting the user's own Focus/Do Not Disturb settings.
 
 ### 3.2 Goals
 
-- **Reliability:** Timely push notifications that penetrate Do Not Disturb and Focus Mode (iOS via Time Sensitive entitlement).
+- **Reliability:** Timely push notification delivery over a stable native APNs channel (no silent subscription expiry, delivery to a locked device). The app respects the user's Focus/Do Not Disturb settings and does not attempt to override them — silencing during Focus is the admin's decision.
 - **Usability:** Fast, clear access to incidents and devices with minimal configuration (QR code scan or manual API key entry).
 - **Cross-platform:** iOS native for reliability, PWA for Android and desktop browser access.
 - **Extensibility:** Architecture that allows adding more BHNM capabilities without rewriting existing code.
@@ -180,7 +180,7 @@ See `shared/feature-spec.md` for the canonical per-feature specification with pl
 | NFR2 | Security | API keys and secrets not logged in production builds; AES-256-GCM for QR payloads. |
 | NFR3 | Compatibility | Minimum BHNM version: 26.1.02 (UID-based identity, pagination, model/serial fields). |
 | NFR4 | Maintainability | Single service layer per platform; shared feature spec drives parity. |
-| NFR5 | Push reliability | iOS: APNs with Time Sensitive entitlement. Android: VAPID Web Push. iOS PWA users directed to native app. |
+| NFR5 | Push reliability | iOS: native APNs (stable subscriptions, background delivery; respects user Focus/DND). Android: VAPID Web Push. iOS PWA users directed to native app. |
 
 ---
 

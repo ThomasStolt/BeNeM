@@ -70,7 +70,7 @@ features defined here. Platform-specific behaviour is noted per feature.
 - Expired/invalid subscriptions cleaned up on 410 Gone
 
 #### iOS-specific
-- APNs with Time Sensitive entitlement support
+- APNs push delivery (stable long-lived subscriptions, background delivery)
 - Custom `benem://` deep-link scheme
 
 #### PWA-specific
@@ -78,7 +78,6 @@ features defined here. Platform-specific behaviour is noted per feature.
 - Deep-link via `/incident/{id}` route
 - Settings toggle for enable/disable, re-register button
 - Requires webhook secret matching BHNM webhook configuration
-- No Time Sensitive / Critical Alerts (Web Push API limitation)
 
 ### Feature: Dashboard (Tactical Overview)
 **Status:** shipped-ios, shipped-pwa

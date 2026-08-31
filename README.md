@@ -44,7 +44,7 @@ Here are a few examples of how the iOS app looks and feels. You can see the home
 
 Features are defined once in [`shared/feature-spec.md`](shared/feature-spec.md) and implemented on both platforms unless explicitly marked platform-specific.
 
-- **Push Notifications** — instant incident alerts delivered the moment a new incident is raised in BHNM; tap to navigate directly to the incident detail screen. iOS uses APNs with Time Sensitive entitlement; Android uses VAPID Web Push via the installed PWA.
+- **Push Notifications** — instant incident alerts delivered the moment a new incident is raised in BHNM; tap to navigate directly to the incident detail screen. iOS uses APNs; Android uses VAPID Web Push via the installed PWA.
 - **Dashboard (Home)** — at-a-glance summary with active incident count, total device count, an animated incident ticker (open incidents only), and HOSTS / SERVICES / THRESHOLDS / ANOMALIES alarm summaries with drill-down links to Categories, Sites, and Business Workflows
 - **Categories / Sites / Business Workflows** — group lists showing each group's device count and color-coded alarm status rows (H / S / T / A) across Green / Blue / Yellow / Orange / Red; alternating row backgrounds for readability; filter to show only groups with active alarms; empty group names shown as "Unknown"
 - **Incident List** — live view of active, acknowledged, and closed incidents with severity badges and per-incident alarm counts; sorted newest-first by Incident ID
@@ -134,7 +134,7 @@ npm run build          # production build
 
 Deploy the contents of `pwa/dist/` to any static-file host (Cloudflare Pages, Netlify, Vercel, a plain nginx, etc.). Open the deployed URL on an Android device and tap **Add to Home screen** to install. The first launch will prompt for notification permission — accept to enable Web Push incident alerts.
 
-> **iOS users:** The PWA is available in the browser but **push notifications are not reliable on iOS Web Push** (subscription expiry, no Time Sensitive entitlement). iOS users are directed to install the native app instead. See [`shared/DECISION.md`](shared/DECISION.md) for the full rationale.
+> **iOS users:** The PWA is available in the browser but **push notifications are not reliable on iOS Web Push** (subscriptions silently expire on iOS WebKit, and there is no background sync). iOS users are directed to install the native app instead. See [`shared/DECISION.md`](shared/DECISION.md) for the full rationale.
 
 ### 4. Middleware
 

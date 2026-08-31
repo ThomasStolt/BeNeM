@@ -24,7 +24,7 @@ timely, reliable push notifications to engineers when incidents occur.
 
 The full decision record is in `shared/DECISION.md` (April 2026). Summary:
 
-- **iOS native (Swift)** is the lead platform and the authoritative push delivery channel (APNs with Time Sensitive entitlement support).
+- **iOS native (Swift)** is the lead platform and the authoritative push delivery channel (APNs).
 - **PWA (React/TypeScript)** targets Android users via Web Push, and serves as a web dashboard for desktop/browser access. **iOS users of the PWA are directed to install the native app** — iOS Web Push is unreliable and EU-politically-unstable.
 - A **single Python/FastAPI middleware** delivers push to both iOS (APNs `.p8`) and Android PWA (VAPID Web Push).
 
@@ -47,7 +47,7 @@ BHNM Incident → Webhook → bhnm-apns middleware → APNs (iOS) / Web Push (An
 - PWA consumer: see `pwa/CLAUDE.md` (stub)
 - Cross-platform payload contract: `shared/push-payload-spec.md`
 
-Do NOT attempt to implement iOS-style Critical Alerts or Time Sensitive notifications in the PWA — the Web Push API does not support them on iOS.
+Do NOT attempt to implement Critical Alerts or Time Sensitive notifications in the PWA — the Web Push API does not support them on iOS. (BeNeM does not use these on the native app either; see `shared/DECISION.md`.)
 
 ## Sessions
 

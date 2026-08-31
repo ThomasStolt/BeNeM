@@ -9,8 +9,8 @@
 
 BeNeM is a network monitoring and incident alerting application built on top of
 BMC Helix Network Management (BHNM). Its primary function is delivering timely,
-reliable push notifications to engineers when incidents occur — including when
-their phone is locked, screen-down on a desk during a lunch break.
+reliable push notifications to engineers when incidents occur, including
+dependable delivery to a locked device.
 
 The core question evaluated here was: **can a Progressive Web App (PWA) replace
 or supplement the native iOS app, and how should the codebase be structured to
@@ -30,25 +30,25 @@ on both iOS and Android:
 | Feature                                | BeNeM iOS (APNs)                          | PWA iOS                             | PWA Android      |
 |----------------------------------------|-------------------------------------------|-------------------------------------|------------------|
 | Lock screen alert                      | ✅ Reliable                               | ⚠️ When it works                    | ✅ Reliable      |
-| Focus Mode bypass (Time Sensitive)     | ✅ Supported                              | ❌ Not available                    | ❌ Not available |
-| Silent switch bypass (Critical Alerts) | ✅ Available (requires Apple entitlement) | ❌ Not available                    | ❌ Not available |
 | Push subscription stability            | ✅ Stable                                 | 🔴 Known expiry bug on iOS WebKit   | ✅ Stable        |
 | Background sync                        | ✅ Yes                                    | ❌ Not supported on iOS             | ✅ Yes           |
 | EU regulatory stability                | ✅ Unaffected                             | 🔴 Politically unstable (DMA/Apple) | ✅ Unaffected    |
-| Onboarding friction                    | Low (App Store)                           | High (manual Add to Home Screen)    | Medium           |
+| Onboarding / distribution              | App Store (managed, updatable)            | Manual Add to Home Screen           | Play Store / A2HS |
 
 ### Key findings
 
-**iOS PWA push is not suitable for incident alerting.** Three compounding issues
-make it unreliable for this use case:
+**iOS PWA push is not reliable enough for incident alerting.** Three compounding
+issues make it unsuitable for this use case:
 
 1. Push subscriptions on iOS WebKit silently expire after one to two weeks,
    causing notifications to stop arriving without any indication to the user.
-   This is a known, unfixed bug reported widely in the developer community.
+   This is a known, unfixed bug reported widely in the developer community — and
+   for an alerting tool, silent delivery failure is the worst possible failure
+   mode. Native APNs subscriptions do not exhibit this expiry.
 
-2. PWA Web Push cannot access the Time Sensitive notification entitlement,
-   meaning notifications are silenced by Focus Mode and Do Not Disturb — exactly
-   the scenario BeNeM must penetrate (phone on desk, engineer at lunch).
+2. iOS PWAs cannot perform background sync, so the app cannot refresh incident
+   state or reconcile missed events while it is not in the foreground. The native
+   app delivers via APNs and syncs regardless of app state.
 
 3. EU users (the primary deployment context) are subject to Apple's ongoing
    DMA compliance decisions. Apple temporarily removed PWA standalone support
@@ -134,15 +134,15 @@ always specified once in `shared/` before implementation begins.
 
 **Cross-platform frameworks (React Native, Flutter):** These would unify the
 iOS and Android clients at the cost of giving up native Swift. BeNeM's iOS
-push notification requirements — Time Sensitive entitlements, CryptoKit-based
-deep link encryption, APNs `.p8` auth — are deeply tied to the native iOS
-stack. Rewriting in a cross-platform framework to gain Android support would
-sacrifice the reliability properties that make BeNeM valuable on iOS.
+requirements — CryptoKit-based deep link encryption, APNs `.p8` auth, and
+reliable background delivery — are deeply tied to the native iOS stack.
+Rewriting in a cross-platform framework to gain Android support would sacrifice
+the reliability properties that make BeNeM valuable on iOS.
 
 **PWA-only strategy:** Ruled out by the push notification assessment above.
-A PWA-only BeNeM on iOS would be an incident alerting tool that silently
-fails to alert during Focus Mode and whose subscriptions expire unpredictably.
-This is not an acceptable trade-off.
+A PWA-only BeNeM on iOS would be an incident alerting tool whose push
+subscriptions expire silently and unpredictably, with no background sync to
+recover missed state. This is not an acceptable trade-off.
 
 ---
 
@@ -151,4 +151,4 @@ This is not an acceptable trade-off.
 This decision should be reviewed if:
 - Apple resolves the iOS PWA push subscription stability bug in a public iOS release
 - EU regulatory changes result in materially improved PWA capabilities on iOS
-- The Time Sensitive entitlement or equivalent becomes available to Web Push on iOS
+- iOS PWAs gain reliable background sync and stable long-lived push subscriptions

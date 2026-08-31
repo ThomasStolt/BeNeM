@@ -96,8 +96,8 @@ and `Referrer-Policy`. Caddy adds HSTS and CSP on top.
 
 ## iOS Caveat
 
-Push on iOS is unreliable (subscription expiry bug, no Time Sensitive
-entitlement) and EU-regulatorily unstable. Do NOT position Web Push as
+Push on iOS is unreliable (subscriptions silently expire on iOS WebKit, no
+background sync) and EU-regulatorily unstable. Do NOT position Web Push as
 the primary alert channel for iOS users. Display a prominent banner to
 iOS users recommending the native app for incident alerts. See
 `../shared/DECISION.md` for the full rationale.
