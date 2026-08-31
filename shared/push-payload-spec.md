@@ -75,7 +75,9 @@ Title and body are constructed identically to the APNs payload above.
 ### PWA deep link
 
 The service worker stores `incident_id` in the notification's `data` property.
-On `notificationclick`, the PWA navigates to `/incident/{incident_id}`.
+On `notificationclick`, `sw.ts` focuses an existing client (or opens a new one)
+and posts `{ type: 'navigate', url: '/incidents/{incident_id}' }`; `App.tsx`
+reads `event.data.url` and routes to the `/incidents/:id` detail view.
 
 ---
 

@@ -37,7 +37,7 @@ to registered iOS devices (APNs) and Android/web users (Web Push).
 | `upgrade.sh` | Upgrade script: pulls latest code, rebuilds all containers, restarts services, health-checks bhnm-apns and benem-admin. |
 | `setup.sh` | Interactive shell wizard that generates `.env` from user prompts. |
 | `.env.example` | Template for `.env`. Committed to the repo — never commit `.env` itself. |
-| `VERSION` | Plain text file containing the current version (`2.6.0`). |
+| `VERSION` | Plain text file containing the current version; the source of truth reported by `/health` (avoid duplicating the number in prose so it can't drift). |
 | `bhnm-apns.service` | Systemd unit file (legacy, not used in Docker deployments). |
 
 ---

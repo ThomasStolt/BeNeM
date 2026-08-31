@@ -190,7 +190,7 @@ Schema: `MAJOR.MINOR.PATCH` (SemVer) + build number
 
 | Variable | Meaning | Example |
 |---|---|---|
-| `MARKETING_VERSION` | User-visible version (App Store) | `1.0.0` |
+| `MARKETING_VERSION` | User-visible version (App Store) | `2.8.3` |
 | `CURRENT_PROJECT_VERSION` | Build number (monotonically increasing) | `1` |
 
 ```bash

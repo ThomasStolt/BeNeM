@@ -76,7 +76,7 @@ Here are two screenshots from the iOS app — the Dashboard with its alarm summa
 ## Requirements
 
 **iOS app**
-- iOS 16.0 or later
+- iOS 17.0 or later
 - Xcode 15 or later
 
 **PWA**

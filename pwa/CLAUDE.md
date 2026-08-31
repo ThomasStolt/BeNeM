@@ -1,6 +1,6 @@
 # BHNM PWA
 
-React/TypeScript Progressive Web App (v0.9.0). Targets Android users via Web Push.
+React/TypeScript Progressive Web App (v0.10.1). Targets Android users via Web Push.
 iOS users are directed to the native app for reliable push notifications.
 
 > Part of the BeNeM monorepo. See `../CLAUDE.md` for cross-cutting rules,
@@ -9,7 +9,7 @@ iOS users are directed to the native app for reliable push notifications.
 
 ## Tech Stack
 
-- **Framework:** React 19 + TypeScript
+- **Framework:** React 18.3 + TypeScript
 - **Build:** Vite
 - **Testing:** Vitest
 - **Push:** Web Push (VAPID) via `../middleware/`
@@ -50,8 +50,8 @@ pwa/
 Web Push payload arrives at `src/sw.ts`. On `notificationclick`:
 
 1. Reads `incident_id` from the notification's `data` payload
-2. Opens (or focuses) the PWA at `/incidents?id=<incident_id>` — **not** `/incident` (singular). Use the plural route; the incident list page handles the `id` query param and navigates to detail.
-3. Focuses an existing tab if one is already open, otherwise opens a new window.
+2. Focuses an existing tab if one is already open, otherwise opens a new window.
+3. Posts `{ type: 'navigate', url: '/incidents/<incident_id>' }` to the client; `App.tsx` reads `event.data.url` and routes to the `/incidents/:id` detail view. The message key is `url` (not `path`), and the route is the **plural** path param `/incidents/:id` — not `/incident` (singular) and not a `?id=` query param.
 
 Payload contract: see `../shared/push-payload-spec.md`.
 

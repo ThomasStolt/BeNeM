@@ -25,7 +25,6 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(title, {
       body,
       icon: '/icons/icon-192.png',
-      badge: '/icons/badge-96.png',
       data: { incident_id: data.incident_id },
       tag: data.incident_id ? `incident-${data.incident_id}` : undefined,
     }),
