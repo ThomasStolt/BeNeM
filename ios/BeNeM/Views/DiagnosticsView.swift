@@ -203,7 +203,7 @@ struct DiagnosticsView: View {
             sectionLabel("Middleware · /health")
             card {
                 let m = result?.diagnostics?.middleware
-                row("Version", m?.version ?? "—")
+                row("Middleware version", m?.version ?? "—")
                 Divider()
                 row("Registered devices", m?.registered_devices.map(String.init) ?? "—")
                 Divider()
