@@ -16,6 +16,27 @@ enum ConnectionStatus {
     }
 }
 
+// MARK: - ConnectionMonitor
+
+/// App-wide "can we reach the BHNM server?" state, shared by every screen's
+/// connection badge so all screens show the same status. Updated by the data
+/// loads that actually talk to BHNM (incidents, tactical, devices): a request
+/// that reaches the server is `.connected`; a thrown network error is
+/// `.disconnected`. Not tied to any one screen — and deliberately NOT tied to
+/// HA-status, which is unrelated to connectivity.
+@MainActor
+final class ConnectionMonitor: ObservableObject {
+    static let shared = ConnectionMonitor()
+    @Published private(set) var status: ConnectionStatus = .unknown
+    private init() {}
+    func reportSuccess() { status = .connected }
+    func reportFailure() { status = .disconnected }
+    /// Amber "checking" only from the initial unknown state (first load).
+    /// Stays green across background refreshes and red during post-disconnect
+    /// retries — no flicker.
+    func reportChecking() { if status == .unknown { status = .checking } }
+}
+
 // MARK: - ChainIcon
 
 /// Two interlocked (or separated) rounded-rectangle chain links.
@@ -46,10 +67,13 @@ struct ConnectionBadgeButton: View {
     let status: ConnectionStatus
     let onRetry: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var blinkOn = true
 
+    // Blink is reserved for truly-disconnected; `.checking` shows amber but
+    // static. Reduce-motion suppresses the blink entirely (static red).
     private var shouldBlink: Bool {
-        status == .checking || status == .disconnected
+        !reduceMotion && status == .disconnected
     }
 
     var body: some View {

@@ -41,15 +41,18 @@ class TacticalViewModel: ObservableObject {
         let myGeneration = generation
         isLoading = true
         errorMessage = nil
+        ConnectionMonitor.shared.reportChecking()
         do {
             let result = try await apiService.fetchTacticalOverviewSummaries(groupingType: type.groupingType)
             guard generation == myGeneration else { return }
             groups = result
+            ConnectionMonitor.shared.reportSuccess()
         } catch is CancellationError {
             // Task cancelled by server switch — discard silently.
         } catch {
             guard generation == myGeneration else { return }
             errorMessage = error.localizedDescription
+            ConnectionMonitor.shared.reportFailure()
         }
         guard generation == myGeneration else { return }
         isLoading = false

@@ -17,7 +17,7 @@ struct DashboardView: View {
     @StateObject private var categoryViewModel: TacticalViewModel
     @StateObject private var siteViewModel: TacticalViewModel
     @StateObject private var bwViewModel: TacticalViewModel
-    @State private var connectionStatus: ConnectionStatus = .unknown
+    @ObservedObject private var connection = ConnectionMonitor.shared
     @Binding var selectedTab: Int
     let navResetID: UUID
     @State private var navPath = NavigationPath()
@@ -64,7 +64,7 @@ struct DashboardView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    ConnectionBadgeButton(status: connectionStatus) {
+                    ConnectionBadgeButton(status: connection.status) {
                         Task { await loadData() }
                     }
                 }
@@ -101,10 +101,10 @@ struct DashboardView: View {
                     await categoryViewModel.load()
                 }
             }
-            .task(id: connectionStatus) {
-                guard connectionStatus == .disconnected else { return }
+            .task(id: connection.status) {
+                guard connection.status == .disconnected else { return }
                 try? await Task.sleep(nanoseconds: 15_000_000_000)
-                guard !Task.isCancelled, connectionStatus == .disconnected else { return }
+                guard !Task.isCancelled, connection.status == .disconnected else { return }
                 Task { await loadData() }
             }
             .navigationDestination(for: TacticalDestination.self) { dest in
@@ -350,7 +350,7 @@ struct DashboardView: View {
             group.addTask { await incidentViewModel.loadIncidents() }
             group.addTask { await categoryViewModel.load() }
         }
-        connectionStatus = await apiService.checkHAStatus() ? .connected : .disconnected
+        // Connection status is reported by the loads above via ConnectionMonitor.
     }
 }
 

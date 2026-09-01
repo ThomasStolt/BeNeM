@@ -22,6 +22,7 @@ struct SettingsView: View {
     @State private var deleteConfirmID: UUID? = nil
     @State private var showDeleteActiveAlert = false
     @EnvironmentObject private var deepLinkHandler: DeepLinkHandler
+    @ObservedObject private var connection = ConnectionMonitor.shared
     var body: some View {
         ZStack {
             NavigationStack {
@@ -131,7 +132,8 @@ struct SettingsView: View {
                 }
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
-                        ConnectionBadgeButton(status: .unknown) { /* Settings makes no live API calls */ }
+                        // Shared app-wide status; Settings makes no calls of its own.
+                        ConnectionBadgeButton(status: connection.status) { }
                     }
                     ToolbarItem(placement: .principal) {
                         VStack(spacing: 1) {

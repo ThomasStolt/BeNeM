@@ -2,7 +2,7 @@ import SwiftUI
 
 struct IncidentListView: View {
     @ObservedObject private var viewModel: IncidentListViewModel
-    @State private var connectionStatus: ConnectionStatus = .unknown
+    @ObservedObject private var connection = ConnectionMonitor.shared
     @State private var navPath = NavigationPath()
     let navResetID: UUID
     @Binding private var pendingIncidentID: String?
@@ -31,7 +31,7 @@ struct IncidentListView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    ConnectionBadgeButton(status: connectionStatus) {
+                    ConnectionBadgeButton(status: connection.status) {
                         Task { await viewModel.refreshIncidents() }
                     }
                 }
@@ -62,7 +62,6 @@ struct IncidentListView: View {
             }
             .onChange(of: viewModel.isLoading) { _, loading in
                 guard !loading else { return }
-                connectionStatus = viewModel.errorMessage == nil ? .connected : .disconnected
                 navigateToPendingIncident()
             }
             .onChange(of: pendingIncidentID) { _, id in
@@ -73,10 +72,10 @@ struct IncidentListView: View {
                     navigateToPendingIncident()
                 }
             }
-            .task(id: connectionStatus) {
-                guard connectionStatus == .disconnected else { return }
+            .task(id: connection.status) {
+                guard connection.status == .disconnected else { return }
                 try? await Task.sleep(nanoseconds: 15_000_000_000)
-                guard !Task.isCancelled, connectionStatus == .disconnected else { return }
+                guard !Task.isCancelled, connection.status == .disconnected else { return }
                 Task { await viewModel.refreshIncidents() }
             }
             .onAppear {

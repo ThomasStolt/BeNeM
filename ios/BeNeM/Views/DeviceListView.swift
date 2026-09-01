@@ -60,7 +60,7 @@ struct DeviceListView: View {
     @StateObject private var viewModel: DeviceListViewModel
     @ObservedObject var incidentViewModel: IncidentListViewModel
     @ObservedObject private var thresholdCache = ThresholdCache.shared
-    @State private var connectionStatus: ConnectionStatus = .unknown
+    @ObservedObject private var connection = ConnectionMonitor.shared
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
     @AppStorage("netreo_active_connection_name") private var activeServerName = ""
     private let apiService: NetreoAPIService
@@ -137,7 +137,7 @@ struct DeviceListView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    ConnectionBadgeButton(status: connectionStatus) {
+                    ConnectionBadgeButton(status: connection.status) {
                         Task { await viewModel.loadDevices() }
                     }
                 }
@@ -182,10 +182,7 @@ struct DeviceListView: View {
             } message: {
                 Text(viewModel.errorMessage ?? "")
             }
-            .onChange(of: viewModel.isLoading) { loading in
-                guard !loading else { return }
-                connectionStatus = viewModel.errorMessage == nil ? .connected : .disconnected
-            }
+            // Connection status is reported by loadDevices() via ConnectionMonitor.
         }
         .task {
             guard viewModel.devices.isEmpty && viewModel.errorMessage == nil else { return }
