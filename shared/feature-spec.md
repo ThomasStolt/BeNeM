@@ -420,35 +420,53 @@ feature read-only / side-effect-free.
 ---
 
 ### Feature: Connection Diagnostics
-**Status:** proposed (spec `docs/superpowers/specs/2026-09-01-two-hop-diagnostics-design.md`, awaiting approval)
+**Status:** shipped-ios (v2.8.3 dev / middleware 2.7.0, commit `72ec4be`); PWA diagnostics screen shipped alongside (see PWA-specific)
 **Criticality:** non-critical / off the delivery path. Fully isolated from proxy/cache/push.
+**Design:** `docs/superpowers/specs/2026-09-01-two-hop-diagnostics-design.md` (revised background-monitor design)
 
-#### Behaviour
-- The connection badge (all screens) reflects **app→middleware→BHNM** connectivity
-  via the shared `ConnectionMonitor` (fed by real middleware data calls; role-free
-  — green on any successful call, red on a thrown network error).
-- **Disconnected** shows a red banner under the header ("⚠️ No connection to BHNM ·
-  showing cached data · retrying…") + a pulsing red top edge; hard blink reserved
-  for truly-disconnected (not the brief `checking` flicker); reduce-motion → static.
+#### Behaviour (both platforms)
 - **Tap the badge → Diagnostics screen:** a `📱 App → 🖥 Middleware → 🗄 BHNM`
-  pipeline with per-hop latency (broken red link on the down hop); per-feed status
-  (Tactical/Incidents/Devices: last-success, count, live vs cached); recent-call log
-  (endpoint · status · ms); middleware `/health` readout; per-server error stats.
+  pipeline with per-hop latency + age (broken red link on a down hop;
+  `bhnm.reachable == null` renders as amber "checking", never down); per-feed
+  status (Tactical/Incidents/Thresholds: count, age, live vs cached); per-server
+  error stats; middleware `/health` readout ("Middleware version" — the
+  middleware's own 2.x stream, distinct from the app's version).
+- Badge tap-to-refresh is retired on both platforms — refresh lives in the ring.
 
 #### Middleware
-- New isolated route `GET /api/v1/diagnostics` (auth: api_key as `X-Proxy-Token`,
-  same as other `/api/v1/*`). Prefers **passive** telemetry from the caches
-  (last-success, last-error+ts, consecutive-failures, last upstream latency,
-  refresh age); an **active** `ha_status` probe (own httpx client, 4 s timeout,
-  try/except → down) runs only when caching is off for that server and only on
-  demand — never on the 120 s loop. No secrets in the payload (counts/booleans/
-  truncated errors; host only).
+- Background **BHNM monitor**: ONE shared `active_probe` loop per servers.json
+  entry (`DIAG_PROBE_INTERVAL`, default 15 s; bounded 4 s probe; any HTTP
+  response < 500 = alive; down declared after `DIAG_DOWN_THRESHOLD` consecutive
+  failures, default 2). `/internal/cache/reload` starts/stops monitor tasks.
+- `GET /api/v1/diagnostics` (auth: api_key as `X-Proxy-Token`) only READS the
+  monitor's cached result + passive per-feed cache telemetry — never a live
+  probe, so it is uniformly fast and safe to poll/fetch on demand. No secrets
+  in the payload (counts/booleans/truncated scrubbed errors; host only).
 
-#### Platform notes
-- iOS first. PWA diagnostics screen is a parity fast-follow (its badge already
-  reflects real connectivity via the shared `AppHeader`).
-- Depends on the proxy-token fix (iOS sends api_key as `X-Proxy-Token`) landing
-  with/before it, so the screen doesn't 401.
+#### iOS-specific
+- `ConnectionMonitor`: ONE global 30 s poller (UserDefaults `diag_poll_interval`
+  override; 10 s request timeout; foreground-only — pauses on background,
+  immediate poll on foreground). Derivation: transport error or non-2xx →
+  middleware down; `bhnm.reachable == false` → BHNM down; `null` → checking.
+- **Hop-aware banner** under each header: middleware down → "⚠️ Can't reach the
+  server · showing last known data · retrying…" (never claims the middleware
+  cache); BHNM down (middleware up) → "⚠️ BHNM unreachable · showing cached
+  data · retrying…". Pulsing red top edge; reduce-motion → static.
+- Recent-call log (last 20 client calls, query strings stripped) in the sheet.
+
+#### PWA-specific
+- `/diagnostics` route; badge tap navigates there. The screen fetches
+  `/api/v1/diagnostics` **on open + manual refresh only** (no polling, no
+  background refetch) — legitimate because the endpoint reads the middleware's
+  cached monitor. No recent-call log (iOS-only for now).
+
+#### Named follow-up: PWA connection-status v2 (NOT yet built)
+- **PWA global poller + hop-aware banner + badge v2.** The PWA badge still
+  derives per-screen from query state (isLoading/isError/dataUpdatedAt), so it
+  can read **green off cached middleware responses while BHNM is down** — the
+  same masking that iOS v1 had. Parity fix: a global 30 s visible-tab-only
+  poller of `/api/v1/diagnostics` driving the badge + a hop-aware banner with
+  the same wording as iOS. Until then the PWA badge is transport-level only.
 
 ---
 

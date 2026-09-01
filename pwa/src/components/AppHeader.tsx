@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useConfig } from '../lib/config';
 import { ConnectionBadge, type ConnectionStatus } from './ConnectionBadge';
 import { RefreshRing } from './RefreshRing';
@@ -21,6 +22,11 @@ export function AppHeader({
   onRefresh,
 }: AppHeaderProps) {
   const config = useConfig();
+  const navigate = useNavigate();
+  // Badge tap opens Diagnostics (parity with iOS — refresh lives in the ring).
+  const handleBadgeTap = useCallback(() => {
+    navigate('/diagnostics');
+  }, [navigate]);
   const handleRefresh = useCallback(() => {
     onRefresh?.();
   }, [onRefresh]);
@@ -34,7 +40,7 @@ export function AppHeader({
 
   return (
     <header className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-      <ConnectionBadge status={derivedStatus} onRetry={handleRefresh} />
+      <ConnectionBadge status={derivedStatus} onRetry={handleBadgeTap} />
       <div className="text-center">
         <div className="flex items-center justify-center gap-1.5">
           <img src="/bmc-helix-logo.png" alt="BeNeM" className="w-6 h-6 rounded-md flex-shrink-0" />

@@ -8,6 +8,7 @@ import { SettingsScreen } from './features/settings/SettingsScreen';
 import { DeviceListScreen } from './features/devices/DeviceListScreen';
 import { DeviceDetailScreen } from './features/devices/DeviceDetailScreen';
 import { TacticalGroupListScreen } from './features/tactical/TacticalGroupListScreen';
+import { DiagnosticsScreen } from './features/diagnostics/DiagnosticsScreen';
 
 export default function App() {
   const navigate = useNavigate();
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/devices/:name" element={<DeviceDetailScreen />} />
         <Route path="/tactical/:type" element={<TacticalGroupListScreen />} />
         <Route path="/settings" element={<SettingsScreen />} />
+        <Route path="/diagnostics" element={<DiagnosticsScreen />} />
       </Route>
     </Routes>
   );
