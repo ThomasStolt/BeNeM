@@ -122,6 +122,7 @@ struct SettingsView: View {
                     }
                 }
                 .navigationTitle("Settings")
+                .connectionBanner()
                 .navigationDestination(isPresented: $showEditNavigation) {
                     if let conn = editingConnection {
                         ServerConfigView(existingConnection: conn)
@@ -133,7 +134,7 @@ struct SettingsView: View {
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
                         // Shared app-wide status; Settings makes no calls of its own.
-                        ConnectionBadgeButton(status: connection.status) { }
+                        ConnectionBadgeButton(status: connection.status)
                     }
                     ToolbarItem(placement: .principal) {
                         VStack(spacing: 1) {

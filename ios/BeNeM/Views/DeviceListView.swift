@@ -126,6 +126,7 @@ struct DeviceListView: View {
             .listStyle(.plain)
             .background(Color(.systemGroupedBackground))
             .padding(.horizontal)
+            .connectionBanner()
             .searchable(text: $viewModel.searchQuery, prompt: "Search devices...")
             .onChange(of: viewModel.searchQuery) { query in
                 Task {
@@ -137,9 +138,7 @@ struct DeviceListView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    ConnectionBadgeButton(status: connection.status) {
-                        Task { await viewModel.loadDevices() }
-                    }
+                    ConnectionBadgeButton(status: connection.status)
                 }
                 ToolbarItem(placement: .principal) {
                     VStack(spacing: 1) {
@@ -182,7 +181,6 @@ struct DeviceListView: View {
             } message: {
                 Text(viewModel.errorMessage ?? "")
             }
-            // Connection status is reported by loadDevices() via ConnectionMonitor.
         }
         .task {
             guard viewModel.devices.isEmpty && viewModel.errorMessage == nil else { return }

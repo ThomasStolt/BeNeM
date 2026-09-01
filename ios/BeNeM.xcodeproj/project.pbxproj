@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0C5B03F8948A9FAED4D26D5C /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8772CD08D51558E991F655D3 /* Diagnostics.swift */; };
+		14EDDC2D8AD93C007138B461 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD7E107334A8CF39B16872A2 /* DiagnosticsView.swift */; };
 		8C6281232E64CF2300522D09 /* NetreoIncident.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6281222E64CF2300522D09 /* NetreoIncident.swift */; };
 		8C6281282E64CF6D00522D09 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6281262E64CF6D00522D09 /* DashboardView.swift */; };
 		8C6281292E64CF6D00522D09 /* IncidentListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6281272E64CF6D00522D09 /* IncidentListView.swift */; };
@@ -22,6 +24,7 @@
 		A11234567890001A /* BeNeMApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11234567890001B /* BeNeMApp.swift */; };
 		A11234567890003A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A11234567890003B /* Assets.xcassets */; };
 		A11234567890004A /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A11234567890004B /* Preview Assets.xcassets */; };
+		AA424D1678922A9E5213F8F0 /* DisconnectedBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B167A0ACA530B013E371A2BA /* DisconnectedBanner.swift */; };
 		AABB0001000000000000001A /* IncidentDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0001000000000000001B /* IncidentDetail.swift */; };
 		AABB0001000000000000002A /* IncidentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB0001000000000000002B /* IncidentDetailView.swift */; };
 		BB0001000000000000000001 /* GroupSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001000000000000000002 /* GroupSummary.swift */; };
@@ -31,6 +34,7 @@
 		BB000100000000000000000D /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000100000000000000000E /* SplashView.swift */; };
 		CC0001000000000000000001 /* DeviceDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0001000000000000000002 /* DeviceDetailViewModel.swift */; };
 		DD0001000000000000000001 /* DeviceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0001000000000000000002 /* DeviceDetailView.swift */; };
+		E03AA1F76A699103BE8D5A9F /* ClientCallLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A7E89D0F35897B0D8884CA8 /* ClientCallLog.swift */; };
 		EE0001000000000000000001 /* SavedConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0001000000000000000002 /* SavedConnection.swift */; };
 		F1F10DD12CE00002 /* FloppyDiskIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00001 /* FloppyDiskIcon.swift */; };
 		F1F10DD12CE00004 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00003 /* QRScannerView.swift */; };
@@ -49,6 +53,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		8772CD08D51558E991F655D3 /* Diagnostics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Diagnostics.swift; sourceTree = "<group>"; };
+		8A7E89D0F35897B0D8884CA8 /* ClientCallLog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClientCallLog.swift; sourceTree = "<group>"; };
 		8C6281222E64CF2300522D09 /* NetreoIncident.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetreoIncident.swift; sourceTree = "<group>"; };
 		8C6281262E64CF6D00522D09 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		8C6281272E64CF6D00522D09 /* IncidentListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentListView.swift; sourceTree = "<group>"; };
@@ -67,6 +73,7 @@
 		A1123456789000BB /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AABB0001000000000000001B /* IncidentDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentDetail.swift; sourceTree = "<group>"; };
 		AABB0001000000000000002B /* IncidentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentDetailView.swift; sourceTree = "<group>"; };
+		B167A0ACA530B013E371A2BA /* DisconnectedBanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DisconnectedBanner.swift; sourceTree = "<group>"; };
 		BB0001000000000000000002 /* GroupSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupSummary.swift; sourceTree = "<group>"; };
 		BB0001000000000000000004 /* TacticalViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TacticalViewModel.swift; sourceTree = "<group>"; };
 		BB0001000000000000000006 /* GroupListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupListView.swift; sourceTree = "<group>"; };
@@ -79,6 +86,7 @@
 		F1F10DD12CE00003 /* QRScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScannerView.swift; sourceTree = "<group>"; };
 		F1F10DD12CE00099 /* DeviceTypeIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceTypeIcon.swift; sourceTree = "<group>"; };
 		F1F10DD12CE00101 /* MarqueeText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarqueeText.swift; sourceTree = "<group>"; };
+		FD7E107334A8CF39B16872A2 /* DiagnosticsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		FF0001000000000000000002 /* Data+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Data+Hex.swift"; sourceTree = "<group>"; };
 		FF0001000000000000000004 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
 		GG0001000000000000000002 /* DeepLinkHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkHandler.swift; sourceTree = "<group>"; };
@@ -146,6 +154,7 @@
 				EE0001000000000000000002 /* SavedConnection.swift */,
 				TC0001000000000000000002 /* ThresholdCache.swift */,
 				KK0001000000000000000002 /* ActiveServerName.swift */,
+				8772CD08D51558E991F655D3 /* Diagnostics.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -157,6 +166,7 @@
 				A11234567890007B /* NetreoAPIConfiguration.swift */,
 				GG0001000000000000000002 /* DeepLinkHandler.swift */,
 				JJ0001000000000000000002 /* KeychainHelper.swift */,
+				8A7E89D0F35897B0D8884CA8 /* ClientCallLog.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -192,6 +202,8 @@
 				F1F10DD12CE00001 /* FloppyDiskIcon.swift */,
 				F1F10DD12CE00099 /* DeviceTypeIcon.swift */,
 				F1F10DD12CE00101 /* MarqueeText.swift */,
+				FD7E107334A8CF39B16872A2 /* DiagnosticsView.swift */,
+				B167A0ACA530B013E371A2BA /* DisconnectedBanner.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -342,6 +354,10 @@
 				F1F10DD12CE00002 /* FloppyDiskIcon.swift in Sources */,
 				F1F10DD12CE00100 /* DeviceTypeIcon.swift in Sources */,
 				F1F10DD12CE00102 /* MarqueeText.swift in Sources */,
+				E03AA1F76A699103BE8D5A9F /* ClientCallLog.swift in Sources */,
+				0C5B03F8948A9FAED4D26D5C /* Diagnostics.swift in Sources */,
+				14EDDC2D8AD93C007138B461 /* DiagnosticsView.swift in Sources */,
+				AA424D1678922A9E5213F8F0 /* DisconnectedBanner.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -491,7 +507,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -519,7 +535,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};

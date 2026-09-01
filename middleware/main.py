@@ -22,6 +22,7 @@ import time
 import incident_cache
 import tactical_cache
 import threshold_cache
+import diagnostics
 
 HOP_BY_HOP_REQUEST = {
     "host", "x-proxy-token", "x-bhnm-target", "connection", "keep-alive",
@@ -92,6 +93,16 @@ def _resolve_server_config(request: Request) -> dict | None:
     if bhnm_target:
         return _server_config_for_bhnm_url(bhnm_target)
     return None
+
+
+def _load_all_servers() -> list[dict]:
+    """All servers.json entries (the BHNM monitor covers every server,
+    regardless of cache_enabled — health is independent of caching)."""
+    try:
+        with open(SERVERS_JSON_PATH) as f:
+            return json.load(f)
+    except Exception:
+        return []
 
 
 def _single_server_url() -> str:
@@ -180,6 +191,8 @@ async def lifespan(app: FastAPI):
     incident_cache.start_all()
     tactical_cache.start_all()
     threshold_cache.start_all()
+    for server in _load_all_servers():
+        diagnostics.start_monitor(server, BHNM_TLS_VERIFY)
     print(f"[Startup] BHNM APNs middleware v{VERSION} ready on port {MIDDLEWARE_PORT} — dynamic multi-server routing enabled")
     yield
 
@@ -428,6 +441,7 @@ async def cache_reload(request: Request):
     incident_cache.reload_server(server_id)
     tactical_cache.reload_server(server_id)
     threshold_cache.reload_server(server_id)
+    diagnostics.reload_monitor(server_id, _load_all_servers(), BHNM_TLS_VERIFY)
     return {"status": "ok", "server_id": server_id}
 
 
@@ -586,6 +600,78 @@ async def cached_threshold_counts(request: Request):
                 counts[device_name] = counts.get(device_name, 0) + 1
 
     return {"cache_age_seconds": None, "counts": counts}
+
+
+@app.get("/api/v1/diagnostics")
+async def diagnostics_endpoint(request: Request):
+    """Connection diagnostics — app→middleware→BHNM. The BHNM hop comes from the
+    background monitor's cached probe result; feeds are passive cache telemetry
+    (detail only). This route only READS — it never awaits a live probe, so it
+    is uniformly fast and safe to poll.
+
+    Fully isolated: its own try/except (never raises into the app), reads cache
+    telemetry read-only. The payload carries only counts/booleans/timestamps/
+    latency and scrubbed, truncated error strings — no secrets, host only
+    (never the full URL)."""
+    _verify_proxy_token(request)  # api_key (or PROXY_TOKEN) as X-Proxy-Token
+    middleware_block = {
+        "version": VERSION,
+        "registered_devices": len(get_all_tokens()),
+        "server_time": int(time.time()),
+    }
+    try:
+        server_cfg = _resolve_server_config(request) or {}
+        target_base = (server_cfg.get("url", "") or _single_server_url()).rstrip("/")
+        server_id = server_cfg.get("id", "")
+        cache_enabled = bool(server_cfg.get("cache_enabled", False))
+        host = urlparse(target_base).hostname or ""
+
+        def _age(ts):
+            return round(time.time() - ts) if ts else None
+
+        # per-feed freshness (read-only snapshot)
+        ic = incident_cache.get_cached(server_id) if server_id else None
+        tc = tactical_cache.get_cached(server_id, "category") if server_id else None
+        th = threshold_cache.get_cached(server_id) if server_id else None
+        feeds = {
+            "incidents": diagnostics.feed_block(
+                server_id, "incidents", cached=cache_enabled and ic is not None,
+                age_seconds=_age(ic.last_updated) if ic else None,
+                count=len(ic.active_incidents) if ic else None),
+            "tactical": diagnostics.feed_block(
+                server_id, "tactical", cached=cache_enabled and tc is not None,
+                age_seconds=_age(tc[1]) if tc else None,
+                count=len(tc[0]) if tc else None),
+            "thresholds": diagnostics.feed_block(
+                server_id, "thresholds", cached=cache_enabled and th is not None,
+                age_seconds=_age(th.last_updated) if th else None,
+                count=len(th.counts) if th else None),
+        }
+
+        # BHNM hop = the background monitor's cached probe result. Never a live
+        # probe here: Traefik waits ~3 s for a dead backend, so an in-request
+        # probe blocks the response and a client cancel loses the result.
+        bhnm = diagnostics.bhnm_monitor(server_id)
+
+        return {
+            "middleware": middleware_block,
+            "server": {
+                "name": server_cfg.get("name", ""),
+                "host": host,
+                "cache_enabled": cache_enabled,
+                "bhnm": bhnm,
+                "feeds": feeds,
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:  # isolation: degrade, never 500 into the app
+        return {
+            "middleware": middleware_block,
+            "server": {"bhnm": {"reachable": False, "source": "error",
+                                "last_error": diagnostics.scrub(str(e))},
+                       "feeds": {}},
+        }
 
 
 # ── BHNM Proxy — Dedicated Routes (cache-ready) ─────────────────────────────

@@ -17,6 +17,7 @@ import time
 from dataclasses import dataclass, field
 
 import httpx
+import diagnostics
 
 from config import SERVERS_JSON_PATH, BHNM_TLS_VERIFY, PROXY_TIMEOUT
 
@@ -106,14 +107,18 @@ async def _fetch_threshold_counts(
 
 async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:
     server_id = server["id"]
+    started = time.perf_counter()
     try:
         counts = await _fetch_threshold_counts(client, server)
         _cache[server_id] = CachedThresholds(counts=counts, last_updated=time.time())
+        diagnostics.record_success(server_id, "thresholds",
+                                   round((time.perf_counter() - started) * 1000))
         print(
             f"[ThresholdCache:{server_id}] Cache updated: "
             f"{len(counts)} devices, {sum(counts.values())} total thresholds"
         )
     except Exception as e:
+        diagnostics.record_failure(server_id, "thresholds", e)
         print(f"[ThresholdCache:{server_id}] Failed to fetch thresholds: {e}")
 
 

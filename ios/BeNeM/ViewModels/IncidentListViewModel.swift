@@ -113,7 +113,6 @@ class IncidentListViewModel: ObservableObject {
         await MainActor.run {
             isLoading = true
             errorMessage = nil
-            ConnectionMonitor.shared.reportChecking()
         }
 
         do {
@@ -131,7 +130,6 @@ class IncidentListViewModel: ObservableObject {
                 }
                 incidents = fetchedIncidents
                 isLoading = false
-                ConnectionMonitor.shared.reportSuccess()
             }
             // Only fetch individual alarm counts for incidents missing from cache
             let missingIDs = fetchedIncidents.filter { cachedAlarmCounts[$0.incidentID] == nil }.map(\.incidentID)
@@ -150,7 +148,6 @@ class IncidentListViewModel: ObservableObject {
             await MainActor.run {
                 errorMessage = error.localizedDescription
                 isLoading = false
-                ConnectionMonitor.shared.reportFailure()
             }
         }
     }

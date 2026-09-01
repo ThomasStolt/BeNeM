@@ -62,11 +62,10 @@ struct DashboardView: View {
                 .padding(.bottom)
             }
             .navigationBarTitleDisplayMode(.inline)
+            .connectionBanner()
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    ConnectionBadgeButton(status: connection.status) {
-                        Task { await loadData() }
-                    }
+                    ConnectionBadgeButton(status: connection.status)
                 }
                 ToolbarItem(placement: .principal) {
                     VStack(spacing: 1) {
@@ -350,7 +349,6 @@ struct DashboardView: View {
             group.addTask { await incidentViewModel.loadIncidents() }
             group.addTask { await categoryViewModel.load() }
         }
-        // Connection status is reported by the loads above via ConnectionMonitor.
     }
 }
 

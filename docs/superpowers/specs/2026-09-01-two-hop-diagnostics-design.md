@@ -1,8 +1,11 @@
 # Two-Hop Connection Diagnostics — Design Spec
 
 **Date:** 2026-09-01
-**Status:** Proposed — awaiting review (do not build until approved)
-**Scope:** iOS (lead) + a small middleware `/api/v1/diagnostics` endpoint
+**Status:** Approved (revised 2026-09-01: background-monitor design — a shared
+middleware-side BHNM probe loop replaces the on-demand in-endpoint probe; see
+guardrail 2 for why)
+**Scope:** iOS (lead) + a small middleware background monitor and
+`/api/v1/diagnostics` endpoint
 **Criticality:** Non-critical / off the delivery path (reviewer-approved). Must
 be **totally isolated** from proxy/cache/push.
 
@@ -26,12 +29,21 @@ diagnostics screen visualises exactly that path, one hop at a time.
 1. **No hanging probe.** Any active BHNM probe has its own short timeout (4 s)
    and a catch-all `try/except` → reports `"down"`. The endpoint detects
    down-ness *without hanging on it*.
-2. **Passive first.** Prefer telemetry the caches already gather while running
-   (last-success time, last error + timestamp, consecutive-failure count, last
-   measured upstream latency, cache-refresh age). An **active** probe (the cheap
-   `ha_status` call) runs **only** when caching is off for that server, and
-   **only on demand** (screen open + pull-to-refresh) — **never** on the 120 s
-   dashboard loop. The 120 s loop is client-side and does not call diagnostics.
+2. **One shared middleware-side monitor — no per-client probe loops.**
+   *(Revised 2026-09-01; supersedes the original "active probe only on-demand,
+   never on a loop".)* The original rule was written to stop per-**client** load
+   on BHNM, but it cannot meet the ~30 s detection target: the cache loops are
+   clamped to a 60 s minimum interval, and a cache-off server emits no telemetry
+   at all. The on-demand in-endpoint probe also proved structurally broken:
+   Traefik waits ~3 s for a dead backend before returning 502, so the probe
+   blocks the diagnostics response; a client cancel (e.g. pull-to-refresh
+   superseding the request) then loses the result and misreports App→Middleware
+   as down. The revised rule: **no per-client probe loops; ONE shared, bounded
+   middleware-side probe loop per server** (~15 s, configurable) is the correct
+   design. Clients poll the fast diagnostics endpoint (~30 s, configurable,
+   foreground-only) and never probe BHNM themselves. Passive cache telemetry
+   remains in the payload for the sheet's **detail** (feed freshness, latency,
+   error stats) — it is never the reachability source.
 3. **Auth = api_key as `X-Proxy-Token`.** `/api/v1/diagnostics` authenticates via
    `_verify_proxy_token` exactly like the other `/api/v1/*` routes. This depends
    on the **proxy-token fix** (iOS sending `api_key` as `X-Proxy-Token` instead
@@ -49,21 +61,29 @@ diagnostics screen visualises exactly that path, one hop at a time.
 ## 3. Architecture & isolation
 
 ```
-DiagnosticsView (iOS)
-  ├─ measures App→Middleware latency itself (round-trip to /api/v1/diagnostics)
+ConnectionMonitor (iOS, ONE global poller — foreground only)
+  ├─ every ~30 s (configurable): GET /api/v1/diagnostics (~10 s timeout)
+  │     poll fails (no HTTP response)          → middleware DOWN
+  │     poll ok, bhnm.reachable == false      → BHNM DOWN (middleware up)
+  │     poll ok, bhnm.reachable == true       → connected
+  ├─ drives the badge + hop-aware banner; DiagnosticsView (sheet) reads the
+  │  poller's cached lastResult; pull-to-refresh = pollNow()
   └─ GET /api/v1/diagnostics  (X-Proxy-Token: api_key, X-BHNM-Target: bhnm url)
-        → middleware, ISOLATED route:
-            • reads PASSIVE telemetry from incident/tactical/threshold caches
-            • if that server has caching OFF → ONE active ha_status probe
-              (own httpx client, 4s timeout, try/except → up/down + latency)
-            • assembles JSON (no secrets) and returns
+        → middleware, ISOLATED route — READS ONLY, never awaits a probe:
+            • bhnm hop  = the background monitor's cached probe result
+            • feeds     = PASSIVE telemetry from the three caches (detail only)
+            • assembles JSON (no secrets) and returns — uniformly fast
+
+Background BHNM monitor (middleware, ONE probe loop per server — shared by all
+clients): asyncio.Task per servers.json entry calling active_probe() every
+~15 s (configurable), result stored in {server_id: probe_result}.
 ```
 
-Isolation contract: the route imports the cache modules read-only, opens its own
-short-lived `httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=4.0)` for the
-optional probe, and wraps everything in `try/except` so a failure returns a
-partial/`down` payload with HTTP 200 — it never raises into, or blocks, any other
-path.
+Isolation contract: the monitor and route import the cache modules read-only,
+the probe uses its own short-lived `httpx.AsyncClient(verify=…, timeout=4.0)`,
+and everything is wrapped in `try/except` so a failure records `down` and
+returns a partial payload with HTTP 200 — it never raises into, blocks, or
+stalls the caches, proxy, or push paths.
 
 ## 4. Middleware: passive telemetry additions
 
@@ -87,13 +107,47 @@ reset `consecutive_failures=0`, clear `last_error`; on exception set
 existing `except … "Cycle failed"` block — it just records instead of only
 printing. **Additive and read-only elsewhere** — no behavior change to caching.
 
-`last_latency_ms` from the caches **is** the Middleware→BHNM hop latency for
-cache-enabled servers (measured continuously, for free, no probe).
+`last_latency_ms` from the caches is **detail only** (per-feed rows in the
+sheet); the Middleware→BHNM hop latency and reachability come from the
+background monitor's probe (§5.1).
 
-## 5. Middleware: `/api/v1/diagnostics` endpoint
+## 5. Middleware: background BHNM monitor + `/api/v1/diagnostics` endpoint
+
+### 5.1 Background BHNM monitor (authoritative reachability source)
+
+One `asyncio.Task` per `servers.json` entry (ALL servers, regardless of
+`cache_enabled` — health is independent of caching), calling the existing
+`active_probe()` every ~15 s (`DIAG_PROBE_INTERVAL` env var, default 15) and
+storing the result in a `{server_id: probe_result}` dict. Guardrails it
+inherits:
+
+- Each probe is bounded (the 4 s timeout); failures are **recorded, not
+  raised** — the task can never crash, stall, or block the middleware or the
+  caches.
+- Hooks into the existing server reload: `/internal/cache/reload` starts/stops
+  a probe task per server exactly like the caches. Server added/removed →
+  task started/stopped.
+- `active_probe()` keeps treating **an HTTP response with `status_code < 500`
+  as "up"** (a Traefik 5xx = BHNM down, not a valid answer). Do not
+  reintroduce field/body parsing — the `role`-field requirement caused the
+  original false red.
+- **Flap resistance:** down is declared only after `DIAG_DOWN_THRESHOLD` (env
+  var, default 2) consecutive probe failures, so a lone transient blip never
+  flashes the banner. Cost: BHNM-down detection becomes ~2 probe intervals +
+  one client poll (~60 s worst, ~40 s typical) — accepted in review over
+  single-failure speed. A never-succeeded server gets no grace towards "up":
+  below the threshold it stays `reachable:null` (there is no good state to
+  hold), then reports down at the threshold.
+- Isolated: separate module, own httpx client + timeout, own try/except; no
+  secrets in the stored result.
+
+### 5.2 `/api/v1/diagnostics` endpoint
 
 `GET /api/v1/diagnostics` — auth `_verify_proxy_token`; server resolved from
 `X-Proxy-Token` (api_key) / `X-BHNM-Target` like the other cached routes.
+The route only **reads** the monitor's dict and the passive telemetry — it
+never awaits a live probe, so it is uniformly fast. Payload stays lean
+(counts/booleans/timestamps; no server-side call logs) so it is cheap to poll.
 
 **Payload (example; no secrets):**
 
@@ -110,7 +164,7 @@ cache-enabled servers (measured continuously, for free, no probe).
     "cache_enabled": true,
     "bhnm": {
       "reachable": true,
-      "source": "passive",
+      "source": "monitor",
       "latency_ms": 82,
       "last_success_age_seconds": 12,
       "last_error": null,
@@ -126,15 +180,17 @@ cache-enabled servers (measured continuously, for free, no probe).
 }
 ```
 
-**`bhnm` resolution:**
-- **cache_enabled = true** → `source:"passive"`; fields come from the
-  `FeedTelemetry` (latency = most recent feed's `last_latency_ms`; `reachable` =
-  `consecutive_failures == 0` on the freshest feed). No network call.
-- **cache_enabled = false** → `source:"probe"`; fire **one** `ha_status` call
-  (own client, 4 s timeout). `reachable = true` on **any** HTTP response
-  (2xx/4xx/5xx alike — we only care that BHNM answered; drop role/body checks,
-  guardrail 5); `latency_ms` = measured round-trip; on timeout/connect error →
-  `reachable:false`, `latency_ms:null`, `last_error:"probe timeout"`.
+**`bhnm` resolution:** always the background monitor's cached probe result
+(`source:"monitor"`), for every server, cache on or off — the monitor is the
+single authoritative reachability source. `latency_ms` = the probe's measured
+round-trip; `last_success_age_seconds` = seconds since the last successful
+probe (≤ the probe interval when healthy — the sheet shows this age so the
+number is never misread as live). The block reports `reachable:null` /
+`source:"none"` while the monitor has no verdict — no result yet (startup
+window), or a never-succeeded server still below `DIAG_DOWN_THRESHOLD`
+failures — and the client stays in `checking`. Passive `FeedTelemetry`
+appears only in the `feeds` blocks as detail — never as the reachability
+source.
 
 **Secret scrubbing:** `last_error` is truncated (≤200 chars) and passed through a
 scrubber that drops anything resembling a key/password; `host` is the URL host
@@ -148,11 +204,14 @@ The banner **names the hop that is actually down**, matching the pipeline. It mu
 hop — the cache lives *in* the middleware, so if we can't reach it there is
 nothing to serve. Driven by `ConnectionMonitor`'s down-hop distinction (§7.1):
 
-- **Middleware unreachable** — the app got **no HTTP response at all** (transport
-  error): **"⚠️ Can't reach the server · retrying…"** — **no** "cached data"
-  claim.
+- **Middleware unreachable** — the app got **no HTTP response at all**
+  (transport error), **or a non-2xx status** (a reverse proxy answering
+  502/503 for a dead middleware app container is not the middleware):
+  **"⚠️ Can't reach the server · showing last known data · retrying…"** —
+  "last known data" = the app's own last-fetched data still on screen, **not**
+  a middleware-cache claim (the cache lives in the unreachable middleware).
 - **BHNM unreachable, middleware up** — the app reached the middleware, which
-  reports BHNM down (proxy 5xx / `bhnm.reachable == false`): **"⚠️ BHNM
+  reports BHNM down (`bhnm.reachable == false`): **"⚠️ BHNM
   unreachable · showing cached data · retrying…"** — cached Tactical/Incidents
   are genuinely being served here, so the reassurance is correct.
 
@@ -170,57 +229,76 @@ on both counts when it's the middleware that's down — it misnames the failing 
 ### 6.2 DiagnosticsView (tap the badge)
 - **Hero pipeline:** `📱 App ──▶ 🖥 Middleware ──▶ 🗄 BHNM`. Each segment shows
   its latency; a **down** hop renders a **broken red link**. Hops:
-  - **App → Middleware:** up if the diagnostics call returned; latency =
-    client-measured round-trip to `/api/v1/diagnostics` — always **live** (this
-    open), so it carries no age label.
-  - **Middleware → BHNM:** from `server.bhnm.reachable` / `latency_ms`. **Show the
-    latency's age** so a *passive* (possibly minutes-old) number isn't misread as
-    live: `source:"passive"` → e.g. **"82 ms · 2m ago"** (from
-    `bhnm.last_success_age_seconds`); `source:"probe"` (just measured on demand)
-    → **"82 ms · now"**. A stale age is itself a signal.
+  - **App → Middleware:** from the poller's last result — up if that poll
+    returned; latency = client-measured round-trip of that poll, shown with
+    its age (≤ 30 s when healthy; pull-to-refresh makes it "now").
+  - **Middleware → BHNM:** from `server.bhnm.reachable` / `latency_ms` (the
+    background monitor's probe). **Show the latency's age** (from
+    `bhnm.last_success_age_seconds`, e.g. **"82 ms · 9 s ago"**) so the number
+    is read as the monitor's last probe, not a live measurement. A stale age is
+    itself a signal (monitor wedged or BHNM failing).
   - The **App** node is always up (we're running).
 - **Per-feed status** (Tactical / Incidents / Devices→thresholds): last-success
   age, count, and **live vs cached** (from `feeds[*].cached` + `age_seconds`).
 - **Recent-call log:** the app's last ~20 API calls — `endpoint · status · ms`
-  (client-side ring buffer, §7.2).
+  (client-side ring buffer, §6.3).
 - **Middleware /health readout:** version, registered devices, which caches are
   warm (from the payload's `middleware` block + feeds).
 - **Per-server error stats:** `consecutive_failures`, last error + age (from
   `bhnm` / `feeds`).
-- **Refresh triggers:** screen open + pull-to-refresh only (guardrail 2). A small
-  App→Middleware **latency sparkline** (last ~20 measured round-trips) is Tier-1
-  and client-side.
+- **Refresh model:** the sheet does **not** fetch for itself — it reads
+  `ConnectionMonitor.lastResult` (same truth as the badge, guardrail 2);
+  pull-to-refresh calls `pollNow()`. A small App→Middleware **latency
+  sparkline** (last ~20 measured round-trips) is Tier-1 and client-side.
 
 ### 6.3 iOS plumbing
-- `NetreoAPIService.fetchDiagnostics() async -> Diagnostics?` — GET
-  `/api/v1/diagnostics`, times the round-trip (App→Middleware latency),
-  best-effort (nil on failure → screen shows App→Middleware as down).
+- `NetreoAPIService.fetchDiagnostics() async -> DiagnosticsResult` — GET
+  `/api/v1/diagnostics` with a **~10 s timeout** (NOT URLSession's 60 s
+  default, or middleware-down detection balloons), times the round-trip
+  (App→Middleware latency), best-effort (transport failure → the poller marks
+  the middleware hop down).
+- `ConnectionMonitor` (see §7.1) is the **one global poller** — configured
+  from `ContentView` on startup and on every server switch
+  (`configure(apiService)`); no per-screen polling.
 - `ClientCallLog` — a tiny `@MainActor` ring buffer (last ~20) that
-  `NetreoAPIService` appends to on each request (`endpoint`, `statusCode`,
-  `latencyMs`, `ok`). Read-only for the view. No persistence.
-- `DiagnosticsView` presented from the badge tap on every screen (the badge's
-  existing `onRetry`/tap becomes "open diagnostics"; a retry button lives inside).
+  `NetreoAPIService` appends to on each request (`endpoint` with query string
+  stripped, `statusCode`, `latencyMs`, `ok`). Read-only for the view. No
+  persistence.
+- `DiagnosticsView` presented as a **sheet** from the badge tap on every
+  screen (tap-to-refresh on the badge is retired; pull-to-refresh + the ring
+  remain).
 
 ## 7. Badge reconciliation & motion
 
-### 7.1 The badge already dropped the role requirement
-The connectivity badge no longer uses `checkHAStatus()`; it reads the shared
-`ConnectionMonitor`, fed by real middleware data calls (incidents/tactical/
-devices). "Green on any valid response" is satisfied — any successful
-middleware call is green; a thrown network error is red. Guardrail 5's *badge*
-half is already done by that change; this spec keeps it and adds the banner/edge.
+### 7.1 ConnectionMonitor v2: one global poller (revised)
+*(Revised 2026-09-01 — supersedes v1, where the badge derived from data-load
+outcomes. v1 failed with caching ON: cached responses masked a BHNM outage for
+~5 min, and only the live Devices call could detect it. The badge is now
+poller-driven; data calls no longer report to the monitor.)*
 
-**Extension for the hop-aware banner (built in step c, on the committed base):**
-`ConnectionMonitor` gains a `downHop` distinction so the banner (§6.1) can name
-the failure while the badge stays role-free:
-- data call throws a **transport** error (no HTTP response) → `.middlewareDown`
-- data call gets an HTTP response but signals BHNM failure (proxy 5xx, or a
-  diagnostics payload with `bhnm.reachable == false`) → `.bhnmDown`
-- otherwise `.connected` / `.unknown`
+`ConnectionMonitor` is a singleton that polls `/api/v1/diagnostics` every
+~30 s (configurable, not a compile-time constant) with a ~10 s request
+timeout, **foreground-only**: the poll loop pauses when the app is
+backgrounded/inactive and resumes (with an immediate `pollNow()`) on
+foreground — otherwise every idle phone polls the middleware every 30 s
+forever. Derivation per poll:
 
-The reporting methods therefore pass *why* they failed (reached the middleware or
-not), not just success/failure. Badge colour still keys only on connected-vs-not;
-`downHop` only selects the banner copy.
+- poll gets **no HTTP response** (transport error / timeout) **or a non-2xx
+  status** (Caddy answering for a dead app container) → `.disconnected`,
+  `downHop = .middleware`
+- poll ok, payload `bhnm.reachable == false` → `.disconnected`,
+  `downHop = .bhnm`
+- poll ok, `bhnm.reachable == true` → `.connected`
+- unconfigured → `.unknown`; configured but no result yet → `.checking`
+  (amber, static)
+
+Badge colour still keys only on connected-vs-not; `downHop` only selects the
+banner copy (§6.1). The badge stays role-free — reachability comes from the
+middleware monitor's `status_code < 500` rule, never from parsing BHNM fields.
+`pollNow()` serves the sheet's pull-to-refresh and the foreground transition.
+Detection math: middleware-down ≤ 30 s poll + 10 s timeout; BHNM-down ≤
+~2 × 15 s probes (`DIAG_DOWN_THRESHOLD` flap resistance, §5.1) + ≤ 30 s poll
+(~60 s worst, ~40 s typical).
 
 ### 7.2 Motion
 Pulse/blink only on `.disconnected`; amber `.checking` is static. All motion
@@ -230,20 +308,20 @@ gated behind `!UIAccessibility.isReduceMotionEnabled` (SwiftUI:
 ## 8. Auth sequencing (dependency)
 
 `/api/v1/diagnostics` uses `_verify_proxy_token`, which accepts the api_key as
-`X-Proxy-Token`. iOS currently sends the **webhook secret** there
-(`ContentView.swift:183`), which only passes because `PROXY_TOKEN == webhook
-secret` today. **Land the proxy-token fix first** (iOS → send `api_key` as
-`X-Proxy-Token`, matching the PWA), so diagnostics authenticates on the api_key
-path independent of `PROXY_TOKEN`. Until then, diagnostics would ride the same
-coincidence. This spec assumes that fix ships with or before it.
+`X-Proxy-Token`. The prerequisite proxy-token fix (iOS sends `api_key` as
+`X-Proxy-Token`, matching the PWA) **landed as `b2ad942`** — diagnostics
+authenticates on the api_key path independent of `PROXY_TOKEN`. Dependency
+satisfied.
 
 ## 9. Testing (TDD when built)
 
 - **Middleware:** telemetry records success/latency and error/consecutive-fail
-  on simulated cache cycles; `/api/v1/diagnostics` returns passive data when
-  cache on; fires exactly one probe (mocked) when cache off; a probe **timeout**
-  yields `reachable:false` within the 4 s bound and never raises; payload
-  contains **no** secret keys (assert scrubber); missing api_key → 401.
+  on simulated cache cycles; the monitor task records a probe **failure without
+  raising**; a probe **timeout** yields `reachable:false` within the 4 s bound;
+  **any HTTP response → up** (incl. 4xx), 5xx → down; `/internal/cache/reload`
+  **starts/stops** monitor tasks per server; `/api/v1/diagnostics` returns
+  **fast from the monitor's dict** (never awaits a probe); payload contains
+  **no** secret keys (assert scrubber); missing api_key → 401.
 - **iOS:** pipeline renders per-hop up/down from a fixture payload (incl. broken
   Middleware→BHNM link); reduce-motion path shows static banner; `ClientCallLog`
   caps at 20; diagnostics fetch failure → App→Middleware shown down, no crash.

@@ -26,4 +26,6 @@ BHNM_TLS_VERIFY: bool = os.environ.get("BHNM_TLS_VERIFY", "true").lower() != "fa
 SERVERS_JSON_PATH: str = os.environ.get("SERVERS_JSON_PATH", "/data/servers.json")
 PROXY_TIMEOUT: float = 60.0  # seconds — BHNM can be slow for large queries
 PROXY_TOKEN: str = os.environ.get("PROXY_TOKEN", "")
+DIAG_PROBE_INTERVAL: float = float(os.environ.get("DIAG_PROBE_INTERVAL", "15"))
+DIAG_DOWN_THRESHOLD: int = int(os.environ.get("DIAG_DOWN_THRESHOLD", "2"))
 BENEM_SECRET_KEY: str = os.environ.get("BENEM_SECRET_KEY", "")

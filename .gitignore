@@ -86,3 +86,7 @@ pwa/.env
 *.p8
 *.pem
 vapid_private_key*
+
+# Local secrets — never commit
+.secrets
+.secrets.*

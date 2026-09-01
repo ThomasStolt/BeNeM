@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass, field
 
 import httpx
+import diagnostics
 
 from config import SERVERS_JSON_PATH, BHNM_TLS_VERIFY, PROXY_TIMEOUT
 
@@ -141,7 +142,7 @@ async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:
         data = await _fetch_incidents(client, server)
     except Exception as e:
         print(f"[Cache:{server_id}] Failed to fetch incidents: {e}")
-        return
+        raise  # propagate so the loop records a telemetry failure (not a false success)
 
     active_raw = data.get("active_incidents", [])
     closed_raw = data.get("closed_incidents", [])
@@ -188,10 +189,14 @@ async def _cache_loop(server: dict) -> None:
         while True:
             try:
                 await _run_one_cycle(client, server)
+                # incidents cycle is paced over the refresh interval, so its
+                # duration isn't a meaningful upstream latency → record None.
+                diagnostics.record_success(server_id, "incidents", None)
             except asyncio.CancelledError:
                 raise
             except Exception as e:
                 print(f"[Cache:{server_id}] Cycle failed: {e}")
+                diagnostics.record_failure(server_id, "incidents", e)
                 await asyncio.sleep(10)
 
 

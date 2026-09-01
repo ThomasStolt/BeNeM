@@ -28,17 +28,14 @@ class DeviceListViewModel: ObservableObject {
     func loadDevices() async {
         isLoading = true
         errorMessage = nil
-        ConnectionMonitor.shared.reportChecking()
         do {
             let page = try await apiService.fetchDevices(recordStart: 0, recordCount: pageSize)
             devices = page.devices
             totalRecords = page.totalRecords
             hasMore = page.devices.count < page.totalRecords
             await ThresholdCache.shared.refresh(using: apiService)
-            ConnectionMonitor.shared.reportSuccess()
         } catch {
             errorMessage = error.localizedDescription
-            ConnectionMonitor.shared.reportFailure()
         }
         isLoading = false
     }

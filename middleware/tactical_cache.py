@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass, field
 
 import httpx
+import diagnostics
 
 from config import SERVERS_JSON_PATH, BHNM_TLS_VERIFY, PROXY_TIMEOUT
 
@@ -97,12 +98,20 @@ async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:
         _cache[server_id] = CachedTactical()
 
     for gt in GROUPING_TYPES:
+        started = time.perf_counter()
         try:
             data = await _fetch_tactical(client, server, gt)
             _cache[server_id].data[gt] = data
             _cache[server_id].last_updated[gt] = time.time()
+            # "category" is the representative single upstream call for the
+            # tactical feed's telemetry / hop latency.
+            if gt == "category":
+                diagnostics.record_success(server_id, "tactical",
+                                           round((time.perf_counter() - started) * 1000))
         except Exception as e:
             print(f"[TacticalCache:{server_id}] Failed to fetch {gt}: {e}")
+            if gt == "category":
+                diagnostics.record_failure(server_id, "tactical", e)
 
     print(f"[TacticalCache:{server_id}] Cache updated: {', '.join(f'{gt}={len(_cache[server_id].data.get(gt, {}))} groups' for gt in GROUPING_TYPES)}")
 

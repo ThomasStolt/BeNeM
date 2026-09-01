@@ -136,7 +136,11 @@ class NetreoAPIService: ObservableObject {
         params.append(URLQueryItem(name: "recordStart", value: String(recordStart)))
         params.append(URLQueryItem(name: "recordCount", value: String(recordCount)))
         request.httpBody = formEncodedBody(params)
-        let (data, _) = try await urlSession.data(for: request)
+        let started = Date()
+        let (data, response) = try await urlSession.data(for: request)
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        await ClientCallLog.shared.record("devices/list", status: code,
+                                          ms: Int(Date().timeIntervalSince(started) * 1000))
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return DevicePage(devices: [], totalRecords: 0)
         }
@@ -162,6 +166,38 @@ class NetreoAPIService: ObservableObject {
         }
         #endif
         return DevicePage(devices: devicesArray.compactMap { parseDevice(from: $0) }, totalRecords: total)
+    }
+
+    /// Fetches connection diagnostics from the middleware. Times the
+    /// App→Middleware round-trip and logs the call. Best-effort: a transport
+    /// failure returns reachedMiddleware=false (App→Middleware hop down).
+    /// Called ONLY from the diagnostics sheet (open + its pull-to-refresh),
+    /// never on the 120 s refresh loop.
+    func fetchDiagnostics() async -> DiagnosticsResult {
+        guard let url = URL(string: "\(configuration.baseURL)/api/v1/diagnostics") else {
+            return DiagnosticsResult(diagnostics: nil, appToMiddlewareMs: nil, reachedMiddleware: false)
+        }
+        // Short timeout (NOT URLSession's 60 s default) so a dead middleware is
+        // detected within one poll cycle, keeping middleware-down ≤ ~40 s.
+        var request = URLRequest(url: url, timeoutInterval: 10)
+        request.httpMethod = "GET"
+        addProxyToken(&request)
+        let started = Date()
+        do {
+            let (data, response) = try await urlSession.data(for: request)
+            let ms = Int(Date().timeIntervalSince(started) * 1000)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            await ClientCallLog.shared.record("api/v1/diagnostics", status: code, ms: ms)
+            guard DiagnosticsResult.reachedMiddleware(statusCode: code) else {
+                return DiagnosticsResult(diagnostics: nil, appToMiddlewareMs: nil, reachedMiddleware: false)
+            }
+            let diag = try? JSONDecoder().decode(Diagnostics.self, from: data)
+            return DiagnosticsResult(diagnostics: diag, appToMiddlewareMs: ms, reachedMiddleware: true)
+        } catch {
+            await ClientCallLog.shared.record("api/v1/diagnostics", status: -1,
+                                              ms: Int(Date().timeIntervalSince(started) * 1000))
+            return DiagnosticsResult(diagnostics: nil, appToMiddlewareMs: nil, reachedMiddleware: false)
+        }
     }
 
     func searchDevices(query: String) async throws -> [NetreoDevice] {
@@ -636,11 +672,15 @@ class NetreoAPIService: ObservableObject {
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
             addProxyToken(&request)
+            let started = Date()
 
             if let (data, response) = try? await urlSession.data(for: request),
                let httpResponse = response as? HTTPURLResponse,
                200...299 ~= httpResponse.statusCode,
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                await ClientCallLog.shared.record("tactical-overview/\(groupingType)",
+                                                  status: httpResponse.statusCode,
+                                                  ms: Int(Date().timeIntervalSince(started) * 1000))
                 // Cached response wraps the BHNM data in a "data" key
                 let tacticalData: [String: Any]
                 if let wrapped = json["data"] as? [String: Any] {

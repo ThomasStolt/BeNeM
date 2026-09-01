@@ -16,15 +16,24 @@ struct ContentView: View {
     )
 
     @State private var apiService: NetreoAPIService?
+    @ObservedObject private var diagnosticsPresenter = DiagnosticsPresenter.shared
     @State private var selectedTab = 0
     @State private var homeNavResetID = UUID()
     @State private var incidentNavResetID = UUID()
     @State private var settingsNavResetID = UUID()
     @State private var pendingIncidentID: String? = nil
     @State private var keyboardVisible = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         tabContentWithHandlers
+            .sheet(isPresented: $diagnosticsPresenter.isPresented) {
+                DiagnosticsView()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                // Foreground-only polling — an idle phone must not poll forever.
+                ConnectionMonitor.shared.setActive(phase == .active)
+            }
             .onReceive(NotificationCenter.default.publisher(for: .pushNotificationIncidentTapped)) { notification in
                 guard let id = notification.userInfo?["incident_id"] as? String else {
                     print("[DeepLink] No incident_id in notification")
@@ -172,6 +181,7 @@ struct ContentView: View {
     private func updateAPIService() {
         guard !baseURL.isEmpty && !apiKey.isEmpty else {
             apiService = nil
+            ConnectionMonitor.shared.configure(nil)
             return
         }
         let apiVersion = NetreoAPIConfiguration.APIVersion(rawValue: apiVersionString) ?? .legacy
@@ -193,6 +203,7 @@ struct ContentView: View {
         let service = NetreoAPIService(configuration: configuration)
         apiService = service
         incidentViewModel.updateAPIService(service)
+        ConnectionMonitor.shared.configure(service)   // restart the global poller
         // Reset all navigation stacks so stale data from the old server is never shown
         homeNavResetID = UUID()
         incidentNavResetID = UUID()

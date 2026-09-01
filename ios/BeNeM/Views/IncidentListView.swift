@@ -29,11 +29,10 @@ struct IncidentListView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .connectionBanner()
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    ConnectionBadgeButton(status: connection.status) {
-                        Task { await viewModel.refreshIncidents() }
-                    }
+                    ConnectionBadgeButton(status: connection.status)
                 }
                 ToolbarItem(placement: .principal) {
                     VStack(spacing: 1) {
