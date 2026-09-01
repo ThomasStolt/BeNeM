@@ -180,7 +180,12 @@ struct ContentView: View {
             bhnmURL: bhnmURL,
             apiKey: apiKey,
             pin: pin.isEmpty ? nil : pin,
-            proxyToken: webhookSecret,
+            // Authenticate the proxy with the api_key (matches servers.json),
+            // like the PWA — independent of the middleware's PROXY_TOKEN, which
+            // previously only worked because it happened to equal the webhook
+            // secret. Push registration still uses the webhook secret via
+            // X-Webhook-Token (AppDelegate), unaffected by this.
+            proxyToken: apiKey,
             version: apiVersion,
             timeout: timeout,
             retryCount: Int(retryCount)
