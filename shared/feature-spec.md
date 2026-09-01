@@ -301,8 +301,10 @@ features defined here. Platform-specific behaviour is noted per feature.
 - React Query hooks: 5-min stale for categories/instances, 60s for timeseries
 
 ### Feature: Maintenance Windows
-**Status:** shipped-both
-**API:** Middleware `POST /api/proxy/maintenance/create` → BHNM `POST /api/maint_window_api.php`
+**Status:** create — shipped-both · read/display — proposed (spec `docs/superpowers/specs/2026-08-31-maintenance-status-read-design.md`, awaiting approval)
+**API:** Middleware `POST /api/proxy/maintenance/create` → BHNM `POST /api/maint_window_api.php` (create); `POST /api/proxy/maintenance/status` → BHNM `get-host-and-service-status` + `maint_window_api.php action=list` (read)
+
+The feature has two sides: **create** (set a window — shipped) and **read/display** (show whether a device is currently in maintenance and when it ends — proposed). The create behaviour is documented first; the read side follows under "Reading maintenance status".
 
 #### Behaviour (both platforms)
 
@@ -369,6 +371,84 @@ Middleware → BHNM (`POST /api/maint_window_api.php`, form-encoded):
 - `buildPrefix(username)` constructs the stamp at dialog open time (captured in component state via `isOpen` guard).
 - Comment submitted as `prefix + userComment`.
 - API call via `createMaintenanceWindow()` in `src/lib/api/maintenance.ts`.
+
+#### Reading maintenance status (proposed — read side)
+
+**Status:** proposed. Full design + mockups in
+`docs/superpowers/specs/2026-08-31-maintenance-status-read-design.md`.
+Corrects the old create-spec claim that "no query API exists" — a query path
+exists on BHNM 26.3.x.
+
+**Two signals, distinct roles:**
+- `inMaintenance` (JSON boolean, host row of `get-host-and-service-status`) is
+  the **source of truth** for the badge — it reflects BHNM actually suppressing
+  alerts.
+- Active windows (`maint_window_api.php action=list`, active-only, `name`
+  required) are the **detail** — supply "ends HH:MM" + comment; never decide the
+  badge.
+- The two can disagree for ~1 poll cycle (~85 s) after a window activates.
+  Badge follows `inMaintenance`; not reconciled.
+
+**Middleware:** one merged route `POST /api/proxy/maintenance/status`
+(body `name=<device>`) → `{ inMaintenance: bool, windows: [{start_time,
+end_time, comment}] }`. Makes both BHNM calls server-side, api_key resolved
+server-side (client never sends it), same auth as the create route. Best-effort:
+upstream failure → `inMaintenance:false`, empty windows, no 5xx.
+
+**UI (both platforms, v1 = Device Detail only):**
+- Header device-status badge shows **MAINTENANCE** (blue,
+  `DeviceStatus.maintenance` — the existing enum case wired to a real signal)
+  when `inMaintenance == true`, overriding the incident-derived status.
+- The "Create Maintenance Window" card becomes status-aware: unchanged when not
+  in maintenance; when in maintenance it morphs to a **read-only** display —
+  "In Maintenance", "Ends HH:MM" (latest active window's `end_time`), and the
+  window comment. No close button in v1.
+- Read is best-effort: on failure, the card falls back to the plain "Create"
+  state with no error surfaced.
+
+**Parity:** iOS leads; PWA mirrors exactly (identical contract, two states,
+read-only card). iOS `DeviceDetailViewModel` adds a concurrent
+`maintenance` load; `NetreoAPIService.fetchMaintenanceStatus(deviceName:)`.
+PWA adds `fetchMaintenanceStatus()` in `src/lib/api/maintenance.ts` + a 60 s
+React Query hook; `STATUS_LABELS`/`STATUS_COLORS` already include `maintenance`.
+
+**Out of scope (named fast-follows):** device-**list** maintenance badges (need
+a bulk `maintenance_cache` mirroring `threshold_cache`); **closing** a window
+from the read UI (`maintenance/close` write route). Kept out to keep this
+feature read-only / side-effect-free.
+
+---
+
+### Feature: Connection Diagnostics
+**Status:** proposed (spec `docs/superpowers/specs/2026-09-01-two-hop-diagnostics-design.md`, awaiting approval)
+**Criticality:** non-critical / off the delivery path. Fully isolated from proxy/cache/push.
+
+#### Behaviour
+- The connection badge (all screens) reflects **app→middleware→BHNM** connectivity
+  via the shared `ConnectionMonitor` (fed by real middleware data calls; role-free
+  — green on any successful call, red on a thrown network error).
+- **Disconnected** shows a red banner under the header ("⚠️ No connection to BHNM ·
+  showing cached data · retrying…") + a pulsing red top edge; hard blink reserved
+  for truly-disconnected (not the brief `checking` flicker); reduce-motion → static.
+- **Tap the badge → Diagnostics screen:** a `📱 App → 🖥 Middleware → 🗄 BHNM`
+  pipeline with per-hop latency (broken red link on the down hop); per-feed status
+  (Tactical/Incidents/Devices: last-success, count, live vs cached); recent-call log
+  (endpoint · status · ms); middleware `/health` readout; per-server error stats.
+
+#### Middleware
+- New isolated route `GET /api/v1/diagnostics` (auth: api_key as `X-Proxy-Token`,
+  same as other `/api/v1/*`). Prefers **passive** telemetry from the caches
+  (last-success, last-error+ts, consecutive-failures, last upstream latency,
+  refresh age); an **active** `ha_status` probe (own httpx client, 4 s timeout,
+  try/except → down) runs only when caching is off for that server and only on
+  demand — never on the 120 s loop. No secrets in the payload (counts/booleans/
+  truncated errors; host only).
+
+#### Platform notes
+- iOS first. PWA diagnostics screen is a parity fast-follow (its badge already
+  reflects real connectivity via the shared `AppHeader`).
+- Depends on the proxy-token fix (iOS sends api_key as `X-Proxy-Token`) landing
+  with/before it, so the screen doesn't 401.
 
 ---
 
