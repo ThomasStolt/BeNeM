@@ -12,6 +12,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [2.9.0] — 2026-09-01
+
+### Added
+
+- **Connection status, hop-aware** — the chain badge is now driven by one global `ConnectionMonitor` that polls the middleware's fast `/api/v1/diagnostics` every 30 s (foreground only; pauses in background, immediate re-check on return). The middleware itself health-probes each BHNM server every ~15 s, so the badge distinguishes *which* hop is down within ~30–60 s.
+- **Disconnected banner** — a red banner under the header names the failing hop: "Can't reach the server · showing last known data · retrying…" (middleware unreachable) vs "BHNM unreachable · showing cached data · retrying…" (middleware up, BHNM down). Static rendering with Reduce Motion.
+- **Diagnostics screen** — tapping the badge opens a sheet showing the 📱 App → 🖥 Middleware → 🗄 BHNM pipeline with per-hop latency and age, per-feed cache status (Tactical / Incidents / Thresholds), recent client API calls, per-server error stats, and the middleware `/health` readout ("Middleware version"). Pull-to-refresh re-polls immediately.
+
+### Changed
+
+- **Badge tap** now opens Diagnostics instead of triggering a refresh — refresh stays in the countdown ring.
+- Data loads no longer drive the connection badge (cached responses could mask a BHNM outage for minutes); the poller is the single source of truth.
+
+### Requires
+
+- Middleware **2.7.0** for the diagnostics endpoint and BHNM health monitor (deployed to bhnm-apns before this release; an older middleware would make the badge misreport the middleware hop as down).
+
+---
+
 ## [2.8.3] — 2026-05-18
 
 ### Changed
