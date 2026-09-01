@@ -1,4 +1,12 @@
-VERSION = "2.6.1"
+import os
+
+# The VERSION file is the single source of truth (see CLAUDE.md) — never
+# hardcode the number here; a literal already drifted once (stuck at 2.6.1).
+try:
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "VERSION")) as _f:
+        VERSION = _f.read().strip()
+except OSError:
+    VERSION = "unknown"
 
 from contextlib import asynccontextmanager
 import base64
