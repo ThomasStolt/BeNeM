@@ -5,7 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [benem-admin 1.6.3] - 2026-06-16
+## [2.7.0] - 2026-09-01
+
+### Added
+
+- **Background BHNM health monitor** (`diagnostics.py`) — one shared, bounded `asyncio` probe loop per `servers.json` entry (every `DIAG_PROBE_INTERVAL` s, default 15; 4 s probe timeout; failures recorded, never raised) posting a lightweight `ha_status` call. Any HTTP response `< 500` counts as alive (a Traefik 5xx means the BHNM app is down). Down is declared only after `DIAG_DOWN_THRESHOLD` consecutive failures (default 2, flap resistance). Monitor tasks start on lifespan for **all** servers regardless of `cache_enabled`, and `/internal/cache/reload` starts/stops them like the caches.
+- **`GET /api/v1/diagnostics`** — connection diagnostics for the app's 📱 App → 🖥 Middleware → 🗄 BHNM pipeline. Reads the monitor's cached result and passive per-feed cache telemetry only — it never awaits a live probe, so it is uniformly fast (~50 ms) and safe for clients to poll every 30 s. Payload carries counts/booleans/timestamps/latency and scrubbed, truncated error strings; no secrets, host only. Auth via `X-Proxy-Token` like the other `/api/v1/*` routes.
+- **Per-feed cache telemetry** — the incident/tactical/threshold cache loops now record last-success time, upstream latency, last (secret-scrubbed) error, and consecutive-failure counts; the incident cycle raises on fetch failure so a failed cycle is recorded instead of masquerading as success.
+
+
 
 ### Fixed
 
