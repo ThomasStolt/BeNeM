@@ -25,7 +25,12 @@ import threshold_cache
 
 HOP_BY_HOP_REQUEST = {
     "host", "x-proxy-token", "x-bhnm-target", "connection", "keep-alive",
-    "proxy-authenticate", "proxy-authorization", "te", "trailers", "upgrade"
+    "proxy-authenticate", "proxy-authorization", "te", "trailers", "upgrade",
+    # Never forward the client's Accept-Encoding: httpx negotiates its own
+    # (gzip/deflate) and transparently decompresses the upstream body. If a
+    # client's "br" leaks through, Traefik returns Brotli, httpx (no brotli
+    # support) leaves it compressed, and we'd ship binary labeled as JSON.
+    "accept-encoding",
 }
 HOP_BY_HOP_RESPONSE = {
     "connection", "keep-alive", "proxy-authenticate",
