@@ -10,6 +10,7 @@ import {
 } from '../../lib/api/maintenance';
 import { MaintenanceDialog } from './MaintenanceDialog';
 import { useMaintenanceStatus } from './useMaintenanceStatus';
+import { noteLocalMaintenance, clearLocalMaintenance } from './useMaintenanceMap';
 
 /** How long local knowledge (pending start / local close) outlives its event —
  * covers BHNM's ~85 s poll lag with headroom, then defers to the server again. */
@@ -133,7 +134,9 @@ export function MaintenanceCard({ deviceName, username }: MaintenanceCardProps) 
       if (confirming === 'starting') setPendingStart(null);
       else setPendingClose(new Date());
       setConfirming(null);
+      clearLocalMaintenance(deviceName);
       queryClient.invalidateQueries({ queryKey: ['maintenance-status'] });
+      queryClient.invalidateQueries({ queryKey: ['maintenance-map'] });
     } catch (err) {
       setCloseError(err instanceof Error ? err.message : 'Could not end maintenance.');
     } finally {
@@ -195,7 +198,11 @@ export function MaintenanceCard({ deviceName, username }: MaintenanceCardProps) 
         onSubmit={async (dur, comment) => {
           const start = await createMaintenanceWindow(config, deviceName, dur, comment);
           setPendingStart(start ?? new Date());
+          // Creator-side optimism: show the list wrench immediately instead
+          // of waiting out the snap + BHNM poll + map-cache chain.
+          noteLocalMaintenance(deviceName);
           queryClient.invalidateQueries({ queryKey: ['maintenance-status'] });
+          queryClient.invalidateQueries({ queryKey: ['maintenance-map'] });
         }}
       />
 

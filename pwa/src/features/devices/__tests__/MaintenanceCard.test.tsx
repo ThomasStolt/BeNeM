@@ -17,6 +17,11 @@ vi.mock('../../../lib/config', () => ({
 
 vi.mock('../useMaintenanceStatus', () => ({ useMaintenanceStatus: vi.fn() }));
 
+vi.mock('../useMaintenanceMap', () => ({
+  noteLocalMaintenance: vi.fn(),
+  clearLocalMaintenance: vi.fn(),
+}));
+
 vi.mock('../../../lib/api/maintenance', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../../lib/api/maintenance')>();
   return {
@@ -27,6 +32,7 @@ vi.mock('../../../lib/api/maintenance', async (importOriginal) => {
 });
 
 import { useMaintenanceStatus } from '../useMaintenanceStatus';
+import { noteLocalMaintenance, clearLocalMaintenance } from '../useMaintenanceMap';
 import { createMaintenanceWindow, closeMaintenanceWindow } from '../../../lib/api/maintenance';
 
 const NOW = new Date('2026-09-02T10:00:00Z');
@@ -168,6 +174,24 @@ describe('MaintenanceCard', () => {
 
     expect(createMaintenanceWindow).toHaveBeenCalledOnce();
     expect(await screen.findByText(/Starts at/)).toBeInTheDocument();
+  });
+
+  it('successful create notes the device for the list-map optimism', async () => {
+    mockStatus(NOT_IN_MAINTENANCE);
+    vi.mocked(createMaintenanceWindow).mockResolvedValue(new Date(Date.now() + 5 * 60_000));
+    renderCard();
+    await userEvent.click(screen.getByText('+ Create Maintenance Window'));
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    expect(noteLocalMaintenance).toHaveBeenCalledWith('core-router-01');
+  });
+
+  it('successful close clears the local map note', async () => {
+    mockStatus(IN_MAINTENANCE);
+    vi.mocked(closeMaintenanceWindow).mockResolvedValue(undefined);
+    renderCard();
+    await userEvent.click(screen.getByText(/In Maintenance · ends/));
+    await userEvent.click(screen.getByRole('button', { name: 'End Maintenance' }));
+    expect(clearLocalMaintenance).toHaveBeenCalledWith('core-router-01');
   });
 
   it('tap on starting → cancel-scheduled dialog; confirm calls close and clears', async () => {
