@@ -1307,6 +1307,27 @@ class NetreoAPIService: ObservableObject {
 
     /// Fetches pre-aggregated threshold counts per device from the middleware cache.
     /// Returns a dictionary mapping device name → threshold count.
+    /// Names of devices currently in maintenance, from the middleware's
+    /// maintenance-map cache (GET /api/v1/maintenance-map). Empty when the
+    /// cache is cold or the server predates BHNM 26.3.01 — no state shown.
+    func fetchMaintenanceMap() async throws -> Set<String> {
+        guard let url = URL(string: "\(configuration.baseURL)/api/v1/maintenance-map") else {
+            throw URLError(.badURL)
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        addProxyToken(&request)
+        let (data, response) = try await urlSession.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let names = raw["in_maintenance"] as? [String] else {
+            return []
+        }
+        return Set(names)
+    }
+
     func fetchThresholdCounts() async throws -> [String: Int] {
         guard let url = URL(string: "\(configuration.baseURL)/api/v1/threshold-counts") else {
             throw URLError(.badURL)

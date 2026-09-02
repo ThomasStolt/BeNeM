@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [2.11.0] — 2026-09-02
+
+### Added
+
+- **Maintenance visibility on the device list** — devices currently in a maintenance window show a blue wrench beside their name, on browse and search rows alike, fed by the middleware's new maintenance-map cache (no per-device calls). The wrench **coexists** with the alarm chips — a device in maintenance AND critical keeps its red count (the list never masks a real alarm; the Detail header keeps its maintenance-wins badge per the Rev 3 ruling). An **"In maintenance (N)"** filter chip above the list narrows to just those rows. Devices absent from the map (unmonitored, cold cache, or BHNM < 26.3.01) show no state. List staleness ≈ middleware refresh + BHNM poll (~3.5 min worst case at defaults); the Detail screen stays the fresher truth.
+
 ## [2.10.0] — 2026-09-02
 
 ### Added

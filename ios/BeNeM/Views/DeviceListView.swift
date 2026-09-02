@@ -60,6 +60,8 @@ struct DeviceListView: View {
     @StateObject private var viewModel: DeviceListViewModel
     @ObservedObject var incidentViewModel: IncidentListViewModel
     @ObservedObject private var thresholdCache = ThresholdCache.shared
+    @ObservedObject private var maintenanceMap = MaintenanceMapCache.shared
+    @State private var maintOnly = false
     @ObservedObject private var connection = ConnectionMonitor.shared
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
     @AppStorage("netreo_active_connection_name") private var activeServerName = ""
@@ -71,14 +73,45 @@ struct DeviceListView: View {
         _viewModel = StateObject(wrappedValue: DeviceListViewModel(apiService: apiService))
     }
 
+    private var maintenanceCount: Int {
+        viewModel.displayedDevices.filter { maintenanceMap.isInMaintenance($0.name) }.count
+    }
+
+    private var visibleDevices: [NetreoDevice] {
+        guard maintOnly, maintenanceCount > 0 else { return viewModel.displayedDevices }
+        return viewModel.displayedDevices.filter { maintenanceMap.isInMaintenance($0.name) }
+    }
+
     var body: some View {
         NavigationView {
             List {
-                ForEach(viewModel.displayedDevices) { device in
+                if maintenanceCount > 0 {
+                    Button {
+                        maintOnly.toggle()
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "wrench.adjustable")
+                                .font(.system(size: 11, weight: .semibold))
+                            Text("In maintenance (\(maintenanceCount))")
+                                .font(.caption).fontWeight(.semibold)
+                        }
+                        .foregroundColor(maintOnly ? .white : Color(red: 0.22, green: 0.74, blue: 0.98))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(maintOnly ? Color(red: 0.01, green: 0.52, blue: 0.78) : Color.clear))
+                        .overlay(Capsule().stroke(maintOnly ? Color.clear : Color(.systemGray4), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 2, trailing: 0))
+                }
+                ForEach(visibleDevices) { device in
                     NavigationLink(destination: DeviceDetailView(device: device, apiService: apiService)) {
                         DeviceRowView(
                             device: device,
-                            alarmSummary: deviceAlarmSummary(for: device.name, incidents: incidentViewModel.incidents)
+                            alarmSummary: deviceAlarmSummary(for: device.name, incidents: incidentViewModel.incidents),
+                            inMaintenance: maintenanceMap.isInMaintenance(device.name)
                         )
                     }
                     .listRowBackground(
@@ -231,6 +264,8 @@ struct AlarmChipsView: View {
 struct DeviceRowView: View {
     let device: NetreoDevice
     let alarmSummary: DeviceAlarmSummary
+    /// From the maintenance map; coexists with alarm chips (never masks them).
+    var inMaintenance: Bool = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -238,9 +273,17 @@ struct DeviceRowView: View {
 
             // Left info column
             VStack(alignment: .leading, spacing: 1) {
-                Text(device.name)
-                    .font(.subheadline).fontWeight(.semibold)
-                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Text(device.name)
+                        .font(.subheadline).fontWeight(.semibold)
+                        .lineLimit(1)
+                    if inMaintenance {
+                        Image(systemName: "wrench.adjustable")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(Color(red: 0.22, green: 0.74, blue: 0.98)) // sky-400
+                            .accessibilityLabel("In maintenance")
+                    }
+                }
                 Text(device.ip)
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundColor(.secondary)
