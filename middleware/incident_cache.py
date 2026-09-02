@@ -132,6 +132,40 @@ def _enrich_incident(incident: dict, detail: dict) -> dict:
     return enriched
 
 
+# -- Ack state overrides --------------------------------------------------------
+# The cached list is a snapshot up to ~2 cache cycles old, so a successful
+# ACK/UnACK through the proxy patches the cache immediately (clients see it on
+# their next fetch) and the override shields the patch from being reverted by
+# an in-flight cycle whose getincidents snapshot predates the ack.
+
+STATE_OVERRIDE_TTL = 300  # BHNM reflects acks in getincidents instantly; 5 min covers two cycles
+
+_state_overrides: dict[str, dict[str, tuple[str, float]]] = {}  # server -> incident_id -> (state, ts)
+
+
+def note_state_override(server_id: str, incident_id: str, state: str) -> None:
+    _state_overrides.setdefault(server_id, {})[str(incident_id)] = (state, time.time())
+    entry = _cache.get(server_id)
+    if entry:
+        for bucket in (entry.active_incidents, entry.closed_incidents):
+            for inc in bucket:
+                if str(inc.get("incident_id")) == str(incident_id):
+                    inc["incident_state"] = state
+
+
+def _apply_state_overrides(server_id: str, incidents: list[dict]) -> None:
+    overrides = _state_overrides.get(server_id, {})
+    now = time.time()
+    for iid in [k for k, (_, ts) in overrides.items() if now - ts > STATE_OVERRIDE_TTL]:
+        del overrides[iid]
+    if not overrides:
+        return
+    for inc in incidents:
+        override = overrides.get(str(inc.get("incident_id")))
+        if override:
+            inc["incident_state"] = override[0]
+
+
 # -- Cache loop ----------------------------------------------------------------
 
 async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:
@@ -174,6 +208,8 @@ async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:
         if delay > 0.1:
             await asyncio.sleep(delay)
 
+    _apply_state_overrides(server_id, active_enriched)
+    _apply_state_overrides(server_id, closed_enriched)
     _cache[server_id] = CachedIncidents(
         active_incidents=active_enriched,
         closed_incidents=closed_enriched,

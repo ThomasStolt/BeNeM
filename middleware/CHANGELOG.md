@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.10.1] - 2026-09-02
+
+### Fixed
+
+- **Acknowledgements now show in the incident list instantly.** The cached list is a snapshot up to ~2 cache cycles (~4 min) old, so a successful ACK/UnACK looked lost until the cache caught up. The ack/unack proxy routes (dedicated and the restful catch-all path iOS uses) now patch the cached incident's state immediately on BHNM success, and a 5-minute override shields the patch from being reverted by an in-flight refresh cycle whose snapshot predates the ack. No client update needed.
+
+---
+
 ## [2.10.0] - 2026-09-02
 
 ### Added

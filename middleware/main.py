@@ -771,16 +771,41 @@ async def _proxy_to_bhnm(request: Request, bhnm_path: str) -> Response:
     return Response(content=resp.content, status_code=resp.status_code, headers=response_headers)
 
 
+async def _note_ack_state(request: Request, response: Response, state: str) -> None:
+    """On a successful ACK/UnACK, patch the incident cache so the list shows
+    the new state instantly instead of up to two cache cycles later."""
+    try:
+        if json.loads(response.body).get("result") != "completed":
+            return
+        body = parse_qs((await request.body()).decode("utf-8", errors="replace"))
+        incident_id = body.get("incident_id", [""])[0].strip()
+        if not incident_id:
+            return
+        server_id = _registry_server_id(request)
+        if not server_id:
+            api_key = body.get("password", [""])[0] or body.get("pwd", [""])[0]
+            if api_key:
+                server_id = maintenance_cache._server_id_for_api_key(api_key)
+        if server_id:
+            incident_cache.note_state_override(server_id, incident_id, state)
+    except Exception:
+        pass
+
+
 @app.post("/api/proxy/incident/acknowledge")
 async def proxy_incident_acknowledge(request: Request):
     print("[Proxy] ACK incident request")
-    return await _proxy_to_bhnm(request, "/fw/index.php?r=restful/incident/acknowledge")
+    response = await _proxy_to_bhnm(request, "/fw/index.php?r=restful/incident/acknowledge")
+    await _note_ack_state(request, response, "ACKNOWLEDGED")
+    return response
 
 
 @app.post("/api/proxy/incident/unacknowledge")
 async def proxy_incident_unacknowledge(request: Request):
     print("[Proxy] UnACK incident request")
-    return await _proxy_to_bhnm(request, "/fw/index.php?r=restful/incident/unacknowledge")
+    response = await _proxy_to_bhnm(request, "/fw/index.php?r=restful/incident/unacknowledge")
+    await _note_ack_state(request, response, "OPEN")
+    return response
 
 
 @app.post("/api/proxy/ha-status")
@@ -1082,4 +1107,12 @@ async def proxy(path: str, request: Request):
         if k.lower() not in HOP_BY_HOP_RESPONSE
     }
 
-    return Response(content=resp.content, status_code=resp.status_code, headers=response_headers)
+    response = Response(content=resp.content, status_code=resp.status_code, headers=response_headers)
+    # iOS calls the restful ack/unack endpoints through this catch-all —
+    # patch the incident cache so the list reflects the new state instantly.
+    r_param = request.query_params.get("r", "")
+    if r_param == "restful/incident/acknowledge":
+        await _note_ack_state(request, response, "ACKNOWLEDGED")
+    elif r_param == "restful/incident/unacknowledge":
+        await _note_ack_state(request, response, "OPEN")
+    return response
