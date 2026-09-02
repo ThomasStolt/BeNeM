@@ -40,16 +40,20 @@ export function DeviceListScreen() {
   const searchOrPageDevices = isSearchActive ? searchResults : devices;
 
   // Maintenance map: wrench markers + "In maintenance (N)" filter (coexists
-  // with alarm badges — never masks them). Server truth ∪ local pending
-  // notes (blinking wrench until the server confirms).
-  const { data: serverMaintSet } = useMaintenanceMap();
-  const pendingSet = getPendingNames();
-  const inMaint = (name: string) => (serverMaintSet?.has(name) ?? false) || pendingSet.has(name);
+  // with alarm badges — never masks them). Solid = server-confirmed active;
+  // blinking = scheduled (middleware-remembered for every user, plus the
+  // creator's own local note).
+  const { data: maintMap } = useMaintenanceMap();
+  const localPending = getPendingNames();
+  const isActive = (name: string) => maintMap?.active.has(name) ?? false;
+  const isPendingFor = (name: string) =>
+    !isActive(name) && (localPending.has(name) || (maintMap?.scheduled.has(name) ?? false));
+  const inMaint = (name: string) => isActive(name) || isPendingFor(name);
   const [maintOnly, setMaintOnly] = useState(false);
   const maintCount = useMemo(
     () => (searchOrPageDevices ?? []).filter((d) => inMaint(d.name)).length,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [searchOrPageDevices, serverMaintSet, pendingSet.size],
+    [searchOrPageDevices, maintMap, localPending.size],
   );
   const displayDevices = maintOnly && maintCount > 0
     ? searchOrPageDevices?.filter((d) => inMaint(d.name))
@@ -139,7 +143,7 @@ export function DeviceListScreen() {
                   device={device}
                   alarmSummary={deviceAlarmMap.get(device.name)}
                   inMaintenance={inMaint(device.name)}
-                  maintenancePending={pendingSet.has(device.name) && !(serverMaintSet?.has(device.name) ?? false)}
+                  maintenancePending={isPendingFor(device.name)}
                 />
               ))}
             </div>

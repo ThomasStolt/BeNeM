@@ -119,7 +119,9 @@ export function MaintenanceCard({ deviceName, username }: MaintenanceCardProps) 
   const [isClosing, setIsClosing] = useState(false);
   const [, setTick] = useState(0);
 
-  const pendingStart = getPendingStart(deviceName);
+  // Creator's local note wins (instant); else the middleware-remembered
+  // schedule (visible to every user, one status poll behind).
+  const pendingStart = getPendingStart(deviceName) ?? status?.scheduledStart ?? null;
   const pendingClose = getRecentLocalClose(deviceName);
 
   // Re-evaluate expiry while local knowledge is live.

@@ -198,6 +198,15 @@ describe('MaintenanceCard', () => {
     expect(getPendingStart('core-router-01')).toBeNull();
   });
 
+  it('shows Starts at from the middleware-remembered schedule (user B, no local note)', () => {
+    mockStatus(parseMaintenanceStatus({
+      inMaintenance: false, windows: [],
+      scheduled: { start_time: Math.floor(Date.now() / 1000) + 240, end_time: Math.floor(Date.now() / 1000) + 2040 },
+    }));
+    renderCard();
+    expect(screen.getByText(/Starts at/)).toBeInTheDocument();
+  });
+
   it('tap on starting → cancel-scheduled dialog; confirm calls close and clears', async () => {
     mockStatus(NOT_IN_MAINTENANCE);
     vi.mocked(createMaintenanceWindow).mockResolvedValue(new Date(Date.now() + 5 * 60_000));

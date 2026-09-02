@@ -13,13 +13,20 @@ export interface MaintenanceWindow {
 export interface MaintenanceStatus {
   inMaintenance: boolean;
   windows: MaintenanceWindow[];
+  /** Middleware-remembered scheduled window (all users see it); null when none. */
+  scheduledStart: Date | null;
 }
 
 export function parseMaintenanceStatus(raw: unknown): MaintenanceStatus {
   const record = (raw ?? {}) as Record<string, unknown>;
   const rawWindows = Array.isArray(record.windows) ? record.windows : [];
+  const sched = record.scheduled as Record<string, unknown> | null | undefined;
   return {
     inMaintenance: record.inMaintenance === true,
+    scheduledStart:
+      sched && typeof sched.start_time === 'number'
+        ? new Date(sched.start_time * 1000)
+        : null,
     windows: rawWindows.map((w) => {
       const win = (w ?? {}) as Record<string, unknown>;
       return {
@@ -121,22 +128,39 @@ export async function fetchMaintenanceStatus(
   }
 }
 
+export interface MaintenanceMap {
+  /** Server-confirmed in-maintenance names — solid wrench. */
+  active: Set<string>;
+  /** Middleware-remembered scheduled windows (name → start) — blinking wrench,
+   * visible to every user, not just the creator. */
+  scheduled: Map<string, Date>;
+}
+
 /**
- * Server-wide in-maintenance device names from the middleware's background
- * cache (GET /api/v1/maintenance-map). Best-effort: empty set on any failure
- * or cold cache — rows simply show no maintenance state.
- * Staleness = the map's cache_age (worst case ≈ refresh interval + BHNM's
- * ~85 s poll lag ≈ 3.5 min at defaults); Device Detail stays the fresher truth.
+ * Server-wide maintenance state from GET /api/v1/maintenance-map.
+ * Best-effort: empty on any failure or cold cache — no state shown.
  */
-export async function fetchMaintenanceMap(config: BhnmConfig): Promise<Set<string>> {
+export async function fetchMaintenanceMap(config: BhnmConfig): Promise<MaintenanceMap> {
+  const empty: MaintenanceMap = { active: new Set(), scheduled: new Map() };
   try {
     const raw = await fetchJson(config.baseUrl, '/api/v1/maintenance-map', {
       'X-Proxy-Token': config.apiKey,
     });
     const record = (raw ?? {}) as Record<string, unknown>;
     const names = Array.isArray(record.in_maintenance) ? record.in_maintenance : [];
-    return new Set(names.filter((n): n is string => typeof n === 'string'));
+    const sched = Array.isArray(record.scheduled) ? record.scheduled : [];
+    const scheduled = new Map<string, Date>();
+    for (const entry of sched) {
+      const e = (entry ?? {}) as Record<string, unknown>;
+      if (typeof e.name === 'string' && typeof e.start_time === 'number') {
+        scheduled.set(e.name, new Date(e.start_time * 1000));
+      }
+    }
+    return {
+      active: new Set(names.filter((n): n is string => typeof n === 'string')),
+      scheduled,
+    };
   } catch {
-    return new Set();
+    return empty;
   }
 }

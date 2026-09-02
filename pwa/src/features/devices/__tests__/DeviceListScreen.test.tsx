@@ -111,7 +111,7 @@ vi.mock('../useMaintenanceMap', async (importOriginal) => {
   const original = await importOriginal<typeof import('../useMaintenanceMap')>();
   return {
     ...original,
-    useMaintenanceMap: vi.fn(() => ({ data: new Set<string>() })),
+    useMaintenanceMap: vi.fn(() => ({ data: { active: new Set<string>(), scheduled: new Map<string, Date>() } })),
   };
 });
 import { noteLocalMaintenance, _resetLocalMaintenance } from '../useMaintenanceMap';
@@ -129,14 +129,23 @@ describe('DeviceListScreen maintenance', () => {
     } as unknown as ReturnType<typeof useDeviceSearch>);
     vi.mocked(useIncidents).mockReturnValue({ data: [] } as unknown as ReturnType<typeof useIncidents>);
     vi.mocked(useMaintenanceMap).mockReturnValue({
-      data: new Set(['core-switch']),
+      data: { active: new Set(['core-switch']), scheduled: new Map() },
     } as unknown as ReturnType<typeof useMaintenanceMap>);
     _resetLocalMaintenance();
   });
 
+  it('server-scheduled device (created by another user) blinks too', () => {
+    vi.mocked(useMaintenanceMap).mockReturnValue({
+      data: { active: new Set(), scheduled: new Map([['raspi-054', new Date(Date.now() + 240_000)]]) },
+    } as unknown as ReturnType<typeof useMaintenanceMap>);
+    renderScreen();
+    expect(screen.getByLabelText('Maintenance scheduled')).toHaveClass('animate-blink');
+    expect(screen.getByRole('button', { name: /In maintenance \(1\)/ })).toBeInTheDocument();
+  });
+
   it('locally-pending device shows a blinking scheduled wrench and joins the chip count', () => {
     vi.mocked(useMaintenanceMap).mockReturnValue({
-      data: new Set<string>(),
+      data: { active: new Set<string>(), scheduled: new Map() },
     } as unknown as ReturnType<typeof useMaintenanceMap>);
     noteLocalMaintenance('raspi-054', new Date(Date.now() + 5 * 60_000));
     renderScreen();
@@ -169,7 +178,7 @@ describe('DeviceListScreen maintenance', () => {
 
   it('hides the chip and shows no markers when the map is empty (cold/old BHNM)', () => {
     vi.mocked(useMaintenanceMap).mockReturnValue({
-      data: new Set(),
+      data: { active: new Set(), scheduled: new Map() },
     } as unknown as ReturnType<typeof useMaintenanceMap>);
     renderScreen();
     expect(screen.queryByLabelText('In maintenance')).not.toBeInTheDocument();

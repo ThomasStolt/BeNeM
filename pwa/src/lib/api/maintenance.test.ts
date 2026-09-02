@@ -139,28 +139,49 @@ describe('fetchMaintenanceStatus', () => {
 describe('fetchMaintenanceMap', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('returns the in-maintenance names as a Set', async () => {
+  it('returns active names and server-scheduled starts', async () => {
     vi.stubGlobal('fetch', vi.fn(async () =>
-      new Response(JSON.stringify({ cache_age_seconds: 42, in_maintenance: ['sw-01', 'srv-09'] }), { status: 200 }),
+      new Response(JSON.stringify({
+        cache_age_seconds: 42,
+        in_maintenance: ['sw-01', 'srv-09'],
+        scheduled: [{ name: 'edge-02', start_time: 1788353700, end_time: 1788355500 }],
+      }), { status: 200 }),
     ));
     const { fetchMaintenanceMap } = await import('./maintenance');
-    const set = await fetchMaintenanceMap(config);
-    expect(set).toEqual(new Set(['sw-01', 'srv-09']));
+    const map = await fetchMaintenanceMap(config);
+    expect(map.active).toEqual(new Set(['sw-01', 'srv-09']));
+    expect(map.scheduled.get('edge-02')?.getTime()).toBe(1788353700_000);
   });
 
-  it('returns an empty Set on failure (best-effort — no state shown)', async () => {
+  it('tolerates an older middleware without the scheduled field', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      new Response(JSON.stringify({ cache_age_seconds: 42, in_maintenance: ['sw-01'] }), { status: 200 }),
+    ));
+    const { fetchMaintenanceMap } = await import('./maintenance');
+    const map = await fetchMaintenanceMap(config);
+    expect(map.active).toEqual(new Set(['sw-01']));
+    expect(map.scheduled.size).toBe(0);
+  });
+
+  it('returns empty on failure (best-effort — no state shown)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('down'); }));
     const { fetchMaintenanceMap } = await import('./maintenance');
-    const set = await fetchMaintenanceMap(config);
-    expect(set).toEqual(new Set());
+    const map = await fetchMaintenanceMap(config);
+    expect(map.active).toEqual(new Set());
+    expect(map.scheduled.size).toBe(0);
+  });
+});
+
+describe('parseMaintenanceStatus scheduled', () => {
+  it('parses the middleware-remembered scheduled start', () => {
+    const s = parseMaintenanceStatus({
+      inMaintenance: false, windows: [],
+      scheduled: { start_time: 1788353700, end_time: 1788355500 },
+    });
+    expect(s.scheduledStart?.getTime()).toBe(1788353700_000);
   });
 
-  it('returns an empty Set on a cold cache', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () =>
-      new Response(JSON.stringify({ cache_age_seconds: null, in_maintenance: [] }), { status: 200 }),
-    ));
-    const { fetchMaintenanceMap } = await import('./maintenance');
-    const set = await fetchMaintenanceMap(config);
-    expect(set).toEqual(new Set());
+  it('scheduledStart is null when absent (older middleware / none)', () => {
+    expect(parseMaintenanceStatus({ inMaintenance: false, windows: [] }).scheduledStart).toBeNull();
   });
 });
