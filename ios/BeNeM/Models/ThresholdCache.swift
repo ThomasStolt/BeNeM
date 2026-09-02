@@ -45,6 +45,8 @@ final class MaintenanceMapCache: ObservableObject {
     static let shared = MaintenanceMapCache()
 
     @Published private(set) var names: Set<String> = []
+    /// Middleware-remembered scheduled starts (every user sees these).
+    @Published private(set) var serverScheduled: [String: Date] = [:]
     private var lastFetched: Date? = nil
     private let staleDuration: TimeInterval = 60
 
@@ -84,8 +86,15 @@ final class MaintenanceMapCache: ObservableObject {
     }
 
     func pendingStart(for deviceName: String) -> Date? {
-        guard let note = localNotes[deviceName], note.expiry > Date() else { return nil }
-        return note.startsAt
+        if let note = localNotes[deviceName], note.expiry > Date() {
+            return note.startsAt
+        }
+        // Middleware-remembered schedule: another user's create, in sync.
+        if let start = serverScheduled[deviceName],
+           Date().timeIntervalSince(start) < pendingGracePastStart {
+            return start
+        }
+        return nil
     }
 
     func recentLocalClose(for deviceName: String) -> Date? {
@@ -112,7 +121,8 @@ final class MaintenanceMapCache: ObservableObject {
             let now = Date()
             localNotes = localNotes.filter { $0.value.expiry > now }
             localCloses = localCloses.filter { now.timeIntervalSince($0.value) < closeGrace }
-            names = fresh  // server truth; pending notes are read separately
+            names = fresh.active  // server truth; pending is derived separately
+            serverScheduled = fresh.scheduled
             lastFetched = Date()
         }
     }

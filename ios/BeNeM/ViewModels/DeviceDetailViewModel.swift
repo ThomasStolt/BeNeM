@@ -61,6 +61,7 @@ class DeviceDetailViewModel: ObservableObject {
     /// navigation — §3 D4b: in-memory only, never persisted).
     var pendingMaintenanceStart: Date? {
         MaintenanceMapCache.shared.pendingStart(for: device.name)
+            ?? maintenance?.scheduledStart  // middleware-remembered (user B)
     }
     var pendingMaintenanceClose: Date? {
         MaintenanceMapCache.shared.recentLocalClose(for: device.name)

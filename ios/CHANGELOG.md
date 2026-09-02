@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [2.12.0] — 2026-09-02
+
+### Added
+
+- **Planned maintenance is now shared between users.** When anyone creates a window through the apps, the middleware remembers it and serves it to everyone — so every user sees the flashing wrench in the device list and "Starts at HH:MM" on the detail screen, not just the person who created it (they still see it instantly; others within one 60 s poll). Requires middleware 2.10.0. Windows created directly in the BHNM UI still appear only once active (BHNM offers no API for scheduled windows).
+
 ## [2.11.3] — 2026-09-02
 
 ### Changed

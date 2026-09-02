@@ -848,9 +848,18 @@ class NetreoAPIService: ObservableObject {
                 comment: w["comment"] as? String ?? ""
             )
         }
+        var scheduledStart: Date?
+        if let sched = json["scheduled"] as? [String: Any],
+           let start = sched["start_time"] as? Double {
+            scheduledStart = Date(timeIntervalSince1970: start)
+        }
         // Missing field (BHNM < 26.3.01) reads false — never claim maintenance
         // an older server can't confirm.
-        return MaintenanceStatus(inMaintenance: json["inMaintenance"] as? Bool ?? false, windows: windows)
+        return MaintenanceStatus(
+            inMaintenance: json["inMaintenance"] as? Bool ?? false,
+            windows: windows,
+            scheduledStart: scheduledStart
+        )
     }
 
     /// Ends maintenance for a device. BHNM's action=close ends ALL its windows,
@@ -1307,10 +1316,11 @@ class NetreoAPIService: ObservableObject {
 
     /// Fetches pre-aggregated threshold counts per device from the middleware cache.
     /// Returns a dictionary mapping device name → threshold count.
-    /// Names of devices currently in maintenance, from the middleware's
-    /// maintenance-map cache (GET /api/v1/maintenance-map). Empty when the
-    /// cache is cold or the server predates BHNM 26.3.01 — no state shown.
-    func fetchMaintenanceMap() async throws -> Set<String> {
+    /// Maintenance map (GET /api/v1/maintenance-map): server-confirmed active
+    /// names (solid wrench) + middleware-remembered scheduled starts (blinking
+    /// wrench, visible to every user). Empty when the cache is cold or the
+    /// server predates BHNM 26.3.01 — no state shown.
+    func fetchMaintenanceMap() async throws -> (active: Set<String>, scheduled: [String: Date]) {
         guard let url = URL(string: "\(configuration.baseURL)/api/v1/maintenance-map") else {
             throw URLError(.badURL)
         }
@@ -1321,11 +1331,18 @@ class NetreoAPIService: ObservableObject {
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             throw URLError(.badServerResponse)
         }
-        guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let names = raw["in_maintenance"] as? [String] else {
-            return []
+        guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return ([], [:])
         }
-        return Set(names)
+        let names = Set(raw["in_maintenance"] as? [String] ?? [])
+        var scheduled: [String: Date] = [:]
+        for entry in raw["scheduled"] as? [[String: Any]] ?? [] {
+            if let name = entry["name"] as? String,
+               let start = entry["start_time"] as? Double {
+                scheduled[name] = Date(timeIntervalSince1970: start)
+            }
+        }
+        return (names, scheduled)
     }
 
     func fetchThresholdCounts() async throws -> [String: Int] {
@@ -1474,6 +1491,8 @@ struct MaintenanceWindow {
 struct MaintenanceStatus {
     let inMaintenance: Bool
     let windows: [MaintenanceWindow]
+    /// Middleware-remembered scheduled window (all users see it); nil when none.
+    var scheduledStart: Date? = nil
 
     /// Latest end across active windows ("suppressed until"); nil if none.
     var activeEnd: Date? { windows.map(\.end).max() }
