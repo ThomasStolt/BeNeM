@@ -262,6 +262,37 @@ struct AlarmChipsView: View {
     }
 }
 
+/// Blue wrench: solid when the server confirms maintenance, flashing while
+/// only locally scheduled (a soft symbolEffect pulse proved too subtle).
+struct MaintenanceWrench: View {
+    let pending: Bool
+    @State private var dimmed = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Image(systemName: "wrench.adjustable")
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(Color(red: 0.22, green: 0.74, blue: 0.98)) // sky-400
+            .opacity(pending && dimmed && !reduceMotion ? 0.15 : 1)
+            .accessibilityLabel(pending ? "Maintenance scheduled" : "In maintenance")
+            .onAppear {
+                guard pending, !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
+                    dimmed = true
+                }
+            }
+            .onChange(of: pending) { _, nowPending in
+                if nowPending, !reduceMotion {
+                    withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
+                        dimmed = true
+                    }
+                } else {
+                    withAnimation(.default) { dimmed = false }
+                }
+            }
+    }
+}
+
 struct DeviceRowView: View {
     let device: NetreoDevice
     let alarmSummary: DeviceAlarmSummary
@@ -281,11 +312,7 @@ struct DeviceRowView: View {
                         .font(.subheadline).fontWeight(.semibold)
                         .lineLimit(1)
                     if inMaintenance {
-                        Image(systemName: "wrench.adjustable")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(Color(red: 0.22, green: 0.74, blue: 0.98)) // sky-400
-                            .symbolEffect(.pulse, isActive: maintenancePending)
-                            .accessibilityLabel(maintenancePending ? "Maintenance scheduled" : "In maintenance")
+                        MaintenanceWrench(pending: maintenancePending)
                     }
                 }
                 Text(device.ip)

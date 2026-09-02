@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [2.11.3] — 2026-09-02
+
+### Changed
+
+- **Scheduled-maintenance wrench now flashes** (0.5 s opacity blink) instead of the subtle symbol pulse — clearly visible that a window is counted down but not yet active. Static under Reduce Motion.
+
 ## [2.11.2] — 2026-09-02
 
 ### Fixed
