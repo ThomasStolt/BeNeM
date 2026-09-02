@@ -131,6 +131,7 @@ class DeviceDetailViewModel: ObservableObject {
         }
         pendingMaintenanceStart = nil
         pendingMaintenanceClose = Date()
+        MaintenanceMapCache.shared.clearLocalMaintenance(device.name)
         await loadMaintenance()
         return nil
     }

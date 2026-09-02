@@ -48,14 +48,32 @@ final class MaintenanceMapCache: ObservableObject {
     private var lastFetched: Date? = nil
     private let staleDuration: TimeInterval = 60
 
+    /// Creator-side optimism: after a successful create, the map chain lags
+    /// (snap wait + BHNM poll + middleware cycle), so the creator's own
+    /// device is noted locally and unioned into the set until the server
+    /// catches up or the grace expires. Mirror of the detail pendingStart.
+    private var localAdds: [String: Date] = [:]  // name -> expiry
+    private let localGrace: TimeInterval = 8 * 60
+
     private init() {}
+
+    func noteLocalMaintenance(_ deviceName: String) {
+        localAdds[deviceName] = Date().addingTimeInterval(localGrace)
+        names.insert(deviceName)
+    }
+
+    func clearLocalMaintenance(_ deviceName: String) {
+        localAdds.removeValue(forKey: deviceName)
+    }
 
     /// Fetch the fresh set if the cache is empty or stale. Failures keep the
     /// previous set (absent = no state shown, never a wrong one).
     func refresh(using service: NetreoAPIService) async {
         guard lastFetched == nil || Date().timeIntervalSince(lastFetched!) > staleDuration else { return }
         if let fresh = try? await service.fetchMaintenanceMap() {
-            names = fresh
+            let now = Date()
+            localAdds = localAdds.filter { $0.value > now }
+            names = fresh.union(localAdds.keys)
             lastFetched = Date()
         }
     }

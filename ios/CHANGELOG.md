@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [2.11.1] — 2026-09-02
+
+### Changed
+
+- **List wrench appears instantly for the person who created the window.** Honest disclosure of the trick: after a successful create, the app notes the device locally and shows the wrench before the server confirms — the real chain (start-time snapping, BHNM's ~85 s poll, the middleware map cycle) still takes minutes, so the creator's wrench is deliberate local optimism with an 8-minute expiry; it is dropped early if the window is cancelled, and everyone else sees the wrench once the server catches up. Paired with middleware 2.9.1's fixed 60 s map refresh, other viewers now typically see it within ~2–4 minutes of the window opening (was up to ~9).
+
 ## [2.11.0] — 2026-09-02
 
 ### Added

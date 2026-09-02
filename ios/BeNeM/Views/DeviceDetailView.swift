@@ -55,6 +55,8 @@ struct DeviceDetailView: View {
                 onDismiss: { showMaintenanceSheet = false },
                 onCreated: { start in
                     viewModel.pendingMaintenanceStart = start ?? Date()
+                    // Creator-side optimism: list wrench shows immediately.
+                    MaintenanceMapCache.shared.noteLocalMaintenance(device.name)
                     Task { await viewModel.loadMaintenance() }
                 }
             )
