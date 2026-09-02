@@ -57,9 +57,14 @@ class DeviceDetailViewModel: ObservableObject {
     @Published var isLoadingServices: Bool = false
 
     @Published var maintenance: MaintenanceStatus?
-    /// Local knowledge only — never persisted (§3 D4b of the maintenance spec).
-    @Published var pendingMaintenanceStart: Date?
-    @Published var pendingMaintenanceClose: Date?
+    /// Local knowledge lives in MaintenanceMapCache (shared, survives
+    /// navigation — §3 D4b: in-memory only, never persisted).
+    var pendingMaintenanceStart: Date? {
+        MaintenanceMapCache.shared.pendingStart(for: device.name)
+    }
+    var pendingMaintenanceClose: Date? {
+        MaintenanceMapCache.shared.recentLocalClose(for: device.name)
+    }
 
     private var devIndex: String?
     let apiService: NetreoAPIService
@@ -129,9 +134,7 @@ class DeviceDetailViewModel: ObservableObject {
         guard result.success else {
             return result.detail ?? "Could not end maintenance."
         }
-        pendingMaintenanceStart = nil
-        pendingMaintenanceClose = Date()
-        MaintenanceMapCache.shared.clearLocalMaintenance(device.name)
+        MaintenanceMapCache.shared.noteLocalClose(device.name)
         await loadMaintenance()
         return nil
     }

@@ -10,6 +10,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [2.11.2] — 2026-09-02
+
+### Fixed
+
+- **The "Starts at HH:MM" state survives navigation** — pending-start and just-closed knowledge moved from screen-local state into the shared `MaintenanceMapCache`, so leaving Device Detail and coming back keeps the interim button until the real active state replaces it (or the note expires ~4 min past the start).
+
+### Changed
+
+- **The list wrench pulses while the window is only scheduled** and turns solid once BHNM confirms the device is actually in maintenance — an honest visual split between "we told BHNM" (local knowledge) and "BHNM is suppressing alerts" (server truth). Accessibility labels distinguish "Maintenance scheduled" vs "In maintenance".
+
 ## [2.11.1] — 2026-09-02
 
 ### Changed

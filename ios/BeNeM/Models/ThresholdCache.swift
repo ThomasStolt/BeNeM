@@ -48,22 +48,60 @@ final class MaintenanceMapCache: ObservableObject {
     private var lastFetched: Date? = nil
     private let staleDuration: TimeInterval = 60
 
-    /// Creator-side optimism: after a successful create, the map chain lags
-    /// (snap wait + BHNM poll + middleware cycle), so the creator's own
-    /// device is noted locally and unioned into the set until the server
-    /// catches up or the grace expires. Mirror of the detail pendingStart.
-    private var localAdds: [String: Date] = [:]  // name -> expiry
-    private let localGrace: TimeInterval = 8 * 60
+    /// Creator-side local knowledge, shared so it survives navigation
+    /// (screen state does not). Openly documented optimism: after a
+    /// successful create the device is "pending" — list wrench blinks,
+    /// detail button shows "Starts at HH:MM" — until the server map
+    /// confirms (solid wrench / active button) or the note expires ~4 min
+    /// past its start. A local close suppresses lagging server state ~3 min.
+    private struct LocalNote {
+        let startsAt: Date
+        let expiry: Date
+    }
+    @Published private var localNotes: [String: LocalNote] = [:]
+    @Published private var localCloses: [String: Date] = [:]  // name -> closedAt
+    private let pendingGracePastStart: TimeInterval = 4 * 60
+    private let closeGrace: TimeInterval = 3 * 60
 
     private init() {}
 
-    func noteLocalMaintenance(_ deviceName: String) {
-        localAdds[deviceName] = Date().addingTimeInterval(localGrace)
-        names.insert(deviceName)
+    func noteLocalMaintenance(_ deviceName: String, startsAt: Date) {
+        localNotes[deviceName] = LocalNote(
+            startsAt: startsAt,
+            expiry: startsAt.addingTimeInterval(pendingGracePastStart)
+        )
+        localCloses.removeValue(forKey: deviceName)
     }
 
     func clearLocalMaintenance(_ deviceName: String) {
-        localAdds.removeValue(forKey: deviceName)
+        localNotes.removeValue(forKey: deviceName)
+    }
+
+    /// Close/cancel: drop the pending note and suppress lagging server state.
+    func noteLocalClose(_ deviceName: String) {
+        localNotes.removeValue(forKey: deviceName)
+        localCloses[deviceName] = Date()
+    }
+
+    func pendingStart(for deviceName: String) -> Date? {
+        guard let note = localNotes[deviceName], note.expiry > Date() else { return nil }
+        return note.startsAt
+    }
+
+    func recentLocalClose(for deviceName: String) -> Date? {
+        guard let closedAt = localCloses[deviceName],
+              Date().timeIntervalSince(closedAt) < closeGrace else { return nil }
+        return closedAt
+    }
+
+    /// Server-confirmed or locally pending — drives whether the wrench shows.
+    func isInMaintenance(_ deviceName: String) -> Bool {
+        names.contains(deviceName) || pendingStart(for: deviceName) != nil
+    }
+
+    /// Locally noted but not yet server-confirmed — the wrench blinks.
+    func isPending(_ deviceName: String) -> Bool {
+        pendingStart(for: deviceName) != nil && !names.contains(deviceName)
     }
 
     /// Fetch the fresh set if the cache is empty or stale. Failures keep the
@@ -72,14 +110,11 @@ final class MaintenanceMapCache: ObservableObject {
         guard lastFetched == nil || Date().timeIntervalSince(lastFetched!) > staleDuration else { return }
         if let fresh = try? await service.fetchMaintenanceMap() {
             let now = Date()
-            localAdds = localAdds.filter { $0.value > now }
-            names = fresh.union(localAdds.keys)
+            localNotes = localNotes.filter { $0.value.expiry > now }
+            localCloses = localCloses.filter { now.timeIntervalSince($0.value) < closeGrace }
+            names = fresh  // server truth; pending notes are read separately
             lastFetched = Date()
         }
-    }
-
-    func isInMaintenance(_ deviceName: String) -> Bool {
-        names.contains(deviceName)
     }
 
     func invalidate() {

@@ -3,6 +3,7 @@ import Charts
 
 struct DeviceDetailView: View {
     @StateObject private var viewModel: DeviceDetailViewModel
+    @ObservedObject private var maintenanceMap = MaintenanceMapCache.shared
     @State private var showMaintenanceSheet = false
     @State private var showEndMaintenanceConfirm = false
     @State private var showCancelScheduledConfirm = false
@@ -54,9 +55,9 @@ struct DeviceDetailView: View {
                 apiService: viewModel.apiService,
                 onDismiss: { showMaintenanceSheet = false },
                 onCreated: { start in
-                    viewModel.pendingMaintenanceStart = start ?? Date()
-                    // Creator-side optimism: list wrench shows immediately.
-                    MaintenanceMapCache.shared.noteLocalMaintenance(device.name)
+                    // Shared store (survives navigation): detail shows
+                    // "Starts at HH:MM", list wrench blinks until confirmed.
+                    MaintenanceMapCache.shared.noteLocalMaintenance(device.name, startsAt: start ?? Date())
                     Task { await viewModel.loadMaintenance() }
                 }
             )

@@ -111,7 +111,8 @@ struct DeviceListView: View {
                         DeviceRowView(
                             device: device,
                             alarmSummary: deviceAlarmSummary(for: device.name, incidents: incidentViewModel.incidents),
-                            inMaintenance: maintenanceMap.isInMaintenance(device.name)
+                            inMaintenance: maintenanceMap.isInMaintenance(device.name),
+                            maintenancePending: maintenanceMap.isPending(device.name)
                         )
                     }
                     .listRowBackground(
@@ -266,6 +267,8 @@ struct DeviceRowView: View {
     let alarmSummary: DeviceAlarmSummary
     /// From the maintenance map; coexists with alarm chips (never masks them).
     var inMaintenance: Bool = false
+    /// Locally-noted create not yet server-confirmed — the wrench pulses.
+    var maintenancePending: Bool = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -281,7 +284,8 @@ struct DeviceRowView: View {
                         Image(systemName: "wrench.adjustable")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(Color(red: 0.22, green: 0.74, blue: 0.98)) // sky-400
-                            .accessibilityLabel("In maintenance")
+                            .symbolEffect(.pulse, isActive: maintenancePending)
+                            .accessibilityLabel(maintenancePending ? "Maintenance scheduled" : "In maintenance")
                     }
                 }
                 Text(device.ip)
