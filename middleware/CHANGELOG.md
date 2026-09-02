@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.9.0] - 2026-09-02
+
+### Added
+
+- **`maintenance_cache.py`** — background maintenance map cache, twin of `threshold_cache`: one task per `cache_enabled` server iterates `category/list` + one bulk `get-host-and-service-status` call per category (name-keyed, paged at 500) and stores the set of device names whose host row carries `inMaintenance: true`. Record-don't-raise: a failed cycle keeps the previous set. Started on lifespan, restarted via `/internal/cache/reload`, telemetry via `diagnostics` like the other caches. On BHNM < 26.3.01 (no `inMaintenance` field) the set is empty by construction.
+- **`GET /api/v1/maintenance-map`** — `{cache_age_seconds, in_maintenance: [names]}` for device-list badges. Deliberately NO live fall-through on a cold cache (that would be one upstream call per category in-request): cold or unresolved server returns an empty list, which clients render as "no maintenance state shown".
+
+---
+
 ## [2.8.0] - 2026-09-02
 
 ### Added

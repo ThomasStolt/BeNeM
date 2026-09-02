@@ -30,6 +30,7 @@ import time
 import incident_cache
 import tactical_cache
 import threshold_cache
+import maintenance_cache
 import diagnostics
 
 HOP_BY_HOP_REQUEST = {
@@ -199,6 +200,7 @@ async def lifespan(app: FastAPI):
     incident_cache.start_all()
     tactical_cache.start_all()
     threshold_cache.start_all()
+    maintenance_cache.start_all()
     for server in _load_all_servers():
         diagnostics.start_monitor(server, BHNM_TLS_VERIFY)
     print(f"[Startup] BHNM APNs middleware v{VERSION} ready on port {MIDDLEWARE_PORT} — dynamic multi-server routing enabled")
@@ -449,6 +451,7 @@ async def cache_reload(request: Request):
     incident_cache.reload_server(server_id)
     tactical_cache.reload_server(server_id)
     threshold_cache.reload_server(server_id)
+    maintenance_cache.reload_server(server_id)
     diagnostics.reload_monitor(server_id, _load_all_servers(), BHNM_TLS_VERIFY)
     return {"status": "ok", "server_id": server_id}
 
@@ -540,6 +543,35 @@ async def cached_tactical_overview(request: Request, grouping_type: str = "categ
     return Response(content=resp.content, status_code=resp.status_code,
                     headers={k: v for k, v in resp.headers.items()
                              if k.lower() not in HOP_BY_HOP_RESPONSE})
+
+
+# ── Cached Maintenance Map Endpoint ───────────────────────────────────────
+
+@app.get("/api/v1/maintenance-map")
+async def cached_maintenance_map(request: Request):
+    """Names of devices currently in maintenance, from the background cache.
+
+    Response: {"cache_age_seconds": N | null, "in_maintenance": ["name", ...]}
+    Deliberately NO live fall-through on a cold cache (that would be one
+    upstream call per category, in-request): cold or unresolved server →
+    empty list, which renders as "no maintenance state shown" — safe.
+    """
+    _verify_proxy_token(request)
+
+    api_key = request.headers.get("X-Proxy-Token", "").strip()
+    server_id = maintenance_cache._server_id_for_api_key(api_key)
+    if not server_id:
+        bhnm_target = request.headers.get("X-BHNM-Target", "").strip()
+        if bhnm_target:
+            server_id = maintenance_cache._server_id_for_bhnm_url(bhnm_target)
+
+    cached = maintenance_cache.get_cached(server_id) if server_id else None
+    if cached:
+        return {
+            "cache_age_seconds": round(time.time() - cached.last_updated),
+            "in_maintenance": sorted(cached.names),
+        }
+    return {"cache_age_seconds": None, "in_maintenance": []}
 
 
 # ── Cached Threshold Counts Endpoint ──────────────────────────────────────
