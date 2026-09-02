@@ -445,8 +445,10 @@ the Detail header keeps maintenance-wins per Rev 3) + an "In maintenance (N)"
 filter chip, fed by `GET /api/v1/maintenance-map` from the middleware's
 `maintenance_cache` (twin of `threshold_cache`; per-category bulk status
 calls, paged at 500; empty on cold cache or BHNM < 26.3.01 — no live
-fall-through). List staleness ≈ refresh + BHNM poll (~3.5 min worst case);
-Detail stays the fresher truth. Spec:
+fall-through; map refresh fixed at 60 s since middleware 2.9.1). List
+staleness: creator sees the wrench instantly (documented local optimism,
+8-min expiry, cleared on cancel/close); other viewers ~2–4 min after the
+window opens. Detail stays the fresher truth. Spec:
 `docs/superpowers/specs/2026-09-02-maintenance-list-badges-design.md`.
 
 **SCHEDULED — next wave, first task (reviewer ruling 2026-09-02, escalated

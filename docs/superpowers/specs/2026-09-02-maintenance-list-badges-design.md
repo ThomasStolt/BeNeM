@@ -94,12 +94,20 @@ Mirror `threshold_cache.py` exactly in shape and lifecycle:
   (default 120 s, min 60, max 900) — identical to the incident/tactical/
   threshold pattern rather than literally piggybacking the threshold task
   (keeps the twin symmetry; a shared task would couple two unrelated fetch
-  failure domains). **Stated staleness:** list badge lags reality by up to
-  `cache_refresh_seconds` + BHNM's own ~85 s poll lag ≈ **3.5 min worst case
-  at defaults**. The detail screen (live merged read) stays the fresher
+  failure domains). **Amended 2026-09-02 (latency fix, Tom's ruling):** the
+  map refreshes on a **fixed 60 s**, independent of `cache_refresh_seconds`
+  — the map drives visible UI freshness and its cost is bounded (1 +
+  #categories cheap calls/min/server).
+  **Stated staleness (post-fix):** for viewers other than the creator, the
+  wrench appears once the window opens + BHNM's ~85 s poll + ≤60 s map cycle
+  + the client's ≤60–120 s refresh — typically **2–4 min after the window
+  opens**. For the **creator**, both clients apply deliberate, openly
+  documented local optimism (this is an open-source project — no hidden
+  tricks): a successful create notes the device name locally and shows the
+  wrench immediately, with an **8-minute expiry** (covers snap wait + poll +
+  cycle) and early removal on cancel/close; the server set remains the truth
+  everyone else sees. The detail screen (live merged read) stays the fresher
   truth; a row badge and the detail badge may disagree for one cache cycle.
-  That is accepted and documented — same class of lag the ~85 s rule already
-  accepts.
 - Lifecycle: `start_all()` on lifespan, `reload_server()` from
   `POST /internal/cache/reload` — wired exactly where `threshold_cache` is.
 
