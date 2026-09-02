@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.9.1] - 2026-09-02
+
+### Changed
+
+- **Maintenance map refresh is a fixed 60 s** — it no longer inherits the per-server `cache_refresh_seconds` (up to 900 s). The map drives visible UI freshness (device-list wrenches), and its cost is bounded: 1 + #categories cheap calls per minute per server.
+
+---
+
 ## [2.9.0] - 2026-09-02
 
 ### Added

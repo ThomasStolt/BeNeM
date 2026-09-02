@@ -252,3 +252,13 @@ def test_map_route_unresolvable_server_returns_empty(client_app):
     main_mod.PROXY_TOKEN = ""
     assert resp.status_code == 200
     assert resp.json() == {"cache_age_seconds": None, "in_maintenance": []}
+
+
+# ── refresh cadence: fixed 60s, independent of cache_refresh_seconds ─────────
+
+
+def test_map_refresh_interval_is_fixed_60s():
+    # The map drives UI freshness; it does not inherit the per-server
+    # cache_refresh_seconds (which can be up to 900s).
+    assert maintenance_cache._refresh_interval({"cache_refresh_seconds": 900}) == 60
+    assert maintenance_cache._refresh_interval({}) == 60

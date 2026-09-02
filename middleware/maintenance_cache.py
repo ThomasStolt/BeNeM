@@ -124,9 +124,16 @@ async def _run_one_cycle(client, server: dict) -> None:
         print(f"[MaintenanceCache:{server_id}] Fetch failed (previous set kept): {e}")
 
 
+def _refresh_interval(server: dict) -> int:
+    """Fixed 60s: the map drives visible UI freshness (list wrenches), so it
+    does not inherit the per-server cache_refresh_seconds (up to 900s).
+    Cost is bounded: 1 + #categories cheap calls per minute per server."""
+    return 60
+
+
 async def _cache_loop(server: dict) -> None:
     server_id = server["id"]
-    refresh = max(60, min(900, server.get("cache_refresh_seconds", 120)))
+    refresh = _refresh_interval(server)
     print(f"[MaintenanceCache:{server_id}] Background loop started (refresh={refresh}s)")
     async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=PROXY_TIMEOUT) as client:
         while True:
