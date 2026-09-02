@@ -43,7 +43,7 @@ export function AppHeader({
       <ConnectionBadge status={derivedStatus} onRetry={handleBadgeTap} />
       <div className="text-center">
         <div className="flex items-center justify-center gap-1.5">
-          <img src="/bmc-helix-logo.png" alt="BeNeM" className="w-6 h-6 rounded-md flex-shrink-0" />
+          <img src="/app-mark.png" alt="BeNeM" className="w-6 h-6 rounded-md flex-shrink-0" />
           <h1 className="text-lg font-bold">{title}</h1>
         </div>
         {config.serverName && (

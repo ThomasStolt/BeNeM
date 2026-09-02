@@ -6,11 +6,11 @@ import { useIncidents } from '../incidents/useIncidents';
 import { SeverityBadge } from '../incidents/SeverityBadge';
 import { EmptyState } from '../../components/EmptyState';
 import { PerformanceSection } from '../performance/PerformanceSection';
-import { MaintenanceDialog } from './MaintenanceDialog';
+import { MaintenanceCard } from './MaintenanceCard';
+import { useMaintenanceStatus } from './useMaintenanceStatus';
 import { LatencyMiniChart } from './LatencyMiniChart';
 import { DeviceTypeIcon } from '../../components/DeviceTypeIcon';
 import { OverflowMarquee } from '../../components/OverflowMarquee';
-import { createMaintenanceWindow } from '../../lib/api/maintenance';
 import { useConfig } from '../../lib/config';
 import { classifyDevice } from '../../lib/deviceType';
 import { buildDeviceAlarmMap } from '../../lib/deviceAlarms';
@@ -25,7 +25,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 const STATUS_COLORS: Record<string, string> = {
   up: 'text-green-400', down: 'text-red-400', warning: 'text-amber-400',
-  critical: 'text-red-400', maintenance: 'text-slate-400', unknown: 'text-slate-500',
+  critical: 'text-red-400', maintenance: 'text-sky-400', unknown: 'text-slate-500',
 };
 
 // ── Duration helper ───────────────────────────────────────────────
@@ -123,12 +123,16 @@ export function DeviceDetailScreen() {
   const decodedName = name ? decodeURIComponent(name) : '';
 
   const config = useConfig();
-  const [showMaintenance, setShowMaintenance] = useState(false);
 
   const { data: searchResults, isLoading, isError } = useDeviceSearch(decodedName);
   const { data: allIncidents } = useIncidents();
+  const { data: maintenanceStatus } = useMaintenanceStatus(decodedName);
 
   const device = searchResults?.[0];
+  // inMaintenance is the source of truth for the badge: BHNM is suppressing
+  // alerts, so "maintenance" is the honest headline over a possibly-stale status.
+  const effectiveStatus =
+    maintenanceStatus?.inMaintenance ? 'maintenance' : device?.status ?? 'unknown';
 
   const deviceIncidents = useMemo(
     () => (allIncidents ?? []).filter((inc) => inc.deviceName === decodedName),
@@ -211,10 +215,10 @@ export function DeviceDetailScreen() {
                 </p>
               )}
               <p
-                className={`text-[10px] font-semibold flex items-center gap-1 ${STATUS_COLORS[device.status] ?? 'text-slate-500'}`}
+                className={`text-[10px] font-semibold flex items-center gap-1 ${STATUS_COLORS[effectiveStatus] ?? 'text-slate-500'}`}
               >
                 <span className="w-2 h-2 rounded-full bg-current inline-block" />
-                {STATUS_LABELS[device.status] ?? device.status.toUpperCase()}
+                {STATUS_LABELS[effectiveStatus] ?? effectiveStatus.toUpperCase()}
               </p>
             </div>
 
@@ -247,23 +251,8 @@ export function DeviceDetailScreen() {
             })}
           </div>
 
-          {/* ── Maintenance Window card ── */}
-          <button
-            onClick={() => setShowMaintenance(true)}
-            className="w-full bg-slate-800 rounded-xl py-3.5 text-sm font-medium text-sky-400 hover:bg-slate-700 transition-colors"
-          >
-            + Create Maintenance Window
-          </button>
-
-          <MaintenanceDialog
-            deviceName={decodedName}
-            username={config.ackUser}
-            isOpen={showMaintenance}
-            onClose={() => setShowMaintenance(false)}
-            onSubmit={(dur, comment) =>
-              createMaintenanceWindow(config, decodedName, dur, comment)
-            }
-          />
+          {/* ── Maintenance Window card (three states + dialogs) ── */}
+          <MaintenanceCard deviceName={decodedName} username={config.ackUser} />
 
           {/* ── Host Information (collapsed by default) ── */}
           <CollapsibleSection title="Host Information" defaultOpen={false}>

@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { version } from '../../../../package.json';
 import { SettingsScreen } from '../SettingsScreen';
 import { addServer, loadServers, _resetCache } from '../../../lib/serverStorage';
 
@@ -48,7 +49,7 @@ describe('SettingsScreen', () => {
 
   it('renders the About section with version', () => {
     renderScreen();
-    expect(screen.getByText(/0\.10\.1/)).toBeInTheDocument();
+    expect(screen.getByText(version)).toBeInTheDocument();
   });
 
   it('shows server name when a server exists', () => {

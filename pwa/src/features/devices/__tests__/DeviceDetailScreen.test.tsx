@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DeviceDetailScreen } from '../DeviceDetailScreen';
 
 vi.mock('../useDeviceSearch', () => ({ useDeviceSearch: vi.fn() }));
+vi.mock('../useMaintenanceStatus', () => ({ useMaintenanceStatus: vi.fn() }));
 vi.mock('../../incidents/useIncidents', () => ({ useIncidents: vi.fn() }));
 vi.mock('../LatencyMiniChart', () => ({ LatencyMiniChart: () => null }));
 vi.mock('../../performance/PerformanceSection', () => ({
@@ -25,6 +26,8 @@ vi.mock('../../../lib/config', () => ({
 
 import { useDeviceSearch } from '../useDeviceSearch';
 import { useIncidents } from '../../incidents/useIncidents';
+import { useMaintenanceStatus } from '../useMaintenanceStatus';
+import { parseMaintenanceStatus } from '../../../lib/api/maintenance';
 
 const mockDevice = {
   name: 'raspi-054',
@@ -56,6 +59,43 @@ describe('DeviceDetailScreen', () => {
     vi.mocked(useIncidents).mockReturnValue({
       data: [],
     } as unknown as ReturnType<typeof useIncidents>);
+    vi.mocked(useMaintenanceStatus).mockReturnValue({
+      data: null,
+    } as unknown as ReturnType<typeof useMaintenanceStatus>);
+  });
+
+  it('header status flips to blue MAINTENANCE when inMaintenance is true', () => {
+    vi.mocked(useDeviceSearch).mockReturnValue({
+      data: [mockDevice],
+      isLoading: false,
+      isError: false,
+    } as ReturnType<typeof useDeviceSearch>);
+    vi.mocked(useMaintenanceStatus).mockReturnValue({
+      data: parseMaintenanceStatus({
+        inMaintenance: true,
+        windows: [{ start_time: 1, end_time: 2, comment: 'x' }],
+      }),
+    } as unknown as ReturnType<typeof useMaintenanceStatus>);
+
+    renderDetail('raspi-054');
+    const label = screen.getByText('MAINTENANCE');
+    expect(label.closest('p')).toHaveClass('text-sky-400');
+    // The in-maintenance button replaces the create button
+    expect(screen.getByText(/In Maintenance · ends/)).toBeInTheDocument();
+    expect(screen.queryByText('+ Create Maintenance Window')).not.toBeInTheDocument();
+  });
+
+  it('header status stays the device status when the maintenance read fails', () => {
+    vi.mocked(useDeviceSearch).mockReturnValue({
+      data: [mockDevice],
+      isLoading: false,
+      isError: false,
+    } as ReturnType<typeof useDeviceSearch>);
+
+    renderDetail('raspi-054');
+    expect(screen.getByText('UP')).toBeInTheDocument();
+    expect(screen.queryByText('MAINTENANCE')).not.toBeInTheDocument();
+    expect(screen.getByText('+ Create Maintenance Window')).toBeInTheDocument();
   });
 
   it('shows device name and IP in header', () => {

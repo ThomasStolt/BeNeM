@@ -55,15 +55,15 @@ export async function fetchJson(
 }
 
 /**
- * POST form-urlencoded to BHNM.
- * Returns parsed JSON (may be object or array — caller handles shape).
+ * POST form-urlencoded to BHNM and return the raw Response (status already
+ * validated). Use when the caller needs response headers.
  */
-export async function postForm(
+export async function postFormResponse(
   baseUrl: string,
   path: string,
   params: Record<string, string>,
   proxyToken?: string,
-): Promise<unknown> {
+): Promise<Response> {
   const body = new URLSearchParams(params).toString();
   const headers: Record<string, string> = {
     'Content-Type': 'application/x-www-form-urlencoded',
@@ -103,7 +103,11 @@ export async function postForm(
       message: `HTTP ${response.status}`,
     });
   }
+  return response;
+}
 
+/** Parse a validated Response as JSON, mapping failures to ApiException. */
+export async function parseJsonResponse(response: Response): Promise<unknown> {
   try {
     return await response.json();
   } catch (err) {
@@ -112,6 +116,19 @@ export async function postForm(
       message: err instanceof Error ? err.message : 'JSON parse error',
     });
   }
+}
+
+/**
+ * POST form-urlencoded to BHNM.
+ * Returns parsed JSON (may be object or array — caller handles shape).
+ */
+export async function postForm(
+  baseUrl: string,
+  path: string,
+  params: Record<string, string>,
+  proxyToken?: string,
+): Promise<unknown> {
+  return parseJsonResponse(await postFormResponse(baseUrl, path, params, proxyToken));
 }
 
 /**
