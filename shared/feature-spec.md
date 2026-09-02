@@ -301,10 +301,10 @@ features defined here. Platform-specific behaviour is noted per feature.
 - React Query hooks: 5-min stale for categories/instances, 60s for timeseries
 
 ### Feature: Maintenance Windows
-**Status:** create — shipped-both · read/display — proposed (spec `docs/superpowers/specs/2026-08-31-maintenance-status-read-design.md`, awaiting approval)
-**API:** Middleware `POST /api/proxy/maintenance/create` → BHNM `POST /api/maint_window_api.php` (create); `POST /api/proxy/maintenance/status` → BHNM `get-host-and-service-status` + `maint_window_api.php action=list` (read)
+**Status:** create — shipped-both · read/display + close — implemented both platforms 2026-09-02 (Rev 3 spec `docs/superpowers/specs/2026-08-31-maintenance-status-read-design.md`)
+**API:** Middleware `POST /api/proxy/maintenance/create` → BHNM `POST /api/maint_window_api.php` (create); `POST /api/proxy/maintenance/status` → BHNM `get-host-and-service-status` + `maint_window_api.php action=list` (read); `POST /api/proxy/maintenance/close` → BHNM `action=close` (end/cancel)
 
-The feature has two sides: **create** (set a window — shipped) and **read/display** (show whether a device is currently in maintenance and when it ends — proposed). The create behaviour is documented first; the read side follows under "Reading maintenance status".
+The feature has three sides: **create** (set a window), **read/display** (three-state button + blue badge), and **close** (end active or cancel scheduled maintenance from the button, behind a confirmation dialog). The create behaviour is documented first; read + close follow under "Reading maintenance status".
 
 #### Behaviour (both platforms)
 
@@ -314,9 +314,17 @@ The feature has two sides: **create** (set a window — shipped) and **read/disp
 **Creating a window**
 - User selects a duration and optionally types a note, then taps Create.
 - Preset durations: 1 h, 6 h, 12 h, 24 h, 7 d. A "Custom" option allows entering an arbitrary number of minutes (minimum 1).
-- The middleware computes:
-  - `start_time` = `now + 900` (UTC epoch seconds — 15 minutes in the future, matching BHNM's expectation)
+- The middleware computes (server-side only — a rule change here reaches both
+  apps with no client release):
+  - `start_time` = **the next 5-minute wall-clock boundary** (`snap_start`); if
+    that boundary is <60 s away, the following one (BHNM rejects non-future
+    start times). Examples: press 10:00:00 → 10:05:00; 10:05:01 → 10:10:00;
+    10:04:59 → 10:10:00.
   - `end_time` = `start_time + (duration_minutes × 60)`
+  - The snapped start is echoed to the client in the **`X-Maintenance-Start`**
+    response header (epoch); the response body stays a verbatim BHNM
+    passthrough. Clients use it for the confirmation copy and the interim
+    "Starts at HH:MM" button state.
 - The middleware posts to BHNM with `action=new`, `name` (device name), `start_time`, `end_time`, `comment`, and `password` (api_key resolved server-side — the client does **not** send the key).
 - On success BHNM returns `{"result":"success"}`. On failure it returns `{"result":"error","detail":"..."}`, which the middleware surfaces as HTTP 200 with an error body (not a 5xx); the client checks `result === "error"` and shows the message.
 
@@ -350,7 +358,7 @@ Middleware → BHNM (`POST /api/maint_window_api.php`, form-encoded):
 | `password` | BHNM api_key (resolved by middleware) |
 | `action` | `new` |
 | `name` | device name |
-| `start_time` | Unix epoch (now + 900 s) |
+| `start_time` | Unix epoch (`snap_start(now)` — next 5-min boundary, ≥60 s lead) |
 | `end_time` | Unix epoch (start_time + duration_minutes × 60) |
 | `comment` | full comment string |
 
@@ -372,10 +380,10 @@ Middleware → BHNM (`POST /api/maint_window_api.php`, form-encoded):
 - Comment submitted as `prefix + userComment`.
 - API call via `createMaintenanceWindow()` in `src/lib/api/maintenance.ts`.
 
-#### Reading maintenance status (proposed — read side)
+#### Reading maintenance status + close (implemented — Rev 3)
 
-**Status:** proposed. Full design + mockups in
-`docs/superpowers/specs/2026-08-31-maintenance-status-read-design.md`.
+**Status:** implemented on both platforms, 2026-09-02. Full design + mockups in
+`docs/superpowers/specs/2026-08-31-maintenance-status-read-design.md` (Rev 3).
 Corrects the old create-spec claim that "no query API exists" — a query path
 exists on BHNM 26.3.x.
 
@@ -399,23 +407,46 @@ upstream failure → `inMaintenance:false`, empty windows, no 5xx.
 - Header device-status badge shows **MAINTENANCE** (blue,
   `DeviceStatus.maintenance` — the existing enum case wired to a real signal)
   when `inMaintenance == true`, overriding the incident-derived status.
-- The "Create Maintenance Window" card becomes status-aware: unchanged when not
-  in maintenance; when in maintenance it morphs to a **read-only** display —
-  "In Maintenance", "Ends HH:MM" (latest active window's `end_time`), and the
-  window comment. No close button in v1.
-- Read is best-effort: on failure, the card falls back to the plain "Create"
-  state with no error surfaced.
+  (PWA `STATUS_COLORS.maintenance` flipped grey → `text-sky-400`.)
+- The "Create Maintenance Window" button is **three-state** (precedence:
+  `inMaintenance` wins; else a live local pending start; else normal):
+  1. **Normal** — unchanged; tap → create sheet/dialog.
+  2. **Starts at HH:MM** — blue-tinted outline + clock icon, after a
+     successful create (start from `X-Maintenance-Start`). Local knowledge
+     only, never persisted; cleared when `inMaintenance` flips, expires ~3 min
+     past the start. Tap → *"Cancel scheduled maintenance for `<device>`? The
+     window starting at HH:MM will not open."* — **Keep** (default) /
+     **Cancel Maintenance** (destructive).
+  3. **In Maintenance · ends HH:MM** — filled blue, white text, stop-square
+     icon, window comment as caption. Tap → *"End maintenance for `<device>`
+     now? Alerting for this device will resume."* — **Cancel** (default) /
+     **End Maintenance** (destructive).
+- Confirmed close → `POST /api/proxy/maintenance/close` (mirrors create's
+  auth; `action=close` passthrough; **ends ALL windows for the device,
+  scheduled ones included** — verified live). On success the button clears to
+  normal immediately (local suppress, ~3 min) and the status is re-fetched;
+  the badge honestly follows one poll later. On failure the state stays and
+  the error is surfaced.
+- Read is best-effort: on failure, the button falls back to the plain "Create"
+  state with no error surfaced. **Version gate:** on BHNM < 26.3.01 the host
+  row has no `inMaintenance` key → read as false → normal button, no
+  maintenance state ever shown.
 
-**Parity:** iOS leads; PWA mirrors exactly (identical contract, two states,
-read-only card). iOS `DeviceDetailViewModel` adds a concurrent
-`maintenance` load; `NetreoAPIService.fetchMaintenanceStatus(deviceName:)`.
-PWA adds `fetchMaintenanceStatus()` in `src/lib/api/maintenance.ts` + a 60 s
-React Query hook; `STATUS_LABELS`/`STATUS_COLORS` already include `maintenance`.
+**Parity:** identical contract and states on both platforms, same release
+wave. iOS: `DeviceDetailViewModel.maintenanceButtonState()` +
+`NetreoAPIService.fetchMaintenanceStatus`/`closeMaintenance`. PWA:
+`MaintenanceCard.tsx` (`maintenanceButtonState`) + `useMaintenanceStatus`
+(60 s React Query) + `fetchMaintenanceStatus`/`closeMaintenanceWindow` in
+`src/lib/api/maintenance.ts`.
 
-**Out of scope (named fast-follows):** device-**list** maintenance badges (need
-a bulk `maintenance_cache` mirroring `threshold_cache`); **closing** a window
-from the read UI (`maintenance/close` write route). Kept out to keep this
-feature read-only / side-effect-free.
+**Out of scope (named fast-follow):** device-**list** maintenance badges (need
+a bulk `maintenance_cache` mirroring `threshold_cache`).
+
+**Named follow-up (cross-cutting, reviewer ruling 2026-09-02): create an iOS
+XCTest target.** The iOS project has no test target, so client logic ships
+compiler-+wire-verified only (mirrored from PWA-unit-tested state machines).
+Second release this gap has forced a workaround — add `BeNeMTests` so iOS
+client rules (state machines, parsers) get first-class unit tests.
 
 ---
 
