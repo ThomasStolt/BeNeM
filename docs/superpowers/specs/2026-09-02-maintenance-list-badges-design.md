@@ -183,3 +183,17 @@ Maintenance badge color family.
 - **Clients:** marker renders for set members only; maintenance+critical
   renders per the picked precedence; empty/cold map renders no markers;
   filter chip counts (if (d) ships).
+
+## 8. Amendment 2026-09-02 (late) — shared scheduled-window registry (Tom's ruling)
+
+The creator-only optimism became a synced feature: the middleware records its
+own successful creates (`note_scheduled` — in-memory by design: snapped starts
+are ≤5 min out, so a restart degrades one window to creator-only visibility)
+and serves them to all clients: `maintenance-map` gains `scheduled: [{name,
+start_time, end_time}]` (also on cold cache), `maintenance/status` gains
+`scheduled: {…}|null`. Close clears; entries expire once active or ~4 min past
+start. Clients: blinking wrench + "Starts at HH:MM" for every user (creator
+instantly via the local note, others within one poll). Honest limitation,
+documented in the changelogs: windows created outside the apps (BHNM UI,
+mcp-netreo) stay invisible until active — BHNM has no list-scheduled API.
+Shipped as middleware 2.10.0 / iOS 2.12.0 / PWA 0.13.0.
