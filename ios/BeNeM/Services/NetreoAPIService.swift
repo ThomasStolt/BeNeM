@@ -798,8 +798,10 @@ class NetreoAPIService: ObservableObject {
 
     // MARK: - Maintenance Window
 
-    func createMaintenanceWindow(deviceName: String, durationMinutes: Int, comment: String) async throws -> Bool {
-        guard let url = URL(string: "\(configuration.baseURL)/api/proxy/maintenance/create") else { return false }
+    /// Creates a window. On success, `startsAt` carries the middleware's snapped
+    /// start time (X-Maintenance-Start header); nil on an older middleware.
+    func createMaintenanceWindow(deviceName: String, durationMinutes: Int, comment: String) async throws -> (success: Bool, startsAt: Date?) {
+        guard let url = URL(string: "\(configuration.baseURL)/api/proxy/maintenance/create") else { return (false, nil) }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         addProxyToken(&request)
@@ -813,13 +815,71 @@ class NetreoAPIService: ObservableObject {
         if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
         request.httpBody = formEncodedBody(params)
         let (data, response) = try await urlSession.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else { return false }
-        if httpResponse.statusCode >= 400 { return false }
+        guard let httpResponse = response as? HTTPURLResponse else { return (false, nil) }
+        if httpResponse.statusCode >= 400 { return (false, nil) }
+        var startsAt: Date?
+        if let header = httpResponse.value(forHTTPHeaderField: "X-Maintenance-Start"),
+           let epoch = TimeInterval(header) {
+            startsAt = Date(timeIntervalSince1970: epoch)
+        }
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let result = json["result"] as? String {
-            return result == "completed"
+            return (result == "completed", startsAt)
         }
-        return false
+        return (false, nil)
+    }
+
+    /// Best-effort merged read of {inMaintenance, windows}; nil on any failure
+    /// (callers fall back to the plain create button — never an error surface).
+    func fetchMaintenanceStatus(deviceName: String) async -> MaintenanceStatus? {
+        guard let url = URL(string: "\(configuration.baseURL)/api/proxy/maintenance/status") else { return nil }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        addProxyToken(&request)
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = formEncodedBody([URLQueryItem(name: "name", value: deviceName)])
+        guard let (data, response) = try? await urlSession.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        let windows = (json["windows"] as? [[String: Any]] ?? []).map { w in
+            MaintenanceWindow(
+                start: Date(timeIntervalSince1970: (w["start_time"] as? Double) ?? 0),
+                end: Date(timeIntervalSince1970: (w["end_time"] as? Double) ?? 0),
+                comment: w["comment"] as? String ?? ""
+            )
+        }
+        // Missing field (BHNM < 26.3.01) reads false — never claim maintenance
+        // an older server can't confirm.
+        return MaintenanceStatus(inMaintenance: json["inMaintenance"] as? Bool ?? false, windows: windows)
+    }
+
+    /// Ends maintenance for a device. BHNM's action=close ends ALL its windows,
+    /// scheduled ones included.
+    func closeMaintenance(deviceName: String) async -> (success: Bool, detail: String?) {
+        guard let url = URL(string: "\(configuration.baseURL)/api/proxy/maintenance/close") else {
+            return (false, "Invalid middleware URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        addProxyToken(&request)
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var params = [
+            URLQueryItem(name: "password", value: configuration.apiKey),
+            URLQueryItem(name: "name", value: deviceName),
+        ]
+        if let pin = configuration.pin { params.append(URLQueryItem(name: "pin", value: pin)) }
+        request.httpBody = formEncodedBody(params)
+        guard let (data, response) = try? await urlSession.data(for: request),
+              let httpResponse = response as? HTTPURLResponse else {
+            return (false, "Could not reach the middleware.")
+        }
+        if httpResponse.statusCode >= 400 { return (false, "Middleware error \(httpResponse.statusCode)") }
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let result = json["result"] as? String {
+            if result == "completed" { return (true, nil) }
+            return (false, json["detail"] as? String ?? "BHNM did not confirm.")
+        }
+        return (false, "Unexpected BHNM response.")
     }
 
     func fetchIncidentDetail(incidentID: String) async throws -> IncidentDetail? {
@@ -1379,4 +1439,23 @@ enum APIError: Error, LocalizedError {
             return "Configuration error: \(message)"
         }
     }
+}
+// MARK: - Maintenance Status (merged read from /api/proxy/maintenance/status)
+
+struct MaintenanceWindow {
+    let start: Date
+    let end: Date
+    let comment: String
+}
+
+/// `inMaintenance` is the source of truth for badge/button state (BHNM is
+/// actually suppressing alerts); `windows` only enrich the display.
+struct MaintenanceStatus {
+    let inMaintenance: Bool
+    let windows: [MaintenanceWindow]
+
+    /// Latest end across active windows ("suppressed until"); nil if none.
+    var activeEnd: Date? { windows.map(\.end).max() }
+    /// Comment of the latest-ending window; nil if none.
+    var activeComment: String? { windows.max(by: { $0.end < $1.end })?.comment }
 }

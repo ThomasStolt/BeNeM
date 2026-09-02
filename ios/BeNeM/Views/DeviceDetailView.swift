@@ -4,6 +4,9 @@ import Charts
 struct DeviceDetailView: View {
     @StateObject private var viewModel: DeviceDetailViewModel
     @State private var showMaintenanceSheet = false
+    @State private var showEndMaintenanceConfirm = false
+    @State private var showCancelScheduledConfirm = false
+    @State private var maintenanceActionError: String?
     @State private var headerInnerWidth: CGFloat = 300
 
     init(device: NetreoDevice, apiService: NetreoAPIService) {
@@ -42,13 +45,50 @@ struct DeviceDetailView: View {
             }
         }
         .task { await viewModel.load() }
+        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in
+            Task { await viewModel.loadMaintenance() }
+        }
         .sheet(isPresented: $showMaintenanceSheet) {
             MaintenanceWindowSheet(
                 deviceName: device.name,
                 apiService: viewModel.apiService,
-                onDismiss: { showMaintenanceSheet = false }
+                onDismiss: { showMaintenanceSheet = false },
+                onCreated: { start in
+                    viewModel.pendingMaintenanceStart = start ?? Date()
+                    Task { await viewModel.loadMaintenance() }
+                }
             )
         }
+        .alert("End maintenance for \(device.name) now?", isPresented: $showEndMaintenanceConfirm) {
+            Button("Cancel", role: .cancel) { }
+            Button("End Maintenance", role: .destructive) {
+                Task { maintenanceActionError = await viewModel.endMaintenance() }
+            }
+        } message: {
+            Text("Alerting for this device will resume.")
+        }
+        .alert("Cancel scheduled maintenance for \(device.name)?", isPresented: $showCancelScheduledConfirm) {
+            Button("Keep", role: .cancel) { }
+            Button("Cancel Maintenance", role: .destructive) {
+                Task { maintenanceActionError = await viewModel.endMaintenance() }
+            }
+        } message: {
+            Text("The window starting at \(viewModel.pendingMaintenanceStart.map(Self.hhmm) ?? "—") will not open.")
+        }
+        .alert("Error", isPresented: Binding(
+            get: { maintenanceActionError != nil },
+            set: { if !$0 { maintenanceActionError = nil } }
+        )) {
+            Button("OK") { maintenanceActionError = nil }
+        } message: {
+            Text(maintenanceActionError ?? "")
+        }
+    }
+
+    private static func hhmm(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
     }
 
     // MARK: - Header
@@ -66,7 +106,7 @@ struct DeviceDetailView: View {
             DeviceTypeIcon(
                 typeClass: device.typeClass,
                 size: 56,
-                color: statusColor(device.status)
+                color: statusColor(viewModel.effectiveStatus)
             )
             .frame(width: iconWidth)
 
@@ -94,11 +134,11 @@ struct DeviceDetailView: View {
                 }
                 HStack(spacing: 4) {
                     Circle()
-                        .fill(statusColor(device.status))
+                        .fill(statusColor(viewModel.effectiveStatus))
                         .frame(width: 8, height: 8)
-                    Text(device.status.rawValue.uppercased())
+                    Text(viewModel.effectiveStatus.rawValue.uppercased())
                         .font(.caption).fontWeight(.semibold)
-                        .foregroundColor(statusColor(device.status))
+                        .foregroundColor(statusColor(viewModel.effectiveStatus))
                 }
             }
             .frame(width: infoWidth, alignment: .leading)
@@ -282,22 +322,77 @@ struct DeviceDetailView: View {
         .padding(.horizontal, 8)
     }
 
-    // MARK: - Maintenance Window Card
+    // MARK: - Maintenance Window Card (three states, §3 D4b)
 
+    private static let skyBlue = Color(red: 0.22, green: 0.74, blue: 0.98)   // sky-400 #38bdf8
+    private static let skyFill = Color(red: 0.01, green: 0.52, blue: 0.78)   // sky-600 #0284c7
+
+    @ViewBuilder
     private var maintenanceCard: some View {
-        Button {
-            showMaintenanceSheet = true
-        } label: {
-            Text("Create Maintenance Window")
+        switch viewModel.maintenanceButtonState() {
+        case .normal:
+            Button {
+                showMaintenanceSheet = true
+            } label: {
+                Text("Create Maintenance Window")
+                    .font(.subheadline).fontWeight(.semibold)
+                    .foregroundColor(Self.skyBlue)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .cornerRadius(12)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+
+        case .starting(let start):
+            Button {
+                showCancelScheduledConfirm = true
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "clock")
+                    Text("Starts at \(Self.hhmm(start))")
+                }
                 .font(.subheadline).fontWeight(.semibold)
-                .foregroundColor(Color(red: 0.22, green: 0.74, blue: 0.98)) // sky-400 #38bdf8
+                .foregroundColor(Self.skyBlue)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
-                .background(Color(.secondarySystemGroupedBackground))
+                .background(Self.skyBlue.opacity(0.14))
                 .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Self.skyBlue.opacity(0.35), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+
+        case .active(let endsAt, let comment):
+            VStack(spacing: 6) {
+                Button {
+                    showEndMaintenanceConfirm = true
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: "stop.fill")
+                        Text("In Maintenance · ends \(endsAt.map(Self.hhmm) ?? "—")")
+                    }
+                    .font(.subheadline).fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Self.skyFill)
+                    .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+                if let comment, !comment.isEmpty {
+                    Text(comment)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding(.horizontal, 16)
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 16)
     }
 
     // MARK: - Current Issues (collapsible card, open by default)

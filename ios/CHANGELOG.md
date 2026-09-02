@@ -10,6 +10,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [2.10.0] — 2026-09-02
+
+### Added
+
+- **Maintenance status on Device Detail** — the "Create Maintenance Window" button is now three-state: normal; **"Starts at HH:MM"** right after a create (from the middleware's echoed start time, so the ~85 s BHNM poll lag no longer looks like nothing happened); and an inverted, filled-blue **"In Maintenance · ends HH:MM"** (stop-square icon, window comment beneath) once BHNM confirms `inMaintenance`. The header status badge flips to blue **MAINTENANCE** on the same signal. On BHNM servers older than 26.3.01 (no `inMaintenance` field) the button stays normal — no maintenance state is ever invented.
+- **End maintenance from the app** — tapping the blue button asks *"End maintenance for `<device>` now? Alerting for this device will resume."* and, on **End Maintenance**, closes all of the device's windows via the new middleware close route. Tapping "Starts at HH:MM" offers to cancel the scheduled window (**Keep** / **Cancel Maintenance**) — verified live that BHNM's close also cancels scheduled windows.
+
+### Changed
+
+- Maintenance windows now start at the **next 5-minute wall-clock boundary** (snapped middleware-side, minimum 60 s lead) instead of a flat +15 minutes; the create confirmation names the actual start time.
+- **New app identity: "Pulse Node".** The BMC "B" is gone everywhere — app icon (all sizes), splash logo, and the header mark in Dashboard/Devices/Groups/Incidents/Settings (`BMCHelixLogo` imageset replaced by `AppMark`). New palette: midnight-violet tile with an electric-magenta EKG pulse through a glowing node; the splash background switches from BMC navy to midnight violet.
+
 ---
 
 ## [2.9.0] — 2026-09-01

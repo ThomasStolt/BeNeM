@@ -56,6 +56,11 @@ class DeviceDetailViewModel: ObservableObject {
     @Published var okServiceChecks: Int = 0
     @Published var isLoadingServices: Bool = false
 
+    @Published var maintenance: MaintenanceStatus?
+    /// Local knowledge only — never persisted (§3 D4b of the maintenance spec).
+    @Published var pendingMaintenanceStart: Date?
+    @Published var pendingMaintenanceClose: Date?
+
     private var devIndex: String?
     let apiService: NetreoAPIService
     let device: NetreoDevice
@@ -72,7 +77,62 @@ class DeviceDetailViewModel: ObservableObject {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.loadIncidents() }
             group.addTask { await self.loadPerformanceStructure() }
+            group.addTask { await self.loadMaintenance() }
         }
+    }
+
+    // MARK: - Maintenance
+
+    /// How long local knowledge (pending start / local close) outlives its
+    /// event — covers BHNM's ~85 s poll lag with headroom, then defers to the
+    /// server again.
+    static let maintenancePendingGrace: TimeInterval = 3 * 60
+
+    enum MaintenanceButtonState: Equatable {
+        case normal
+        case starting(Date)
+        case active(endsAt: Date?, comment: String?)
+    }
+
+    /// §3 D4b precedence: inMaintenance wins; else a live local pending start;
+    /// else normal. A recent local close suppresses the (lagging) active state.
+    func maintenanceButtonState(now: Date = Date()) -> MaintenanceButtonState {
+        let closeSuppressed = pendingMaintenanceClose.map {
+            now.timeIntervalSince($0) < Self.maintenancePendingGrace
+        } ?? false
+        if maintenance?.inMaintenance == true && !closeSuppressed {
+            return .active(endsAt: maintenance?.activeEnd, comment: maintenance?.activeComment)
+        }
+        if maintenance?.inMaintenance != true,
+           let start = pendingMaintenanceStart,
+           now.timeIntervalSince(start) < Self.maintenancePendingGrace {
+            return .starting(start)
+        }
+        return .normal
+    }
+
+    /// Effective status for the header badge: maintenance is the honest
+    /// headline while BHNM suppresses alerts. Follows the raw boolean (no
+    /// local suppression) — the badge flips one poll late, honestly.
+    var effectiveStatus: NetreoDevice.DeviceStatus {
+        maintenance?.inMaintenance == true ? .maintenance : device.status
+    }
+
+    func loadMaintenance() async {
+        maintenance = await apiService.fetchMaintenanceStatus(deviceName: device.name)
+    }
+
+    /// One close path serves both flows (BHNM's action=close takes no window
+    /// id). Returns the error detail, or nil on success.
+    func endMaintenance() async -> String? {
+        let result = await apiService.closeMaintenance(deviceName: device.name)
+        guard result.success else {
+            return result.detail ?? "Could not end maintenance."
+        }
+        pendingMaintenanceStart = nil
+        pendingMaintenanceClose = Date()
+        await loadMaintenance()
+        return nil
     }
 
     // MARK: - Pinned Interfaces

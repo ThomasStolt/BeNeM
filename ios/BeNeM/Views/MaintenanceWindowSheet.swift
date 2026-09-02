@@ -4,12 +4,14 @@ struct MaintenanceWindowSheet: View {
     let deviceName: String
     let apiService: NetreoAPIService
     let onDismiss: () -> Void
+    let onCreated: (Date?) -> Void
 
     @State private var selectedDuration: DurationOption = .oneHour
     @State private var customMinutes: String = "60"
     @State private var userNote: String = ""
     @State private var isCreating = false
     @State private var showResult: ResultType?
+    @State private var createdStart: Date?
 
     private let prefix: String
 
@@ -38,10 +40,12 @@ struct MaintenanceWindowSheet: View {
         case failure(String)
     }
 
-    init(deviceName: String, apiService: NetreoAPIService, onDismiss: @escaping () -> Void) {
+    init(deviceName: String, apiService: NetreoAPIService,
+         onDismiss: @escaping () -> Void, onCreated: @escaping (Date?) -> Void) {
         self.deviceName = deviceName
         self.apiService = apiService
         self.onDismiss = onDismiss
+        self.onCreated = onCreated
 
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm"
@@ -131,7 +135,11 @@ struct MaintenanceWindowSheet: View {
                    isPresented: Binding(get: { showResult != nil && isSuccess }, set: { if !$0 { onDismiss() } })) {
                 Button("OK") { onDismiss() }
             } message: {
-                Text("Maintenance window for \(deviceName) will start in 15 minutes.")
+                if let start = createdStart {
+                    Text("Maintenance window for \(deviceName) will start at \(Self.hhmm(start)).")
+                } else {
+                    Text("Maintenance window for \(deviceName) will start at the next 5-minute mark.")
+                }
             }
             .alert("Error",
                    isPresented: Binding(get: { showResult != nil && !isSuccess }, set: { if !$0 { showResult = nil } })) {
@@ -154,14 +162,26 @@ struct MaintenanceWindowSheet: View {
         defer { isCreating = false }
         do {
             let comment = prefix + userNote
-            let success = try await apiService.createMaintenanceWindow(
+            let result = try await apiService.createMaintenanceWindow(
                 deviceName: deviceName,
                 durationMinutes: durationMinutes,
                 comment: comment
             )
-            showResult = success ? .success : .failure("BHNM did not confirm the maintenance window.")
+            if result.success {
+                createdStart = result.startsAt
+                showResult = .success
+                onCreated(result.startsAt)
+            } else {
+                showResult = .failure("BHNM did not confirm the maintenance window.")
+            }
         } catch {
             showResult = .failure("Could not create maintenance window.")
         }
+    }
+
+    private static func hhmm(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
     }
 }

@@ -74,7 +74,7 @@ struct GroupListView: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 HStack(spacing: 6) {
-                    Image("BMCHelixLogo")
+                    Image("AppMark")
                         .resizable()
                         .scaledToFit()
                         .frame(width: 24, height: 24)

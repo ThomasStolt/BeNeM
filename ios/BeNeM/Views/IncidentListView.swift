@@ -37,7 +37,7 @@ struct IncidentListView: View {
                 ToolbarItem(placement: .principal) {
                     VStack(spacing: 1) {
                         HStack(spacing: 6) {
-                            Image("BMCHelixLogo")
+                            Image("AppMark")
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: 22, height: 22)
