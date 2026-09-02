@@ -135,3 +135,32 @@ describe('fetchMaintenanceStatus', () => {
     expect(s).toBeNull();
   });
 });
+
+describe('fetchMaintenanceMap', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('returns the in-maintenance names as a Set', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      new Response(JSON.stringify({ cache_age_seconds: 42, in_maintenance: ['sw-01', 'srv-09'] }), { status: 200 }),
+    ));
+    const { fetchMaintenanceMap } = await import('./maintenance');
+    const set = await fetchMaintenanceMap(config);
+    expect(set).toEqual(new Set(['sw-01', 'srv-09']));
+  });
+
+  it('returns an empty Set on failure (best-effort — no state shown)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('down'); }));
+    const { fetchMaintenanceMap } = await import('./maintenance');
+    const set = await fetchMaintenanceMap(config);
+    expect(set).toEqual(new Set());
+  });
+
+  it('returns an empty Set on a cold cache', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      new Response(JSON.stringify({ cache_age_seconds: null, in_maintenance: [] }), { status: 200 }),
+    ));
+    const { fetchMaintenanceMap } = await import('./maintenance');
+    const set = await fetchMaintenanceMap(config);
+    expect(set).toEqual(new Set());
+  });
+});

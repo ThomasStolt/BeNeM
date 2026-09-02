@@ -11,9 +11,11 @@ const EMPTY_COUNTS = { red: 0, orange: 0, yellow: 0, green: 0, blue: 0 };
 interface DeviceRowProps {
   device: Device;
   alarmSummary?: DeviceAlarmSummary;
+  /** From the maintenance map; coexists with alarm badges (never masks them). */
+  inMaintenance?: boolean;
 }
 
-export function DeviceRow({ device, alarmSummary }: DeviceRowProps) {
+export function DeviceRow({ device, alarmSummary, inMaintenance }: DeviceRowProps) {
   const type = classifyDevice(device);
   const counts = alarmSummary?.counts ?? EMPTY_COUNTS;
   const summaries = alarmSummary?.activeSummaries ?? [];
@@ -35,7 +37,22 @@ export function DeviceRow({ device, alarmSummary }: DeviceRowProps) {
 
       {/* Left info column */}
       <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
-        <div className="text-sm font-semibold truncate">{device.name}</div>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div className="text-sm font-semibold truncate">{device.name}</div>
+          {inMaintenance && (
+            <svg
+              viewBox="0 0 24 24"
+              className="w-3.5 h-3.5 shrink-0 text-sky-400"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              role="img"
+              aria-label="In maintenance"
+            >
+              <path d="M14.7 6.3a4.5 4.5 0 0 0-6 5.7L3 17.7 6.3 21l5.7-5.7a4.5 4.5 0 0 0 5.7-6L14.6 12l-2.6-2.6z" />
+            </svg>
+          )}
+        </div>
         <div className="text-[11px] text-slate-400 font-mono">{device.ip || 'No IP'}</div>
         <div className="text-[11px] text-slate-400 truncate">
           {[device.category, device.site].filter(Boolean).join(' · ')}

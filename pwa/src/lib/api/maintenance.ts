@@ -1,4 +1,4 @@
-import { postForm, postFormResponse, parseJsonResponse } from './client';
+import { fetchJson, postForm, postFormResponse, parseJsonResponse } from './client';
 import { ApiException } from './types';
 import type { BhnmConfig } from '../config';
 
@@ -118,5 +118,25 @@ export async function fetchMaintenanceStatus(
     return parseMaintenanceStatus(raw);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Server-wide in-maintenance device names from the middleware's background
+ * cache (GET /api/v1/maintenance-map). Best-effort: empty set on any failure
+ * or cold cache — rows simply show no maintenance state.
+ * Staleness = the map's cache_age (worst case ≈ refresh interval + BHNM's
+ * ~85 s poll lag ≈ 3.5 min at defaults); Device Detail stays the fresher truth.
+ */
+export async function fetchMaintenanceMap(config: BhnmConfig): Promise<Set<string>> {
+  try {
+    const raw = await fetchJson(config.baseUrl, '/api/v1/maintenance-map', {
+      'X-Proxy-Token': config.apiKey,
+    });
+    const record = (raw ?? {}) as Record<string, unknown>;
+    const names = Array.isArray(record.in_maintenance) ? record.in_maintenance : [];
+    return new Set(names.filter((n): n is string => typeof n === 'string'));
+  } catch {
+    return new Set();
   }
 }

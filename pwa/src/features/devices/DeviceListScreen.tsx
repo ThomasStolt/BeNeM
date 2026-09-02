@@ -10,6 +10,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { useIncidents } from '../incidents/useIncidents';
 import { buildDeviceAlarmMap } from '../../lib/deviceAlarms';
 import { useThresholds } from './useThresholds';
+import { useMaintenanceMap } from './useMaintenanceMap';
 
 export function DeviceListScreen() {
   const config = useConfig();
@@ -36,7 +37,19 @@ export function DeviceListScreen() {
   const totalPages = totalRecords > 0 ? Math.ceil(totalRecords / PAGE_SIZE) : 0;
 
   const isSearchActive = deferredQuery.length > 0;
-  const displayDevices = isSearchActive ? searchResults : devices;
+  const searchOrPageDevices = isSearchActive ? searchResults : devices;
+
+  // Maintenance map: wrench markers + "In maintenance (N)" filter (coexists
+  // with alarm badges — never masks them).
+  const { data: maintenanceSet } = useMaintenanceMap();
+  const [maintOnly, setMaintOnly] = useState(false);
+  const maintCount = useMemo(
+    () => (searchOrPageDevices ?? []).filter((d) => maintenanceSet?.has(d.name)).length,
+    [searchOrPageDevices, maintenanceSet],
+  );
+  const displayDevices = maintOnly && maintCount > 0
+    ? searchOrPageDevices?.filter((d) => maintenanceSet?.has(d.name))
+    : searchOrPageDevices;
 
   return (
     <div className="min-h-full">
@@ -83,6 +96,21 @@ export function DeviceListScreen() {
             {isSearchActive && isSearching && (
               <p className="text-xs text-slate-500 mt-1">Searching...</p>
             )}
+            {maintCount > 0 && (
+              <button
+                onClick={() => setMaintOnly((v) => !v)}
+                className={`mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                  maintOnly
+                    ? 'bg-sky-600 text-white'
+                    : 'text-sky-400 border border-slate-700 hover:bg-slate-800'
+                }`}
+              >
+                <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <path d="M14.7 6.3a4.5 4.5 0 0 0-6 5.7L3 17.7 6.3 21l5.7-5.7a4.5 4.5 0 0 0 5.7-6L14.6 12l-2.6-2.6z" />
+                </svg>
+                In maintenance ({maintCount})
+              </button>
+            )}
           </div>
 
           {isLoading && !isSearchActive && (
@@ -106,6 +134,7 @@ export function DeviceListScreen() {
                   key={device.name}
                   device={device}
                   alarmSummary={deviceAlarmMap.get(device.name)}
+                  inMaintenance={maintenanceSet?.has(device.name) ?? false}
                 />
               ))}
             </div>
