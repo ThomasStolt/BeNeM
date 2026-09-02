@@ -439,14 +439,22 @@ wave. iOS: `DeviceDetailViewModel.maintenanceButtonState()` +
 (60 s React Query) + `fetchMaintenanceStatus`/`closeMaintenanceWindow` in
 `src/lib/api/maintenance.ts`.
 
-**Out of scope (named fast-follow):** device-**list** maintenance badges (need
-a bulk `maintenance_cache` mirroring `threshold_cache`).
+**Device-list maintenance visibility (implemented 2026-09-02):** blue wrench
+beside the name on list + search rows (COEXIST: never masks alarm counts —
+the Detail header keeps maintenance-wins per Rev 3) + an "In maintenance (N)"
+filter chip, fed by `GET /api/v1/maintenance-map` from the middleware's
+`maintenance_cache` (twin of `threshold_cache`; per-category bulk status
+calls, paged at 500; empty on cold cache or BHNM < 26.3.01 — no live
+fall-through). List staleness ≈ refresh + BHNM poll (~3.5 min worst case);
+Detail stays the fresher truth. Spec:
+`docs/superpowers/specs/2026-09-02-maintenance-list-badges-design.md`.
 
-**Named follow-up (cross-cutting, reviewer ruling 2026-09-02): create an iOS
-XCTest target.** The iOS project has no test target, so client logic ships
+**SCHEDULED — next wave, first task (reviewer ruling 2026-09-02, escalated
+after the third mirror-verified release): create an iOS XCTest target
+(`BeNeMTests`).** The iOS project has no test target, so client logic ships
 compiler-+wire-verified only (mirrored from PWA-unit-tested state machines).
-Second release this gap has forced a workaround — add `BeNeMTests` so iOS
-client rules (state machines, parsers) get first-class unit tests.
+First candidates: `maintenanceButtonState`, `snap`-dependent display helpers,
+`MaintenanceStatus` parsing, `MaintenanceMapCache` staleness.
 
 ---
 
