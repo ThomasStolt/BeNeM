@@ -22,12 +22,16 @@ def setup_servers(tmp_path):
         {"id": "prod", "name": "Prod", "url": "https://bhnm.example.com", "api_key": "secret-key-123"}
     ]))
     import main as main_mod
+    import threshold_cache
     original_path = main_mod.SERVERS_JSON_PATH
+    original_th_path = threshold_cache.SERVERS_JSON_PATH
     original_proxy_token = main_mod.PROXY_TOKEN
     main_mod.SERVERS_JSON_PATH = str(servers_file)
+    threshold_cache.SERVERS_JSON_PATH = str(servers_file)
     main_mod.PROXY_TOKEN = ""
     yield
     main_mod.SERVERS_JSON_PATH = original_path
+    threshold_cache.SERVERS_JSON_PATH = original_th_path
     main_mod.PROXY_TOKEN = original_proxy_token
 
 
@@ -324,6 +328,7 @@ def test_maintenance_status_merges_both_bhnm_calls(client):
     assert resp.json() == {
         "inMaintenance": True,
         "windows": [{"start_time": 1000, "end_time": 2000, "comment": "patching"}],
+        "scheduled": None,
     }
 
     # Host-status call carries the probed-quirk params and the server-side key
@@ -352,7 +357,7 @@ def test_maintenance_status_empty_statuses_is_false(client):
         resp = client.post("/api/proxy/maintenance/status",
                            data={"name": "core-router-01"}, headers=STATUS_HEADERS)
     assert resp.status_code == 200
-    assert resp.json() == {"inMaintenance": False, "windows": []}
+    assert resp.json() == {"inMaintenance": False, "windows": [], "scheduled": None}
 
 
 def test_maintenance_status_missing_field_is_false(client):
@@ -380,7 +385,7 @@ def test_maintenance_status_list_failure_keeps_bool_and_empties_windows(client):
         resp = client.post("/api/proxy/maintenance/status",
                            data={"name": "core-router-01"}, headers=STATUS_HEADERS)
     assert resp.status_code == 200
-    assert resp.json() == {"inMaintenance": True, "windows": []}
+    assert resp.json() == {"inMaintenance": True, "windows": [], "scheduled": None}
 
 
 def test_maintenance_status_host_call_failure_is_false(client):
@@ -398,3 +403,86 @@ def test_maintenance_status_host_call_failure_is_false(client):
     # Fail safe: never claim maintenance we can't confirm; windows still best-effort
     assert body["inMaintenance"] is False
     assert body["windows"] == [{"start_time": 1000, "end_time": 2000, "comment": "x"}]
+
+
+# ── scheduled-registry integration (create records, close clears, status serves) ──
+
+import maintenance_cache
+
+
+def _mock_bhnm(payload=b'{"result": "completed"}'):
+    mock_response = MagicMock()
+    mock_response.content = payload
+    mock_response.status_code = 200
+    mock_response.headers = {}
+    inst = AsyncMock()
+
+    async def mock_request(*args, **kwargs):
+        return mock_response
+    inst.request = mock_request
+    inst.__aenter__ = AsyncMock(return_value=inst)
+    inst.__aexit__ = AsyncMock(return_value=False)
+    return inst
+
+
+HDRS = {"X-Proxy-Token": "secret-key-123", "X-BHNM-Target": "https://bhnm.example.com"}
+
+
+def test_create_records_scheduled_window(client):
+    maintenance_cache._scheduled.clear()
+    with patch("httpx.AsyncClient", return_value=_mock_bhnm()):
+        resp = client.post("/api/proxy/maintenance/create",
+                           data={"name": "sw-01", "duration": "30"}, headers=HDRS)
+    assert resp.status_code == 200
+    start = int(resp.headers["X-Maintenance-Start"])
+    sched = maintenance_cache.get_scheduled("prod", active_names=set())
+    assert sched == [{"name": "sw-01", "start_time": start, "end_time": start + 1800}]
+    maintenance_cache._scheduled.clear()
+
+
+def test_create_does_not_record_on_bhnm_error(client):
+    maintenance_cache._scheduled.clear()
+    with patch("httpx.AsyncClient", return_value=_mock_bhnm(b'{"result": "error", "detail": "Start time error"}')):
+        client.post("/api/proxy/maintenance/create",
+                    data={"name": "sw-01", "duration": "30"}, headers=HDRS)
+    assert maintenance_cache.get_scheduled("prod", active_names=set()) == []
+
+
+def test_close_clears_scheduled_window(client):
+    maintenance_cache._scheduled.clear()
+    now = int(time.time())
+    maintenance_cache.note_scheduled("prod", "sw-01", now + 240, now + 600)
+    with patch("httpx.AsyncClient", return_value=_mock_bhnm(b'{"result": "completed", "detail": "closed"}')):
+        client.post("/api/proxy/maintenance/close", data={"name": "sw-01"}, headers=HDRS)
+    assert maintenance_cache.get_scheduled("prod", active_names=set()) == []
+
+
+def test_status_route_includes_scheduled_for_the_device(client):
+    maintenance_cache._scheduled.clear()
+    now = int(time.time())
+    maintenance_cache.note_scheduled("prod", "core-router-01", now + 240, now + 600)
+    inst, _ = _status_client_mock(
+        {"totalRecords": 1, "displayRecords": 1,
+         "statuses": [{"deviceName": "core-router-01", "status": "UP", "inMaintenance": False}]},
+        {"result": "completed", "windows": []},
+    )
+    with patch("httpx.AsyncClient", return_value=inst):
+        resp = client.post("/api/proxy/maintenance/status",
+                           data={"name": "core-router-01"}, headers=STATUS_HEADERS)
+    body = resp.json()
+    assert body["inMaintenance"] is False
+    assert body["scheduled"] == {"start_time": now + 240, "end_time": now + 600}
+    maintenance_cache._scheduled.clear()
+
+
+def test_status_route_scheduled_null_when_none(client):
+    maintenance_cache._scheduled.clear()
+    inst, _ = _status_client_mock(
+        {"totalRecords": 1, "displayRecords": 1,
+         "statuses": [{"deviceName": "core-router-01", "status": "UP", "inMaintenance": False}]},
+        {"result": "completed", "windows": []},
+    )
+    with patch("httpx.AsyncClient", return_value=inst):
+        resp = client.post("/api/proxy/maintenance/status",
+                           data={"name": "core-router-01"}, headers=STATUS_HEADERS)
+    assert resp.json()["scheduled"] is None

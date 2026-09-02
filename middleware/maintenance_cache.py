@@ -49,6 +49,42 @@ class CachedMaintenance:
 _cache: dict[str, CachedMaintenance] = {}
 _tasks: dict[str, asyncio.Task] = {}
 
+# -- Scheduled-window registry --------------------------------------------------
+# BHNM has no list-scheduled API (action=list is active-only), but every app
+# create flows through this middleware — so it remembers its own creates and
+# serves them to ALL clients, keeping every user's "scheduled" blink in sync.
+# In-memory on purpose: the snapped start is at most ~5 min out, so a restart
+# merely degrades one window to creator-only visibility. Windows created
+# directly in the BHNM UI stay invisible until active (no API for them).
+
+SCHEDULED_GRACE = 4 * 60  # keep past start until the active set takes over
+
+_scheduled: dict[str, dict[str, dict]] = {}  # server_id -> name -> {start_time, end_time}
+
+
+def note_scheduled(server_id: str, name: str, start_time: int, end_time: int) -> None:
+    _scheduled.setdefault(server_id, {})[name] = {
+        "start_time": start_time, "end_time": end_time,
+    }
+
+
+def clear_scheduled(server_id: str, name: str) -> None:
+    _scheduled.get(server_id, {}).pop(name, None)
+
+
+def get_scheduled(server_id: str, active_names: set[str]) -> list[dict]:
+    """Pending windows for one server, pruned: gone once active or once the
+    start is more than SCHEDULED_GRACE in the past."""
+    entries = _scheduled.get(server_id, {})
+    now = time.time()
+    for name in [n for n, e in entries.items() if e["start_time"] + SCHEDULED_GRACE < now]:
+        del entries[name]
+    return [
+        {"name": name, **e}
+        for name, e in sorted(entries.items())
+        if name not in active_names
+    ]
+
 
 def get_cached(server_id: str) -> CachedMaintenance | None:
     entry = _cache.get(server_id)

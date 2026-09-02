@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.10.0] - 2026-09-02
+
+### Added
+
+- **Scheduled-window registry — everyone sees planned maintenance.** BHNM has no list-scheduled API (`action=list` is active-only), but every app create flows through this middleware, so it now remembers its own creates (in-memory; the snapped start is ≤5 min out, so a restart merely degrades one window to creator-only visibility). `GET /api/v1/maintenance-map` gains `"scheduled": [{name, start_time, end_time}]` (served even on a cold cache) and `POST /api/proxy/maintenance/status` gains `"scheduled": {start_time, end_time} | null`, so ALL users' clients show the blinking wrench and "Starts at HH:MM", not just the creator's. Close clears the entry; entries auto-expire once active or ~4 min past start. Windows created directly in the BHNM UI remain invisible until active (no API exists for them).
+
+---
+
 ## [2.9.1] - 2026-09-02
 
 ### Changed

@@ -222,7 +222,7 @@ def test_map_route_cold_cache_returns_empty_no_fallthrough(client_app):
         headers={"X-Proxy-Token": "secret-key-123"},
     )
     assert resp.status_code == 200
-    assert resp.json() == {"cache_age_seconds": None, "in_maintenance": []}
+    assert resp.json() == {"cache_age_seconds": None, "in_maintenance": [], "scheduled": []}
 
 
 def test_map_route_serves_cached_names_with_age(client_app):
@@ -251,7 +251,7 @@ def test_map_route_unresolvable_server_returns_empty(client_app):
     )
     main_mod.PROXY_TOKEN = ""
     assert resp.status_code == 200
-    assert resp.json() == {"cache_age_seconds": None, "in_maintenance": []}
+    assert resp.json() == {"cache_age_seconds": None, "in_maintenance": [], "scheduled": []}
 
 
 # ── refresh cadence: fixed 60s, independent of cache_refresh_seconds ─────────
@@ -262,3 +262,74 @@ def test_map_refresh_interval_is_fixed_60s():
     # cache_refresh_seconds (which can be up to 900s).
     assert maintenance_cache._refresh_interval({"cache_refresh_seconds": 900}) == 60
     assert maintenance_cache._refresh_interval({}) == 60
+
+
+# ── scheduled-window registry (middleware remembers its own creates) ─────────
+
+
+@pytest.fixture(autouse=True)
+def clean_scheduled():
+    maintenance_cache._scheduled.clear()
+    yield
+    maintenance_cache._scheduled.clear()
+
+
+def test_scheduled_note_and_serve():
+    now = int(time.time())
+    maintenance_cache.note_scheduled("lab", "sw-01", now + 240, now + 3840)
+    out = maintenance_cache.get_scheduled("lab", active_names=set())
+    assert out == [{"name": "sw-01", "start_time": now + 240, "end_time": now + 3840}]
+    assert maintenance_cache.get_scheduled("other", active_names=set()) == []
+
+
+def test_scheduled_last_create_wins_per_device():
+    now = int(time.time())
+    maintenance_cache.note_scheduled("lab", "sw-01", now + 100, now + 200)
+    maintenance_cache.note_scheduled("lab", "sw-01", now + 300, now + 900)
+    out = maintenance_cache.get_scheduled("lab", active_names=set())
+    assert len(out) == 1 and out[0]["start_time"] == now + 300
+
+
+def test_scheduled_hidden_once_device_is_active():
+    now = int(time.time())
+    maintenance_cache.note_scheduled("lab", "sw-01", now + 60, now + 600)
+    assert maintenance_cache.get_scheduled("lab", active_names={"sw-01"}) == []
+
+
+def test_scheduled_expires_past_start_grace():
+    now = int(time.time())
+    maintenance_cache.note_scheduled("lab", "sw-01", now - 300, now + 3600)  # start 5 min ago
+    assert maintenance_cache.get_scheduled("lab", active_names=set()) == []
+    # and pruned from the registry itself
+    assert "sw-01" not in maintenance_cache._scheduled.get("lab", {})
+
+
+def test_clear_scheduled():
+    now = int(time.time())
+    maintenance_cache.note_scheduled("lab", "sw-01", now + 240, now + 600)
+    maintenance_cache.clear_scheduled("lab", "sw-01")
+    assert maintenance_cache.get_scheduled("lab", active_names=set()) == []
+
+
+def test_map_route_serves_scheduled(client_app):
+    now = int(time.time())
+    maintenance_cache._cache["lab"] = maintenance_cache.CachedMaintenance(
+        names={"active-1"}, last_updated=time.time())
+    maintenance_cache.note_scheduled("lab", "sw-01", now + 240, now + 600)
+    maintenance_cache.note_scheduled("lab", "active-1", now - 60, now + 600)  # already active → hidden
+    resp = client_app.get("/api/v1/maintenance-map", headers={"X-Proxy-Token": "secret-key-123"})
+    body = resp.json()
+    assert body["in_maintenance"] == ["active-1"]
+    assert body["scheduled"] == [{"name": "sw-01", "start_time": now + 240, "end_time": now + 600}]
+
+
+def test_map_route_cold_cache_still_serves_scheduled(client_app):
+    # A window created moments after middleware start: no cache entry yet,
+    # but the scheduled registry must still reach clients.
+    now = int(time.time())
+    maintenance_cache.note_scheduled("lab", "sw-01", now + 240, now + 600)
+    resp = client_app.get("/api/v1/maintenance-map", headers={"X-Proxy-Token": "secret-key-123"})
+    body = resp.json()
+    assert body["cache_age_seconds"] is None
+    assert body["in_maintenance"] == []
+    assert body["scheduled"][0]["name"] == "sw-01"

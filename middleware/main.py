@@ -566,12 +566,13 @@ async def cached_maintenance_map(request: Request):
             server_id = maintenance_cache._server_id_for_bhnm_url(bhnm_target)
 
     cached = maintenance_cache.get_cached(server_id) if server_id else None
-    if cached:
-        return {
-            "cache_age_seconds": round(time.time() - cached.last_updated),
-            "in_maintenance": sorted(cached.names),
-        }
-    return {"cache_age_seconds": None, "in_maintenance": []}
+    active = cached.names if cached else set()
+    scheduled = maintenance_cache.get_scheduled(server_id, active_names=active) if server_id else []
+    return {
+        "cache_age_seconds": round(time.time() - cached.last_updated) if cached else None,
+        "in_maintenance": sorted(active),
+        "scheduled": scheduled,
+    }
 
 
 # ── Cached Threshold Counts Endpoint ──────────────────────────────────────
@@ -837,6 +838,15 @@ async def proxy_maintenance_create(request: Request):
     # Echo the snapped start so clients can show "Starts at HH:MM" without
     # duplicating the boundary math; the body stays a verbatim passthrough.
     response.headers["X-Maintenance-Start"] = str(start_time)
+    # Record the scheduled window so ALL clients see it (BHNM has no
+    # list-scheduled API; the middleware remembers its own creates).
+    try:
+        if json.loads(response.body).get("result") == "completed":
+            server_id = _registry_server_id(request)
+            if server_id:
+                maintenance_cache.note_scheduled(server_id, name, start_time, end_time)
+    except Exception:
+        pass
     return response
 
 
@@ -852,7 +862,11 @@ async def proxy_maintenance_close(request: Request):
         raise HTTPException(status_code=400, detail="name is required")
 
     # BHNM's action=close ends ALL windows for the device, scheduled ones included.
-    return await _proxy_maint_window(request, {"action": "close", "name": name})
+    response = await _proxy_maint_window(request, {"action": "close", "name": name})
+    server_id = _registry_server_id(request)
+    if server_id:
+        maintenance_cache.clear_scheduled(server_id, name)
+    return response
 
 
 @app.post("/api/proxy/maintenance/status")
@@ -913,7 +927,28 @@ async def proxy_maintenance_status(request: Request):
         except Exception as exc:
             print(f"[Proxy] maintenance/status list call failed: {exc}")
 
-    return {"inMaintenance": in_maintenance, "windows": windows}
+    scheduled = None
+    if not in_maintenance:
+        server_id = _registry_server_id(request)
+        if server_id:
+            entry = next(
+                (e for e in maintenance_cache.get_scheduled(server_id, active_names=set())
+                 if e["name"] == name), None)
+            if entry:
+                scheduled = {"start_time": entry["start_time"], "end_time": entry["end_time"]}
+    return {"inMaintenance": in_maintenance, "windows": windows, "scheduled": scheduled}
+
+
+def _registry_server_id(request: Request) -> str:
+    """server_id for the scheduled-window registry — same resolution as the
+    maintenance-map route (api_key match, else X-BHNM-Target URL match)."""
+    server_id = maintenance_cache._server_id_for_api_key(
+        request.headers.get("X-Proxy-Token", "").strip())
+    if not server_id:
+        bhnm_target = request.headers.get("X-BHNM-Target", "").strip()
+        if bhnm_target:
+            server_id = maintenance_cache._server_id_for_bhnm_url(bhnm_target)
+    return server_id
 
 
 def _resolve_bhnm_target_and_key(request: Request) -> tuple[str, str]:
