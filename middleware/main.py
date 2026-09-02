@@ -756,6 +756,19 @@ async def proxy_ha_status(request: Request):
     return await _proxy_to_bhnm(request, "/api/ha_status_api.php")
 
 
+MAINT_START_BOUNDARY = 300  # snap maintenance starts to 5-min wall-clock boundaries
+MAINT_START_MARGIN = 60     # min lead time so the start is still future when BHNM sees it
+
+
+def snap_start(now: int) -> int:
+    """Next 5-minute wall-clock boundary; if <60s away, the following one
+    (BHNM rejects non-future start times)."""
+    nxt = (now // MAINT_START_BOUNDARY + 1) * MAINT_START_BOUNDARY
+    if nxt - now < MAINT_START_MARGIN:
+        nxt += MAINT_START_BOUNDARY
+    return nxt
+
+
 @app.post("/api/proxy/maintenance/create")
 async def proxy_maintenance_create(request: Request):
     print("[Proxy] Maintenance window create request")
@@ -779,10 +792,100 @@ async def proxy_maintenance_create(request: Request):
     if duration < 1:
         raise HTTPException(status_code=400, detail="duration must be >= 1")
 
-    start_time = int(time.time()) + 900
+    start_time = snap_start(int(time.time()))
     end_time = start_time + (duration * 60)
 
-    # Resolve target BHNM server
+    response = await _proxy_maint_window(request, {
+        "action": "new",
+        "name": name,
+        "start_time": str(start_time),
+        "end_time": str(end_time),
+        "comment": comment,
+    })
+    # Echo the snapped start so clients can show "Starts at HH:MM" without
+    # duplicating the boundary math; the body stays a verbatim passthrough.
+    response.headers["X-Maintenance-Start"] = str(start_time)
+    return response
+
+
+@app.post("/api/proxy/maintenance/close")
+async def proxy_maintenance_close(request: Request):
+    print("[Proxy] Maintenance window close request")
+    _verify_proxy_token(request)
+
+    body_bytes = await request.body()
+    parsed_body = parse_qs(body_bytes.decode("utf-8", errors="replace"))
+    name = parsed_body.get("name", [""])[0].strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="name is required")
+
+    # BHNM's action=close ends ALL windows for the device, scheduled ones included.
+    return await _proxy_maint_window(request, {"action": "close", "name": name})
+
+
+@app.post("/api/proxy/maintenance/status")
+async def proxy_maintenance_status(request: Request):
+    """Merged read: {inMaintenance, windows}. Best-effort — a failed upstream
+    call degrades (false / empty), it never 5xxes the whole read."""
+    _verify_proxy_token(request)
+
+    body_bytes = await request.body()
+    parsed_body = parse_qs(body_bytes.decode("utf-8", errors="replace"))
+    name = parsed_body.get("name", [""])[0].strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="name is required")
+
+    target_base, api_key = _resolve_bhnm_target_and_key(request)
+
+    from urllib.parse import urlencode
+    form_headers = {"content-type": "application/x-www-form-urlencoded"}
+    in_maintenance = False
+    windows = []
+
+    async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=PROXY_TIMEOUT) as client:
+        # Call A — the boolean (source of truth for the badge/state).
+        # recordCount is required (else statuses[] comes back empty); name, not IP.
+        try:
+            resp = await client.request(
+                method="POST",
+                url=f"{target_base}/fw/index.php?r=restful/devices/get-host-and-service-status",
+                headers=form_headers,
+                content=urlencode({
+                    "password": api_key,
+                    "groupFilterBy": "device",
+                    "groupFilterValue": name,
+                    "serviceFilter": "host_only",
+                    "recordCount": "100",
+                }).encode("utf-8"),
+            )
+            statuses = resp.json().get("statuses", [])
+            # Missing key (BHNM < 26.3.01) or no row → False: never claim
+            # maintenance we can't confirm.
+            in_maintenance = bool(statuses and statuses[0].get("inMaintenance", False))
+        except Exception as exc:
+            print(f"[Proxy] maintenance/status host-status call failed: {exc}")
+
+        # Call B — the detail (ends-at / comment); active windows only.
+        try:
+            resp = await client.request(
+                method="POST",
+                url=f"{target_base}/api/maint_window_api.php",
+                headers=form_headers,
+                content=urlencode({
+                    "password": api_key,
+                    "action": "list",
+                    "name": name,
+                }).encode("utf-8"),
+            )
+            windows = resp.json().get("windows", []) or []
+        except Exception as exc:
+            print(f"[Proxy] maintenance/status list call failed: {exc}")
+
+    return {"inMaintenance": in_maintenance, "windows": windows}
+
+
+def _resolve_bhnm_target_and_key(request: Request) -> tuple[str, str]:
+    """Resolve the target BHNM base URL + api key server-side (never from the client)."""
     cfg = _resolve_server_config(request)
     if cfg:
         target_base = cfg.get("url", "").rstrip("/")
@@ -790,34 +893,31 @@ async def proxy_maintenance_create(request: Request):
     else:
         target_base = _single_server_url()
         api_key = ""
-        if not api_key:
-            # Try to get api_key from the resolved server
-            if target_base:
-                try:
-                    with open(SERVERS_JSON_PATH) as f:
-                        for s in json.load(f):
-                            if s.get("url", "").rstrip("/") == target_base:
-                                api_key = s.get("api_key", "")
-                                break
-                except Exception:
-                    pass
+        if target_base:
+            try:
+                with open(SERVERS_JSON_PATH) as f:
+                    for s in json.load(f):
+                        if s.get("url", "").rstrip("/") == target_base:
+                            api_key = s.get("api_key", "")
+                            break
+            except Exception:
+                pass
 
     if not target_base:
         raise HTTPException(status_code=502, detail="Bad Gateway: BHNM target server not configured")
     if not (target_base.startswith("http://") or target_base.startswith("https://")):
         raise HTTPException(status_code=400, detail="X-BHNM-Target must be an http/https URL")
     _validate_proxy_target(target_base)
+    return target_base, api_key
+
+
+async def _proxy_maint_window(request: Request, fields: dict) -> Response:
+    """POST form fields (plus the server-side api key) to maint_window_api.php
+    and pass the BHNM response through verbatim."""
+    target_base, api_key = _resolve_bhnm_target_and_key(request)
 
     from urllib.parse import urlencode
-    bhnm_body = urlencode({
-        "password": api_key,
-        "action": "new",
-        "name": name,
-        "start_time": str(start_time),
-        "end_time": str(end_time),
-        "comment": comment,
-    })
-
+    bhnm_body = urlencode({"password": api_key, **fields})
     target = f"{target_base}/api/maint_window_api.php"
 
     forward_headers = {

@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.8.0] - 2026-09-02
+
+### Added
+
+- **`POST /api/proxy/maintenance/status`** — merged maintenance read for Device Detail: makes both BHNM calls server-side (`get-host-and-service-status` for the `inMaintenance` boolean, `maint_window_api.php action=list` for the active windows) and returns `{inMaintenance, windows}`. Best-effort: a failed upstream call degrades to `false` / `[]` instead of 5xx-ing the read. A host row without an `inMaintenance` key (BHNM < 26.3.01) reads as `false` — clients never show a maintenance state older servers can't confirm.
+- **`POST /api/proxy/maintenance/close`** — ends maintenance for a device (`action=close` passthrough, same auth/key-resolution as create). Note: BHNM's `action=close` ends **all** windows for the device, scheduled ones included (verified live).
+- **`X-Maintenance-Start` response header on `/api/proxy/maintenance/create`** — echoes the computed start epoch so clients can show "Starts at HH:MM" without duplicating the boundary math. Body remains a verbatim BHNM passthrough.
+
+### Changed
+
+- **Maintenance windows now start at the next 5-minute wall-clock boundary** instead of a flat +15 minutes (`snap_start`): press 10:00:00 → start 10:05:00; 10:05:01 → 10:10:00. If the next boundary is <60 s away it uses the following one (10:04:59 → 10:10:00) — BHNM rejects non-future start times. Server-side only; reaches iOS and PWA without a client release.
+
+---
+
 ## [2.7.0] - 2026-09-01
 
 ### Added
