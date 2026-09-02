@@ -10,7 +10,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { useIncidents } from '../incidents/useIncidents';
 import { buildDeviceAlarmMap } from '../../lib/deviceAlarms';
 import { useThresholds } from './useThresholds';
-import { useMaintenanceMap } from './useMaintenanceMap';
+import { useMaintenanceMap, getPendingNames } from './useMaintenanceMap';
 
 export function DeviceListScreen() {
   const config = useConfig();
@@ -40,15 +40,19 @@ export function DeviceListScreen() {
   const searchOrPageDevices = isSearchActive ? searchResults : devices;
 
   // Maintenance map: wrench markers + "In maintenance (N)" filter (coexists
-  // with alarm badges — never masks them).
-  const { data: maintenanceSet } = useMaintenanceMap();
+  // with alarm badges — never masks them). Server truth ∪ local pending
+  // notes (blinking wrench until the server confirms).
+  const { data: serverMaintSet } = useMaintenanceMap();
+  const pendingSet = getPendingNames();
+  const inMaint = (name: string) => (serverMaintSet?.has(name) ?? false) || pendingSet.has(name);
   const [maintOnly, setMaintOnly] = useState(false);
   const maintCount = useMemo(
-    () => (searchOrPageDevices ?? []).filter((d) => maintenanceSet?.has(d.name)).length,
-    [searchOrPageDevices, maintenanceSet],
+    () => (searchOrPageDevices ?? []).filter((d) => inMaint(d.name)).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [searchOrPageDevices, serverMaintSet, pendingSet.size],
   );
   const displayDevices = maintOnly && maintCount > 0
-    ? searchOrPageDevices?.filter((d) => maintenanceSet?.has(d.name))
+    ? searchOrPageDevices?.filter((d) => inMaint(d.name))
     : searchOrPageDevices;
 
   return (
@@ -134,7 +138,8 @@ export function DeviceListScreen() {
                   key={device.name}
                   device={device}
                   alarmSummary={deviceAlarmMap.get(device.name)}
-                  inMaintenance={maintenanceSet?.has(device.name) ?? false}
+                  inMaintenance={inMaint(device.name)}
+                  maintenancePending={pendingSet.has(device.name) && !(serverMaintSet?.has(device.name) ?? false)}
                 />
               ))}
             </div>

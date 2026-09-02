@@ -13,9 +13,11 @@ interface DeviceRowProps {
   alarmSummary?: DeviceAlarmSummary;
   /** From the maintenance map; coexists with alarm badges (never masks them). */
   inMaintenance?: boolean;
+  /** Locally-noted create not yet confirmed by the server — wrench blinks. */
+  maintenancePending?: boolean;
 }
 
-export function DeviceRow({ device, alarmSummary, inMaintenance }: DeviceRowProps) {
+export function DeviceRow({ device, alarmSummary, inMaintenance, maintenancePending }: DeviceRowProps) {
   const type = classifyDevice(device);
   const counts = alarmSummary?.counts ?? EMPTY_COUNTS;
   const summaries = alarmSummary?.activeSummaries ?? [];
@@ -42,12 +44,12 @@ export function DeviceRow({ device, alarmSummary, inMaintenance }: DeviceRowProp
           {inMaintenance && (
             <svg
               viewBox="0 0 24 24"
-              className="w-3.5 h-3.5 shrink-0 text-sky-400"
+              className={`w-3.5 h-3.5 shrink-0 text-sky-400 ${maintenancePending ? 'animate-pulse motion-reduce:animate-none' : ''}`}
               fill="none"
               stroke="currentColor"
               strokeWidth="2.2"
               role="img"
-              aria-label="In maintenance"
+              aria-label={maintenancePending ? 'Maintenance scheduled' : 'In maintenance'}
             >
               <path d="M14.7 6.3a4.5 4.5 0 0 0-6 5.7L3 17.7 6.3 21l5.7-5.7a4.5 4.5 0 0 0 5.7-6L14.6 12l-2.6-2.6z" />
             </svg>

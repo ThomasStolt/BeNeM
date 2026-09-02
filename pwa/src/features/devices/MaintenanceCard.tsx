@@ -10,7 +10,7 @@ import {
 } from '../../lib/api/maintenance';
 import { MaintenanceDialog } from './MaintenanceDialog';
 import { useMaintenanceStatus } from './useMaintenanceStatus';
-import { noteLocalMaintenance, clearLocalMaintenance } from './useMaintenanceMap';
+import { noteLocalMaintenance, noteLocalClose, clearLocalMaintenance, getPendingStart, getRecentLocalClose } from './useMaintenanceMap';
 
 /** How long local knowledge (pending start / local close) outlives its event —
  * covers BHNM's ~85 s poll lag with headroom, then defers to the server again. */
@@ -108,14 +108,16 @@ export function MaintenanceCard({ deviceName, username }: MaintenanceCardProps) 
   const queryClient = useQueryClient();
   const { data: status } = useMaintenanceStatus(deviceName);
 
-  // Local knowledge only — never persisted (§3 D4b).
-  const [pendingStart, setPendingStart] = useState<Date | null>(null);
-  const [pendingClose, setPendingClose] = useState<Date | null>(null);
+  // Local knowledge lives in the shared store (survives navigation);
+  // this state only forces re-renders when it changes.
   const [showCreate, setShowCreate] = useState(false);
   const [confirming, setConfirming] = useState<'active' | 'starting' | null>(null);
   const [closeError, setCloseError] = useState<string | null>(null);
   const [isClosing, setIsClosing] = useState(false);
   const [, setTick] = useState(0);
+
+  const pendingStart = getPendingStart(deviceName);
+  const pendingClose = getRecentLocalClose(deviceName);
 
   // Re-evaluate expiry while local knowledge is live.
   useEffect(() => {
@@ -131,10 +133,10 @@ export function MaintenanceCard({ deviceName, username }: MaintenanceCardProps) 
     setCloseError(null);
     try {
       await closeMaintenanceWindow(config, deviceName);
-      if (confirming === 'starting') setPendingStart(null);
-      else setPendingClose(new Date());
+      if (confirming === 'starting') clearLocalMaintenance(deviceName);
+      else noteLocalClose(deviceName);
       setConfirming(null);
-      clearLocalMaintenance(deviceName);
+      setTick((n) => n + 1);
       queryClient.invalidateQueries({ queryKey: ['maintenance-status'] });
       queryClient.invalidateQueries({ queryKey: ['maintenance-map'] });
     } catch (err) {
@@ -197,10 +199,11 @@ export function MaintenanceCard({ deviceName, username }: MaintenanceCardProps) 
         onClose={() => setShowCreate(false)}
         onSubmit={async (dur, comment) => {
           const start = await createMaintenanceWindow(config, deviceName, dur, comment);
-          setPendingStart(start ?? new Date());
-          // Creator-side optimism: show the list wrench immediately instead
-          // of waiting out the snap + BHNM poll + map-cache chain.
-          noteLocalMaintenance(deviceName);
+          // Creator-side optimism in the shared store (survives navigation):
+          // detail shows "Starts at HH:MM", list wrench blinks until the
+          // server confirms.
+          noteLocalMaintenance(deviceName, start ?? new Date());
+          setTick((n) => n + 1);
           queryClient.invalidateQueries({ queryKey: ['maintenance-status'] });
           queryClient.invalidateQueries({ queryKey: ['maintenance-map'] });
         }}

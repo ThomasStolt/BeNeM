@@ -2,35 +2,54 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import {
   noteLocalMaintenance,
   clearLocalMaintenance,
-  withLocalMaintenance,
+  noteLocalClose,
+  getPendingStart,
+  getPendingNames,
+  getRecentLocalClose,
   _resetLocalMaintenance,
 } from '../useMaintenanceMap';
 
-describe('local maintenance optimism', () => {
+describe('local maintenance store (survives navigation)', () => {
   beforeEach(() => _resetLocalMaintenance());
   afterEach(() => vi.useRealTimers());
 
-  it('unions locally noted names into the fetched set', () => {
-    noteLocalMaintenance('sw-01');
-    const set = withLocalMaintenance(new Set(['srv-09']));
-    expect(set).toEqual(new Set(['srv-09', 'sw-01']));
+  it('remembers the pending start per device', () => {
+    const start = new Date(Date.now() + 5 * 60_000);
+    noteLocalMaintenance('sw-01', start);
+    expect(getPendingStart('sw-01')?.getTime()).toBe(start.getTime());
+    expect(getPendingStart('other')).toBeNull();
+    expect(getPendingNames()).toEqual(new Set(['sw-01']));
   });
 
-  it('clear removes a noted name (close/cancel path)', () => {
-    noteLocalMaintenance('sw-01');
+  it('clear removes a noted device (cancel path)', () => {
+    noteLocalMaintenance('sw-01', new Date());
     clearLocalMaintenance('sw-01');
-    expect(withLocalMaintenance(new Set())).toEqual(new Set());
+    expect(getPendingStart('sw-01')).toBeNull();
+    expect(getPendingNames()).toEqual(new Set());
   });
 
-  it('noted names expire after the grace period', () => {
+  it('a note expires ~4 min past its start time', () => {
     vi.useFakeTimers();
-    noteLocalMaintenance('sw-01');
-    vi.advanceTimersByTime(9 * 60_000);
-    expect(withLocalMaintenance(new Set())).toEqual(new Set());
+    const start = new Date(Date.now() + 5 * 60_000);
+    noteLocalMaintenance('sw-01', start);
+    vi.advanceTimersByTime(5 * 60_000 + 3 * 60_000); // start passed + 3 min
+    expect(getPendingStart('sw-01')).not.toBeNull();
+    vi.advanceTimersByTime(2 * 60_000); // now > start + 4 min
+    expect(getPendingStart('sw-01')).toBeNull();
   });
 
-  it('a server set that already contains the name is unaffected', () => {
-    noteLocalMaintenance('sw-01');
-    expect(withLocalMaintenance(new Set(['sw-01']))).toEqual(new Set(['sw-01']));
+  it('noteLocalClose records a recent close and drops the pending note', () => {
+    noteLocalMaintenance('sw-01', new Date());
+    noteLocalClose('sw-01');
+    expect(getPendingStart('sw-01')).toBeNull();
+    expect(getRecentLocalClose('sw-01')).not.toBeNull();
+    expect(getRecentLocalClose('other')).toBeNull();
+  });
+
+  it('a recent close expires after ~3 min (defers to the server again)', () => {
+    vi.useFakeTimers();
+    noteLocalClose('sw-01');
+    vi.advanceTimersByTime(4 * 60_000);
+    expect(getRecentLocalClose('sw-01')).toBeNull();
   });
 });

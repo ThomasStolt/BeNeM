@@ -17,10 +17,7 @@ vi.mock('../../../lib/config', () => ({
 
 vi.mock('../useMaintenanceStatus', () => ({ useMaintenanceStatus: vi.fn() }));
 
-vi.mock('../useMaintenanceMap', () => ({
-  noteLocalMaintenance: vi.fn(),
-  clearLocalMaintenance: vi.fn(),
-}));
+
 
 vi.mock('../../../lib/api/maintenance', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../../lib/api/maintenance')>();
@@ -32,7 +29,7 @@ vi.mock('../../../lib/api/maintenance', async (importOriginal) => {
 });
 
 import { useMaintenanceStatus } from '../useMaintenanceStatus';
-import { noteLocalMaintenance, clearLocalMaintenance } from '../useMaintenanceMap';
+import { getPendingStart, getRecentLocalClose, _resetLocalMaintenance } from '../useMaintenanceMap';
 import { createMaintenanceWindow, closeMaintenanceWindow } from '../../../lib/api/maintenance';
 
 const NOW = new Date('2026-09-02T10:00:00Z');
@@ -111,6 +108,7 @@ function mockStatus(data: unknown) {
 describe('MaintenanceCard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    _resetLocalMaintenance();
   });
 
   it('shows the create button when the read failed (null)', () => {
@@ -176,22 +174,28 @@ describe('MaintenanceCard', () => {
     expect(await screen.findByText(/Starts at/)).toBeInTheDocument();
   });
 
-  it('successful create notes the device for the list-map optimism', async () => {
+  it('successful create notes the device in the shared store (survives unmount)', async () => {
     mockStatus(NOT_IN_MAINTENANCE);
-    vi.mocked(createMaintenanceWindow).mockResolvedValue(new Date(Date.now() + 5 * 60_000));
-    renderCard();
+    const start = new Date(Date.now() + 5 * 60_000);
+    vi.mocked(createMaintenanceWindow).mockResolvedValue(start);
+    const { unmount } = renderCard();
     await userEvent.click(screen.getByText('+ Create Maintenance Window'));
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
-    expect(noteLocalMaintenance).toHaveBeenCalledWith('core-router-01');
+    expect(getPendingStart('core-router-01')?.getTime()).toBe(start.getTime());
+    // Navigation away and back: a fresh mount still shows the interim state
+    unmount();
+    renderCard();
+    expect(screen.getByText(/Starts at/)).toBeInTheDocument();
   });
 
-  it('successful close clears the local map note', async () => {
+  it('successful close records a local close and drops any pending note', async () => {
     mockStatus(IN_MAINTENANCE);
     vi.mocked(closeMaintenanceWindow).mockResolvedValue(undefined);
     renderCard();
     await userEvent.click(screen.getByText(/In Maintenance · ends/));
     await userEvent.click(screen.getByRole('button', { name: 'End Maintenance' }));
-    expect(clearLocalMaintenance).toHaveBeenCalledWith('core-router-01');
+    expect(getRecentLocalClose('core-router-01')).not.toBeNull();
+    expect(getPendingStart('core-router-01')).toBeNull();
   });
 
   it('tap on starting → cancel-scheduled dialog; confirm calls close and clears', async () => {

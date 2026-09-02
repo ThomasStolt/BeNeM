@@ -107,9 +107,14 @@ describe('DeviceListScreen', () => {
 // ── maintenance map: wrench + filter chip ────────────────────────────────────
 
 import { useMaintenanceMap } from '../useMaintenanceMap';
-vi.mock('../useMaintenanceMap', () => ({
-  useMaintenanceMap: vi.fn(() => ({ data: new Set<string>() })),
-}));
+vi.mock('../useMaintenanceMap', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../useMaintenanceMap')>();
+  return {
+    ...original,
+    useMaintenanceMap: vi.fn(() => ({ data: new Set<string>() })),
+  };
+});
+import { noteLocalMaintenance, _resetLocalMaintenance } from '../useMaintenanceMap';
 
 describe('DeviceListScreen maintenance', () => {
   beforeEach(() => {
@@ -126,6 +131,25 @@ describe('DeviceListScreen maintenance', () => {
     vi.mocked(useMaintenanceMap).mockReturnValue({
       data: new Set(['core-switch']),
     } as unknown as ReturnType<typeof useMaintenanceMap>);
+    _resetLocalMaintenance();
+  });
+
+  it('locally-pending device shows a blinking scheduled wrench and joins the chip count', () => {
+    vi.mocked(useMaintenanceMap).mockReturnValue({
+      data: new Set<string>(),
+    } as unknown as ReturnType<typeof useMaintenanceMap>);
+    noteLocalMaintenance('raspi-054', new Date(Date.now() + 5 * 60_000));
+    renderScreen();
+    const pending = screen.getByLabelText('Maintenance scheduled');
+    expect(pending).toHaveClass('animate-pulse');
+    expect(screen.getByRole('button', { name: /In maintenance \(1\)/ })).toBeInTheDocument();
+    expect(screen.queryByLabelText('In maintenance')).not.toBeInTheDocument();
+  });
+
+  it('server-confirmed device shows a solid wrench (no blink)', () => {
+    renderScreen();
+    const solid = screen.getByLabelText('In maintenance');
+    expect(solid).not.toHaveClass('animate-pulse');
   });
 
   it('marks in-maintenance rows with the wrench and leaves others unmarked', () => {
