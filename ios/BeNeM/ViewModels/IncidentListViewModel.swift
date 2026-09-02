@@ -1,6 +1,13 @@
 import Foundation
 import SwiftUI
 
+extension Notification.Name {
+    /// Posted by any screen that acks/unacks an incident, so the shared list
+    /// (and everything derived from it — device-list alarm chips) updates
+    /// instantly instead of waiting for the next auto-refresh.
+    static let incidentStatusDidChange = Notification.Name("incidentStatusDidChange")
+}
+
 @MainActor
 class IncidentListViewModel: ObservableObject {
 
@@ -31,9 +38,26 @@ class IncidentListViewModel: ObservableObject {
     @Published var activeBadge: FilterBadge?
 
     private var apiService: NetreoAPIService
-    
+    private var statusObserver: NSObjectProtocol?
+
     init(apiService: NetreoAPIService) {
         self.apiService = apiService
+        statusObserver = NotificationCenter.default.addObserver(
+            forName: .incidentStatusDidChange, object: nil, queue: .main
+        ) { [weak self] note in
+            guard let id = note.userInfo?["incidentID"] as? String,
+                  let raw = note.userInfo?["status"] as? String,
+                  let status = NetreoIncident.IncidentStatus(rawValue: raw) else { return }
+            Task { @MainActor in
+                self?.updateIncidentStatus(incidentID: id, status: status)
+            }
+        }
+    }
+
+    deinit {
+        if let statusObserver {
+            NotificationCenter.default.removeObserver(statusObserver)
+        }
     }
     
     func updateAPIService(_ newService: NetreoAPIService) {

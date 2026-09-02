@@ -210,6 +210,10 @@ struct IncidentDetailView: View {
             let ok = try? await apiService.unacknowledgeIncident(incidentID: incident.incidentID, user: user)
             if ok == true {
                 currentStatus = .active
+                NotificationCenter.default.post(
+                    name: .incidentStatusDidChange, object: nil,
+                    userInfo: ["incidentID": incident.incidentID,
+                               "status": NetreoIncident.IncidentStatus.active.rawValue])
                 if let fresh = try? await apiService.fetchIncidentDetail(incidentID: incident.incidentID) {
                     detail = fresh
                 }
@@ -218,6 +222,10 @@ struct IncidentDetailView: View {
             let ok = try? await apiService.acknowledgeIncident(incidentID: incident.incidentID, user: user)
             if ok == true {
                 currentStatus = .acknowledged
+                NotificationCenter.default.post(
+                    name: .incidentStatusDidChange, object: nil,
+                    userInfo: ["incidentID": incident.incidentID,
+                               "status": NetreoIncident.IncidentStatus.acknowledged.rawValue])
                 if let fresh = try? await apiService.fetchIncidentDetail(incidentID: incident.incidentID) {
                     detail = fresh
                 }
