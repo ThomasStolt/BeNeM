@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useConfig } from '../../lib/config';
 import {
@@ -66,10 +67,11 @@ interface ConfirmDialogProps {
 function ConfirmDialog({
   title, message, confirmLabel, dismissLabel, error, busy, onConfirm, onDismiss,
 }: ConfirmDialogProps) {
-  return (
+  // Portal to <body>: always viewport-centered (see MaintenanceDialog).
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onDismiss}>
       <div
-        className="bg-slate-900 border border-slate-700 rounded-lg p-6 w-full max-w-md mx-4 space-y-4"
+        className="bg-slate-900 border border-slate-700 rounded-lg p-6 w-[calc(100%-2rem)] max-w-md space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div>
@@ -94,7 +96,8 @@ function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

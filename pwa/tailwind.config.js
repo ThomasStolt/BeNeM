@@ -25,10 +25,15 @@ export default {
           '0%': { transform: 'translateX(0)' },
           '100%': { transform: 'translateX(-50%)' },
         },
+        blink: {
+          '0%, 49%': { opacity: '1' },
+          '50%, 100%': { opacity: '0.15' },
+        },
       },
       animation: {
         // marquee has a utility class; slide animations use arbitrary-value syntax elsewhere
         marquee: 'marquee 14s linear infinite',
+        blink: 'blink 1s step-end infinite',
       },
     },
   },

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 
 interface MaintenanceDialogProps {
   deviceName: string;
@@ -52,10 +53,14 @@ export function MaintenanceDialog({ deviceName, username, isOpen, onClose, onSub
     }
   }
 
-  return (
+  // Portal to <body>: keeps the overlay immune to ancestor margins
+  // (space-y-*) and transform/filter containing blocks — always
+  // viewport-centered. Safe width instead of w-full+mx (which overflows
+  // the centering flexbox on narrow screens).
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
-        className="bg-slate-900 rounded-lg p-6 w-full max-w-md mx-4 space-y-4"
+        className="bg-slate-900 rounded-lg p-6 w-[calc(100%-2rem)] max-w-md space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div>
@@ -145,6 +150,7 @@ export function MaintenanceDialog({ deviceName, username, isOpen, onClose, onSub
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

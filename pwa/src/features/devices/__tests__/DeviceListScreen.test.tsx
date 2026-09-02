@@ -141,7 +141,7 @@ describe('DeviceListScreen maintenance', () => {
     noteLocalMaintenance('raspi-054', new Date(Date.now() + 5 * 60_000));
     renderScreen();
     const pending = screen.getByLabelText('Maintenance scheduled');
-    expect(pending).toHaveClass('animate-pulse');
+    expect(pending).toHaveClass('animate-blink');
     expect(screen.getByRole('button', { name: /In maintenance \(1\)/ })).toBeInTheDocument();
     expect(screen.queryByLabelText('In maintenance')).not.toBeInTheDocument();
   });
@@ -149,7 +149,7 @@ describe('DeviceListScreen maintenance', () => {
   it('server-confirmed device shows a solid wrench (no blink)', () => {
     renderScreen();
     const solid = screen.getByLabelText('In maintenance');
-    expect(solid).not.toHaveClass('animate-pulse');
+    expect(solid).not.toHaveClass('animate-blink');
   });
 
   it('marks in-maintenance rows with the wrench and leaves others unmarked', () => {

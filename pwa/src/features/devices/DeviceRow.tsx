@@ -44,7 +44,7 @@ export function DeviceRow({ device, alarmSummary, inMaintenance, maintenancePend
           {inMaintenance && (
             <svg
               viewBox="0 0 24 24"
-              className={`w-3.5 h-3.5 shrink-0 text-sky-400 ${maintenancePending ? 'animate-pulse motion-reduce:animate-none' : ''}`}
+              className={`w-3.5 h-3.5 shrink-0 text-sky-400 ${maintenancePending ? 'animate-blink motion-reduce:animate-none' : ''}`}
               fill="none"
               stroke="currentColor"
               strokeWidth="2.2"
