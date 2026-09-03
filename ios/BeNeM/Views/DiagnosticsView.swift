@@ -112,10 +112,10 @@ struct DiagnosticsView: View {
         VStack(alignment: .leading, spacing: 6) {
             sectionLabel("Feeds")
             card {
-                ForEach(["tactical", "incidents", "thresholds"], id: \.self) { key in
+                ForEach(["tactical", "incidents", "thresholds", "maintenance_map"], id: \.self) { key in
                     if let f = result?.diagnostics?.server.feeds[key] {
-                        feedRow(key.capitalized, f)
-                        if key != "thresholds" { Divider() }
+                        feedRow(key == "maintenance_map" ? "Maint. map" : key.capitalized, f)
+                        if key != "maintenance_map" { Divider() }
                     }
                 }
                 if result?.diagnostics == nil {

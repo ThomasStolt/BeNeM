@@ -10,6 +10,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [2.13.0] — 2026-09-03
+
+### Added
+
+- **DOWN hosts turn red in the device list.** The middleware (2.12.0) now serves `host_down`, the names whose host row BHNM reports as DOWN, beside the maintenance map; a device in that list gets a red icon, coexisting with the wrench and the incident chips. Every other row keeps its previous colour (green = monitored). The list is trusted only while the middleware reports a fresh cache (`cache_age_seconds` ≤ 300 s, decided once when the map is parsed); a failed map fetch clears the red immediately while keeping the wrenches, so a dead middleware can never leave a stale outage on screen. Worst case: a stale colour persists up to 300 s plus one refresh interval.
+- **Diagnostics lists the maintenance-map feed** as the fourth feed (age, count, failures).
+
 ## [2.12.1] — 2026-09-03
 
 ### Fixed

@@ -165,7 +165,17 @@ Outside the overlay — these keep Wave A semantics (green = monitored, grey = u
 - Deploy in any order (additive key; new clients on the old middleware get no key → fallback). Recommended: middleware first so the first client release shows status on day one.
 - **Middleware tests** (`middleware/tests/test_maintenance_map.py`): fetch lists `DOWN` names and not `UP` ones; unknown literal neither listed nor counted (and `null` dropped silently); nameless row skipped; route serves `host_down` — the two exact-dict asserts (`test_map_route_cold_cache_returns_empty_no_fallthrough`, `test_map_route_unresolvable_server_returns_empty`) gain `"host_down": []`; the three `names = run(...)` unpacks (`collects_true_names`, `version_gate`, `paginates`) become `names, _, _ = run(...)`; the version-gate test also asserts a `DOWN` row without `inMaintenance` is listed; a failed cycle keeps the previous `down` set. Canonical command: `python -m pytest tests` from `middleware/` (CLAUDE.md).
 - **PWA tests**: `pwa/src/lib/api/maintenance.test.ts` — `host_down` names parsed / non-string entries dropped / absent key → empty / `cache_age_seconds` null → empty / 301 → empty / 299 → kept; plus the additive-contract mirror case (an unknown sibling key leaves `active` unchanged). `pwa/src/features/devices/__tests__/DeviceListScreen.test.tsx` — raspi-050 icon background `rgb(220, 38, 38)` (jsdom serialises with spaces, cf. `DeviceTypeIcon.test.tsx`) when its name is in `down`; fallback colour when the mock has no `down` (the existing mocks) and when `down` is empty.
-- **iOS**: no test target (feature-spec already schedules XCTest as next-wave first task). Verified means **on a device against the lab** (reviewer ruling 5). Checklist with raspi-050 off: red icon after the next list refresh (≤ `refresh_interval`); stop the middleware container → green at the next fetch attempt (error clears `down`); stall the loop but keep the route up → red until the reported age passes 300 s, then green; switch servers → no carry-over; raspi-054 in its window → red icon + wrench + red chip together.
+- **iOS**: no test target (feature-spec already schedules XCTest as next-wave first task). Verified means **on a device against the lab** (reviewer ruling 5). The on-device acceptance table — observed values, not ticks — replaces the earlier checklist (reviewer substitution 2026-09-03: **no production stall** for the 300 s bound; the bound is covered by the PWA parser tests and by iOS code review of `fetchMaintenanceMap`'s `cache_age_seconds` gate):
+
+  | # | action (raspi-050 powered off) | expected | observed |
+  |---|---|---|---|
+  | 1 | open the device list, wait one refresh | raspi-050: red icon + red chip | |
+  | 2 | create a maintenance window on raspi-050 from this build | one row: red icon + wrench + red chip; the button inverts as before | |
+  | 3 | switch to another configured server and back | no colour carry-over | |
+  | 4 | Diagnostics screen | `maintenance_map` listed as the fourth feed with age and count | |
+  | 5 | kill the app, relaunch | colours reappear within one refresh; no stale red on a device that is up | |
+
+  Code-review coverage of the bound: `NetreoAPIService.hostDownMaxAgeSeconds = 300`; `down` is built only when `cache_age_seconds` is an `Int` ≤ 300; `MaintenanceMapCache.refresh()` clears `down` on any fetch error and keeps `names` (amendment B); `invalidate()` clears it on server switch.
 
 ## 9. Amendment to `2026-09-02-maintenance-list-badges-design.md`
 

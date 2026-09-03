@@ -1326,7 +1326,17 @@ class NetreoAPIService: ObservableObject {
     /// names (solid wrench) + middleware-remembered scheduled starts (blinking
     /// wrench, visible to every user). Empty when the cache is cold or the
     /// server predates BHNM 26.3.01 — no state shown.
-    func fetchMaintenanceMap() async throws -> (active: Set<String>, scheduled: [String: Date]) {
+    /// `host_down` (middleware 2.12.0) is accepted only when the middleware reports a
+    /// fresh cache — spec 2026-09-03-host-status-overlay §5.0. A null/absent
+    /// `cache_age_seconds` (cold, cache-off, unresolved server) or an age above this
+    /// bound (stalled crawl loop) yields an empty set, so rows fall back to their
+    /// devices/list colour. Decided ONCE here at parse time, never per render: the
+    /// map is held for the user's refresh interval, and adding that hold to the age
+    /// would flap red/green on a healthy middleware. 300 s survives exactly one failed
+    /// crawl attempt (60 s timeout + 60 s sleep + a crawl).
+    static let hostDownMaxAgeSeconds = 300
+
+    func fetchMaintenanceMap() async throws -> (active: Set<String>, scheduled: [String: Date], down: Set<String>) {
         guard let url = URL(string: "\(configuration.baseURL)/api/v1/maintenance-map") else {
             throw URLError(.badURL)
         }
@@ -1338,7 +1348,7 @@ class NetreoAPIService: ObservableObject {
             throw URLError(.badServerResponse)
         }
         guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return ([], [:])
+            return ([], [:], [])
         }
         let names = Set(raw["in_maintenance"] as? [String] ?? [])
         var scheduled: [String: Date] = [:]
@@ -1348,7 +1358,11 @@ class NetreoAPIService: ObservableObject {
                 scheduled[name] = Date(timeIntervalSince1970: start)
             }
         }
-        return (names, scheduled)
+        var down: Set<String> = []
+        if let age = raw["cache_age_seconds"] as? Int, age <= Self.hostDownMaxAgeSeconds {
+            down = Set((raw["host_down"] as? [Any] ?? []).compactMap { $0 as? String })
+        }
+        return (names, scheduled, down)
     }
 
     func fetchThresholdCounts() async throws -> [String: Int] {

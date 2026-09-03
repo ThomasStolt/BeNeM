@@ -112,7 +112,8 @@ struct DeviceListView: View {
                             device: device,
                             alarmSummary: deviceAlarmSummary(for: device.name, incidents: incidentViewModel.incidents),
                             inMaintenance: maintenanceMap.isInMaintenance(device.name),
-                            maintenancePending: maintenanceMap.isPending(device.name)
+                            maintenancePending: maintenanceMap.isPending(device.name),
+                            hostDown: maintenanceMap.down.contains(device.name)
                         )
                     }
                     .listRowBackground(
@@ -300,6 +301,9 @@ struct DeviceRowView: View {
     var inMaintenance: Bool = false
     /// Locally-noted create not yet server-confirmed — the wrench pulses.
     var maintenancePending: Bool = false
+    /// BHNM reports the host DOWN (middleware `host_down`, Wave B) — the icon goes
+    /// red regardless of the devices/list colour; coexists with wrench and chips.
+    var hostDown: Bool = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -354,6 +358,7 @@ struct DeviceRowView: View {
     }
 
     private var statusColor: Color {
+        if hostDown { return .red }   // map wins for the one literal it carries
         switch device.status {
         case .up:          return .green
         case .down:        return .red

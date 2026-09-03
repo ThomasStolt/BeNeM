@@ -47,6 +47,11 @@ final class MaintenanceMapCache: ObservableObject {
     @Published private(set) var names: Set<String> = []
     /// Middleware-remembered scheduled starts (every user sees these).
     @Published private(set) var serverScheduled: [String: Date] = [:]
+    /// Names whose host row BHNM reports as DOWN (middleware 2.12.0 `host_down`) —
+    /// the list paints them red. Cleared on ANY fetch error while `names` is kept
+    /// (spec amendment B): a stale wrench costs a wrong quiet badge for one cycle,
+    /// a stale red icon costs an on-call engineer a false outage.
+    @Published private(set) var down: Set<String> = []
     private var lastFetched: Date? = nil
     private let staleDuration: TimeInterval = 60
 
@@ -123,7 +128,10 @@ final class MaintenanceMapCache: ObservableObject {
             localCloses = localCloses.filter { now.timeIntervalSince($0.value) < closeGrace }
             names = fresh.active  // server truth; pending is derived separately
             serverScheduled = fresh.scheduled
+            down = fresh.down     // already gated on cache_age_seconds ≤ 300 at parse time
             lastFetched = Date()
+        } else {
+            down = []             // dead middleware: never leave a stale red (names kept)
         }
     }
 
@@ -134,6 +142,7 @@ final class MaintenanceMapCache: ObservableObject {
     func invalidate() {
         names = []
         serverScheduled = [:]
+        down = []
         lastFetched = nil
     }
 }
