@@ -3,13 +3,16 @@
 Twin of threshold_cache.py. Pre-fetches which devices are currently in a
 maintenance window by iterating categories (the only bulk path — see
 docs/superpowers/specs/2026-09-02-maintenance-list-badges-design.md) and
-stores the in-maintenance device NAMES per server. One asyncio.Task per
-enabled server.
+stores two NAME lists per server: devices in maintenance, and devices whose
+host row BHNM reports as DOWN (Wave B, spec 2026-09-03-host-status-overlay).
+One asyncio.Task per enabled server.
 
-Only names are stored: the UI renders "in the set" and nothing else — a
-device absent from the set (unmonitored, unknown, or on BHNM < 26.3.01
-where the inMaintenance field doesn't exist) shows no state, never a wrong
-one.
+Only names are stored — never a full map. For maintenance the UI renders
+"in the set" and nothing else; for host state it renders "in the DOWN set"
+as red and falls back to its own rule otherwise (UP is never served: the
+fallback already paints monitored devices green). A device absent from
+both sets (unmonitored, unknown literal, or on BHNM < 26.3.01 where the
+inMaintenance field doesn't exist) shows no state, never a wrong one.
 """
 
 from __future__ import annotations
@@ -36,13 +39,19 @@ __all__ = [
 
 PAGE_SIZE = 500  # per-category status page size
 
+# Documented host_only domain (API v1.0.9), wire-confirmed 2026-09-03 (see
+# docs/evidence/2026-09-03-bhnm-host-status-down-row.md). Exact literal or
+# nothing — an unknown literal is neither counted nor listed, never coerced.
+HOST_STATUS_LITERALS = frozenset({"UP", "DOWN"})
+
 
 # -- Cache storage -------------------------------------------------------------
 
 @dataclass
 class CachedMaintenance:
-    """In-maintenance device names for one server."""
+    """Per-server snapshot: in-maintenance names + names whose host row is DOWN."""
     names: set[str] = field(default_factory=set)
+    down: set[str] = field(default_factory=set)      # deviceName with host status "DOWN"
     last_updated: float = 0.0
 
 
@@ -95,9 +104,10 @@ def get_cached(server_id: str) -> CachedMaintenance | None:
 
 # -- BHNM fetch ---------------------------------------------------------------
 
-async def _fetch_in_maintenance(client, server: dict) -> set[str]:
+async def _fetch_in_maintenance(client, server: dict) -> tuple[set[str], set[str], int]:
     """Iterate categories → one bulk host-status call each (paged) →
-    the set of device names whose host row carries inMaintenance == True."""
+    (names with inMaintenance == True, names with status == "DOWN",
+    number of host rows whose status was a known literal)."""
     base = server["url"].rstrip("/")
     password = server["api_key"]
     pin = server.get("pin")
@@ -109,6 +119,9 @@ async def _fetch_in_maintenance(client, server: dict) -> set[str]:
     categories = resp.json() or []
 
     names: set[str] = set()
+    down: set[str] = set()
+    ignored: set[str] = set()   # status literals that are neither UP nor DOWN
+    host_rows = 0
     for cat in categories:
         cat_name = cat.get("name", "")
         if not cat_name:
@@ -133,14 +146,28 @@ async def _fetch_in_maintenance(client, server: dict) -> set[str]:
             data = resp.json() or {}
             rows = data.get("statuses", []) or []
             for row in rows:
+                name = row.get("deviceName")
+                if not name:
+                    continue
                 # Version gate: only rows that actually carry the field count
-                if row.get("inMaintenance") is True and row.get("deviceName"):
-                    names.add(row["deviceName"])
+                if row.get("inMaintenance") is True:
+                    names.add(name)
+                status = row.get("status")
+                if status in HOST_STATUS_LITERALS:
+                    host_rows += 1
+                    if status == "DOWN":
+                        down.add(name)
+                elif status is not None:
+                    ignored.add(str(status))   # null is dropped silently
             start += len(rows)
             total = int(data.get("totalRecords", 0) or 0)
             if not rows or start >= total:
                 break
-    return names
+    if ignored:
+        # One line per cycle, only when something unknown showed up — the
+        # signal that BHNM has a host state this code does not know.
+        print(f"[MaintenanceCache:{server['id']}] host rows: ignored literals {sorted(ignored)}")
+    return names, down, host_rows
 
 
 # -- Cache loop ----------------------------------------------------------------
@@ -150,11 +177,14 @@ async def _run_one_cycle(client, server: dict) -> None:
     server_id = server["id"]
     started = time.perf_counter()
     try:
-        names = await _fetch_in_maintenance(client, server)
-        _cache[server_id] = CachedMaintenance(names=names, last_updated=time.time())
+        names, down, host_rows = await _fetch_in_maintenance(client, server)
+        _cache[server_id] = CachedMaintenance(names=names, down=down, last_updated=time.time())
         diagnostics.record_success(server_id, "maintenance_map",
                                    round((time.perf_counter() - started) * 1000))
-        print(f"[MaintenanceCache:{server_id}] Cache updated: {len(names)} in maintenance")
+        # host_rows is on-call visibility: a crawl that suddenly sees 0 host
+        # rows (permission/filter change) would otherwise look healthy.
+        print(f"[MaintenanceCache:{server_id}] Cache updated: {len(names)} in maintenance, "
+              f"{host_rows} host rows, {len(down)} down")
     except Exception as e:
         diagnostics.record_failure(server_id, "maintenance_map", e)
         print(f"[MaintenanceCache:{server_id}] Fetch failed (previous set kept): {e}")

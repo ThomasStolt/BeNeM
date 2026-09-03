@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.12.0] - 2026-09-03
+
+### Added
+
+- **`host_down` on `GET /api/v1/maintenance-map`** (Wave B, spec `docs/superpowers/specs/2026-09-03-host-status-overlay-design.md` rev 4). The same per-category `get-host-and-service-status` crawl that builds `in_maintenance` now also keeps the names whose host row carries the literal `"DOWN"`, served as a fourth, additive top-level key — a sorted name list in the exact shape clients already parse for `in_maintenance`. `UP` is never served (the clients' Wave A rule already paints monitored devices green), so the payload is `[]` on a healthy network and scales with outages, not fleet size. Cold cache, unresolved server, or `cache_enabled: false` → `[]` with `cache_age_seconds: null`; clients must treat the list as unusable when the age is null or above 300 s. Any status literal other than `UP`/`DOWN` is neither counted nor listed and is logged once per cycle (`host rows: ignored literals [...]`); `null` is dropped silently.
+
+### Changed
+
+- The cycle log line now reads `Cache updated: N in maintenance, M host rows, K down` — `M` is the on-call signal that the crawl still sees host rows at all.
+- Docstrings: the maintenance-map route summary and the `maintenance_cache` module/dataclass now describe both name lists.
+
 ## [2.11.1] - 2026-09-03
 
 ### Fixed

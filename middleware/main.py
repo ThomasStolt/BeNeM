@@ -560,14 +560,16 @@ async def cached_tactical_overview(request: Request, grouping_type: str = "categ
 
 @app.get("/api/v1/maintenance-map")
 async def cached_maintenance_map(request: Request):
-    """Names of devices currently in maintenance, from the background cache.
+    """Maintenance map + host state from the background cache.
 
     Response: {"cache_age_seconds": N | null,
                "in_maintenance": ["name", ...],
-               "scheduled": [{"name", "start_time", "end_time"}, ...]}
+               "scheduled": [{"name", "start_time", "end_time"}, ...],
+               "host_down": ["name", ...]}     # 2.12.0, additive; UP is never served
     Deliberately NO live fall-through on a cold cache (that would be one
     upstream call per category, in-request): cold or unresolved server →
-    empty list, which renders as "no maintenance state shown" — safe.
+    empty lists, which render as "no state shown" — safe. Clients must
+    treat host_down as unusable when cache_age_seconds is null or > 300.
     """
     _verify_proxy_token(request)
 
@@ -585,6 +587,7 @@ async def cached_maintenance_map(request: Request):
         "cache_age_seconds": round(time.time() - cached.last_updated) if cached else None,
         "in_maintenance": sorted(active),
         "scheduled": scheduled,
+        "host_down": sorted(cached.down) if cached else [],
     }
 
 

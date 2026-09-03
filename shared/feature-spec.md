@@ -142,7 +142,7 @@ features defined here. Platform-specific behaviour is noted per feature.
 - Display device name, IP, category badge per row
 - Tap navigates to device detail
 - Icon status colour: BHNM list fields when present (`alarm_color` / `status` / `up_status`), else `monitor == 1` → up (BHNM host-checks the device), else unknown. `poll` is **not** consulted — on 26.3.01 it is a runtime poller-state int (0/1/2/5), never a flag. Exact match on `monitor`: an absent or exotic value fails safe to unknown (grey), never to a false green. `devices/list` carries no live state, so "up" means *monitored*; a DOWN host shows the red incident chip beside a green icon until the host_status overlay ships (iOS 2.12.1 / PWA 0.13.1).
-- **Planned — Wave B host-down overlay** (spec `docs/superpowers/specs/2026-09-03-host-status-overlay-design.md`, rev 4, stop-at-design): the middleware's maintenance-map crawl will also serve `host_down`, the names whose host row BHNM reports as `DOWN` (a second name list beside `in_maintenance`; `UP` is never served — the rule above already paints monitored devices green). A name in `host_down` paints the icon red; every other row keeps the rule above. The list is accepted only when `cache_age_seconds` is non-null and ≤ 300 s, decided once at parse time; on a failed fetch the PWA parses empty and iOS clears its down set. Honest worst case: a stale colour can persist up to 300 s plus one client hold (PWA ≤ 60 s; iOS ≤ the user's refresh interval, 30–300 s) after the middleware stalls or a device recovers. The icon is BHNM's opinion of host state, not a reachability probe. Verified on the lab 2026-09-03: a device in a maintenance window that is also DOWN keeps `status: "DOWN"` and its incident stays open, so red icon, wrench and red chip coexist.
+- **Wave B host-down overlay — middleware 2.12.0 shipped, PWA/iOS pending** (spec `docs/superpowers/specs/2026-09-03-host-status-overlay-design.md`, rev 4): the middleware's maintenance-map crawl will also serve `host_down`, the names whose host row BHNM reports as `DOWN` (a second name list beside `in_maintenance`; `UP` is never served — the rule above already paints monitored devices green). A name in `host_down` paints the icon red; every other row keeps the rule above. The list is accepted only when `cache_age_seconds` is non-null and ≤ 300 s, decided once at parse time; on a failed fetch the PWA parses empty and iOS clears its down set. Honest worst case: a stale colour can persist up to 300 s plus one client hold (PWA ≤ 60 s; iOS ≤ the user's refresh interval, 30–300 s) after the middleware stalls or a device recovers. The icon is BHNM's opinion of host state, not a reachability probe. Verified on the lab 2026-09-03: a device in a maintenance window that is also DOWN keeps `status: "DOWN"` and its incident stays open, so red icon, wrench and red chip coexist.
 
 #### iOS-specific
 - Native SwiftUI List with UID-based identity
@@ -447,7 +447,9 @@ the Detail header keeps maintenance-wins per Rev 3) + an "In maintenance (N)"
 filter chip, fed by `GET /api/v1/maintenance-map` from the middleware's
 `maintenance_cache` (twin of `threshold_cache`; per-category bulk status
 calls, paged at 500; empty on cold cache or BHNM < 26.3.01 — no live
-fall-through; map refresh fixed at 60 s since middleware 2.9.1). List
+fall-through; since middleware 2.12.0 the same response also carries
+`host_down`, the names whose host row is `DOWN` — see Device List, Wave B;
+map refresh fixed at 60 s since middleware 2.9.1). List
 staleness: creator sees the wrench instantly (documented local optimism,
 8-min expiry, cleared on cancel/close); other viewers ~2–4 min after the
 window opens. Detail stays the fresher truth. Spec:

@@ -1,5 +1,7 @@
 # Device-List Maintenance Visibility — Design Spec
 
+> **Amended 2026-09-03** by `2026-09-03-host-status-overlay-design.md` (rev 4): the maintenance map now also carries a second name list, `host_down`; §6's "known false vs unknown" exclusion is superseded for host state only. §3's name-list ruling stands.
+
 **Date:** 2026-09-02
 **Status:** APPROVED (Tom + reviewer, 2026-09-02) — **Option B + COEXIST, plus
 Option D's filter chip** — IMPLEMENTED 2026-09-02 (middleware 2.9.0, iOS 2.11.0, PWA 0.12.0), lab-verified

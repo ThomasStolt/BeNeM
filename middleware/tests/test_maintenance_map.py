@@ -77,8 +77,9 @@ def test_fetch_collects_true_names_across_categories():
             ]},
         },
     )
-    names = run(maintenance_cache._fetch_in_maintenance(client, SERVER))
+    names, down, host_rows = run(maintenance_cache._fetch_in_maintenance(client, SERVER))
     assert names == {"sw-01", "srv-01"}
+    assert down == set() and host_rows == 0   # rows without a status literal count for nothing
 
 
 def test_fetch_version_gate_field_absent_yields_empty():
@@ -92,8 +93,11 @@ def test_fetch_version_gate_field_absent_yields_empty():
             ]},
         },
     )
-    names = run(maintenance_cache._fetch_in_maintenance(client, SERVER))
+    names, down, host_rows = run(maintenance_cache._fetch_in_maintenance(client, SERVER))
     assert names == set()
+    # ...but status has been on host rows since API v1.0.9: host_down works
+    # on servers that get no wrenches (documented, not wire-verified < 26.3.01)
+    assert down == {"sw-02"} and host_rows == 2
 
 
 def test_fetch_paginates_past_page_size(monkeypatch):
@@ -114,7 +118,7 @@ def test_fetch_paginates_past_page_size(monkeypatch):
             ]},
         },
     )
-    names = run(maintenance_cache._fetch_in_maintenance(client, SERVER))
+    names, _, _ = run(maintenance_cache._fetch_in_maintenance(client, SERVER))
     assert names == {"a", "d", "e"}
     status_calls = [c for c in client.calls if "get-host-and-service-status" in c[0]]
     assert len(status_calls) == 3
@@ -138,7 +142,65 @@ def test_cycle_success_replaces_set():
     cached = maintenance_cache.get_cached("lab")
     assert cached is not None
     assert cached.names == {"sw-01"}
+    assert cached.down == set()
     assert cached.last_updated > 0
+
+
+# ── fetch: host_down (Wave B) ────────────────────────────────────────────────
+
+
+def test_fetch_lists_down_names_only_and_counts_known_literals():
+    client = FakeClient(
+        categories=[{"id": 1, "name": "Pi"}],
+        status_pages={("Pi", 0): {"totalRecords": 6, "statuses": [
+            {"deviceName": "raspi-050", "status": "DOWN", "inMaintenance": False},
+            {"deviceName": "raspi-054", "status": "DOWN", "inMaintenance": True},   # DOWN and in maintenance
+            {"deviceName": "raspi-053", "status": "UP", "inMaintenance": False},
+            {"deviceName": "odd-1", "status": "UNREACHABLE"},                       # unknown literal → neither
+            {"deviceName": "odd-2", "status": None},                                # null → dropped silently
+            {"status": "DOWN"},                                                     # nameless → skipped
+        ]}},
+    )
+    names, down, host_rows = run(maintenance_cache._fetch_in_maintenance(client, SERVER))
+    assert down == {"raspi-050", "raspi-054"}
+    assert names == {"raspi-054"}
+    assert host_rows == 3                       # UP + DOWN + DOWN; UNREACHABLE/null/nameless not counted
+
+
+def test_fetch_logs_ignored_literals_once_and_never_null(capsys):
+    client = FakeClient(
+        categories=[{"id": 1, "name": "Pi"}],
+        status_pages={("Pi", 0): {"totalRecords": 3, "statuses": [
+            {"deviceName": "a", "status": "PENDING"},
+            {"deviceName": "b", "status": "pending"},
+            {"deviceName": "c", "status": None},
+        ]}},
+    )
+    _, down, host_rows = run(maintenance_cache._fetch_in_maintenance(client, SERVER))
+    assert down == set() and host_rows == 0
+    out = capsys.readouterr().out
+    assert out.count("ignored literals") == 1
+    assert "PENDING" in out and "pending" in out and "None" not in out
+
+
+def test_fetch_all_up_logs_nothing(capsys):
+    client = FakeClient(
+        categories=[{"id": 1, "name": "Pi"}],
+        status_pages={("Pi", 0): {"totalRecords": 1, "statuses": [
+            {"deviceName": "a", "status": "UP", "inMaintenance": False}]}},
+    )
+    _, down, host_rows = run(maintenance_cache._fetch_in_maintenance(client, SERVER))
+    assert down == set() and host_rows == 1
+    assert "ignored literals" not in capsys.readouterr().out
+
+
+def test_cycle_failure_keeps_previous_down_set():
+    maintenance_cache._cache["lab"] = maintenance_cache.CachedMaintenance(
+        names={"sw-old"}, down={"raspi-old"}, last_updated=123.0)
+    client = FakeClient(categories=[], status_pages={}, fail_categories=True)
+    run(maintenance_cache._run_one_cycle(client, SERVER))
+    cached = maintenance_cache.get_cached("lab")
+    assert cached.down == {"raspi-old"} and cached.names == {"sw-old"}
 
 
 def test_cycle_failure_keeps_previous_set_and_does_not_raise():
@@ -222,7 +284,7 @@ def test_map_route_cold_cache_returns_empty_no_fallthrough(client_app):
         headers={"X-Proxy-Token": "secret-key-123"},
     )
     assert resp.status_code == 200
-    assert resp.json() == {"cache_age_seconds": None, "in_maintenance": [], "scheduled": []}
+    assert resp.json() == {"cache_age_seconds": None, "in_maintenance": [], "scheduled": [], "host_down": []}
 
 
 def test_map_route_serves_cached_names_with_age(client_app):
@@ -236,6 +298,20 @@ def test_map_route_serves_cached_names_with_age(client_app):
     body = resp.json()
     assert sorted(body["in_maintenance"]) == ["srv-09", "sw-01"]
     assert 28 <= body["cache_age_seconds"] <= 33
+    assert body["host_down"] == []
+
+
+def test_map_route_serves_host_down_sorted_beside_in_maintenance(client_app):
+    maintenance_cache._cache["lab"] = maintenance_cache.CachedMaintenance(
+        names={"raspi-054"}, down={"raspi-054", "raspi-050"}, last_updated=time.time())
+    resp = client_app.get(
+        "/api/v1/maintenance-map",
+        headers={"X-Proxy-Token": "secret-key-123"},
+    )
+    body = resp.json()
+    assert body["host_down"] == ["raspi-050", "raspi-054"]
+    assert body["in_maintenance"] == ["raspi-054"]          # the two lists are independent
+    assert set(body) == {"cache_age_seconds", "in_maintenance", "scheduled", "host_down"}
 
 
 def test_map_route_unresolvable_server_returns_empty(client_app):
@@ -251,7 +327,7 @@ def test_map_route_unresolvable_server_returns_empty(client_app):
     )
     main_mod.PROXY_TOKEN = ""
     assert resp.status_code == 200
-    assert resp.json() == {"cache_age_seconds": None, "in_maintenance": [], "scheduled": []}
+    assert resp.json() == {"cache_age_seconds": None, "in_maintenance": [], "scheduled": [], "host_down": []}
 
 
 # ── refresh cadence: fixed 60s, independent of cache_refresh_seconds ─────────
