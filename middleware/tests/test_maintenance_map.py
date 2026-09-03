@@ -106,20 +106,21 @@ def test_fetch_paginates_past_page_size(monkeypatch):
         categories=[{"id": 1, "name": "Net"}],
         status_pages={
             ("Net", 0): {"totalRecords": 5, "statuses": [
-                {"deviceName": "a", "inMaintenance": True},
-                {"deviceName": "b", "inMaintenance": False},
+                {"deviceName": "a", "inMaintenance": True, "status": "DOWN"},
+                {"deviceName": "b", "inMaintenance": False, "status": "UP"},
             ]},
             ("Net", 2): {"totalRecords": 5, "statuses": [
-                {"deviceName": "c", "inMaintenance": False},
-                {"deviceName": "d", "inMaintenance": True},
+                {"deviceName": "c", "inMaintenance": False, "status": "DOWN"},
+                {"deviceName": "d", "inMaintenance": True, "status": "UP"},
             ]},
             ("Net", 4): {"totalRecords": 5, "statuses": [
-                {"deviceName": "e", "inMaintenance": True},
+                {"deviceName": "e", "inMaintenance": True, "status": "DOWN"},
             ]},
         },
     )
-    names, _, _ = run(maintenance_cache._fetch_in_maintenance(client, SERVER))
+    names, down, host_rows = run(maintenance_cache._fetch_in_maintenance(client, SERVER))
     assert names == {"a", "d", "e"}
+    assert down == {"a", "c", "e"} and host_rows == 5   # accumulates across pages, never reset per page
     status_calls = [c for c in client.calls if "get-host-and-service-status" in c[0]]
     assert len(status_calls) == 3
     # server-side key + probed-quirk params on every page
@@ -174,13 +175,15 @@ def test_fetch_logs_ignored_literals_once_and_never_null(capsys):
             {"deviceName": "a", "status": "PENDING"},
             {"deviceName": "b", "status": "pending"},
             {"deviceName": "c", "status": None},
+            {"deviceName": "d", "status": {"v": "DOWN"}},     # non-string: logged, never crashes the cycle
+            {"deviceName": 123, "status": "DOWN"},            # non-string name: skipped (sorted() must never see it)
         ]}},
     )
     _, down, host_rows = run(maintenance_cache._fetch_in_maintenance(client, SERVER))
     assert down == set() and host_rows == 0
     out = capsys.readouterr().out
     assert out.count("ignored literals") == 1
-    assert "PENDING" in out and "pending" in out and "None" not in out
+    assert "PENDING" in out and "pending" in out and "DOWN" in out and "None" not in out
 
 
 def test_fetch_all_up_logs_nothing(capsys):
@@ -216,13 +219,14 @@ def test_cycle_failure_keeps_previous_set_and_does_not_raise():
 def test_partial_category_failure_keeps_previous_set():
     # One category call failing fails the cycle; the previous set survives
     maintenance_cache._cache["lab"] = maintenance_cache.CachedMaintenance(
-        names={"sw-old"}, last_updated=123.0)
+        names={"sw-old"}, down={"raspi-old"}, last_updated=123.0)
     client = FakeClient(
         categories=[{"id": 1, "name": "Net"}],
         status_pages={}, fail_status=True,
     )
     run(maintenance_cache._run_one_cycle(client, SERVER))
-    assert maintenance_cache.get_cached("lab").names == {"sw-old"}
+    cached = maintenance_cache.get_cached("lab")
+    assert cached.names == {"sw-old"} and cached.down == {"raspi-old"}
 
 
 # ── lifecycle ────────────────────────────────────────────────────────────────

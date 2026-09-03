@@ -147,13 +147,13 @@ async def _fetch_in_maintenance(client, server: dict) -> tuple[set[str], set[str
             rows = data.get("statuses", []) or []
             for row in rows:
                 name = row.get("deviceName")
-                if not name:
-                    continue
+                if not isinstance(name, str) or not name:
+                    continue   # nameless or non-string names can never match a client row
                 # Version gate: only rows that actually carry the field count
                 if row.get("inMaintenance") is True:
                     names.add(name)
                 status = row.get("status")
-                if status in HOST_STATUS_LITERALS:
+                if isinstance(status, str) and status in HOST_STATUS_LITERALS:
                     host_rows += 1
                     if status == "DOWN":
                         down.add(name)
