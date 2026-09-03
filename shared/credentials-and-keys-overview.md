@@ -96,6 +96,16 @@ BHNM incident → webhook POST to middleware with ?secret=ABC
 
 This enables **per-server routing**: each BHNM server has its own secret, so only devices connected to that server receive its alerts.
 
+### Open items (security board, filed 2026-09-03 — no code change)
+
+| # | Item | Where | Status |
+|---|---|---|---|
+| S1 | Webhook secret travels in the **query string** (`?secret=`), so it lands in BHNM's outbound logs, Caddy access logs and any proxy in between. Middleware 2.11.1's 422 hygiene does **not** address this. | `middleware/main.py` `/webhook` | open |
+| S2 | `upgrade.sh` runs `chmod 666 servers.json` on every upgrade — the file holds third-party BHNM API keys (four servers today) and is world-writable on the host. Needed today because the benem-admin container writes it as `appuser`. | `middleware/upgrade.sh` | open |
+| S3 | `middleware/Dockerfile` does `COPY . .` with no `.dockerignore`, so `.env` (APNs private key, VAPID key, BENEM_SECRET_KEY) and `servers.json` are baked into the bhnm-apns image layers. Local images only, never pushed — but any image export or registry push would ship the secrets. | `middleware/Dockerfile` | open |
+| S4 | The QR-code AES key is **static and shipped inside the App Store binary** (`Secrets.swift` → `Secrets.encryptionKey`); anyone who extracts it can decrypt any BeNeM configuration QR. Known, untouched by agreement. | `ios/BeNeM/Secrets.swift`, `shared/credentials-and-keys-overview.md` §5 | open |
+| S5 | PWA credentials in localStorage are encrypted with a **PBKDF2 key derived from the origin**, so anything running on the same origin (an XSS, a compromised dependency, a browser extension with host access) can derive the key and decrypt them. Known, untouched by agreement. | `pwa/src/lib/serverStorage.ts` | open |
+
 ---
 
 ## 4. BHNM API Key
