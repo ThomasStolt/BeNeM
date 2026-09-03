@@ -334,3 +334,37 @@ Screenshots (same folder):
   (raspi-050 already showed the red chip beside its blue icon under the old rule, because its `poll` happens to be 1).
 
 Not covered here: iOS 2.12.1 on a device against the lab — Thomas's gate, still open.
+
+## Addendum — RECOVERY webhook proof for middleware 2.11.1: **NOT achieved** (2026-09-03)
+
+Sequence as executed. All times UTC (lab local = UTC+2).
+
+| time | event | source |
+|---|---|---|
+| 10:24:59 | middleware 2.11.1 container started (`/webhook` 422 hygiene); only bhnm-apns rebuilt | upgrade log, `/health` |
+| 10:45:22 | Thomas reports raspi-054 powered on; it answers ping from the engineer's Mac (3/3) | this session |
+| 10:45:08 | BHNM's last host check still `DOWN` | host row `lastUpdateTime` 12:45:08 local |
+| 10:46:14 | BHNM host check flips raspi-054 to **`UP`** (`currentStateDuration` 8 s at the 10:46:21 sample) | `get-host-and-service-status` poll |
+| 10:46:42 | incident 27729 → `ALARMS CLEARED / ALARMS CLEARED` | `getincidentdetail` poll |
+| 10:47:01 → 10:54:20 | middleware access log: **0** `POST /webhook`; **0** `[Webhook]` lines; **0** `[Webhook] Rejected` (422) lines | `docker logs benem-middleware` |
+| — | Thomas's phone: no RECOVERY push reported | — |
+
+**What this shows.** BHNM changed state exactly as expected and no HTTP request for `/webhook` reached the middleware at
+any point between the 2.11.0 restart (09:37 UTC) and 10:54 UTC — the 2.11.0 container's log also had zero `[Webhook]`
+lines for its 47 minutes, during which the incident cache grew from 18 to 30. The 2.11.1 route was therefore never
+exercised by a real BHNM payload: nothing was accepted, nothing was rejected. The failure is upstream of the middleware —
+BHNM did not deliver a webhook for this recovery (and, as far as the surviving logs show, for anything else today).
+
+**What could not be checked from here.** Caddy has no access logging configured (`Caddyfile` has no `log` directive;
+0 access-log lines in 39 h), so "0 hits at Caddy" carries no information. The 2.10.1 container's log (which would have
+shown whether the 09:15 PROBLEM webhooks for raspi-050/054 arrived) was discarded when the container was recreated at
+09:37. BHNM's notification / action-group / webhook-URL configuration is not readable through any API used by BeNeM.
+
+**Not proven, by the reviewer's rule.** The 422 test coverage is the only proof 2.11.1 has: 93 tests pass, including
+"form-encoded body with hostname → 200 and pushed". Whether a *real* BHNM payload passes the new hostname check is still
+unverified on the wire and stays open until a webhook actually arrives.
+
+**For Thomas, in BHNM:** confirm the action group attached to raspi-054's host check delivers to
+`https://bhnm-apns.hurrikap.org/webhook?secret=<the secret the 5 registered devices share>`, that RECOVERY
+notifications are enabled for it, and that BHNM's outbound HTTP can reach the host. Re-run the proof by taking raspi-054
+down and up again (or the next real transition); the watcher command is in the session log.
