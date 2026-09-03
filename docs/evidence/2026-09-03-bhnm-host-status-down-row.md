@@ -477,3 +477,12 @@ Screenshots: `2026-09-03-pwa-0.14.1-local-raspi-050-detail-down-in-maintenance.j
 `2026-09-03-pwa-0.14.1-local-raspi-050-list-red-wrench.jpg`, `2026-09-03-pwa-0.14.1-local-diagnostics-38-hosts.jpg`.
 
 iOS 2.13.1 (36): built, committed locally, awaiting Thomas's on-device values before its push.
+
+### PWA 0.14.1 deployed (2026-09-03 ~18:35 UTC)
+
+Thomas confirmed iOS 2.13.1 (36) on device; the held commits (243490d PWA 0.14.1, 36a0583 iOS, 1582571 CLAUDE.md
+gate note, 1e99e5f evidence, dbb2457 spec) were pushed and `./upgrade.sh` run with images tagged `:91261f1`.
+Gate: PWA container serves 0.14.1 **and** middleware `/health` 2.12.1 at +1 s; no rollback. Side effect to note:
+`middleware/CLAUDE.md` in the diff made the script rebuild `bhnm-apns` as well (its change detection counts any
+file under `middleware/` except a short exclude list — docs included), so the middleware container was recreated on
+the same 2.12.1 code and its caches restarted. Harmless here; worth an `*.md` exclusion in `upgrade.sh` someday.
