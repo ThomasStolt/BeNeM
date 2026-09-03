@@ -228,3 +228,109 @@ related alarm; BHNM does not claim a dependency, it claims unreachability. Both 
 (`maint_window_api.php action=list` → `windows: []`), so the "in maintenance AND DOWN" capture is still pending.
 Whether the box is physically off is Thomas's call; a ping from the engineer's Mac at capture time is recorded in the
 session report, not here, because it is not a BHNM observation.
+
+
+## Addendum — "in maintenance AND DOWN", captured live on raspi-054 (window created by Thomas from the PWA, start 10:25 local)
+
+raspi-054 was DOWN by accident (Thomas: raspi-050 off is deliberate, raspi-054 off is not) when the window went active, so
+this is the exact combination §5.3 of the Wave B spec had marked *unverified*. Polled every 30 s; `inMaintenance` flipped
+at the first sample after the snapped start (no observable lag this time).
+
+| sample (UTC) | host `status` | `inMaintenance` | active windows | incident 27729 state / primary alarm | in `state=open` list |
+|---|---|---|---|---|---|
+| 2026-09-03T08:20:48+00:00 | DOWN | False | 0 | OPEN / OPEN | yes |
+| 2026-09-03T08:21:19+00:00 | DOWN | False | 0 | OPEN / OPEN | yes |
+| 2026-09-03T08:21:50+00:00 | DOWN | False | 0 | OPEN / OPEN | yes |
+| 2026-09-03T08:22:21+00:00 | DOWN | False | 0 | OPEN / OPEN | yes |
+| 2026-09-03T08:22:51+00:00 | DOWN | False | 0 | OPEN / OPEN | yes |
+| 2026-09-03T08:23:22+00:00 | DOWN | False | 0 | OPEN / OPEN | yes |
+| 2026-09-03T08:23:53+00:00 | DOWN | False | 0 | OPEN / OPEN | yes |
+| 2026-09-03T08:24:24+00:00 | DOWN | False | 0 | OPEN / OPEN | yes |
+| 2026-09-03T08:24:55+00:00 | DOWN | False | 0 | OPEN / OPEN | yes |
+| 2026-09-03T08:25:25+00:00 | DOWN | True | 1 | OPEN / OPEN | yes |
+| 2026-09-03T08:25:56+00:00 | DOWN | True | 1 | OPEN / OPEN | yes |
+| 2026-09-03T08:26:27+00:00 | DOWN | True | 1 | OPEN / OPEN | yes |
+
+### Host row at the first active sample — verbatim
+
+```json
+{
+ "deviceIndex": 3,
+ "deviceName": "raspi-054",
+ "incidentID": "27729",
+ "lastUpdateTime": "2026-09-03 10:25:10",
+ "message": "<br />Ping CRITICAL: Packet Loss 100%",
+ "status": "DOWN",
+ "currentStateDuration": "1h 10m 17s",
+ "state_type": null,
+ "inMaintenance": true
+}
+```
+
+**BHNM keeps `status: "DOWN"` while the device is in maintenance.** The literal is unchanged; only `inMaintenance` flips.
+So under Wave B the row renders **red icon + wrench** (no drop-the-row case is triggered), and the coexist doctrine holds.
+
+### Active window — `maint_window_api.php action=list name=raspi-054`
+
+```json
+{
+ "result": "completed",
+ "windows": [
+  {
+   "start_time": 1788423900,
+   "end_time": 1788427500,
+   "comment": "Created by Thomas Android PWA on 2026-09-03 10:19:"
+  }
+ ]
+}
+```
+
+### What incident 27729 does during the window
+
+`incident_state` stays `OPEN`, `primary_alarm_state` stays `OPEN`, `acknowledged` = 0, and the
+incident remains in the `state=open` list. Incident log during the window (verbatim):
+
+```json
+[
+ {
+  "state": "OPEN",
+  "time": "2026-09-03T09:15:13",
+  "username": "system",
+  "comment": "Initialized state to OPEN"
+ }
+]
+```
+
+Conclusion for the list row: the **red incident chip and the wrench coexist** on raspi-054 — BHNM suppresses notifications
+for a device in maintenance, it does not close or alter the incident. Last sample of the run: `2026-09-03T08:26:27+00:00`, unchanged.
+
+## Addendum — Wave A verified on the PWA 0.13.1 production bundle (replacement push gate, reviewer ruling 3)
+
+Built locally (`npm run build && npm run preview -- --host`, bundle 0.13.1 at commit b2a7815 + 6be46bd), served by
+`vite preview` with `/bhnm/*` proxied to the production middleware `https://bhnm-apns.hurrikap.org` (2.10.1 — the
+deployed one; middleware 2.11.0 is not needed for Wave A), lab key supplied through the gitignored `pwa/.env.local`
+(`VITE_BHNM_API_KEY`), never typed into the app. Checked in Chrome at 10:30–10:33 local while raspi-050 (deliberate)
+and raspi-054 (accidental, in its maintenance window) were both off the LAN.
+
+Programmatic count over the rendered rows (`DeviceTypeIcon` background colour per `a[href^="/devices/"]`):
+
+| result | value |
+|---|---|
+| rows rendered | 41 (one page — pager now reads "Page 1 of 1", the 6be46bd fix) |
+| icon `up` (`rgb(2, 132, 199)`) | **38** — every `monitor = 1` device, poll 1/2/5 alike |
+| icon `unknown` (`rgb(55, 65, 81)`) | **3** — BHNM-A-SE01, BHNM-A-SE02, bhnm-apns.hurrikap.org (`monitor = 0`) |
+| icon `down` | 0 (Wave A cannot paint it; Wave B will) |
+| Ping-Only devices Miele-T1, Shelly_MieleW1 | `up` (were grey before the fix) |
+| raspi-050 | `up` icon + red chip **1** + ticker "Host raspi-050" — the documented interim state |
+| raspi-054 | `up` icon + **wrench** + red chip **2** + ticker "… · Host raspi-054" — chip and wrench coexist |
+
+Screenshots (same folder):
+
+- `2026-09-03-pwa-0.13.1-local-devices-top.jpg` — raspi-054 (wrench + red 2), Synology920, US_24_G1_Keller, UAP-AC-LR,
+  VU-Solo4k all blue; "In maintenance (1)" chip.
+- `2026-09-03-pwa-0.13.1-local-devices-unmonitored-grey.jpg` — BHNM-A-SE01 / BHNM-A-SE02 grey among blue rows.
+- `2026-09-03-pwa-0.13.1-local-devices-raspi-050-red-chip.jpg` — raspi-050 blue + red chip, bhnm-apns grey, "Page 1 of 1".
+- `2026-09-03-pwa-0.13.0-prod-raspi-050-red-chip.jpg` — the deployed 0.13.0 at 09:44 local for comparison
+  (raspi-050 already showed the red chip beside its blue icon under the old rule, because its `poll` happens to be 1).
+
+Not covered here: iOS 2.12.1 on a device against the lab — Thomas's gate, still open.
