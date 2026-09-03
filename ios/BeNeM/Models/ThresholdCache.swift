@@ -127,7 +127,13 @@ final class MaintenanceMapCache: ObservableObject {
         }
     }
 
+    /// Server switch: drop the old server's names and scheduled starts
+    /// immediately (a name match across servers would be a wrong wrench)
+    /// and force the next refresh() to fetch. Local notes are per-device
+    /// optimism the user created themselves and are left alone.
     func invalidate() {
+        names = []
+        serverScheduled = [:]
         lastFetched = nil
     }
 }

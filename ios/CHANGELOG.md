@@ -15,6 +15,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Fixed
 
 - **Most device icons were grey ("unknown") on BHNM 26.3.01.** `devices/list` carries no status field, so the icon colour fell through to a `poll == 1 && monitor == 1` guess — and on 26.3.01 `poll` turned out to be a runtime poller-state counter (0/1/2/5) that changes on its own, so only the handful of devices currently at 1 went green. The colour now keys on `monitor` alone (the flag that gates BHNM's host check, Ping-Only devices included): every monitored device is green, unmonitored stays grey. Green means *monitored*, not *reachable* — a DOWN host still shows its red incident chip beside the icon; a real host-status overlay follows in a later release.
+- **Switching servers no longer carries the previous server's maintenance wrenches.** `MaintenanceMapCache` was never invalidated on a server switch (its `invalidate()` had no caller), so a device name shared across servers could show the old server's wrench for up to 60 s. The switch now clears the map and forces a fresh fetch.
 
 ## [2.12.0] — 2026-09-02
 

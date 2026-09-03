@@ -75,6 +75,7 @@ class DeviceListViewModel: ObservableObject {
         searchResults = []
         searchQuery = ""
         ThresholdCache.shared.invalidate()
+        MaintenanceMapCache.shared.invalidate()  // else the old server's wrenches linger ≤60 s
         Task { await loadDevices() }
     }
 }
