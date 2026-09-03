@@ -486,3 +486,38 @@ Gate: PWA container serves 0.14.1 **and** middleware `/health` 2.12.1 at +1 s; n
 `middleware/CLAUDE.md` in the diff made the script rebuild `bhnm-apns` as well (its change detection counts any
 file under `middleware/` except a short exclude list — docs included), so the middleware container was recreated on
 the same 2.12.1 code and its caches restarted. Harmless here; worth an `*.md` exclusion in `upgrade.sh` someday.
+
+## Finale — raspi-050 powered on: the full recovery, measured (2026-09-03, all times UTC)
+
+Thomas cleared raspi-050's maintenance window and powered the Pi on; he reported it at 18:39:36. Everything below is
+observed, nothing inferred.
+
+| time (UTC) | event | source |
+|---|---|---|
+| ~18:37:04 | BHNM host check flips raspi-050 to **UP** (`currentStateDuration` 2 m 34 s at 18:39:39) | host row |
+| 18:37:25 | incident 27728 `OPEN → ALARMS CLEARED` | BHNM incident log (20:37:25 local) |
+| 18:37:28 | middleware crawl: `Cache updated: 0 in maintenance, 39 host rows, 0 down` — **host_down drops raspi-050** 24 s after the state change | `docker logs -t benem-middleware` |
+| 18:39:36 | LAN ping from the engineer's Mac 3/3; map `host_down: []`, `cache_age_seconds: 5`; no active window (`windows: []`) | this session |
+| 18:42:27 | incident 27728 `ALARMS CLEARED → CLOSED` — the 5-minute window, to the second (5 m 02 s) | BHNM incident log (20:42:27 local) |
+| 18:43:01 | PWA 0.14.1 (production bundle vs live 2.12.1) detail header **UP** in green, icon blue, no banner | Chrome |
+| 18:44:07 | PWA list: raspi-050 **up**, **0 down / 39 up / 2 unknown**, no wrenches | Chrome, programmatic count |
+| 18:49:26 | **no `[Webhook]` line and no `POST /webhook` in the middleware since its 18:31 start** — 7 minutes after CLOSED, window cleared, action group unchanged | `docker logs benem-middleware` |
+
+**RECOVERY webhook: measured absence.** BHNM closed the incident and never posted a RECOVERY notification to the
+middleware (the same middleware that accepted and pushed the manual PROBLEM re-fire at 11:03 UTC). No maintenance
+window was active to suppress it. This is the action-configuration finding for the BHNM side; it is recorded, not
+explained. Thomas to check the action group's notification types include RECOVERY. No "Resolved: raspi-050" push was
+reported on the phone.
+
+**Icons back to green within bound.** Middleware: 24 s after BHNM's state change (one crawl). PWA: at the next map
+refetch (≤ 60 s) — observed green at 18:43:01 / 18:44:07 on the production bundle. iOS 2.13.1: Thomas's device, at
+his refresh interval.
+
+Screenshot: `2026-09-03-finale-pwa-0.14.1-list-all-green.jpg`.
+
+**Unrelated finding surfaced during the finale — LAN DNS.** The LAN resolver `192.168.2.11` (the Synology, also
+`ns.hurrikap.org`) answers **NXDOMAIN for `benem.hurrikap.org`** while resolving `bhnm-apns.hurrikap.org`; public
+resolvers (1.1.1.1, 8.8.8.8) return `172.104.142.164` for both, and Caddy on the box serves the PWA host with 200.
+Any client on the LAN using that resolver — Thomas's phone on Wi-Fi, this Mac's Chrome — cannot load the deployed
+PWA, which is why the phone kept showing the cached 0.14.0. Not a deploy issue; a missing record in the local zone.
+Also noted: host rows went 38 → 39 during the day (one more device is now monitored on the lab).
