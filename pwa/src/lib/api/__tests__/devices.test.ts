@@ -188,6 +188,36 @@ describe('parseDevicesResponse', () => {
     expect(parseDevicesResponse(raw).devices[0].status).toBe('unknown');
   });
 
+  // BHNM 26.3.01: poll is a runtime poller-state int (0/1/2/5), not a flag.
+  // Status keys on monitor alone; poll must be ignored whatever its value.
+  it('derives "up" from monitor=1 even when poll is the 26.3.01 value 5', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'host', ip: '1.2.3.4', dev_index: '1', poll: '5', monitor: 1 }
+    ]}}];
+    expect(parseDevicesResponse(raw).devices[0].status).toBe('up');
+  });
+
+  it('derives "up" from monitor="1" when poll is absent', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'host', ip: '1.2.3.4', dev_index: '1', monitor: '1' }
+    ]}}];
+    expect(parseDevicesResponse(raw).devices[0].status).toBe('up');
+  });
+
+  it('returns "unknown" when monitor is absent, whatever poll says', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'host', ip: '1.2.3.4', dev_index: '1', poll: '1' }
+    ]}}];
+    expect(parseDevicesResponse(raw).devices[0].status).toBe('unknown');
+  });
+
+  it('returns "unknown" when monitor="0"', () => {
+    const raw = [{ data: { totalRecords: 1, devices: [
+      { name: 'host', ip: '1.2.3.4', dev_index: '1', poll: '5', monitor: '0' }
+    ]}}];
+    expect(parseDevicesResponse(raw).devices[0].status).toBe('unknown');
+  });
+
   it('resolves numeric category/site IDs to names when name maps provided', () => {
     const raw = [{ data: { totalRecords: 1, devices: [
       { name: 'raspi-054', ip: '192.168.1.1', category: 23, site: 19 }

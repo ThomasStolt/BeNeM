@@ -42,11 +42,15 @@ function coerceStatus(entry: Record<string, unknown>): DeviceStatus {
   if (typeof entry.up_status === 'number') {
     return entry.up_status === 1 ? 'up' : 'down';
   }
-  // 5. infer from poll + monitor flags (mirrors iOS final fallback)
-  const poll    = entry.poll === '1'    || entry.poll    === 1 || entry.poll    === true;
+  // 5. monitor flag (mirrors iOS final fallback): BHNM runs a host check on
+  //    every monitor=1 device, Ping-Only (poll=0) included. `poll` is NOT a
+  //    flag — on 26.3.01 it is a runtime poller-state int (0/1/2/5) that
+  //    changes on its own — so it is deliberately ignored. Exact match only:
+  //    an absent or exotic monitor value must fail safe to grey, never green.
+  // ponytail: devices/list carries no live state, so this means "monitored",
+  //    never "down". Upgrade path: host_status overlay from the maintenance map.
   const monitor = entry.monitor === '1' || entry.monitor === 1 || entry.monitor === true;
-  if (poll && monitor) return 'up';
-  return 'unknown';
+  return monitor ? 'up' : 'unknown';
 }
 
 export interface Device {
