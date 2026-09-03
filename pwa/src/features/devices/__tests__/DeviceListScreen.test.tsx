@@ -194,3 +194,64 @@ describe('DeviceListScreen maintenance', () => {
     expect(await screen.findByLabelText('In maintenance')).toBeInTheDocument();
   });
 });
+
+// ── host_down overlay (Wave B) ───────────────────────────────────────────────
+
+function iconBg(name: string): string {
+  const row = screen.getByText(name).closest('a')!;
+  const icon = [...row.querySelectorAll('div')].find((el) => el.style.backgroundColor !== '')!;
+  return icon.style.backgroundColor;
+}
+
+describe('DeviceListScreen host_down overlay', () => {
+  beforeEach(() => {
+    vi.mocked(useDevices).mockReturnValue({
+      data: { devices: mockDevices, totalRecords: 2 },
+      isLoading: false, isError: false, dataUpdatedAt: Date.now(),
+    } as unknown as ReturnType<typeof useDevices>);
+    vi.mocked(useDeviceSearch).mockReturnValue({
+      data: undefined, isLoading: false, isFetching: false,
+    } as unknown as ReturnType<typeof useDeviceSearch>);
+    vi.mocked(useIncidents).mockReturnValue({ data: [] } as unknown as ReturnType<typeof useIncidents>);
+    _resetLocalMaintenance();
+  });
+
+  it('paints a device in host_down red and leaves the others on their list colour', () => {
+    vi.mocked(useMaintenanceMap).mockReturnValue({
+      data: { active: new Set<string>(), scheduled: new Map(), down: new Set(['raspi-054']) },
+    } as unknown as ReturnType<typeof useMaintenanceMap>);
+    renderScreen();
+    expect(iconBg('raspi-054')).toBe('rgb(220, 38, 38)');   // jsdom serialises with spaces
+    expect(iconBg('core-switch')).toBe('rgb(2, 132, 199)');
+  });
+
+  it('falls back to the list colour when the map carries no down set (older mock / older middleware)', () => {
+    vi.mocked(useMaintenanceMap).mockReturnValue({
+      data: { active: new Set<string>(), scheduled: new Map() },
+    } as unknown as ReturnType<typeof useMaintenanceMap>);
+    renderScreen();
+    expect(iconBg('raspi-054')).toBe('rgb(2, 132, 199)');
+  });
+
+  it('falls back when the down set is empty and when the map has not loaded yet', () => {
+    vi.mocked(useMaintenanceMap).mockReturnValue({
+      data: { active: new Set<string>(), scheduled: new Map(), down: new Set<string>() },
+    } as unknown as ReturnType<typeof useMaintenanceMap>);
+    const { unmount } = renderScreen();
+    expect(iconBg('raspi-054')).toBe('rgb(2, 132, 199)');
+    unmount();
+    vi.mocked(useMaintenanceMap).mockReturnValue({ data: undefined } as unknown as ReturnType<typeof useMaintenanceMap>);
+    renderScreen();
+    expect(iconBg('raspi-054')).toBe('rgb(2, 132, 199)');
+  });
+
+  it('a device both in maintenance and down shows the wrench beside a red icon (coexist)', () => {
+    vi.mocked(useMaintenanceMap).mockReturnValue({
+      data: { active: new Set(['raspi-054']), scheduled: new Map(), down: new Set(['raspi-054']) },
+    } as unknown as ReturnType<typeof useMaintenanceMap>);
+    renderScreen();
+    expect(iconBg('raspi-054')).toBe('rgb(220, 38, 38)');
+    expect(screen.getByLabelText('In maintenance')).toBeInTheDocument();
+  });
+});
+

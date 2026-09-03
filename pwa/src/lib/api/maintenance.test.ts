@@ -169,6 +169,48 @@ describe('fetchMaintenanceMap', () => {
     const map = await fetchMaintenanceMap(config);
     expect(map.active).toEqual(new Set());
     expect(map.scheduled.size).toBe(0);
+    expect(map.down.size).toBe(0);
+  });
+
+  // ── host_down (Wave B, middleware 2.12.0) ──────────────────────────────────
+
+  async function mapFor(body: unknown) {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })));
+    const { fetchMaintenanceMap } = await import('./maintenance');
+    return fetchMaintenanceMap(config);
+  }
+
+  it('parses host_down names when the cache is fresh, dropping non-strings', async () => {
+    const map = await mapFor({ cache_age_seconds: 12, in_maintenance: [], scheduled: [],
+      host_down: ['raspi-050', 42, null, 'raspi-054'] });
+    expect(map.down).toEqual(new Set(['raspi-050', 'raspi-054']));
+  });
+
+  it('host_down absent (older middleware) → empty down set, wrenches unaffected', async () => {
+    const map = await mapFor({ cache_age_seconds: 12, in_maintenance: ['sw-01'], scheduled: [] });
+    expect(map.down.size).toBe(0);
+    expect(map.active).toEqual(new Set(['sw-01']));
+  });
+
+  it('cache_age_seconds null (cold / cache-off / unresolved) → host_down ignored', async () => {
+    const map = await mapFor({ cache_age_seconds: null, in_maintenance: [], scheduled: [],
+      host_down: ['raspi-050'] });
+    expect(map.down.size).toBe(0);
+  });
+
+  it('age above HOST_DOWN_MAX_AGE_S (stalled loop) → host_down ignored; at the bound → kept', async () => {
+    const { HOST_DOWN_MAX_AGE_S } = await import('./maintenance');
+    expect(HOST_DOWN_MAX_AGE_S).toBe(300);
+    const stale = await mapFor({ cache_age_seconds: 301, in_maintenance: [], scheduled: [], host_down: ['raspi-050'] });
+    expect(stale.down.size).toBe(0);
+    const fresh = await mapFor({ cache_age_seconds: 299, in_maintenance: [], scheduled: [], host_down: ['raspi-050'] });
+    expect(fresh.down).toEqual(new Set(['raspi-050']));
+  });
+
+  it('an unknown sibling key never changes the active set (additive-key contract, both directions)', async () => {
+    const map = await mapFor({ cache_age_seconds: 5, in_maintenance: ['sw-01'], scheduled: [],
+      host_down: ['x'], some_future_key: { nested: true } });
+    expect(map.active).toEqual(new Set(['sw-01']));
   });
 });
 

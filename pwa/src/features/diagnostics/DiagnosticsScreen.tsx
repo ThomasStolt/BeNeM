@@ -85,12 +85,12 @@ export function DiagnosticsScreen() {
 
         <Section label="Feeds">
           <div className="divide-y divide-slate-800">
-            {['tactical', 'incidents', 'thresholds'].map((key) => {
+            {['tactical', 'incidents', 'thresholds', 'maintenance_map'].map((key) => {
               const f = data?.diagnostics.server.feeds[key];
               if (!f) return null;
               return (
                 <div key={key} className="flex items-center justify-between px-3 py-2.5">
-                  <span className="text-sm font-medium capitalize w-24">{key}</span>
+                  <span className="text-sm font-medium capitalize w-28">{key.replace('_', ' ')}</span>
                   <span className="text-xs text-slate-500 flex-1">
                     {f.count ?? '—'}
                     {f.age_seconds !== null ? ` · ${agoText(f.age_seconds)}` : ''}

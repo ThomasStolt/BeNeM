@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useConfig } from '../../lib/config';
 import { useDevices, PAGE_SIZE } from './useDevices';
 import { useDeviceSearch } from './useDeviceSearch';
+import type { Device } from '../../lib/api/devices';
 import { DeviceRow } from './DeviceRow';
 import { AppHeader } from '../../components/AppHeader';
 import { EmptyState } from '../../components/EmptyState';
@@ -49,6 +50,11 @@ export function DeviceListScreen() {
   const isPendingFor = (name: string) =>
     !isActive(name) && (localPending.has(name) || (maintMap?.scheduled.has(name) ?? false));
   const inMaint = (name: string) => isActive(name) || isPendingFor(name);
+  // Host state overlay (Wave B): a name in the middleware's host_down list paints
+  // the icon red; every other row keeps its devices/list colour. The `?.` chain
+  // is load-bearing — `maintMap` is undefined before the first fetch.
+  const rowStatus = (d: Device): Device['status'] =>
+    maintMap?.down?.has(d.name) ? 'down' : d.status;
   const [maintOnly, setMaintOnly] = useState(false);
   const maintCount = useMemo(
     () => (searchOrPageDevices ?? []).filter((d) => inMaint(d.name)).length,
@@ -140,7 +146,7 @@ export function DeviceListScreen() {
               {displayDevices.map((device) => (
                 <DeviceRow
                   key={device.name}
-                  device={device}
+                  device={{ ...device, status: rowStatus(device) }}
                   alarmSummary={deviceAlarmMap.get(device.name)}
                   inMaintenance={inMaint(device.name)}
                   maintenancePending={isPendingFor(device.name)}

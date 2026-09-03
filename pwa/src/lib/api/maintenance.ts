@@ -134,14 +134,28 @@ export interface MaintenanceMap {
   /** Middleware-remembered scheduled windows (name → start) — blinking wrench,
    * visible to every user, not just the creator. */
   scheduled: Map<string, Date>;
+  /** Names whose host row BHNM reports as DOWN (middleware 2.12.0 `host_down`) —
+   * red icon. Empty unless the map is usable (see HOST_DOWN_MAX_AGE_S). */
+  down: Set<string>;
 }
+
+/**
+ * host_down is accepted only when the middleware reports a fresh cache:
+ * `cache_age_seconds` null means cold / cache-off / unresolved server, and an
+ * age above this bound means the crawl loop is stalled — either way the list
+ * is parsed as empty and rows fall back to their devices/list colour.
+ * 300 s = one failed crawl attempt survives (60 s timeout + 60 s sleep + a
+ * crawl); a second one trips it. Decided once here, at parse time — never
+ * per render (iOS holds the map for the user's refresh interval).
+ */
+export const HOST_DOWN_MAX_AGE_S = 300;
 
 /**
  * Server-wide maintenance state from GET /api/v1/maintenance-map.
  * Best-effort: empty on any failure or cold cache — no state shown.
  */
 export async function fetchMaintenanceMap(config: BhnmConfig): Promise<MaintenanceMap> {
-  const empty: MaintenanceMap = { active: new Set(), scheduled: new Map() };
+  const empty: MaintenanceMap = { active: new Set(), scheduled: new Map(), down: new Set() };
   try {
     const raw = await fetchJson(config.baseUrl, '/api/v1/maintenance-map', {
       'X-Proxy-Token': config.apiKey,
@@ -156,9 +170,13 @@ export async function fetchMaintenanceMap(config: BhnmConfig): Promise<Maintenan
         scheduled.set(e.name, new Date(e.start_time * 1000));
       }
     }
+    const age = record.cache_age_seconds;
+    const mapUsable = typeof age === 'number' && age <= HOST_DOWN_MAX_AGE_S;
+    const downRaw = mapUsable && Array.isArray(record.host_down) ? record.host_down : [];
     return {
       active: new Set(names.filter((n): n is string => typeof n === 'string')),
       scheduled,
+      down: new Set(downRaw.filter((n): n is string => typeof n === 'string')),
     };
   } catch {
     return empty;
