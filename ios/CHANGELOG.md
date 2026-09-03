@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [2.12.1] — 2026-09-03
+
+### Fixed
+
+- **Most device icons were grey ("unknown") on BHNM 26.3.01.** `devices/list` carries no status field, so the icon colour fell through to a `poll == 1 && monitor == 1` guess — and on 26.3.01 `poll` turned out to be a runtime poller-state counter (0/1/2/5) that changes on its own, so only the handful of devices currently at 1 went green. The colour now keys on `monitor` alone (the flag that gates BHNM's host check, Ping-Only devices included): every monitored device is green, unmonitored stays grey. Green means *monitored*, not *reachable* — a DOWN host still shows its red incident chip beside the icon; a real host-status overlay follows in a later release.
+
 ## [2.12.0] — 2026-09-02
 
 > Build 33 addendum: acknowledging from the incident **detail screen** now updates the shared incident model immediately (via `incidentStatusDidChange`), so the incident list and the device-list alarm chips flip instantly instead of waiting up to one auto-refresh (~50 s observed). Swipe-ack already did this; now every path does.

@@ -12,7 +12,6 @@ struct NetreoDevice: Identifiable, Hashable {
     let site: String
     let model: String?
     let serialNumber: String?
-    let poll: Bool
     let monitor: Bool
     let snmpVersion: String?
     let createTime: String?

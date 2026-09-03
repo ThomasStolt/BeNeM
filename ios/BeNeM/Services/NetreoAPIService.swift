@@ -595,14 +595,18 @@ class NetreoAPIService: ObservableObject {
         let devIndex = (dict["dev_index"] as? String) ?? (dict["dev_index"] as? Int).map(String.init) ?? ""
         let name = dict["name"] as? String ?? ip
         let description = dict["description"] as? String ?? ""
-        // SaaS BHNM returns category, site, poll, monitor, create_time as integers
+        // SaaS BHNM returns category, site, monitor, create_time as integers
         let rawCategory = (dict["category"] as? String) ?? (dict["category"] as? Int).map(String.init) ?? ""
         let category = resolveCategoryName(rawCategory)
         let rawSite = (dict["site"] as? String) ?? (dict["site"] as? Int).map(String.init) ?? ""
         let site = resolveSiteName(rawSite)
         let model = dict["model"] as? String
         let serialNumber = dict["serial_number"] as? String
-        let poll = (dict["poll"] as? String) == "1" || (dict["poll"] as? Int) == 1
+        // `poll` is deliberately NOT read: on BHNM 26.3.01 it is a runtime
+        // poller-state int (0/1/2/5) that changes on its own, never a flag.
+        // `monitor` is the flag that gates BHNM's host check (Ping-Only
+        // devices have poll=0, monitor=1). Exact match only — an absent or
+        // exotic value fails safe to .unknown (grey), never to a false .up.
         let monitor = (dict["monitor"] as? String) == "1" || (dict["monitor"] as? Int) == 1
         let snmpVersion = dict["snmp_version"] as? String
         let createTime = (dict["create_time"] as? String) ?? (dict["create_time"] as? Int).map(String.init)
@@ -646,7 +650,9 @@ class NetreoAPIService: ObservableObject {
             if let upStatus = dict["up_status"] as? Int {
                 return upStatus == 1 ? .up : .down
             }
-            return (poll && monitor) ? .up : .unknown
+            // ponytail: devices/list carries no live state — this means
+            // "monitored", never "down". Upgrade path: host_status overlay.
+            return monitor ? .up : .unknown
         }()
 
         return NetreoDevice(
@@ -655,7 +661,7 @@ class NetreoAPIService: ObservableObject {
             category: category, site: site,
             model: (model?.isEmpty == true) ? nil : model,
             serialNumber: (serialNumber?.isEmpty == true) ? nil : serialNumber,
-            poll: poll, monitor: monitor,
+            monitor: monitor,
             snmpVersion: snmpVersion, createTime: createTime,
             status: status
         )
