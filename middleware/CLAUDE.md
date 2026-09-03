@@ -137,6 +137,24 @@ update that spec first, then implement here.
 
 ---
 
+## Running the tests
+
+One command covers the whole middleware suite (all test modules live under `tests/`;
+a root-level `test_endpoints.py` used to be skipped by `pytest tests` — moved 2026-09-03):
+
+```bash
+cd middleware && python -m pytest tests
+```
+
+The admin portal is a separate app with its own suite:
+
+```bash
+cd middleware/benem-admin && python -m pytest
+```
+
+Both need a venv with `requirements.txt` (plus `benem-admin/requirements-dev.txt` for the
+admin). Report counts from these two commands only — never from a subset.
+
 ## Running Locally (without Docker)
 
 ```bash

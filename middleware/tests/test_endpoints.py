@@ -89,10 +89,36 @@ def test_vapid_key_returns_404_when_not_configured():
 from unittest.mock import patch, AsyncMock
 
 
-def test_webhook_rejects_non_json():
-    resp = client.post("/webhook?secret=testsecret", content=b"not json",
-                       headers={"Content-Type": "application/json"})
-    assert resp.status_code == 422
+def test_webhook_form_encoded_body_is_accepted():
+    """Deliberate BHNM fallback: a non-JSON body that form-decodes to a valid
+    payload is processed exactly like JSON (BHNM may send without the JSON
+    content-type). Pinned against the running route, 2026-09-03."""
+    client.post("/register", json={"token": "55667788" * 8},
+                headers={"X-Webhook-Token": "formsecret"})
+    with patch("main.send_to_all", new_callable=AsyncMock, return_value=[]) as send:
+        resp = client.post(
+            "/webhook?secret=formsecret",
+            content=b"notification_type=PROBLEM&hostname=raspi-050&host_state=DOWN&incident_id=1",
+            headers={"Content-Type": "application/x-www-form-urlencoded"})
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok", "notified": 1}
+    assert "raspi-050" in send.await_args.args[1]   # title built from the form fields
+
+
+def test_webhook_undecodable_body_is_not_rejected():
+    """Current contract, pinned as OBSERVED (not as desired): the route has no
+    4xx path for a body that is neither JSON nor a form. Garbage form-decodes
+    to {} and is processed as a PROBLEM for "Unknown device" — and pushed when
+    the secret has registered devices. Flagged for a ruling on 2026-09-03; if
+    the route gains a 422 for an undecodable body, update this test."""
+    client.post("/register", json={"token": "99aabbcc" * 8},
+                headers={"X-Webhook-Token": "garbagesecret"})
+    with patch("main.send_to_all", new_callable=AsyncMock, return_value=[]) as send:
+        resp = client.post("/webhook?secret=garbagesecret", content=b"not json",
+                           headers={"Content-Type": "application/json"})
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok", "notified": 1}
+    assert "Unknown device" in send.await_args.args[1]
 
 
 def test_webhook_accepts_valid_payload():
