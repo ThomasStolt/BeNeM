@@ -709,7 +709,9 @@ async def diagnostics_endpoint(request: Request):
             "maintenance_map": diagnostics.feed_block(
                 server_id, "maintenance_map", cached=cache_enabled and mm is not None,
                 age_seconds=_age(mm.last_updated) if mm else None,
-                count=len(mm.names) if mm else None),
+                # host rows the last crawl classified UP/DOWN — the same number the
+                # cycle log prints; clients label it "N hosts" (spec rev 5 §11.3)
+                count=mm.host_rows if mm else None),
         }
 
         # BHNM hop = the background monitor's cached probe result. Never a live
@@ -919,8 +921,10 @@ async def proxy_maintenance_close(request: Request):
 
 @app.post("/api/proxy/maintenance/status")
 async def proxy_maintenance_status(request: Request):
-    """Merged read: {inMaintenance, windows}. Best-effort — a failed upstream
-    call degrades (false / empty), it never 5xxes the whole read."""
+    """Merged read: {inMaintenance, windows, scheduled, status?}. Best-effort — a
+    failed upstream call degrades (false / empty), it never 5xxes the whole read.
+    `status` (2.12.1, spec rev 5 §11.1) is the host row's literal passed through
+    untouched — absent when there is no row or the row carries no string status."""
     _verify_proxy_token(request)
 
     body_bytes = await request.body()
@@ -934,6 +938,7 @@ async def proxy_maintenance_status(request: Request):
     from urllib.parse import urlencode
     form_headers = {"content-type": "application/x-www-form-urlencoded"}
     in_maintenance = False
+    host_status: str | None = None
     windows = []
 
     async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=PROXY_TIMEOUT) as client:
@@ -956,6 +961,9 @@ async def proxy_maintenance_status(request: Request):
             # Missing key (BHNM < 26.3.01) or no row → False: never claim
             # maintenance we can't confirm.
             in_maintenance = bool(statuses and statuses[0].get("inMaintenance", False))
+            raw_status = statuses[0].get("status") if statuses else None
+            if isinstance(raw_status, str) and raw_status:
+                host_status = raw_status   # exact literal, never coerced
         except Exception as exc:
             print(f"[Proxy] maintenance/status host-status call failed: {exc}")
 
@@ -984,7 +992,10 @@ async def proxy_maintenance_status(request: Request):
                  if e["name"] == name), None)
             if entry:
                 scheduled = {"start_time": entry["start_time"], "end_time": entry["end_time"]}
-    return {"inMaintenance": in_maintenance, "windows": windows, "scheduled": scheduled}
+    out = {"inMaintenance": in_maintenance, "windows": windows, "scheduled": scheduled}
+    if host_status is not None:
+        out["status"] = host_status
+    return out
 
 
 def _registry_server_id(request: Request) -> str:

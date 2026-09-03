@@ -329,6 +329,7 @@ def test_maintenance_status_merges_both_bhnm_calls(client):
         "inMaintenance": True,
         "windows": [{"start_time": 1000, "end_time": 2000, "comment": "patching"}],
         "scheduled": None,
+        "status": "UP",          # 2.12.1: host row literal passed through
     }
 
     # Host-status call carries the probed-quirk params and the server-side key
@@ -385,7 +386,49 @@ def test_maintenance_status_list_failure_keeps_bool_and_empties_windows(client):
         resp = client.post("/api/proxy/maintenance/status",
                            data={"name": "core-router-01"}, headers=STATUS_HEADERS)
     assert resp.status_code == 200
-    assert resp.json() == {"inMaintenance": True, "windows": [], "scheduled": None}
+    assert resp.json() == {"inMaintenance": True, "windows": [], "scheduled": None, "status": "UP"}
+
+
+# ── 2.12.1: host status pass-through (spec rev 5 §11.1) ──────────────────────
+
+
+def test_maintenance_status_passes_down_literal_through(client):
+    inst, _ = _status_client_mock(
+        {"totalRecords": 1, "displayRecords": 1,
+         "statuses": [{"deviceName": "raspi-050", "status": "DOWN", "inMaintenance": False}]},
+        {"result": "completed", "windows": []},
+    )
+    with patch("httpx.AsyncClient", return_value=inst):
+        resp = client.post("/api/proxy/maintenance/status",
+                           data={"name": "raspi-050"}, headers=STATUS_HEADERS)
+    assert resp.json()["status"] == "DOWN"
+
+
+def test_maintenance_status_key_absent_without_a_string_literal(client):
+    for row in ({"deviceName": "x", "inMaintenance": False},            # no status field
+                {"deviceName": "x", "status": None},                    # null
+                {"deviceName": "x", "status": {"v": "DOWN"}},           # non-string
+                {"deviceName": "x", "status": ""}):                     # empty
+        inst, _ = _status_client_mock(
+            {"totalRecords": 1, "displayRecords": 1, "statuses": [row]},
+            {"result": "completed", "windows": []},
+        )
+        with patch("httpx.AsyncClient", return_value=inst):
+            resp = client.post("/api/proxy/maintenance/status",
+                               data={"name": "x"}, headers=STATUS_HEADERS)
+        assert "status" not in resp.json(), row
+
+
+def test_maintenance_status_unknown_literal_is_passed_not_coerced(client):
+    inst, _ = _status_client_mock(
+        {"totalRecords": 1, "displayRecords": 1,
+         "statuses": [{"deviceName": "x", "status": "UNREACHABLE"}]},
+        {"result": "completed", "windows": []},
+    )
+    with patch("httpx.AsyncClient", return_value=inst):
+        resp = client.post("/api/proxy/maintenance/status",
+                           data={"name": "x"}, headers=STATUS_HEADERS)
+    assert resp.json()["status"] == "UNREACHABLE"   # clients accept only UP/DOWN
 
 
 def test_maintenance_status_host_call_failure_is_false(client):

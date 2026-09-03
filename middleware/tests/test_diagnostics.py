@@ -104,6 +104,19 @@ def test_bhnm_from_monitor_feeds_from_telemetry(client, servers):
     # all four crawlers report — the maintenance map was recorded but unlisted before 2.11.0
     assert set(feeds) == {"incidents", "tactical", "thresholds", "maintenance_map"}
     assert feeds["maintenance_map"]["cached"] is False    # no cycle yet → cold, not an error
+
+
+def test_maintenance_map_feed_count_is_host_rows(client, servers):
+    import maintenance_cache
+    servers(cache_enabled=True)
+    diagnostics.record_success("lab", "probe", 12)
+    maintenance_cache._cache["lab"] = maintenance_cache.CachedMaintenance(
+        names=set(), down={"raspi-050"}, host_rows=38, last_updated=time.time())
+    with patch.object(diagnostics, "active_probe", AsyncMock(return_value=PROBE_UP)):
+        r = client.get("/api/v1/diagnostics", headers=_auth())
+    f = r.json()["server"]["feeds"]["maintenance_map"]
+    assert f["cached"] is True and f["count"] == 38      # host rows, not the in-maintenance count
+    maintenance_cache._cache.clear()
     assert body["server"]["host"] == "bhnm.example.com"   # host only, never full URL
 
 

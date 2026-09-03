@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.12.1] - 2026-09-03
+
+### Added
+
+- **`status` on `POST /api/proxy/maintenance/status`** (spec rev 5 §11.1). The per-device read already fetched the host row for the maintenance button; it now passes the row's `status` literal through untouched as an additive field, absent when there is no row or the row carries no string status. The detail screens use it (UP/DOWN) ahead of the list's map-or-fallback colour — live, zero extra BHNM calls, works on cache-off servers.
+
+### Changed
+
+- **Diagnostics `maintenance_map` count is now host rows** classified UP/DOWN by the last crawl (38 on the lab) — the same number as the cycle log line — instead of the in-maintenance count, which read as "no count" on a healthy day. Clients label it "N hosts".
+
 ## [2.12.0] - 2026-09-03
 
 ### Added

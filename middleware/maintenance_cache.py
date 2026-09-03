@@ -52,6 +52,7 @@ class CachedMaintenance:
     """Per-server snapshot: in-maintenance names + names whose host row is DOWN."""
     names: set[str] = field(default_factory=set)
     down: set[str] = field(default_factory=set)      # deviceName with host status "DOWN"
+    host_rows: int = 0                               # rows classified UP/DOWN by the last crawl (diagnostics count)
     last_updated: float = 0.0
 
 
@@ -178,7 +179,8 @@ async def _run_one_cycle(client, server: dict) -> None:
     started = time.perf_counter()
     try:
         names, down, host_rows = await _fetch_in_maintenance(client, server)
-        _cache[server_id] = CachedMaintenance(names=names, down=down, last_updated=time.time())
+        _cache[server_id] = CachedMaintenance(names=names, down=down, host_rows=host_rows,
+                                              last_updated=time.time())
         diagnostics.record_success(server_id, "maintenance_map",
                                    round((time.perf_counter() - started) * 1000))
         # host_rows is on-call visibility: a crawl that suddenly sees 0 host
