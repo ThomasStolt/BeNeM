@@ -1,7 +1,7 @@
 # Host-status overlay for the device list (Wave B) — design
 
 **Status:** STOP-AT-DESIGN — spec only. Thomas reviews before any build.
-**Date:** 2026-09-03 (rev 2 after a three-lens adversarial review; rev 1 assumed a 60 s iOS hold, which was wrong — see §5)
+**Date:** 2026-09-03 (rev 3: reviewer rulings — 300 s bound accepted, client diagnostics screens folded in, BHNM-opinion sentence; rev 2 after a three-lens adversarial review; rev 1 assumed a 60 s iOS hold, which was wrong — see §5)
 **Depends on:** middleware 2.11.0 (cache ON by default), PWA 0.13.1 / iOS 2.12.1 (Wave A: `monitor`-only fallback).
 **Evidence:** `docs/evidence/2026-09-03-bhnm-host-status-down-row.md` — the first `"DOWN"` host row ever captured on this wire. Every mapping below is written against that row, not the docs.
 **Amends:** `2026-09-02-maintenance-list-badges-design.md` §3 (names-only map) and §6 ("known false vs unknown" out of scope) — see §9.
@@ -118,6 +118,10 @@ Map hit wins over the fallback **only for the two known literals**; a device abs
 - `DeviceListView`: `DeviceRowView` gains `var hostStatus: NetreoDevice.DeviceStatus? = nil`, passed from `maintenanceMap.hostStatus[device.name]` at the single call site; `statusColor` switches on `hostStatus ?? device.status`. `NetreoDevice.status` stays a `let`; the view already observes `MaintenanceMapCache`, so tints update when a new map is published.
 - No new timer. Optional upgrade if the `refresh_interval` hold is judged too long for colours: a 60 s `.task` loop in `DeviceListView` calling `MaintenanceMapCache.shared.refresh(using:)` (which already no-ops under 60 s) — matches the PWA cadence at the cost of one more loop; not in this wave.
 
+### 5.2a Client diagnostics screens (same files, same releases — reviewer ruling 2026-09-03)
+
+Both screens list feeds from a hard-coded three-key array (`pwa/src/features/diagnostics/DiagnosticsScreen.tsx:88`, `ios/BeNeM/Views/DiagnosticsView.swift:115`); the middleware has served the fourth feed, `maintenance_map`, since 2.11.0. Wave B adds `maintenance_map` to both arrays (one line each, plus the divider condition on iOS) so an operator can see the crawl that now drives icon colour: cached / age / count / consecutive failures.
+
 ### 5.3 What the user sees
 
 | device | host row | icon before | icon after |
@@ -146,6 +150,7 @@ Outside the overlay — these keep Wave A semantics (green = monitored, grey = u
 - **`monitor = 0` devices.** No host row on any grouping, even by device name (badges spec §a). Grey, correctly.
 - **Cold cache** — first ≤ 60 s after a middleware start, `/internal/cache/reload`, **or any admin-portal server save** (`reload_server` pops the cache) — and a **stalled loop** (age > 300 s at the next fetch). Fallback until the map is usable again; operators will see DOWN devices go green for one cycle on every settings save.
 - **Client hold.** Colours are as fresh as the client's map fetch: PWA ≤ 60 s; **iOS ≤ the user's `refresh_interval` (30–300 s, default 120 s)**, refreshed only with the list, never on "Load more". A DOWN that BHNM has already recorded shows red on iOS no sooner than that.
+- **The icon is BHNM's opinion, not a reachability probe.** If BHNM marks a device DOWN for its own reasons — a parent/dependency down, a check that cannot reach it from the appliance while the device is fine from elsewhere — Wave B paints it red anyway, exactly as BHNM's own UI does; the row does not second-guess BHNM. (raspi-054 on 2026-09-03 is the live example: BHNM records "Ping CRITICAL: Packet Loss 100%" with no related alarms and no dependency data in the incident detail, so BHNM's stated cause is simply that it cannot reach the host.)
 - **BHNM's own lag.** The icon is BHNM's host-check *opinion*: a real outage turns red no sooner than BHNM's check + retry interval (host rows share one `lastUpdateTime` bump; ≥ 3 min gaps measured) + ≤ 60 s crawl + the client hold. A stale colour after recovery, or after the middleware dies, lasts at most 300 s + one client hold.
 - **Servers emitting `alarm_color`/`status`/`up_status` on `devices/list`** (none seen): map `UP` overrides a list-derived `critical` icon (§6.5).
 - **Detail screens** — see §10.
@@ -168,5 +173,5 @@ Outside the overlay — these keep Wave A semantics (green = monitored, grey = u
 ## 10. Follow-ons (not in this wave)
 
 - **Detail screens.** `DeviceDetailScreen.tsx` / `DeviceDetailViewModel.effectiveStatus` still show Wave A status; the "Current State" rows read raw `device.status`. Cheapest truthful source there is the per-device route `POST /api/proxy/maintenance/status` (`main.py`, `proxy_maintenance_status`), which already has the host row in hand (`statuses[0]`) and reads only `inMaintenance` from it — reading `["status"]` is the one-line change, and it works on cache-off servers; it breaks the three exact-dict asserts in `tests/test_maintenance.py` (L328/L360/L388). Separate spec.
-- **Client diagnostics screens** list three feeds by hard-coded key (`DiagnosticsScreen.tsx`, `DiagnosticsView.swift`); adding `maintenance_map` is a one-line change each, filed separately.
 - **iOS 60 s map cadence** (§5.2) if the `refresh_interval` hold proves too long for colours.
+- **Verification rule (reviewer ruling 5):** iOS "verified" means run on a device against the lab, not a simulator build; the Wave B iOS commit may exist before that, but it does not push until it has been.

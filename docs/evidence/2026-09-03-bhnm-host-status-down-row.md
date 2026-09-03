@@ -191,3 +191,40 @@ Active incidents contain both host incidents as `alert_type: "host"`:
 ```
 
 `devices/list` for raspi-050 at the same time: `poll: 1, monitor: 1` — no state field changed (there is none).
+
+
+## Addendum 2026-09-03T08:06:55Z — what BHNM says about raspi-054 (incident 27729)
+
+`/api/incident_api.php method=getincidentdetail incident_id=27729`, verbatim `detail` block:
+
+```json
+{
+ "primary_alarm_log": [
+  {
+   "state": "DOWN",
+   "type": "Host",
+   "name": "raspi-054",
+   "output": "<br />Ping CRITICAL: Packet Loss 100%",
+   "time": "2026-09-03T09:15:09"
+  }
+ ],
+ "relatedalarms": null,
+ "incident_log": [
+  {
+   "state": "OPEN",
+   "time": "2026-09-03T09:15:13",
+   "username": "system",
+   "comment": "Initialized state to OPEN"
+  }
+ ]
+}
+```
+
+`alert_type: "Host"`, `primary_alarm_state: "OPEN"`, opened `2026-09-03T09:15:13`, `relatedalarms: null`.
+BHNM's stated cause is the host check itself — 100 % packet loss on ping from the appliance at 09:15:09 local, four
+seconds before raspi-050's identical alarm. There is no parent/dependency record in the incident detail and no
+related alarm; BHNM does not claim a dependency, it claims unreachability. Both host rows still read `DOWN`
+(`currentStateDuration` 51m at this capture). No maintenance window is active on either device
+(`maint_window_api.php action=list` → `windows: []`), so the "in maintenance AND DOWN" capture is still pending.
+Whether the box is physically off is Thomas's call; a ping from the engineer's Mac at capture time is recorded in the
+session report, not here, because it is not a BHNM observation.
