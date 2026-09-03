@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 import httpx
 import diagnostics
 
-from config import SERVERS_JSON_PATH, BHNM_TLS_VERIFY, PROXY_TIMEOUT
+from config import SERVERS_JSON_PATH, BHNM_TLS_VERIFY, PROXY_TIMEOUT, server_cache_enabled
 
 
 # -- Cache storage -------------------------------------------------------------
@@ -68,7 +68,7 @@ def _server_id_for_bhnm_url(bhnm_url: str) -> str:
 def _load_enabled_servers() -> list[dict]:
     try:
         with open(SERVERS_JSON_PATH) as f:
-            return [s for s in json.load(f) if s.get("cache_enabled")]
+            return [s for s in json.load(f) if server_cache_enabled(s)]
     except (FileNotFoundError, json.JSONDecodeError, Exception):
         return []
 

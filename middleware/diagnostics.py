@@ -20,7 +20,7 @@ import httpx
 from config import DIAG_DOWN_THRESHOLD, DIAG_PROBE_INTERVAL
 
 PROBE_TIMEOUT = 4.0  # seconds — bounded; the probe fails fast, never hangs
-FEEDS = ("incidents", "tactical", "thresholds")
+FEEDS = ("incidents", "tactical", "thresholds", "maintenance_map")
 
 
 @dataclass

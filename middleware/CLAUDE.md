@@ -84,7 +84,7 @@ All secrets and configuration live in `.env` (gitignored). `config.py` reads the
 Clients call `GET /api/v1/incidents` and receive the full incident list with alarm counts in a single response. If the cache is cold (startup, new server), the endpoint falls through to the live BHNM proxy.
 
 Configuration is per-server in `servers.json`:
-- `cache_enabled` (bool, default false) — opt-in per server
+- `cache_enabled` (bool, **default true** since 2.11.0; single home `config.CACHE_ENABLED_DEFAULT`, mirrored in `benem-admin/servers.py`) — set `false` to opt a server out. Gates all four crawlers: incidents, tactical, thresholds, maintenance map.
 - `cache_refresh_seconds` (int, default 120, min 60, max 900) — full cycle interval
 
 The admin portal provides a toggle switch and refresh interval input per server. On add/edit/delete, the admin POSTs to `/internal/cache/reload` to start/stop/restart the cache loop.

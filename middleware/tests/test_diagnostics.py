@@ -101,6 +101,9 @@ def test_bhnm_from_monitor_feeds_from_telemetry(client, servers):
     assert bhnm["latency_ms"] == 12
     feeds = body["server"]["feeds"]
     assert feeds["incidents"]["cached"] is True and feeds["incidents"]["count"] == 2
+    # all four crawlers report — the maintenance map was recorded but unlisted before 2.11.0
+    assert set(feeds) == {"incidents", "tactical", "thresholds", "maintenance_map"}
+    assert feeds["maintenance_map"]["cached"] is False    # no cycle yet → cold, not an error
     assert body["server"]["host"] == "bhnm.example.com"   # host only, never full URL
 
 

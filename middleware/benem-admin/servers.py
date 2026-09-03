@@ -12,7 +12,7 @@ class Server:
     url: str
     api_key: str
     pin: str = ""
-    cache_enabled: bool = False
+    cache_enabled: bool = True  # mirrors config.CACHE_ENABLED_DEFAULT in the middleware (ruling 2026-09-03: ON)
     cache_refresh_seconds: int = 120
 
 

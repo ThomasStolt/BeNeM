@@ -21,7 +21,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, field_validator
 
-from config import MIDDLEWARE_PORT, VAPID_PUBLIC_KEY, BHNM_TLS_VERIFY, SERVERS_JSON_PATH, PROXY_TIMEOUT, PROXY_TOKEN, BENEM_SECRET_KEY
+from config import MIDDLEWARE_PORT, VAPID_PUBLIC_KEY, BHNM_TLS_VERIFY, SERVERS_JSON_PATH, PROXY_TIMEOUT, PROXY_TOKEN, BENEM_SECRET_KEY, server_cache_enabled
 from database import init_db, save_token, get_tokens_for_secret, get_all_tokens, delete_token, \
     save_web_push_subscription, get_web_push_subscriptions_for_secret, delete_web_push_subscription
 from apns import send_to_all
@@ -551,7 +551,9 @@ async def cached_tactical_overview(request: Request, grouping_type: str = "categ
 async def cached_maintenance_map(request: Request):
     """Names of devices currently in maintenance, from the background cache.
 
-    Response: {"cache_age_seconds": N | null, "in_maintenance": ["name", ...]}
+    Response: {"cache_age_seconds": N | null,
+               "in_maintenance": ["name", ...],
+               "scheduled": [{"name", "start_time", "end_time"}, ...]}
     Deliberately NO live fall-through on a cold cache (that would be one
     upstream call per category, in-request): cold or unresolved server →
     empty list, which renders as "no maintenance state shown" — safe.
@@ -664,7 +666,9 @@ async def diagnostics_endpoint(request: Request):
         server_cfg = _resolve_server_config(request) or {}
         target_base = (server_cfg.get("url", "") or _single_server_url()).rstrip("/")
         server_id = server_cfg.get("id", "")
-        cache_enabled = bool(server_cfg.get("cache_enabled", False))
+        # unresolved server ({}) is never "cached"; a resolved one follows the
+        # single default in config.server_cache_enabled (ON unless set false)
+        cache_enabled = bool(server_cfg) and server_cache_enabled(server_cfg)
         host = urlparse(target_base).hostname or ""
 
         def _age(ts):
@@ -674,6 +678,7 @@ async def diagnostics_endpoint(request: Request):
         ic = incident_cache.get_cached(server_id) if server_id else None
         tc = tactical_cache.get_cached(server_id, "category") if server_id else None
         th = threshold_cache.get_cached(server_id) if server_id else None
+        mm = maintenance_cache.get_cached(server_id) if server_id else None
         feeds = {
             "incidents": diagnostics.feed_block(
                 server_id, "incidents", cached=cache_enabled and ic is not None,
@@ -687,6 +692,10 @@ async def diagnostics_endpoint(request: Request):
                 server_id, "thresholds", cached=cache_enabled and th is not None,
                 age_seconds=_age(th.last_updated) if th else None,
                 count=len(th.counts) if th else None),
+            "maintenance_map": diagnostics.feed_block(
+                server_id, "maintenance_map", cached=cache_enabled and mm is not None,
+                age_seconds=_age(mm.last_updated) if mm else None,
+                count=len(mm.names) if mm else None),
         }
 
         # BHNM hop = the background monitor's cached probe result. Never a live

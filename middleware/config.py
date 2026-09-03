@@ -26,6 +26,18 @@ BHNM_TLS_VERIFY: bool = os.environ.get("BHNM_TLS_VERIFY", "true").lower() != "fa
 SERVERS_JSON_PATH: str = os.environ.get("SERVERS_JSON_PATH", "/data/servers.json")
 PROXY_TIMEOUT: float = 60.0  # seconds — BHNM can be slow for large queries
 PROXY_TOKEN: str = os.environ.get("PROXY_TOKEN", "")
+
+# Per-server caching (incidents, tactical, thresholds, maintenance map).
+# ON by default (ruling 2026-09-03): the maintenance map and, later, the
+# host_status overlay only exist for cached servers. A servers.json entry
+# without the key, and the admin portal's new-server form, both mean ON.
+# This is the ONLY place the default lives — every reader goes through
+# server_cache_enabled(); benem-admin/servers.py mirrors it (separate app).
+CACHE_ENABLED_DEFAULT: bool = True
+
+
+def server_cache_enabled(server: dict) -> bool:
+    return bool(server.get("cache_enabled", CACHE_ENABLED_DEFAULT))
 DIAG_PROBE_INTERVAL: float = float(os.environ.get("DIAG_PROBE_INTERVAL", "15"))
 DIAG_DOWN_THRESHOLD: int = int(os.environ.get("DIAG_DOWN_THRESHOLD", "2"))
 BENEM_SECRET_KEY: str = os.environ.get("BENEM_SECRET_KEY", "")

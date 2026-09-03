@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.11.0] - 2026-09-03
+
+### Changed
+
+- **Per-server caching is ON by default.** A `servers.json` entry without `cache_enabled`, and a server added through the admin portal, now cache. The default lives in exactly one place (`config.CACHE_ENABLED_DEFAULT`, read through `server_cache_enabled()` by the incident, tactical, threshold and maintenance crawlers and by `/api/v1/diagnostics`), mirrored by the admin app's `Server` dataclass. Set `"cache_enabled": false` to opt a server out. Honest cost: the flag gates **four** crawlers — incidents (getincidents + one detail call per incident, paced over `cache_refresh_seconds`), tactical (3 calls), thresholds (1 CSV), and the maintenance map (category/list + one paged host-status call per category, **every 60 s**, per server).
+- **Existing entries are not rewritten.** The admin portal writes `cache_enabled` explicitly on every save, so a server previously saved with the toggle off stays off until re-saved (or edited in `servers.json`) and `/internal/cache/reload` is called.
+
+### Added
+
+- `/api/v1/diagnostics` now reports a fourth feed, `maintenance_map` (cached / age / count / failures), alongside incidents, tactical and thresholds. The crawler already recorded its telemetry; the payload just did not include it.
+
+### Fixed
+
+- `/api/v1/maintenance-map` docstring listed only `in_maintenance`; the response has carried `scheduled` since 2.10.0.
+
 ## [2.10.1] - 2026-09-02
 
 ### Fixed
