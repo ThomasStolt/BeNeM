@@ -66,7 +66,12 @@ def test_register_webpush_requires_webhook_token():
 
 
 def test_vapid_key_endpoint():
-    resp = client.get("/vapid-key")
+    # config is imported once per pytest session; whichever test module loads
+    # first decides VAPID_PUBLIC_KEY. Pin it here so the test does not depend
+    # on collection order (it passed before only because this file was
+    # collected first from the middleware root).
+    with patch("config.VAPID_PUBLIC_KEY", "test-vapid-public-key"):
+        resp = client.get("/vapid-key")
     assert resp.status_code == 200
     data = resp.json()
     assert data["publicKey"] == "test-vapid-public-key"
