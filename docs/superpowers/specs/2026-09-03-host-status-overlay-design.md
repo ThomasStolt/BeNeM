@@ -1,7 +1,7 @@
 # Host-status overlay for the device list (Wave B) — design
 
 **Status:** STOP-AT-DESIGN — spec only. Thomas reviews before any build.
-**Date:** 2026-09-03 (rev 4: reviewer amendments A+B — DOWN-only list instead of a full map; iOS error path clears the down set; "in maintenance AND DOWN" now captured. rev 3: rulings; rev 2: three-lens review; rev 1 assumed a 60 s iOS hold, which was wrong — see §5)
+**Date:** 2026-09-03 (rev 5: §11 detail-screen source, one precedence rule, diagnostics unit — after Thomas's on-device table; rev 4: reviewer amendments A+B — DOWN-only list instead of a full map; iOS error path clears the down set; "in maintenance AND DOWN" now captured. rev 3: rulings; rev 2: three-lens review; rev 1 assumed a 60 s iOS hold, which was wrong — see §5)
 **Depends on:** middleware 2.11.0 (cache ON by default), PWA 0.13.1 / iOS 2.12.1 (Wave A: `monitor`-only fallback).
 **Evidence:** `docs/evidence/2026-09-03-bhnm-host-status-down-row.md` — the first `"DOWN"` host row ever captured on this wire. Every mapping below is written against that row, not the docs.
 **Amends:** `2026-09-02-maintenance-list-badges-design.md` §6 ("known false vs unknown" out of scope) — see §9. Its §3 name-list ruling is *kept*: this wave adds a second name list, not a map.
@@ -133,7 +133,7 @@ Both screens list feeds from a hard-coded three-key array (`pwa/src/features/dia
 | BHNM-A-SE01 (monitor=0) | none | grey | grey (fallback) |
 | any device, middleware loop stalled (route still answers) | last snapshot, age growing | green | last colour until age > 300 s at the next fetch, then green (fallback) |
 | any device, middleware dead (fetch fails) | — | green | PWA: green within ≤ 60 s (error → empty); iOS: green at the next fetch attempt (error clears `down`) |
-| device in maintenance **and** DOWN | **verified 2026-09-03 on raspi-054** (evidence file addendum): `status: "DOWN"` unchanged, `inMaintenance: true`; incident 27729 stays OPEN | green + wrench + red chip | **red + wrench + red chip** — the coexist doctrine holds; BHNM suppresses notifications, it does not alter the incident |
+| device in maintenance **and** DOWN | **verified 2026-09-03 on raspi-054** (evidence file addendum): `status: "DOWN"` unchanged, `inMaintenance: true`; incident 27729 stays OPEN | green + wrench + red chip | **red + wrench + red chip** in the list, **red icon + "DOWN" + maintenance banner** on the detail screen (§11 rule: down > maintenance > list colour); BHNM suppresses notifications, it does not alter the incident |
 
 ## 6. Spec decisions
 
@@ -183,6 +183,29 @@ Outside the overlay — these keep Wave A semantics (green = monitored, grey = u
 
 ## 10. Follow-ons (not in this wave)
 
-- **Detail screens.** `DeviceDetailScreen.tsx` / `DeviceDetailViewModel.effectiveStatus` still show Wave A status; the "Current State" rows read raw `device.status`. Cheapest truthful source there is the per-device route `POST /api/proxy/maintenance/status` (`main.py`, `proxy_maintenance_status`), which already has the host row in hand (`statuses[0]`) and reads only `inMaintenance` from it — reading `["status"]` is the one-line change, and it works on cache-off servers; it breaks the three exact-dict asserts in `tests/test_maintenance.py` (L328/L360/L388). Separate spec.
 - **iOS 60 s map cadence** (§5.2) if the `refresh_interval` hold proves too long for colours.
 - **Verification rule (reviewer ruling 5):** iOS "verified" means run on a device against the lab, not a simulator build; the Wave B iOS commit may exist before that, but it does not push until it has been.
+
+## 11. Rev 5 — detail screen source, one precedence rule, diagnostics unit (reviewer rulings after Thomas's on-device table, 2026-09-03)
+
+Thomas's iOS 2.13.0 acceptance (§8) surfaced three things on the detail screen and the diagnostics row. Ruled and built as one small round — middleware 2.12.1, PWA 0.14.1, iOS 2.13.1 (36) — while raspi-050 is still off.
+
+### 11.1 Detail-screen status comes from the per-device route, not the map
+
+`POST /api/proxy/maintenance/status` already fetches the device's host row (`statuses[0]`) for the maintenance button and read only `inMaintenance` from it. Middleware 2.12.1 passes the row's **`status` through as an additive field**: the exact BHNM literal, **absent** when the row has none (no row, no key, non-string). Response: `{"inMaintenance", "windows", "scheduled", "status"?}`.
+
+Clients: the detail header (icon + status text) and the Host Information "Current State" row use `status` when it is `UP` or `DOWN`; otherwise they fall back to **the same rowStatus the list uses** (map-or-fallback, §5). Reasons over the map: it is live rather than 60 s + one client hold stale, costs zero extra BHNM calls (the screen already makes this request), and works on cache-off servers where the map is empty.
+
+### 11.2 One precedence rule, list and detail: **down > maintenance > list colour**
+
+A known DOWN — route `status == "DOWN"`, or (when the route carries no status) the name in `host_down` — paints the icon **red** on both screens and the header text says **Down**. Maintenance comes second: a DOWN host in a window is red with the wrench (list) and red with the maintenance banner (detail); the banner says the window, the button inverts as before. Red is never hidden by maintenance blue. Route `UP` beats a stale map `down`. Only when neither the route nor the map says anything does the `devices/list` colour apply (Wave A rule). Both clients cite this section from the place the rule is applied.
+
+### 11.3 Diagnostics: the `maintenance_map` feed's count is **host rows seen by the last crawl**
+
+The in-maintenance count (0 on a healthy day) read as "no count". The feed's `count` is now the number of host rows the last crawl classified as `UP`/`DOWN` — 38 on the lab — the same number the cycle log line prints. Both clients label the unit: **"38 hosts"**, never a bare number.
+
+### 11.4 Versions, tests
+
+- **Middleware 2.12.1**: `proxy_maintenance_status` status pass-through; `CachedMaintenance.host_rows` stored per cycle and served as the feed count. Tests: the three exact-dict asserts in `tests/test_maintenance.py` gain `"status": "UP"` where the fixture row has one; pass-through tests for `DOWN`, absent, non-string; a diagnostics test pins `count == host_rows`.
+- **PWA 0.14.1**: `parseMaintenanceStatus` gains `hostStatus` (`'UP' | 'DOWN' | null`); `DeviceDetailScreen` header, icon and "Current State" follow §11.1/§11.2; Diagnostics shows "N hosts". Tests: parser literals; detail header DOWN+red with the banner when route says DOWN and inMaintenance; map fallback when the route carries no status; route UP beats a stale map down.
+- **iOS 2.13.1 (36)**: `MaintenanceStatus.hostStatus`; `DeviceDetailViewModel.effectiveStatus` per §11.2 (reads `MaintenanceMapCache.down` for the fallback); "Current State" row uses `effectiveStatus`; Diagnostics "N hosts". On-device: raspi-050 detail header red + Down; list red + wrench if a window is active; diagnostics "38 hosts"; the §8 list acceptance unchanged.
