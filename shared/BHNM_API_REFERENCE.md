@@ -89,6 +89,23 @@ curl --request POST \
   --data 'password=YOUR_PASSWORD&recordStart=0&recordCount=50'
 ```
 
+**Response shape (observed on BHNM 26.3.01 on-prem, 2026-09-03):** top-level
+`{ "totalRecords", "displayRecords", "devices": [...] }` — no `data` wrapper. Each
+device row carries **configuration only**: `GUID, UID, auto_config, category,
+create_time, description, dev_index, device_type, ip, model, monitor, name, poll,
+poll_intvl, report, serial_number, site, snmp_version, template, template_persist`.
+There is **no status field** (no `alarm_color`, `status`, `up_status`); live UP/DOWN
+exists only on `get-host-and-service-status` host rows (see below).
+
+- `poll` is a **runtime poller-state integer** (observed 0, 1, 2, 5), not a boolean
+  and not the interval (`poll_intvl` is the interval). Devices at 1, 2 and 5 all report
+  "Polling successful." on BHNM's own Device Polling Status check, and the value
+  changes on its own (a device moved 2 → 5 within 16 minutes with no config change).
+  Never key logic on a specific `poll` value.
+- `monitor` (0/1) is the switch that gates BHNM's host check: a host-status row exists
+  for exactly the `monitor == 1` devices (Ping-Only devices are `poll: 0, monitor: 1`).
+- `devices/find` rows have the same integer `poll`/`monitor` and likewise no status.
+
 ---
 
 ## Metric Discovery Workflow

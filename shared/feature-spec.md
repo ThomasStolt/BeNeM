@@ -141,6 +141,7 @@ features defined here. Platform-specific behaviour is noted per feature.
 - Server-side search by device name
 - Display device name, IP, category badge per row
 - Tap navigates to device detail
+- Icon status colour: BHNM list fields when present (`alarm_color` / `status` / `up_status`), else `monitor == 1` → up (BHNM host-checks the device), else unknown. `poll` is **not** consulted — on 26.3.01 it is a runtime poller-state int (0/1/2/5), never a flag. Exact match on `monitor`: an absent or exotic value fails safe to unknown (grey), never to a false green. `devices/list` carries no live state, so "up" means *monitored*; a DOWN host shows the red incident chip beside a green icon until the host_status overlay ships (iOS 2.12.1 / PWA 0.13.1).
 
 #### iOS-specific
 - Native SwiftUI List with UID-based identity
