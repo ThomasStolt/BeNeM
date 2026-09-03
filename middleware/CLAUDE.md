@@ -155,6 +155,15 @@ cd middleware/benem-admin && python -m pytest
 Both need a venv with `requirements.txt` (plus `benem-admin/requirements-dev.txt` for the
 admin). Report counts from these two commands only — never from a subset.
 
+**Gate on pytest's own exit code.** A commit chain that reads
+`pytest ... | tail -1 && git commit` gates on `tail`, not on pytest — a red suite was
+committed that way on 2026-09-03. In any script: run pytest with **no pipe** and
+`&&` the commit to it, or `set -o pipefail` first. Human-readable form:
+
+```bash
+cd middleware && python -m pytest tests -q && echo GREEN   # && binds to pytest, not to a pipe
+```
+
 ## Running Locally (without Docker)
 
 ```bash
