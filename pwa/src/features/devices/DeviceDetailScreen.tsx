@@ -8,6 +8,8 @@ import { EmptyState } from '../../components/EmptyState';
 import { PerformanceSection } from '../performance/PerformanceSection';
 import { MaintenanceCard } from './MaintenanceCard';
 import { useMaintenanceStatus } from './useMaintenanceStatus';
+import { useMaintenanceMap } from './useMaintenanceMap';
+import type { DeviceStatus } from '../../lib/api/devices';
 import { LatencyMiniChart } from './LatencyMiniChart';
 import { DeviceTypeIcon } from '../../components/DeviceTypeIcon';
 import { OverflowMarquee } from '../../components/OverflowMarquee';
@@ -129,10 +131,18 @@ export function DeviceDetailScreen() {
   const { data: maintenanceStatus } = useMaintenanceStatus(decodedName);
 
   const device = searchResults?.[0];
-  // inMaintenance is the source of truth for the badge: BHNM is suppressing
-  // alerts, so "maintenance" is the honest headline over a possibly-stale status.
-  const effectiveStatus =
-    maintenanceStatus?.inMaintenance ? 'maintenance' : device?.status ?? 'unknown';
+  const { data: maintMap } = useMaintenanceMap();
+  // Spec rev 5 §11.2 — one precedence rule, list and detail: down > maintenance >
+  // list colour. A known DOWN is the live per-device route (§11.1) or, when that
+  // carries no status, the map's host_down; route UP beats a stale map down.
+  const routeStatus = maintenanceStatus?.hostStatus ?? null;
+  const isDown =
+    routeStatus === 'DOWN' || (routeStatus === null && !!device && (maintMap?.down?.has(device.name) ?? false));
+  const effectiveStatus: DeviceStatus =
+    isDown ? 'down'
+    : maintenanceStatus?.inMaintenance ? 'maintenance'
+    : routeStatus === 'UP' ? 'up'
+    : device?.status ?? 'unknown';
 
   const deviceIncidents = useMemo(
     () => (allIncidents ?? []).filter((inc) => inc.deviceName === decodedName),
@@ -170,7 +180,7 @@ export function DeviceDetailScreen() {
           <div className="bg-slate-800 rounded-xl p-3.5 flex items-center gap-3" style={{ minHeight: '80px' }}>
             {/* Icon */}
             <div className="self-center shrink-0">
-              <DeviceTypeIcon type={classifyDevice(device)} status={device.status} size={52} />
+              <DeviceTypeIcon type={classifyDevice(device)} status={effectiveStatus} size={52} />
             </div>
 
             {/* Info column */}
@@ -256,7 +266,7 @@ export function DeviceDetailScreen() {
 
           {/* ── Host Information (collapsed by default) ── */}
           <CollapsibleSection title="Host Information" defaultOpen={false}>
-            <InfoRow label="Current State" value={STATUS_LABELS[device.status] ?? device.status} />
+            <InfoRow label="Current State" value={STATUS_LABELS[effectiveStatus] ?? effectiveStatus} />
             {device.description && <InfoRow label="Description" value={device.description} />}
             {device.category && <InfoRow label="Category" value={device.category} />}
             {device.site && <InfoRow label="Site" value={device.site} />}

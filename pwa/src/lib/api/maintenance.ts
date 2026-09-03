@@ -15,6 +15,9 @@ export interface MaintenanceStatus {
   windows: MaintenanceWindow[];
   /** Middleware-remembered scheduled window (all users see it); null when none. */
   scheduledStart: Date | null;
+  /** Live host state from the same per-device read (middleware 2.12.1 `status`,
+   * spec rev 5 §11.1): only the literals UP / DOWN are accepted, else null. */
+  hostStatus: 'UP' | 'DOWN' | null;
 }
 
 export function parseMaintenanceStatus(raw: unknown): MaintenanceStatus {
@@ -23,6 +26,7 @@ export function parseMaintenanceStatus(raw: unknown): MaintenanceStatus {
   const sched = record.scheduled as Record<string, unknown> | null | undefined;
   return {
     inMaintenance: record.inMaintenance === true,
+    hostStatus: record.status === 'UP' || record.status === 'DOWN' ? record.status : null,
     scheduledStart:
       sched && typeof sched.start_time === 'number'
         ? new Date(sched.start_time * 1000)

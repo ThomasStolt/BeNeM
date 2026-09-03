@@ -32,6 +32,14 @@ describe('parseMaintenanceStatus', () => {
     expect(s.inMaintenance).toBe(false);
   });
 
+  it('parses the live host status literal, accepting only UP / DOWN (middleware 2.12.1)', () => {
+    expect(parseMaintenanceStatus({ inMaintenance: false, windows: [], status: 'DOWN' }).hostStatus).toBe('DOWN');
+    expect(parseMaintenanceStatus({ inMaintenance: false, windows: [], status: 'UP' }).hostStatus).toBe('UP');
+    expect(parseMaintenanceStatus({ inMaintenance: false, windows: [] }).hostStatus).toBeNull();
+    expect(parseMaintenanceStatus({ inMaintenance: false, windows: [], status: 'UNREACHABLE' }).hostStatus).toBeNull();
+    expect(parseMaintenanceStatus({ inMaintenance: false, windows: [], status: 'down' }).hostStatus).toBeNull();
+  });
+
   it('treats missing windows as empty', () => {
     const s = parseMaintenanceStatus({ inMaintenance: true });
     expect(s.windows).toEqual([]);

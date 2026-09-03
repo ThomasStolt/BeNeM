@@ -8,6 +8,10 @@ import { DeviceDetailScreen } from '../DeviceDetailScreen';
 
 vi.mock('../useDeviceSearch', () => ({ useDeviceSearch: vi.fn() }));
 vi.mock('../useMaintenanceStatus', () => ({ useMaintenanceStatus: vi.fn() }));
+vi.mock('../useMaintenanceMap', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../useMaintenanceMap')>();
+  return { ...original, useMaintenanceMap: vi.fn(() => ({ data: undefined })) };
+});
 vi.mock('../../incidents/useIncidents', () => ({ useIncidents: vi.fn() }));
 vi.mock('../LatencyMiniChart', () => ({ LatencyMiniChart: () => null }));
 vi.mock('../../performance/PerformanceSection', () => ({
@@ -27,6 +31,7 @@ vi.mock('../../../lib/config', () => ({
 import { useDeviceSearch } from '../useDeviceSearch';
 import { useIncidents } from '../../incidents/useIncidents';
 import { useMaintenanceStatus } from '../useMaintenanceStatus';
+import { useMaintenanceMap } from '../useMaintenanceMap';
 import { parseMaintenanceStatus } from '../../../lib/api/maintenance';
 
 const mockDevice = {
@@ -214,3 +219,54 @@ describe('DeviceDetailScreen', () => {
     expect(screen.getByText('Device not found')).toBeInTheDocument();
   });
 });
+
+// ── host state on the detail screen (spec rev 5 §11.1 / §11.2) ──────────────
+
+describe('DeviceDetailScreen host state precedence: down > maintenance > list colour', () => {
+  beforeEach(() => {
+    vi.mocked(useIncidents).mockReturnValue({ data: [] } as unknown as ReturnType<typeof useIncidents>);
+    vi.mocked(useDeviceSearch).mockReturnValue({
+      data: [mockDevice], isLoading: false, isError: false,
+    } as ReturnType<typeof useDeviceSearch>);
+    vi.mocked(useMaintenanceMap).mockReturnValue({ data: undefined } as unknown as ReturnType<typeof useMaintenanceMap>);
+  });
+
+  it('route DOWN while in maintenance: header says DOWN in red, the maintenance banner still shows', () => {
+    vi.mocked(useMaintenanceStatus).mockReturnValue({
+      data: parseMaintenanceStatus({ inMaintenance: true, status: 'DOWN',
+        windows: [{ start_time: 1, end_time: 2, comment: 'x' }] }),
+    } as unknown as ReturnType<typeof useMaintenanceStatus>);
+    renderDetail('raspi-054');
+    const label = screen.getByText('DOWN');
+    expect(label.closest('p')).toHaveClass('text-red-400');
+    expect(screen.getByText(/In Maintenance · ends/)).toBeInTheDocument();
+  });
+
+  it('route carries no status: falls back to the map (host_down) like the list', () => {
+    vi.mocked(useMaintenanceStatus).mockReturnValue({
+      data: parseMaintenanceStatus({ inMaintenance: false, windows: [] }),
+    } as unknown as ReturnType<typeof useMaintenanceStatus>);
+    vi.mocked(useMaintenanceMap).mockReturnValue({
+      data: { active: new Set(), scheduled: new Map(), down: new Set(['raspi-054']) },
+    } as unknown as ReturnType<typeof useMaintenanceMap>);
+    renderDetail('raspi-054');
+    expect(screen.getByText('DOWN').closest('p')).toHaveClass('text-red-400');
+  });
+
+  it('route UP beats a stale map down; no route and no map → the list colour', () => {
+    vi.mocked(useMaintenanceStatus).mockReturnValue({
+      data: parseMaintenanceStatus({ inMaintenance: false, windows: [], status: 'UP' }),
+    } as unknown as ReturnType<typeof useMaintenanceStatus>);
+    vi.mocked(useMaintenanceMap).mockReturnValue({
+      data: { active: new Set(), scheduled: new Map(), down: new Set(['raspi-054']) },
+    } as unknown as ReturnType<typeof useMaintenanceMap>);
+    const { unmount } = renderDetail('raspi-054');
+    expect(screen.getByText('UP').closest('p')).toHaveClass('text-green-400');
+    unmount();
+    vi.mocked(useMaintenanceStatus).mockReturnValue({ data: null } as unknown as ReturnType<typeof useMaintenanceStatus>);
+    vi.mocked(useMaintenanceMap).mockReturnValue({ data: undefined } as unknown as ReturnType<typeof useMaintenanceMap>);
+    renderDetail('raspi-054');
+    expect(screen.getByText('UP')).toBeInTheDocument();
+  });
+});
+
