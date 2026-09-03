@@ -1,5 +1,6 @@
 import os
 import tempfile
+import uuid
 
 # Set up test env before imports
 _tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
@@ -28,10 +29,14 @@ def _setup_db():
 
 
 def test_register_webpush_creates_subscription():
+    # Unique endpoint per run: the suite's DB_PATH is decided by whichever test
+    # module imports `database` first, and those /tmp files persist across runs,
+    # so a fixed endpoint would already exist and the route would answer 200.
+    endpoint = f"https://fcm.googleapis.com/fcm/send/{uuid.uuid4().hex}"
     resp = client.post(
         "/register-webpush",
         json={
-            "endpoint": "https://fcm.googleapis.com/fcm/send/abc123",
+            "endpoint": endpoint,
             "p256dh": "test-public-key",
             "auth": "test-auth-secret",
         },
@@ -40,7 +45,7 @@ def test_register_webpush_creates_subscription():
     assert resp.status_code == 201
     subs = get_web_push_subscriptions_for_secret("my-webhook-secret")
     assert len(subs) >= 1
-    assert any(s["endpoint"] == "https://fcm.googleapis.com/fcm/send/abc123" for s in subs)
+    assert any(s["endpoint"] == endpoint for s in subs)
 
 
 def test_register_webpush_upsert_returns_200():
