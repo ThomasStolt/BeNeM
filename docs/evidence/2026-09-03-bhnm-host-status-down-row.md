@@ -368,3 +368,32 @@ unverified on the wire and stays open until a webhook actually arrives.
 `https://bhnm-apns.hurrikap.org/webhook?secret=<the secret the 5 registered devices share>`, that RECOVERY
 notifications are enabled for it, and that BHNM's outbound HTTP can reach the host. Re-run the proof by taking raspi-054
 down and up again (or the next real transition); the watcher command is in the session log.
+
+## Addendum — 2.11.1 route proven with a real BHNM payload (manual webhook, 2026-09-03 11:03 UTC)
+
+Correction to the previous addendum: Thomas *did* receive push notifications for the 09:15 UTC host-down events on his
+iPhone, so BHNM's webhook delivery works. Those two PROBLEM webhooks went to the 2.10.1 container, whose log was
+discarded when it was recreated at 09:37 — which is why no trace survived. What BHNM did **not** send is a RECOVERY for
+raspi-054's 10:46:14 UTC return; that remains a BHNM-side configuration question (notify-on-recovery for the action
+group attached to the host check), not a middleware one.
+
+To exercise the 2.11.1 route with a real BHNM-formatted body, Thomas re-fired the notification for open incident 27728
+(raspi-050, still powered off) from BHNM.
+
+| time (UTC) | event | source |
+|---|---|---|
+| 11:02:47 | log watcher armed | this session |
+| 11:03:30.733 | `[Webhook] PROBLEM — raspi-050 — Incident 27728` — body decoded, `hostname` present, accepted, pushed | `docker logs -t benem-middleware` |
+| 11:03:48 | Thomas reports the push received on his iPhone | this session |
+| — | `[Webhook] Rejected` lines since the 2.11.1 deploy: **0** | `docker logs benem-middleware` |
+
+Notification title as built by the route for this payload: `🔴 raspi-050 — DOWN` (PROBLEM with `host_state` DOWN);
+Thomas to confirm the title as displayed on the phone.
+
+**Result.** A real BHNM webhook body passes the 2.11.1 hostname check and is pushed end-to-end through the post-fix
+route: 200, one push, zero rejections. The "form-encoded fallback" and "garbage → 422" behaviours are covered by the
+suite (93 passed); the wire has now confirmed the accept path.
+
+Observation, not a finding: the uvicorn access log carries no `POST /webhook` entry for this request although it logs
+every other request; the `[Webhook]` application line is the authoritative trace. Worth a look when the S1
+(secret-in-query-string) item is worked, since an access-log line would have printed the secret.
