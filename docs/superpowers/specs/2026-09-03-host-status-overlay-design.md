@@ -169,11 +169,11 @@ Outside the overlay — these keep Wave A semantics (green = monitored, grey = u
 
   | # | action (raspi-050 powered off) | expected | observed |
   |---|---|---|---|
-  | 1 | open the device list, wait one refresh | raspi-050: red icon + red chip | |
-  | 2 | create a maintenance window on raspi-050 from this build | one row: red icon + wrench + red chip; the button inverts as before | |
-  | 3 | switch to another configured server and back | no colour carry-over | |
-  | 4 | Diagnostics screen | `maintenance_map` listed as the fourth feed with age and count | |
-  | 5 | kill the app, relaunch | colours reappear within one refresh; no stale red on a device that is up | |
+  | 1 | open the device list, wait one refresh | raspi-050: red icon + red chip | **confirmed** (Thomas, 2026-09-03, iOS 2.13.0 (35) on device). Observation: the Device Detail top card still says "Up" — iOS and PWA — see §10 follow-on, now Thomas's ask |
+  | 2 | create a maintenance window on raspi-050 from this build | one row: red icon + wrench + red chip; the button inverts as before | **confirmed**: button inverted, scheduled 19:50, wrench flashing until 19:50, then solid; list row red + wrench. Observation: the detail-screen icon turned blue (maintenance precedence) while the list is red — Thomas votes **red on both**: DOWN wins the icon, the wrench and the maintenance banner carry the window |
+  | 3 | switch to another configured server and back | no colour carry-over | **confirmed** |
+  | 4 | Diagnostics screen | `maintenance_map` listed as the fourth feed with age and count | **listed** with age and the CACHED badge; Thomas sees no count — the feed's count is the in-maintenance count (0 today), which reads as empty; host rows (38) would be the informative number — decision pending |
+  | 5 | kill the app, relaunch | colours reappear within one refresh; no stale red on a device that is up | **confirmed** |
 
   Code-review coverage of the bound: `NetreoAPIService.hostDownMaxAgeSeconds = 300`; `down` is built only when `cache_age_seconds` is an `Int` ≤ 300; `MaintenanceMapCache.refresh()` clears `down` on any fetch error and keeps `names` (amendment B); `invalidate()` clears it on server switch.
 
