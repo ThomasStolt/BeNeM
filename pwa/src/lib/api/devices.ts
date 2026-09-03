@@ -47,7 +47,7 @@ function coerceStatus(entry: Record<string, unknown>): DeviceStatus {
   //    flag — on 26.3.01 it is a runtime poller-state int (0/1/2/5) that
   //    changes on its own — so it is deliberately ignored. Exact match only:
   //    an absent or exotic monitor value must fail safe to grey, never green.
-  // ponytail: devices/list carries no live state, so this means "monitored",
+  // Note: devices/list carries no live state, so this means "monitored",
   //    never "down". Upgrade path: host_status overlay from the maintenance map.
   const monitor = entry.monitor === '1' || entry.monitor === 1 || entry.monitor === true;
   return monitor ? 'up' : 'unknown';

@@ -650,7 +650,7 @@ class NetreoAPIService: ObservableObject {
             if let upStatus = dict["up_status"] as? Int {
                 return upStatus == 1 ? .up : .down
             }
-            // ponytail: devices/list carries no live state — this means
+            // Note: devices/list carries no live state — this means
             // "monitored", never "down". Upgrade path: host_status overlay.
             return monitor ? .up : .unknown
         }()
