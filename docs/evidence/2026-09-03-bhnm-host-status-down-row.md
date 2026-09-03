@@ -443,3 +443,37 @@ Screenshots: `2026-09-03-pwa-0.14.0-local-devices-top.jpg`, `2026-09-03-pwa-0.14
 `2026-09-03-pwa-0.14.0-local-diagnostics-four-feeds.jpg`.
 
 Not covered: iOS 2.13.0 — next, verified on Thomas's phone with raspi-050 off (red icon) before its commit pushes.
+
+
+## Addendum — rev 5 round: middleware 2.12.1 deployed, PWA 0.14.1 verified on the production bundle (2026-09-03, 18:20–18:24 UTC)
+
+### Middleware 2.12.1 deploy ((b) discipline)
+
+Pushed ac6ba8a, f95772f, 91261f1 only. Images tagged `:17f10fc`, `./upgrade.sh` rebuilt and recreated **only**
+`bhnm-apns`, health gate passed at +0 s on 2.12.1, no rollback; PWA/admin/Caddy untouched. First crawl line:
+`Cache updated: 1 in maintenance, 38 host rows, 1 down` (raspi-050 was inside Thomas's 19:50–20:50 window).
+
+**Per-device route `POST /api/proxy/maintenance/status` — verbatim, before (2026-09-03T18:20:18+00:00) → after (2026-09-03T18:21:47+00:00):**
+
+| device | before (2.12.0) | after (2.12.1) |
+|---|---|---|
+| raspi-050 (off, in window) | `{"inMaintenance": true, "windows": [{"start_time": 1788457800, "end_time": 1788461400, "comment": "Created by Thomas iPhone PWA on 2026-09-03 19:45:"}], "scheduled": null}` | `{"inMaintenance": true, "windows": [{"start_time": 1788457800, "end_time": 1788461400, "comment": "Created by Thomas iPhone PWA on 2026-09-03 19:45:"}], "scheduled": null, "status": "DOWN"}` |
+| raspi-053 (live) | `{"inMaintenance": false, "windows": [], "scheduled": null}` | `{"inMaintenance": false, "windows": [], "scheduled": null, "status": "UP"}` |
+| BHNM-A-SE01 (no host row) | `{"inMaintenance": false, "windows": [], "scheduled": null}` | `{"inMaintenance": false, "windows": [], "scheduled": null}` — key absent, as specified |
+
+`/api/v1/maintenance-map` unchanged in shape and content: before `{"cache_age_seconds": 51, "in_maintenance": ["raspi-050"], "scheduled": [], "host_down": ["raspi-050"]}`, after `{"cache_age_seconds": 54, "in_maintenance": ["raspi-050"], "scheduled": [], "host_down": ["raspi-050"]}`.
+Diagnostics `maintenance_map` feed: before `{"cached": true, "age_seconds": 51, "count": 1, "consecutive_failures": 0, "last_error": null}` → after `{"cached": true, "age_seconds": 54, "count": 38, "consecutive_failures": 0, "last_error": null}` — count is now host rows (38).
+
+### PWA 0.14.1 on the production bundle against live 2.12.1 (Chrome, 18:22–18:24 UTC)
+
+| check | observed |
+|---|---|
+| raspi-050 detail header | icon `rgb(220, 38, 38)`, label **DOWN** in `text-red-400`, maintenance banner "In Maintenance · ends 20:50" shown beneath — precedence down > maintenance holds |
+| raspi-050 Host Information → Current State | **DOWN** |
+| device list | 41 rows: 1 down (raspi-050, red icon **+ wrench** + red chip + "Host raspi-050" ticker), 37 up, 3 unknown; chip "In maintenance (1)" |
+| Diagnostics feeds | Tactical / Incidents / Thresholds / **Maintenance Map "38 hosts · 6s ago" CACHED**; middleware version 2.12.1 |
+
+Screenshots: `2026-09-03-pwa-0.14.1-local-raspi-050-detail-down-in-maintenance.jpg`,
+`2026-09-03-pwa-0.14.1-local-raspi-050-list-red-wrench.jpg`, `2026-09-03-pwa-0.14.1-local-diagnostics-38-hosts.jpg`.
+
+iOS 2.13.1 (36): built, committed locally, awaiting Thomas's on-device values before its push.
