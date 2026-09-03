@@ -407,3 +407,39 @@ window closed. Re-checked at 14:52 UTC: the 2.11.1 container still holds exactly
 manual PROBLEM) — **no RECOVERY for raspi-054 arrived at any point after the window closed either**. So the delay
 explains why nothing was seen *during* the watch, but not the absence *after* it; the notify-on-recovery setting of the
 action group attached to raspi-054's host check remains the thing to check in BHNM. Rejections since deploy: 0.
+
+## Addendum — Wave B: middleware 2.12.0 deployed, PWA 0.14.0 verified on the production bundle (2026-09-03, 15:37–15:48 UTC)
+
+### Middleware 2.12.0 deploy (same discipline as 2.11.0/2.11.1)
+
+Images tagged `:7381499`, `./upgrade.sh` 20 s, only `bhnm-apns` rebuilt and recreated (admin, PWA, Caddy untouched),
+health gate passed at +0 s on 2.12.0, no rollback, no cache reload (the recreate restarted all four loops).
+
+| | before 15:37:29 UTC (2.11.1) | after 15:42:23 UTC (2.12.0) |
+|---|---|---|
+| `/api/v1/maintenance-map` | `{"cache_age_seconds": 27, "in_maintenance": [], "scheduled": []}` | `{"cache_age_seconds": 57, "in_maintenance": [], "scheduled": [], "host_down": ["raspi-050"]}` |
+| shipped-client view (PWA 0.13.1 `Array.isArray`, iOS 2.12.1 `as? [String]`) | `in_maintenance` [] / `scheduled` [] | identical — the extra key is invisible to both |
+| diagnostics feeds | 4 feeds cached, 0 failures | at 15:42:23 tactical / thresholds / maintenance_map cached, incidents still on its first cycle (0 failures); at 15:42:33 **all four cached, 0 failures** (incidents 526, age 0) |
+| container cycle line | `Cache updated: 0 in maintenance` | `Cache updated: 0 in maintenance, 38 host rows, 1 down` every ~63 s; ignored-literal lines 0; fetch-failed 0 |
+
+Note on the incidents feed: the lab's active-incident count went from 30 (morning) to 399 (15:37) to **526** (15:45) —
+raspi-054's return apparently re-opened a large number of service/threshold incidents. The incident crawl paces one
+detail call per incident over its 120 s interval, so its first cycle after the 2.12.0 restart was still at 520/526 at
+capture. Not a 2.12.0 effect; noted for Thomas.
+
+### PWA 0.14.0 on the production bundle against the live 2.12.0 middleware
+
+`npm run build && npm run preview` (key via the gitignored `.env.local`, removed afterwards), Chrome at 15:40 UTC,
+icon colours counted programmatically over the 41 rendered rows:
+
+| check | observed |
+|---|---|
+| `down` (`rgb(220, 38, 38)`) | **1 — raspi-050**, red icon + red chip 1 + "Host raspi-050" ticker |
+| `up` (`rgb(2, 132, 199)`) | **37**, including raspi-054 (back UP, window over) and the Ping-Only pair Miele-T1 / Shelly_MieleW1 |
+| `unknown` (`rgb(55, 65, 81)`) | **3** — BHNM-A-SE01, BHNM-A-SE02, bhnm-apns.hurrikap.org (`monitor = 0`) |
+| Diagnostics screen, Feeds section | **four rows**: Tactical, Incidents (LIVE — cold at that moment, see above), Thresholds, Maintenance Map; middleware version 2.12.0 |
+
+Screenshots: `2026-09-03-pwa-0.14.0-local-devices-top.jpg`, `2026-09-03-pwa-0.14.0-local-raspi-050-red-icon.jpg`,
+`2026-09-03-pwa-0.14.0-local-diagnostics-four-feeds.jpg`.
+
+Not covered: iOS 2.13.0 — next, verified on Thomas's phone with raspi-050 off (red icon) before its commit pushes.
