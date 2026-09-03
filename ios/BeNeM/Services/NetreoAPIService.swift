@@ -861,10 +861,12 @@ class NetreoAPIService: ObservableObject {
         }
         // Missing field (BHNM < 26.3.01) reads false — never claim maintenance
         // an older server can't confirm.
+        let literal = json["status"] as? String
         return MaintenanceStatus(
             inMaintenance: json["inMaintenance"] as? Bool ?? false,
             windows: windows,
-            scheduledStart: scheduledStart
+            scheduledStart: scheduledStart,
+            hostStatus: (literal == "UP" || literal == "DOWN") ? literal : nil
         )
     }
 
@@ -1513,6 +1515,9 @@ struct MaintenanceStatus {
     let windows: [MaintenanceWindow]
     /// Middleware-remembered scheduled window (all users see it); nil when none.
     var scheduledStart: Date? = nil
+    /// Live host state from the same per-device read (middleware 2.12.1 `status`,
+    /// spec rev 5 §11.1): only the literals "UP" / "DOWN" are kept, else nil.
+    var hostStatus: String? = nil
 
     /// Latest end across active windows ("suppressed until"); nil if none.
     var activeEnd: Date? { windows.map(\.end).max() }

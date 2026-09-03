@@ -114,7 +114,8 @@ struct DiagnosticsView: View {
             card {
                 ForEach(["tactical", "incidents", "thresholds", "maintenance_map"], id: \.self) { key in
                     if let f = result?.diagnostics?.server.feeds[key] {
-                        feedRow(key == "maintenance_map" ? "Maint. map" : key.capitalized, f)
+                        feedRow(key == "maintenance_map" ? "Maint. map" : key.capitalized, f,
+                                unit: key == "maintenance_map" ? "hosts" : nil)
                         if key != "maintenance_map" { Divider() }
                     }
                 }
@@ -125,11 +126,13 @@ struct DiagnosticsView: View {
         }
     }
 
-    private func feedRow(_ name: String, _ f: Diagnostics.Feed) -> some View {
-        HStack {
+    private func feedRow(_ name: String, _ f: Diagnostics.Feed, unit: String? = nil) -> some View {
+        // spec rev 5 §11.3: the maintenance-map feed counts host rows — label the unit
+        let countText = f.count.map { c in unit.map { u in "\(c) \(u)" } ?? String(c) } ?? "—"
+        return HStack {
             Text(name).font(.subheadline).fontWeight(.medium).frame(width: 90, alignment: .leading)
             VStack(alignment: .leading, spacing: 1) {
-                Text("\(f.count.map(String.init) ?? "—")\(f.age_seconds.map { " · \(agoText($0))" } ?? "")")
+                Text("\(countText)\(f.age_seconds.map { " · \(agoText($0))" } ?? "")")
                     .font(.caption).foregroundColor(.secondary)
             }
             Spacer()

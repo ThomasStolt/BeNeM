@@ -10,6 +10,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [2.13.1] — 2026-09-03
+
+### Changed
+
+- **The device detail screen shows live host state.** Header icon, status text and the Host Information "Current State" row now follow BHNM's per-device host row (served by middleware 2.12.1 on the read the screen already makes): DOWN is red and says Down, even during a maintenance window — the banner still shows the window and the button inverts as before. One precedence rule on both screens: down, then maintenance, then the list colour. When the read carries no host state the screen falls back to the same rule the list uses.
+- **Diagnostics: the maintenance-map feed shows "N hosts"** — the host rows the last crawl classified — instead of the in-maintenance count.
+
 ## [2.13.0] — 2026-09-03
 
 ### Added

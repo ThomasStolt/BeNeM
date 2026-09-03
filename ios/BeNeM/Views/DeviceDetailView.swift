@@ -270,8 +270,8 @@ struct DeviceDetailView: View {
             if hostInfoExpanded {
                 Divider().padding(.leading, 16)
                 VStack(spacing: 0) {
-                    infoRow("Current State", value: device.status.rawValue.uppercased(),
-                            valueColor: statusColor(device.status))
+                    infoRow("Current State", value: viewModel.effectiveStatus.rawValue.uppercased(),
+                            valueColor: statusColor(viewModel.effectiveStatus))
                     infoRow("Type of Device", value: device.description)
                     infoRowWithIcon("folder", value: device.category)
                     infoRowWithIcon("building.2", value: device.site)

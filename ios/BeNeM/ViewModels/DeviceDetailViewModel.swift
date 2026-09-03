@@ -117,11 +117,18 @@ class DeviceDetailViewModel: ObservableObject {
         return .normal
     }
 
-    /// Effective status for the header badge: maintenance is the honest
-    /// headline while BHNM suppresses alerts. Follows the raw boolean (no
-    /// local suppression) — the badge flips one poll late, honestly.
+    /// Spec rev 5 §11.2 — one precedence rule, list and detail:
+    /// down > maintenance > list colour. A known DOWN is the live per-device
+    /// route (§11.1) or, when that carries no status, the map's host_down;
+    /// route UP beats a stale map down. Maintenance stays the headline over
+    /// the list colour while BHNM suppresses alerts; it never hides a DOWN.
     var effectiveStatus: NetreoDevice.DeviceStatus {
-        maintenance?.inMaintenance == true ? .maintenance : device.status
+        let route = maintenance?.hostStatus
+        let mapDown = MaintenanceMapCache.shared.down.contains(device.name)
+        if route == "DOWN" || (route == nil && mapDown) { return .down }
+        if maintenance?.inMaintenance == true { return .maintenance }
+        if route == "UP" { return .up }
+        return device.status
     }
 
     func loadMaintenance() async {
