@@ -146,6 +146,12 @@ function parseDeviceArray(
  * Real BHNM shape: `{ data: { totalRecords, displayRecords, devices: [...] } }`
  * possibly array-wrapped as `[{ data: { ... } }]`.
  */
+// totalRecords arrives as a string on some servers and a number on others.
+function coerceTotal(v: unknown, fallback: number): number {
+  const n = typeof v === 'string' ? parseInt(v, 10) : typeof v === 'number' ? v : NaN;
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
 export function parseDevicesResponse(
   raw: unknown,
   categoryNames: Map<string, string> = new Map(),
@@ -160,26 +166,27 @@ export function parseDevicesResponse(
   if (obj.data && typeof obj.data === 'object') {
     const data = obj.data as Record<string, unknown>;
     if (Array.isArray(data.devices)) {
-      const total = typeof data.totalRecords === 'string'
-        ? parseInt(data.totalRecords, 10)
-        : typeof data.totalRecords === 'number' ? data.totalRecords : 0;
-      return { devices: parseDeviceArray(data.devices, categoryNames, siteNames), totalRecords: total || 0 };
+      const devices = parseDeviceArray(data.devices, categoryNames, siteNames);
+      return { devices, totalRecords: coerceTotal(data.totalRecords, devices.length) };
     }
   }
 
-  // Shape 2: { devices: [...] } (no data wrapper)
+  // Shape 2: { totalRecords, displayRecords, devices: [...] } — what BHNM 26.3.01
+  // actually sends (no data wrapper). totalRecords drives the pager's "of N".
   if (Array.isArray(obj.devices)) {
-    return { devices: parseDeviceArray(obj.devices, categoryNames, siteNames), totalRecords: 0 };
+    const devices = parseDeviceArray(obj.devices, categoryNames, siteNames);
+    return { devices, totalRecords: coerceTotal(obj.totalRecords, devices.length) };
   }
 
-  // Shape 3: object-keyed { key: {device}, key: {device} } (fallback)
+  // Shape 3: object-keyed { key: {device}, key: {device} } (fallback) — unpaged,
+  // so the total is what we have.
   const devices: Device[] = [];
   for (const value of Object.values(obj)) {
     if (!value || typeof value !== 'object') continue;
     const device = parseDevice(value as Record<string, unknown>, categoryNames, siteNames);
     if (device) devices.push(device);
   }
-  return { devices, totalRecords: 0 };
+  return { devices, totalRecords: devices.length };
 }
 
 export function parseDeviceFindResponse(

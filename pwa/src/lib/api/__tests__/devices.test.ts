@@ -218,6 +218,21 @@ describe('parseDevicesResponse', () => {
     expect(parseDevicesResponse(raw).devices[0].status).toBe('unknown');
   });
 
+  it('reads totalRecords from the unwrapped 26.3.01 shape so the pager keeps "of N"', () => {
+    const raw = { totalRecords: 41, displayRecords: 2, devices: [
+      { name: 'raspi-054', ip: '192.168.2.54', dev_index: 3 },
+      { name: 'UDM-Pro', ip: '192.168.2.1', dev_index: 5184 },
+    ]};
+    const result = parseDevicesResponse(raw);
+    expect(result.devices).toHaveLength(2);
+    expect(result.totalRecords).toBe(41);
+  });
+
+  it('falls back to the device count when the shape carries no total', () => {
+    const raw = { a: { name: 'x', ip: '1.1.1.1' }, b: { name: 'y', ip: '1.1.1.2' } };
+    expect(parseDevicesResponse(raw).totalRecords).toBe(2);
+  });
+
   it('resolves numeric category/site IDs to names when name maps provided', () => {
     const raw = [{ data: { totalRecords: 1, devices: [
       { name: 'raspi-054', ip: '192.168.1.1', category: 23, site: 19 }
