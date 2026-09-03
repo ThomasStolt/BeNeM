@@ -6,6 +6,14 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const middlewareBase = env.VITE_MIDDLEWARE_BASE ?? 'https://bhnm-apns.hurrikap.org';
+  const bhnmProxy = {
+    '/bhnm': {
+      target: middlewareBase,
+      changeOrigin: true,
+      secure: true,
+      rewrite: (p: string) => p.replace(/^\/bhnm/, ''),
+    },
+  };
 
   return {
     plugins: [
@@ -39,16 +47,10 @@ export default defineConfig(({ mode }) => {
         },
       }),
     ],
-    server: {
-      proxy: {
-        '/bhnm': {
-          target: middlewareBase,
-          changeOrigin: true,
-          secure: true,
-          rewrite: (p) => p.replace(/^\/bhnm/, ''),
-        },
-      },
-    },
+    // /bhnm/* → middleware, for both `vite` (dev) and `vite preview` (a local
+    // production bundle checked against the real middleware, as the prod Caddy does).
+    server: { proxy: bhnmProxy },
+    preview: { proxy: bhnmProxy },
     test: {
       globals: true,
       environment: 'jsdom',
