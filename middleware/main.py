@@ -298,8 +298,19 @@ async def receive_webhook(request: Request):
         parsed = parse_qs(body.decode("utf-8", errors="replace"))
         data = {k: v[0] if v else "" for k, v in parsed.items()}
 
+    # 2.11.1 — hygiene, not security (?secret= is still the only gate): a body
+    # that decodes to something other than an object (JSON scalar/array), or
+    # to an object without a hostname (garbage form-decodes to {}), used to be
+    # pushed as a PROBLEM for "Unknown device". Reject it instead. Logged
+    # scrubbed: content-type and length only, never the body.
+    if not isinstance(data, dict) or not str(data.get("hostname", "")).strip():
+        print(f"[Webhook] Rejected: no hostname in decoded body "
+              f"(content-type={request.headers.get('content-type', '')!r}, {len(body)} bytes)")
+        raise HTTPException(status_code=422,
+                            detail="payload must be a JSON object or form with a non-empty hostname")
+
     notification_type = data.get("notification_type", "PROBLEM")
-    hostname          = data.get("hostname", "Unknown device")
+    hostname          = str(data["hostname"]).strip()
     host_state        = data.get("host_state", "")
     site              = data.get("site", "")
     service_desc      = data.get("service_desc", "")

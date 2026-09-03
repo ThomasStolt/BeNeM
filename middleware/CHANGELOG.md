@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.11.1] - 2026-09-03
+
+### Fixed
+
+- **`/webhook` rejects bodies it cannot notify about.** A body that decodes to something other than an object (a JSON scalar or array — previously a 500), or to an object without a non-empty `hostname` (garbage, or an empty body, which form-decodes to `{}` — previously pushed to every registered device as a `⚠️ Unknown device — PROBLEM`), now returns **422** and sends nothing. The rejection is logged as one scrubbed line (content-type and body length only, never the body). The form-encoded fallback for BHNM's missing-content-type case is unchanged. **This is hygiene, not security:** the request still needs a valid `?secret=`; the open item about the query-string secret on the board is not addressed by this release. If a BHNM notification template ever posts without `$HOSTNAME` (e.g. an application-service incident with no device), it is now rejected and visible in the log rather than pushed as "Unknown device" — watch for `[Webhook] Rejected` after deploy.
+
 ## [2.11.0] - 2026-09-03
 
 ### Changed

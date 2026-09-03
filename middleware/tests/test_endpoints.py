@@ -115,20 +115,39 @@ def test_webhook_form_encoded_body_is_accepted():
     assert "raspi-050" in send.await_args.args[1]   # title built from the form fields
 
 
-def test_webhook_undecodable_body_is_not_rejected():
-    """Current contract, pinned as OBSERVED (not as desired): the route has no
-    4xx path for a body that is neither JSON nor a form. Garbage form-decodes
-    to {} and is processed as a PROBLEM for "Unknown device" — and pushed when
-    the secret has registered devices. Flagged for a ruling on 2026-09-03; if
-    the route gains a 422 for an undecodable body, update this test."""
+def test_webhook_garbage_body_is_rejected_and_not_pushed():
+    """2.11.1 contract: a body that is neither JSON nor a form decodes to {}
+    (no hostname) and used to be pushed as an "Unknown device" PROBLEM.
+    Now 422, and nothing is sent. The ?secret= gate is unchanged."""
     client.post("/register", json={"token": "99aabbcc" * 8},
                 headers={"X-Webhook-Token": "garbagesecret"})
     with patch("main.send_to_all", new_callable=AsyncMock, return_value=[]) as send:
         resp = client.post("/webhook?secret=garbagesecret", content=b"not json",
                            headers={"Content-Type": "application/json"})
-    assert resp.status_code == 200
-    assert resp.json() == {"status": "ok", "notified": 1}
-    assert "Unknown device" in send.await_args.args[1]
+    assert resp.status_code == 422
+    send.assert_not_awaited()
+
+
+def test_webhook_empty_body_is_rejected():
+    resp = client.post("/webhook?secret=anysecret", content=b"")
+    assert resp.status_code == 422
+
+
+@pytest.mark.parametrize("scalar_or_array", [b"123", b"[]", b'["hostname"]', b"null"])
+def test_webhook_json_non_object_is_422_not_500(scalar_or_array):
+    """A JSON scalar or array used to reach data.get() and raise → 500."""
+    resp = client.post("/webhook?secret=anysecret", content=scalar_or_array,
+                       headers={"Content-Type": "application/json"})
+    assert resp.status_code == 422
+
+
+@pytest.mark.parametrize("payload", [{"notification_type": "PROBLEM", "host_state": "DOWN"},
+                                     {"hostname": ""}, {"hostname": "   "}])
+def test_webhook_json_without_hostname_is_rejected(payload):
+    """hostname is the one field every BHNM webhook template carries ($HOSTNAME);
+    without it there is nothing to notify about."""
+    resp = client.post("/webhook?secret=anysecret", json=payload)
+    assert resp.status_code == 422
 
 
 def test_webhook_accepts_valid_payload():
