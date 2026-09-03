@@ -388,7 +388,7 @@ To exercise the 2.11.1 route with a real BHNM-formatted body, Thomas re-fired th
 | — | `[Webhook] Rejected` lines since the 2.11.1 deploy: **0** | `docker logs benem-middleware` |
 
 Notification title as built by the route for this payload: `🔴 raspi-050 — DOWN` (PROBLEM with `host_state` DOWN);
-Thomas to confirm the title as displayed on the phone.
+**confirmed by Thomas as the title displayed on the iPhone.**
 
 **Result.** A real BHNM webhook body passes the 2.11.1 hostname check and is pushed end-to-end through the post-fix
 route: 200, one push, zero rejections. The "form-encoded fallback" and "garbage → 422" behaviours are covered by the
@@ -397,3 +397,13 @@ suite (93 passed); the wire has now confirmed the accept path.
 Observation, not a finding: the uvicorn access log carries no `POST /webhook` entry for this request although it logs
 every other request; the `[Webhook]` application line is the authoritative trace. Worth a look when the S1
 (secret-in-query-string) item is worked, since an access-log line would have printed the secret.
+
+### RECOVERY timing, per Thomas, and what the log shows afterwards
+
+BHNM holds a recovered incident in **ALARMS CLEARED for 5 minutes by default** and fires the recovery webhook only
+after that window closes. BHNM's own incident log for 27729 confirms the window exactly: `OPEN` 09:15:13 →
+`ALARMS CLEARED` 12:46:41 → `CLOSED` 12:51:43 (local, UTC+2). My watchers ended at 10:54 UTC, two minutes after the
+window closed. Re-checked at 14:52 UTC: the 2.11.1 container still holds exactly one `[Webhook]` line (the 11:03:30
+manual PROBLEM) — **no RECOVERY for raspi-054 arrived at any point after the window closed either**. So the delay
+explains why nothing was seen *during* the watch, but not the absence *after* it; the notify-on-recovery setting of the
+action group attached to raspi-054's host check remains the thing to check in BHNM. Rejections since deploy: 0.
