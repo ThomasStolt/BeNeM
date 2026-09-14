@@ -32,13 +32,12 @@ BHNM's documented `{HOSTSTATE}` set.
 BHNM's macro reference documents the fifth value as `UNACKNOWLEDGEMENT`; the wire carries
 **`DEACKNOWLEDGEMENT`**. Accept both spellings.
 
-**Only five of the seven are handled.** `DEACKNOWLEDGEMENT` and `CONFIG_CHANGE` fall through to the
-PROBLEM branch. `DEACKNOWLEDGEMENT` is the harmful one: BHNM leaves `host_state` at `DOWN` on it, so
-it is delivered as `🔴 {hostname} — DOWN` — byte-identical to a fresh outage push for an incident
-that was already open. Handling both is an open spec item.
+Six of the seven are handled (middleware 2.13.0). `CONFIG_CHANGE` falls through to the PROBLEM
+branch; handling it is an open spec item.
 
 On an `ACKNOWLEDGEMENT`, BHNM sets `host_state` to the literal `ACKNOWLEDGEMENT` rather than a host
-state; `primary_alarm_status` still carries the true `DOWN`.
+state; `primary_alarm_status` still carries the true `DOWN`. On a `DEACKNOWLEDGEMENT` it leaves
+`host_state` at `DOWN`, which is why that type must never reach the problem branch.
 
 The middleware transforms this into platform-specific payloads below.
 
@@ -62,9 +61,10 @@ Sent via HTTP/2 to Apple Push Notification Service.
 
 | `notification_type` | Title | Body |
 |---|---|---|
-| `PROBLEM` / `CRITICAL` / `WARNING` | `🔴 {hostname} — {host_state}` (DOWN/UNREACHABLE) or `⚠️ {hostname} — {host_state}` | `{service_desc \| output} \| Site: {site}` |
-| `RECOVERY` | `Resolved: {hostname}` | `{service_desc \| host_state} recovered. {output}` |
+| `PROBLEM` / `CRITICAL` / `WARNING` | `🔴 {hostname} — {host_state}` (DOWN/UNREACHABLE) or `⚠️ {hostname} — {host_state}`; from the second notice on, `— still {host_state} (notice {n})` where `{n}` is `notification_number` | `{service_desc \| output} \| Site: {site}` |
+| `RECOVERY` | `Resolved: {hostname}` | `{service_desc \| "Host"} recovered. {output}` |
 | `ACKNOWLEDGEMENT` | `Acknowledged: {hostname}` | `{output \| service_desc \| host_state}` |
+| `DEACKNOWLEDGEMENT` / `UNACKNOWLEDGEMENT` | `Unacknowledged: {hostname}` | `{output \| primary_alarm_status}` |
 
 ### iOS deep link
 

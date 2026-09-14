@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.13.0] - 2026-09-14
+
+### Added
+
+- **`DEACKNOWLEDGEMENT` handling.** Un-acknowledging an incident in BHNM sends `notification_type: DEACKNOWLEDGEMENT` (BHNM's macro reference documents the value as `UNACKNOWLEDGEMENT`; both spellings are accepted). It now pushes `Unacknowledged: {hostname}` with the notification output as the body, falling back to `primary_alarm_status`. Previously it fell to the problem branch, and because BHNM leaves `host_state` at `DOWN` on that notification, it was delivered as `🔴 {hostname} — DOWN` — indistinguishable from a fresh outage.
+- **Renotification titles.** `notification_number` is read when present; from the second notice onward the title becomes `{emoji} {hostname} — still {host_state} (notice {n})`. Absent or unparseable counts as the first notice. No suppression — that is a per-user setting for a later spec.
+- **Webhook-driven cache patch.** `ACKNOWLEDGEMENT`, `DEACKNOWLEDGEMENT`/`UNACKNOWLEDGEMENT` and `RECOVERY` patch the cached incident by `incident_id` (→ `ACKNOWLEDGED` / `OPEN` / `CLOSED`) so the list reflects the change before the next poll. Reuses the 2.10.1 state-override mechanism via a new `incident_cache.note_state_override_any_server()`, since webhooks are routed by shared secret and carry no server id. The poll remains the source of truth and overwrites.
+
+### Changed
+
+- **`RECOVERY` body reads as English for hosts.** `{service_desc or 'Host'} recovered. {output}` — host recoveries previously rendered `UP recovered.` because `service_desc` is empty on host alerts.
+- **`notification_type` is compared case-insensitively** after stripping.
+
+### Tests
+
+- `tests/test_webhook_notification_types.py` — 19 tests covering every literal observed on the wire from BHNM 26.3, including `host_state` carrying `"ACKNOWLEDGEMENT"` on ack notifications, empty `service_*` on host alerts, both un-ack spellings, renotification counts, and the cache patch (including that `PROBLEM` does not patch and an unknown incident id is a no-op). Full suite 121 passed.
+
+---
+
 ## [2.12.1] - 2026-09-03
 
 ### Added

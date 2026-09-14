@@ -309,28 +309,55 @@ async def receive_webhook(request: Request):
         raise HTTPException(status_code=422,
                             detail="payload must be a JSON object or form with a non-empty hostname")
 
-    notification_type = data.get("notification_type", "PROBLEM")
-    hostname          = str(data["hostname"]).strip()
-    host_state        = data.get("host_state", "")
-    site              = data.get("site", "")
-    service_desc      = data.get("service_desc", "")
-    output            = data.get("output", "")
-    incident_id       = str(data.get("incident_id", ""))
+    notification_type    = str(data.get("notification_type", "PROBLEM")).strip().upper()
+    hostname             = str(data["hostname"]).strip()
+    host_state           = data.get("host_state", "")
+    site                 = data.get("site", "")
+    service_desc         = data.get("service_desc", "")
+    output               = data.get("output", "")
+    incident_id          = str(data.get("incident_id", ""))
+    primary_alarm_status = str(data.get("primary_alarm_status", "")).strip()
+
+    # BHNM's macro reference documents UNACKNOWLEDGEMENT; the wire carries
+    # DEACKNOWLEDGEMENT. Accept both — neither may reach the problem branch.
+    unack = notification_type in ("DEACKNOWLEDGEMENT", "UNACKNOWLEDGEMENT")
+
+    # Renotifications carry a 1-based counter; absent or unparseable means first notice.
+    try:
+        notice = int(str(data.get("notification_number", "")).strip() or 1)
+    except ValueError:
+        notice = 1
 
     # Build human-readable notification
     if notification_type == "RECOVERY":
         title = f"Resolved: {hostname}"
-        body  = f"{service_desc or host_state} recovered. {output}".strip()
+        body  = f"{service_desc or 'Host'} recovered. {output}".strip()
     elif notification_type == "ACKNOWLEDGEMENT":
         title = f"Acknowledged: {hostname}"
         body  = output or service_desc or host_state
+    elif unack:
+        # BHNM leaves host_state at DOWN on this one, so the problem branch would
+        # render it identically to a fresh outage. It is not one.
+        title = f"Unacknowledged: {hostname}"
+        body  = output or primary_alarm_status
     else:
         # PROBLEM, CRITICAL, WARNING
         emoji = "🔴" if host_state in ("DOWN", "UNREACHABLE") else "⚠️"
-        title = f"{emoji} {hostname} — {host_state or notification_type}"
+        state = host_state or notification_type
+        title = (f"{emoji} {hostname} — still {state} (notice {notice})" if notice > 1
+                 else f"{emoji} {hostname} — {state}")
         body  = f"{service_desc or output or ''} | Site: {site}".strip(" |")
 
     print(f"[Webhook] {notification_type} — {hostname} — Incident {incident_id}")
+
+    # Patch the cached incident so the list reflects the new state before the next
+    # poll. The poll remains the source of truth and overwrites this.
+    cache_state = {"ACKNOWLEDGEMENT": "ACKNOWLEDGED", "RECOVERY": "CLOSED"}.get(
+        notification_type, "OPEN" if unack else None)
+    if cache_state and incident_id:
+        n = incident_cache.note_state_override_any_server(incident_id, cache_state)
+        if n:
+            print(f"[Webhook] Cache patched: incident {incident_id} -> {cache_state} ({n} server(s))")
 
     tokens = get_tokens_for_secret(secret)
     web_push_subs = get_web_push_subscriptions_for_secret(secret)

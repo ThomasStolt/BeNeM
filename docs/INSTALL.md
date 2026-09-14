@@ -468,29 +468,25 @@ How the middleware treats each one:
 | `WARNING` | Falls to the problem branch — intended | same as `PROBLEM` |
 | `RECOVERY` | Explicit | `Resolved: {hostname}` |
 | `ACKNOWLEDGEMENT` | Explicit | `Acknowledged: {hostname}` |
-| `DEACKNOWLEDGEMENT` | **Not handled** — falls to the problem branch | `🔴 {hostname} — DOWN` — **identical to a fresh outage alert** |
-| `CONFIG_CHANGE` | **Not handled** — falls to the problem branch | `⚠️ {hostname} — CONFIG_CHANGE` |
+| `DEACKNOWLEDGEMENT` | Explicit (`UNACKNOWLEDGEMENT` accepted too) | `Unacknowledged: {hostname}` |
+| `CONFIG_CHANGE` | Not handled — falls to the problem branch | `⚠️ {hostname} — CONFIG_CHANGE` |
 
 > **The documented value `UNACKNOWLEDGEMENT` is not what BHNM sends.** Un-acknowledging an incident
 > on BHNM 26.3 puts **`DEACKNOWLEDGEMENT`** in `notification_type`. Code that matches only the
 > documented spelling will never fire.
 
-The un-acknowledgement case is the damaging one. On that notification BHNM leaves `host_state` at
-`DOWN`, so the middleware's problem branch renders it `🔴 {hostname} — DOWN` — a push that is
-indistinguishable from a new outage, for an incident that was already known and merely un-acked.
-
-Note also that on an **acknowledgement** BHNM overwrites `host_state` with the literal string
+Note that on an **acknowledgement** BHNM overwrites `host_state` with the literal string
 `ACKNOWLEDGEMENT` rather than the host's actual state, while `primary_alarm_status` still correctly
 reads `DOWN`. Another reason to prefer `{PRIMARYALARMSTATUS}` over `{HOSTSTATE}` for anything that
 must reflect the device.
 
-Two more macros worth putting in your payload if you are building anything on top of this:
+Repeat notifications for an incident carry **`{NOTIFICATIONNUMBER}`**, a 1-based counter. Include it
+in the payload and the middleware titles the second and later notices
+`{emoji} {hostname} — still {host_state} (notice n)` instead of repeating the original wording.
 
-- **`{RENOTIFY}`** — `NEW` on the first notification for an incident, `UPDATE` on every
-  renotification. Without it you cannot tell a repeat from a new event.
-- **`{UID}`** — the BHNM `root_id` of the device the incident belongs to, which is the stable
-  identifier to deep-link against. **`{GUID}`** additionally encodes environment + license ID, so it
-  stays unique across a multi-server or SaaS estate.
+Two more macros worth carrying if you are building on top of this: **`{UID}`**, the BHNM `root_id` of
+the device, which is the stable identifier to deep-link against, and **`{GUID}`**, which additionally
+encodes environment + license ID so it stays unique across a multi-server or SaaS estate.
 
 ### 7.4 Verify it actually delivers
 

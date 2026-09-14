@@ -153,6 +153,20 @@ def note_state_override(server_id: str, incident_id: str, state: str) -> None:
                     inc["incident_state"] = state
 
 
+def note_state_override_any_server(incident_id: str, state: str) -> int:
+    """Same patch as note_state_override, for callers that know the incident but
+    not the server. Webhooks are routed by shared secret, not by server id, so the
+    incident id is the only handle they have. Returns the number of servers patched."""
+    patched = 0
+    for server_id, entry in _cache.items():
+        for bucket in (entry.active_incidents, entry.closed_incidents):
+            if any(str(inc.get("incident_id")) == str(incident_id) for inc in bucket):
+                note_state_override(server_id, incident_id, state)
+                patched += 1
+                break
+    return patched
+
+
 def _apply_state_overrides(server_id: str, incidents: list[dict]) -> None:
     overrides = _state_overrides.get(server_id, {})
     now = time.time()
