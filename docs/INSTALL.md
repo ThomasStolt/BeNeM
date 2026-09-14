@@ -393,8 +393,8 @@ likely to look finished while silently doing nothing — see §7.3.
 
 ### 7.1 The action
 
-In BHNM, create a webhook notification action (an "action" attached to an action group,
-which is in turn attached to your host and service checks):
+In BHNM, create a webhook notification action (an "action" attached to an action group, which is in
+turn attached to your host and service checks):
 
 **URL** — the same secret you put in `WEBHOOK_SECRET`:
 
@@ -402,74 +402,143 @@ which is in turn attached to your host and service checks):
 https://bhnm-apns.example.com/webhook?secret=YOUR_WEBHOOK_SECRET
 ```
 
-**Method:** POST — **Content-Type:** `application/json`
+**Method type:** **`WebHook`** — **Authorization token:** `None` —
+**SSL authentication:** `ON` — **Notify hours:** `24x7`
 
-**Body:**
+> **Choose `WebHook`, not `Active Response Webhook`.** BHNM offers both, and the difference is not
+> cosmetic: an *Active Response Webhook* fires **only on `PROBLEM`**. It never delivers `RECOVERY`,
+> `ACKNOWLEDGEMENT` or `DEACKNOWLEDGEMENT`, so your users are told when things break and never told
+> when they are fixed. Measured side by side on 2026-09-14 — see §7.4. A plain `WebHook` delivers
+> all of them, and additionally populates `{RENOTIFY}`, `{NOTIFICATIONNUMBER}` and `{SUBJ}`, which
+> the Active Response variant leaves empty.
+
+**Webhook data payload** — note the macros are wrapped in **curly braces**, not `$`-prefixed:
 
 ```json
 {
-  "notification_type": "$NOTIFICATIONTYPE",
-  "hostname": "$HOSTNAME",
-  "host_state": "$HOSTSTATE",
-  "site": "$HOSTALIAS",
-  "service_desc": "$SERVICEDESC",
-  "output": "$SERVICEOUTPUT",
-  "incident_id": "$SERVICEPROBLEMID"
+    "incident_id": "{INCIDENTID}",
+    "hostname": "{HOSTNAME}",
+    "host_address": "{HOSTADDRESS}",
+    "host_state": "{HOSTSTATE}",
+    "notification_type": "{NOTIFICATIONTYPE}",
+    "severity": "{SERVICESTATE}",
+    "site": "{SITENAME}",
+    "category": "{CATEGORYNAME}",
+    "service_desc": "{SERVICEDESC}",
+    "output": "{OUTPUT}",
+    "incident_time": "{INCIDENTTIME}"
 }
 ```
 
-For host-only alerts use `$HOSTOUTPUT` and `$HOSTPROBLEMID` in place of the two service
-macros.
+This is the exact payload running in the lab, transcribed from the BHNM UI. The form rejects single
+quotes and backticks — use double quotes only.
 
-> **Status of this template.** The **field names on the left are the verified contract** —
-> they are what `middleware/main.py` reads, and a real BHNM body in this shape was accepted
-> and pushed end to end on 2026-09-03 at 11:03:30 UTC (incident 27728, `[Webhook] PROBLEM —
-> raspi-050 — Incident 27728`, iPhone title `🔴 raspi-050 — DOWN` confirmed on the device;
-> see `docs/evidence/2026-09-03-bhnm-host-status-down-row.md`). The **`$MACRO` names on the
-> right are not verified against a BHNM UI export** — macro spelling varies between BHNM
-> versions. Check them against your server's own macro reference, and confirm the resulting
-> body has a non-empty `hostname` (§7.3).
+> Earlier versions of this guide and of `middleware/README.md` showed `$NOTIFICATIONTYPE`-style
+> macros. That was wrong for BHNM 26.x: the macro syntax is `{NOTIFICATIONTYPE}`. A payload written
+> with `$` macros passes them through as literal text, and the middleware then rejects the body with
+> `422` because `hostname` is the literal string `$HOSTNAME` rather than a device name.
 
 ### 7.2 What the middleware does with each field
 
 | Field | Required | Used for |
 |---|---|---|
 | `hostname` | **Yes** | The device name in the notification title. A body without a non-empty `hostname` is rejected with `422` and nothing is pushed (middleware 2.11.1 and later). |
-| `notification_type` | No (defaults to `PROBLEM`) | Selects the title/body format: `PROBLEM` / `CRITICAL` / `WARNING`, `RECOVERY`, or `ACKNOWLEDGEMENT`. |
+| `notification_type` | No (defaults to `PROBLEM`) | Selects the title/body format — see §7.3. |
 | `host_state` | No | `DOWN` / `UNREACHABLE` pick the 🔴 emoji; anything else gets ⚠️. |
 | `incident_id` | No | Carried through to the push so tapping the notification opens that incident. Without it the tap only opens the app. |
 | `service_desc`, `output`, `site` | No | Notification body text. |
 
 The exact title and body strings are specified in
-[`shared/push-payload-spec.md`](../shared/push-payload-spec.md) — that file, not this one,
-is the contract.
-
-The route accepts a JSON body, and falls back to form-encoded if the body does not parse as
+[`shared/push-payload-spec.md`](../shared/push-payload-spec.md) — that file, not this one, is the
+contract. The route accepts a JSON body and falls back to form-encoded if the body does not parse as
 JSON (BHNM does not always send `Content-Type: application/json`).
 
-### 7.3 Enable all three notification types — check this explicitly
+> **`severity` is blank on host-down alerts, and that is expected.** It maps to `{SERVICESTATE}`,
+> which BHNM documents as *(Service alerts only)* — as are `{SERVICEDESC}` and `{SERVICENOTE}`. On a
+> host notification those macros have no value. If you want a severity that is populated for hosts,
+> services and thresholds alike, use **`{PRIMARYALARMSTATUS}`** instead: BHNM documents it as
+> `UP`/`DOWN`/`UNREACHABLE` for hosts, `WARNING`/`UNKNOWN`/`CRITICAL`/`OK` for service checks, and
+> `WARNING`/`CRITICAL`/`OK` for thresholds.
 
-The action group must have **PROBLEM**, **RECOVERY** and **ACKNOWLEDGEMENT** enabled. They
-are separate switches, and a group with only PROBLEM enabled looks completely healthy: your
-users get alerted when things break and are never told they recovered.
+### 7.3 `{NOTIFICATIONTYPE}` — what BHNM can send, and what BeNeM does with it
 
-This is not hypothetical. On 2026-09-03 the lab was measured end to end: raspi-050 came back
-up at 18:37:04 UTC, BHNM moved incident 27728 to `ALARMS CLEARED` at 18:37:25 and to
-`CLOSED` at 18:42:27 — and **no RECOVERY webhook ever reached the middleware**, by 18:49:26,
-with no maintenance window active to suppress it. The same middleware had accepted and
-pushed a PROBLEM earlier the same day. The absence was in BHNM's action configuration, not
-in the middleware.
+BHNM documents seven values (Administration → Alerts → Alert Formatting → edit any template →
+**Available Macros**; BHNM 26.3):
 
-Also note the timing: **BHNM holds a recovered incident in `ALARMS CLEARED` for about five
-minutes before firing the recovery notification.** If you take a device down and up to test,
-wait out that window before concluding the recovery webhook is missing.
+> `{NOTIFICATIONTYPE}` — Identifies the type of notification that is being sent (`PROBLEM`,
+> `RECOVERY`, `CONFIG_CHANGE`, `ACKNOWLEDGEMENT`, `UNACKNOWLEDGEMENT`, `WARNING`, or `CRITICAL`).
 
-### 7.4 Multiple BHNM servers
+How the middleware treats each one:
+
+| Value | Handled how | Resulting notification |
+|---|---|---|
+| `PROBLEM` | Explicit | `🔴 {hostname} — DOWN` (or ⚠️ for other states) |
+| `CRITICAL` | Falls to the problem branch — intended | same as `PROBLEM` |
+| `WARNING` | Falls to the problem branch — intended | same as `PROBLEM` |
+| `RECOVERY` | Explicit | `Resolved: {hostname}` |
+| `ACKNOWLEDGEMENT` | Explicit | `Acknowledged: {hostname}` |
+| `DEACKNOWLEDGEMENT` | **Not handled** — falls to the problem branch | `🔴 {hostname} — DOWN` — **identical to a fresh outage alert** |
+| `CONFIG_CHANGE` | **Not handled** — falls to the problem branch | `⚠️ {hostname} — CONFIG_CHANGE` |
+
+> **The documented value `UNACKNOWLEDGEMENT` is not what BHNM actually sends.** Un-acknowledging an
+> incident on BHNM 26.3 puts **`DEACKNOWLEDGEMENT`** in `notification_type` — measured on the wire
+> 2026-09-14. Code that matches the documented spelling will never fire.
+
+The un-acknowledgement case is the damaging one. On that notification BHNM leaves `host_state` at
+`DOWN`, so the middleware's problem branch renders it `🔴 {hostname} — DOWN` — a push that is
+indistinguishable from a new outage, for an incident that was already known and merely un-acked.
+
+Note also that on an **acknowledgement** BHNM overwrites `host_state` with the literal string
+`ACKNOWLEDGEMENT` rather than the host's actual state, while `primary_alarm_status` still correctly
+reads `DOWN`. Another reason to prefer `{PRIMARYALARMSTATUS}` over `{HOSTSTATE}` for anything that
+must reflect the device.
+
+Two more macros worth putting in your payload if you are building anything on top of this:
+
+- **`{RENOTIFY}`** — `NEW` on the first notification for an incident, `UPDATE` on every
+  renotification. Without it you cannot tell a repeat from a new event.
+- **`{UID}`** — the BHNM `root_id` of the device the incident belongs to, which is the stable
+  identifier to deep-link against. **`{GUID}`** additionally encodes environment + license ID, so it
+  stays unique across a multi-server or SaaS estate.
+
+### 7.4 Verify the types actually fire — do not assume
+
+Configuring the action is not evidence that it delivers. Take one device down and back up and check
+that you receive **both** a problem and a recovery notification. A partial delivery is invisible from
+the BHNM side: the incident opens, closes, and looks perfectly healthy in the UI while your engineers
+are alerted to breakages and never told about fixes.
+
+On 2026-09-14 the two method types were measured side by side on one device — same action group, same
+events, two capture URLs (`docs/evidence/2026-09-14-bhnm-recovery-close-call-measurement.md`):
+
+| Event | `Active Response Webhook` | `WebHook` |
+|---|---|---|
+| `PROBLEM` (host DOWN) | delivered | delivered |
+| `ACKNOWLEDGEMENT` | **never sent** | delivered |
+| `DEACKNOWLEDGEMENT` | **never sent** | delivered |
+| `RECOVERY` (host UP, after close delay) | **never sent** | delivered |
+
+The same asymmetry shows in the production middleware's own history: 31 webhooks over 11 days from
+several hosts, every one of them `PROBLEM`, because that middleware is wired to an
+*Active Response Webhook* method.
+
+Two more things to know before you conclude a recovery is missing:
+
+- **BHNM holds a recovered incident before firing the recovery notification.** The delay is the
+  **Incident Close Delay Timer** in Administration → Alerts → Incident Management (default 5
+  minutes). Measured: host came UP at 15:05:22Z, the RECOVERY webhook was delivered at 15:11:07Z —
+  5m 45s later. The payload's `datetime_gmt` carries the *generation* time (15:05:22Z), not the
+  delivery time, so the notification looks on-time even though it is held.
+- **Incident rules can suppress notifications.** The same screen lists ordered rules; anything named
+  like `outofbusinesshours` or `Suppress Alerts if …` can drop a notification before it reaches an
+  action.
+
+### 7.5 Multiple BHNM servers
 
 Give each server its **own** secret (`openssl rand -hex 32` per server). A device only
 receives alerts from the server whose secret it registered with. There is no global secret.
 
-### 7.5 Which BHNM version gates which feature
+### 7.6 Which BHNM version gates which feature
 
 | Feature | Minimum BHNM version |
 |---|---|

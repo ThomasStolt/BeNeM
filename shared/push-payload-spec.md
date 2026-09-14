@@ -12,15 +12,33 @@ BHNM sends a JSON POST to `middleware/webhook?secret=<value>` with:
 
 ```json
 {
-  "notification_type": "PROBLEM | RECOVERY | ACKNOWLEDGEMENT",
+  "notification_type": "PROBLEM | RECOVERY | CONFIG_CHANGE | ACKNOWLEDGEMENT | DEACKNOWLEDGEMENT | WARNING | CRITICAL",
   "hostname": "device-name",
-  "host_state": "DOWN | UNREACHABLE | UP | ...",
+  "host_state": "UP | DOWN | UNREACHABLE",
   "site": "site-name",
   "service_desc": "service description",
   "output": "status output text",
   "incident_id": "42"
 }
 ```
+
+`hostname` is the only required field — a decoded body with an empty `hostname` is rejected `422`
+(middleware 2.11.1+). The body may arrive form-encoded rather than JSON; the route falls back.
+
+Those seven `notification_type` values are BHNM's documented `{NOTIFICATIONTYPE}` set (BHNM 26.3,
+Alert Template Administration → Available Macros), not a BeNeM invention. `host_state` values are
+BHNM's documented `{HOSTSTATE}` set.
+
+BHNM's macro reference documents the fifth value as `UNACKNOWLEDGEMENT`, but the wire carries
+**`DEACKNOWLEDGEMENT`** (measured 2026-09-14, BHNM 26.3). Match the wire spelling, not the doc.
+
+**Only five of the seven are handled.** `DEACKNOWLEDGEMENT` and `CONFIG_CHANGE` fall through to the
+PROBLEM branch. `DEACKNOWLEDGEMENT` is the harmful one: BHNM leaves `host_state` at `DOWN` on it, so
+it is delivered as `🔴 {hostname} — DOWN` — byte-identical to a fresh outage push for an incident
+that was already open. Handling both is an open spec item.
+
+On an `ACKNOWLEDGEMENT`, BHNM sets `host_state` to the literal `ACKNOWLEDGEMENT` rather than a host
+state; `primary_alarm_status` still carries the true `DOWN`.
 
 The middleware transforms this into platform-specific payloads below.
 

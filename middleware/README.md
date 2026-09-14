@@ -151,20 +151,32 @@ https://your-domain.example.com/webhook?secret=YOUR_SECRET
 **Method:** POST
 **Content-Type:** `application/json`
 
-**Payload template:**
+**Method type:** **`WebHook`** — **Authorization token:** `None` — **SSL authentication:** `ON` — **Notify hours:** `24x7`
+
+> ⚠️ **Not `Active Response Webhook`.** Measured 2026-09-14 on BHNM 26.3: an Active Response Webhook method fires **only on `PROBLEM`** — no `RECOVERY`, no `ACKNOWLEDGEMENT`, no `DEACKNOWLEDGEMENT`. A plain `WebHook` delivers all of them. If your users get outage alerts but never recovery alerts, this is why. See [`../docs/INSTALL.md` §7.4](../docs/INSTALL.md).
+
+**Payload template** (BHNM 26.x macro syntax is `{BRACED}`, not `$PREFIXED`):
 ```json
 {
-  "notification_type": "$NOTIFICATIONTYPE",
-  "hostname": "$HOSTNAME",
-  "host_state": "$HOSTSTATE",
-  "site": "$HOSTALIAS",
-  "service_desc": "$SERVICEDESC",
-  "output": "$SERVICEOUTPUT",
-  "incident_id": "$SERVICEPROBLEMID"
+    "incident_id": "{INCIDENTID}",
+    "hostname": "{HOSTNAME}",
+    "host_address": "{HOSTADDRESS}",
+    "host_state": "{HOSTSTATE}",
+    "notification_type": "{NOTIFICATIONTYPE}",
+    "severity": "{SERVICESTATE}",
+    "site": "{SITENAME}",
+    "category": "{CATEGORYNAME}",
+    "service_desc": "{SERVICEDESC}",
+    "output": "{OUTPUT}",
+    "incident_time": "{INCIDENTTIME}"
 }
 ```
 
-For host-only alerts, replace `$SERVICEOUTPUT` with `$HOSTOUTPUT` and `$SERVICEPROBLEMID` with `$HOSTPROBLEMID`.
+The BHNM form rejects single quotes and backticks — double quotes only.
+
+`hostname` is the only required field: a body whose decoded `hostname` is empty is rejected with `422` and nothing is pushed. `severity` is blank on host alerts because `{SERVICESTATE}` is documented *(Service alerts only)*; use `{PRIMARYALARMSTATUS}` if you want a value that is populated for hosts, services and thresholds alike.
+
+BHNM can send seven `{NOTIFICATIONTYPE}` values — `PROBLEM`, `RECOVERY`, `CONFIG_CHANGE`, `ACKNOWLEDGEMENT`, `UNACKNOWLEDGEMENT`, `WARNING`, `CRITICAL`. This service handles `PROBLEM`/`WARNING`/`CRITICAL`, `RECOVERY` and `ACKNOWLEDGEMENT`; `UNACKNOWLEDGEMENT` and `CONFIG_CHANGE` currently fall through to the problem branch and would be pushed as `⚠️ host — UNACKNOWLEDGEMENT` / `⚠️ host — CONFIG_CHANGE`. See [`../docs/INSTALL.md` §7.3](../docs/INSTALL.md).
 
 ---
 
