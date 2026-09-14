@@ -34,7 +34,7 @@ echo ""
 # ── Preflight ──────────────────────────────────────
 
 [ -f "docker-compose.yml" ] || die "Run this script from the bhnm-apns repo root."
-[ -f ".env" ]               || die ".env not found — run ./setup.sh first."
+[ -f ".env" ]               || die ".env not found — cp .env.example .env, fill it in, then ./check-env.sh."
 command -v docker    >/dev/null || die "docker not found."
 command -v git       >/dev/null || die "git not found."
 

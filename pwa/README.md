@@ -67,7 +67,7 @@ Without a real API key, the list shows mock fixture data so you can still work o
 - **Stack:** Vite 5 + React 19 + TypeScript strict + Tailwind v3 + vite-plugin-pwa + TanStack Query v5 + React Router v6
 - **Dev proxy:** `/bhnm/*` is forwarded to `VITE_MIDDLEWARE_BASE` (default `https://bhnm-apns.hurrikap.org`) with `changeOrigin: true`. This avoids CORS during development.
 - **Production:** The PWA is deployed as a Docker container (nginx serving static files) behind Caddy, which same-origin-proxies `/bhnm/*` to the middleware container.
-- **QR Encryption:** The `VITE_QR_ENCRYPTION_KEY` build env var is mapped from `BENEM_SECRET_KEY` in the middleware `.env` via a Docker build arg.
+- **QR Encryption:** none in the client. QR redemption is server-side — `parseQRUrl` POSTs the encrypted blob to `/bhnm/api/v1/qr-redeem` and the middleware decrypts it with `BENEM_SECRET_KEY`. No key is built into the bundle.
 
 ## Production Hosting
 

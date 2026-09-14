@@ -41,6 +41,8 @@ BHNM Server  ──webhook──►  bhnm-apns  ──APNs──►  iPhone (BeN
 
 ## Quick Start
 
+> For a from-scratch deployment (VPS, DNS, Apple keys, secrets, BHNM webhook, user onboarding), follow [`../docs/INSTALL.md`](../docs/INSTALL.md). The steps below assume you already have a server, a domain and an APNs key.
+
 1. **Clone the repository**
    ```bash
    git clone https://github.com/ThomasStolt/bhnm-apns.git
@@ -51,12 +53,11 @@ BHNM Server  ──webhook──►  bhnm-apns  ──APNs──►  iPhone (BeN
    ```bash
    cp .env.example .env
    ```
-   Alternatively, run the interactive setup wizard:
-   ```bash
-   ./setup.sh
-   ```
 
-3. **Fill in `.env`** (see [Configuration](#configuration) below)
+3. **Fill in `.env`** (see [Configuration](#configuration) below), then validate it:
+   ```bash
+   ./check-env.sh
+   ```
 
 4. **Point your domain at this server**
    Create an DNS A record: `your-domain.example.com → <server IP>`
@@ -87,18 +88,38 @@ BHNM Server  ──webhook──►  bhnm-apns  ──APNs──►  iPhone (BeN
 
 All configuration is via environment variables in `.env`. Never commit `.env` — it is gitignored.
 
+> **`.env.example` is the source of truth for this table.** Every variable below appears
+> there, in this order. When you add or remove a variable, change `.env.example` first,
+> then update this table and `check-env.sh`'s `KNOWN_KEYS` to match. Validate any `.env`
+> with `./check-env.sh`.
+
 | Variable | Required | Description | Example |
 |---|---|---|---|
-| `APNS_KEY_ID` | Yes | APNs Auth Key ID (10 chars, from Apple Developer) | `ABC1234567` |
-| `APNS_TEAM_ID` | Yes | Apple Developer Team ID (10 chars) | `XYZ9876543` |
-| `APNS_BUNDLE_ID` | Yes | App bundle identifier | `com.tstolt.benem` |
-| `APNS_PRIVATE_KEY_B64` | Yes | Contents of `.p8` file, base64-encoded. Generate: `base64 -w 0 AuthKey_XXXX.p8` | `LS0tLS1CRUd...` |
-| `DOMAIN` | Yes | Public domain for this service — used by Caddy for automatic TLS | `bhnm-apns.example.com` |
-| `PROXY_TOKEN` | Recommended | Token for authenticating proxy API requests from BeNeM clients. Generate: `openssl rand -hex 32` | `a1b2c3...` |
-| `VAPID_PRIVATE_KEY` | For Web Push | VAPID private key for Web Push (Android/PWA). Generate: `npx web-push generate-vapid-keys` | |
-| `VAPID_PUBLIC_KEY` | For Web Push | VAPID public key (shared with PWA clients) | |
-| `VAPID_CONTACT_EMAIL` | For Web Push | Contact email for VAPID identification | `mailto:admin@example.com` |
+| `APNS_KEY_ID` | iOS push | APNs Auth Key ID (10 chars, from Apple Developer) | `ABC1234567` |
+| `APNS_TEAM_ID` | iOS push | Apple Developer Team ID (10 chars) | `XYZ9876543` |
+| `APNS_BUNDLE_ID` | iOS push | App bundle identifier — must match the Xcode project | `com.tstolt.benem` |
+| `APNS_PRIVATE_KEY_B64` | iOS push | Contents of the `.p8` file, base64-encoded. Generate: `base64 -w 0 AuthKey_XXXX.p8` | `LS0tLS1CRUd...` |
+| `VAPID_PRIVATE_KEY` | Web Push | VAPID private key for Web Push (Android/PWA). Generate: `npx web-push generate-vapid-keys` | |
+| `VAPID_PUBLIC_KEY` | Web Push | VAPID public key — served to PWA clients at `GET /vapid-key` | |
+| `VAPID_CONTACT_EMAIL` | Web Push | Contact address for VAPID identification; must start with `mailto:` | `mailto:admin@example.com` |
+| `DOMAIN` | Yes | Public hostname for the middleware + admin portal — Caddy obtains TLS for it | `bhnm-apns.example.com` |
+| `PWA_DOMAIN` | Yes | Second hostname Caddy serves the PWA bundle on. Must resolve to this server before first start, or the Let's Encrypt HTTP-01 challenge fails | `benem.example.com` |
+| `BASIC_AUTH_USER` | Yes | HTTP basic-auth username Caddy enforces on `/admin*` before TOTP | `admin` |
+| `BASIC_AUTH_HASH` | Yes | bcrypt hash of that password. Generate: `docker run --rm caddy:2.9-alpine caddy hash-password --plaintext 'pw'`. Single-quote it — it contains `$` | `$2a$14$...` |
+| `BENEM_SECRET_KEY` | Yes | 32-byte AES key (exactly 64 hex chars) encrypting `benem://` registration payloads. Generate: `openssl rand -hex 32` | `a1b2c3...` |
+| `SESSION_SECRET` | Yes | Signs admin portal session cookies. **No fallback** — `benem-admin` refuses to start without it. Generate: `openssl rand -hex 32` | `d4e5f6...` |
+| `TOTP_SECRET` | Yes | Base32 TOTP secret for admin login. Generate: `python -c "import pyotp; print(pyotp.random_base32())"` | `JBSWY3DP...` |
+| `MIDDLEWARE_URL` | Yes | Public URL of this instance, embedded in generated registration links | `https://bhnm-apns.example.com` |
+| `WEBHOOK_SECRET` | Yes | Default webhook secret embedded in generated registration links. Not read by the middleware runtime — routing is per-device via `active_secret` | `openssl rand -hex 32` |
+| `BHNM_TLS_VERIFY` | No | Set `false` if **any** BHNM server uses a self-signed certificate. Global, not per-server. Read once at container creation. Default: `true` | `false` |
 | `MIDDLEWARE_PORT` | No | Internal port the FastAPI app listens on. Default: `8889` | `8889` |
+| `DIAG_PROBE_INTERVAL` | No | Seconds between background BHNM health probes feeding `/api/v1/diagnostics`. Default: `15` | `15` |
+| `DIAG_DOWN_THRESHOLD` | No | Consecutive probe failures before a server is reported unreachable. Default: `2` | `2` |
+| `PROXY_TOKEN` | Recommended | Token the clients send as `X-Proxy-Token` on BHNM API proxy requests. Generate: `openssl rand -hex 32` | `a1b2c3...` |
+
+Container-path overrides recognised by `check-env.sh` but not set in `.env.example`
+(`DB_PATH`, `SERVERS_JSON_PATH`, `LOG_PATH`, `APNS_DB_PATH`, `COMPOSE_PROJECT_NAME`)
+are for non-Docker or non-default installs only.
 
 ---
 

@@ -209,7 +209,7 @@ Admin opens https://middleware/admin/
     → session cookie set (signed with SESSION_SECRET, valid 8 hours)
 ```
 
-**Note:** `SESSION_SECRET` falls back to `BENEM_SECRET_KEY` if not set. Both should be configured independently.
+**Note:** `SESSION_SECRET` is required and has **no fallback** — `benem-admin/auth.py` refuses to start without it. It must be generated independently of `BENEM_SECRET_KEY`.
 
 **Rate limiting:** 5 login attempts per minute per IP address.
 

@@ -35,7 +35,7 @@ to registered iOS devices (APNs) and Android/web users (Web Push).
 | `Caddyfile` | Reverse proxy config: Caddy listens on 443, proxies to the FastAPI container, handles TLS automatically. |
 | `requirements.txt` | Python dependencies: `fastapi`, `uvicorn`, `httpx[http2]`, `PyJWT`, `cryptography`, `python-dotenv`. |
 | `upgrade.sh` | Upgrade script: pulls latest code, rebuilds all containers, restarts services, health-checks bhnm-apns and benem-admin. |
-| `setup.sh` | Interactive shell wizard that generates `.env` from user prompts. |
+| `check-env.sh` | Validates `.env` for completeness and correctness. The only supported setup path is `.env.example` → edit → `check-env.sh`. |
 | `.env.example` | Template for `.env`. Committed to the repo — never commit `.env` itself. |
 | `VERSION` | Plain text file containing the current version; the source of truth reported by `/health` (avoid duplicating the number in prose so it can't drift). |
 | `bhnm-apns.service` | Systemd unit file (legacy, not used in Docker deployments). |

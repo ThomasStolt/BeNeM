@@ -49,6 +49,7 @@ BASIC_AUTH_USER BASIC_AUTH_HASH \
 BENEM_SECRET_KEY SESSION_SECRET TOTP_SECRET \
 MIDDLEWARE_URL MIDDLEWARE_PORT WEBHOOK_SECRET \
 BHNM_TLS_VERIFY PROXY_TOKEN \
+DIAG_PROBE_INTERVAL DIAG_DOWN_THRESHOLD \
 DB_PATH SERVERS_JSON_PATH LOG_PATH APNS_DB_PATH \
 COMPOSE_PROJECT_NAME"
 
@@ -115,7 +116,7 @@ fi
 
 v="$(val SESSION_SECRET)"
 if [[ -z "$v" ]]; then
-  warn "SESSION_SECRET not set — will fall back to BENEM_SECRET_KEY for session signing"
+  err "SESSION_SECRET is not set — benem-admin refuses to start (there is no fallback)"
 elif [[ ${#v} -lt 32 ]]; then
   warn "SESSION_SECRET is short (${#v} chars) — recommend at least 32 chars"
 else
