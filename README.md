@@ -92,6 +92,8 @@ Here are two screenshots from the iOS app — the Dashboard with its alarm summa
 
 ## Installation
 
+> **New here?** [`docs/INSTALL.md`](docs/INSTALL.md) is the full step-by-step deployment guide — renting a VPS, DNS, Apple Developer keys, generating every secret, starting the stack, configuring the BHNM webhook, and onboarding users. The section below is the short version for developers who already know the moving parts.
+
 ### 1. Clone the repository
 
 ```bash
