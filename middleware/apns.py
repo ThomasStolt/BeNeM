@@ -66,17 +66,34 @@ async def _send_one(
         return device_token, False, 0
 
 
+_client: httpx.AsyncClient | None = None
+
+
+def _get_client() -> httpx.AsyncClient:
+    """One long-lived HTTP/2 client, reused across sends.
+
+    A per-request `async with httpx.AsyncClient(http2=True)` hung forever on exit:
+    the sends completed and the phone got the push, but the block never returned,
+    so /webhook never responded and BHNM retried it three times. Apple also asks
+    that APNs connections be kept open rather than rebuilt per notification.
+    """
+    global _client
+    if _client is None or _client.is_closed:
+        _client = httpx.AsyncClient(http2=True, timeout=APNS_TIMEOUT)
+    return _client
+
+
 async def send_to_all(tokens: list[tuple[str, str]], title: str, body: str, incident_id: str = "") -> list[str]:
     """Send to all (token, environment) pairs. Returns list of tokens to remove (410 Gone)."""
     if not tokens:
         return []
 
     stale_tokens = []
-    async with httpx.AsyncClient(http2=True) as client:
-        results = await asyncio.gather(*[
-            _send_one(client, token, title, body, incident_id, env)
-            for token, env in tokens
-        ])
+    client = _get_client()
+    results = await asyncio.gather(*[
+        _send_one(client, token, title, body, incident_id, env)
+        for token, env in tokens
+    ], return_exceptions=False)
     for token, success, status in results:
         if status == 410:
             stale_tokens.append(token)

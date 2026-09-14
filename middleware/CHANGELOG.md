@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.13.1] - 2026-09-14
+
+### Fixed
+
+- **`/webhook` never returned a response, so BHNM retried every notification three times.** With at least one registered token the handler entered `send_to_all`, which wrapped the fan-out in a per-request `async with httpx.AsyncClient(http2=True)`. The sends completed — devices received the push — but the block never exited, so the response was never sent, no `[APNs]` line was ever printed, and uvicorn never logged the request. BHNM waited ~30 s, timed out and retried three times, stamping `Retry action by system N of 3.` into `{OUTPUT}`; every engineer got four alerts per incident. Two fixes, both kept: the fan-out now runs in a `BackgroundTasks` job so the response goes back to BHNM immediately, and `apns.py` uses one long-lived shared `AsyncClient` instead of building and tearing one down per request (which is also what Apple asks for). Requests with no registered devices always returned normally, which is why the fault stayed invisible in testing.
+- **Literal HTML on the lock screen.** BHNM puts markup in `{OUTPUT}` (`<br />Ping CRITICAL: Packet Loss 100%`). `clean_bhnm_text()` strips tags, decodes entities and collapses whitespace before the title and body are built — which also removes the double space in `Host recovered.  (Host check…`.
+
+### Added
+
+- **Host-side log.** Everything printed is mirrored to `/logs/middleware.log` on a bind mount (`./logs`), rotated at 5 MB × 5, alongside container stdout. Container recreation erased the webhook evidence being measured on 2026-09-03 and again on 2026-09-14; `docker logs` is no longer the only copy. Override the path with `HOST_LOG_PATH`. Failure to open the file is logged and ignored — it can never take the service down.
+
+### Changed
+
+- `/webhook` returns `notified` as the number of targets **queued** for delivery rather than the number confirmed sent, because the response no longer waits for delivery. Stale-token and expired-subscription cleanup still happen, in the background path.
+
+### Tests
+
+- 9 more in `tests/test_webhook_notification_types.py`: the captured HTML string, entity decoding, whitespace collapsing, no markup in a PROBLEM body, no double space in a RECOVERY body, BHNM's own retry wording surviving as text, the response not awaiting delivery, and stale-token cleanup still running in the background. Suite 130 passed.
+
+---
+
 ## [2.13.0] - 2026-09-14
 
 ### Added

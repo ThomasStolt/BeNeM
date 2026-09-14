@@ -17,7 +17,7 @@ import zlib
 from urllib.parse import parse_qs, urlparse
 import httpx
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.responses import Response
 from pydantic import BaseModel, field_validator
 
@@ -27,6 +27,10 @@ from database import init_db, save_token, get_tokens_for_secret, get_all_tokens,
 from apns import send_to_all
 from webpush import send_web_push_to_all
 import time
+import html as _html
+import re
+import logging.handlers
+import sys
 import incident_cache
 import tactical_cache
 import threshold_cache
@@ -282,8 +286,92 @@ def get_vapid_key():
 
 # ── BHNM Webhook ──────────────────────────────────────────────────────────────
 
+# -- Host-side log -------------------------------------------------------------
+# Container stdout dies with the container. Two deploys (2026-09-03, 2026-09-14)
+# erased the webhook evidence we were in the middle of measuring, so everything
+# printed here is also appended to a rotated file on the bind-mounted host path.
+
+HOST_LOG_PATH = os.environ.get("HOST_LOG_PATH", "/logs/middleware.log")
+
+
+class _StdoutTee:
+    """Write through to the real stdout and to a rotated file."""
+
+    def __init__(self, stream, path: str):
+        self._stream = stream
+        handler = logging.handlers.RotatingFileHandler(
+            path, maxBytes=5_000_000, backupCount=5)
+        handler.setFormatter(logging.Formatter("%(asctime)sZ %(message)s"))
+        handler.formatter.converter = time.gmtime
+        log = logging.getLogger("benem.stdout")
+        log.setLevel(logging.INFO)
+        log.propagate = False
+        log.addHandler(handler)
+        self._log = log
+
+    def write(self, data):
+        self._stream.write(data)
+        text = data.rstrip("\n")
+        if text:
+            try:
+                self._log.info(text)
+            except Exception:
+                pass
+
+    def flush(self):
+        self._stream.flush()
+
+    def isatty(self):
+        return False
+
+
+def _install_host_log() -> None:
+    try:
+        os.makedirs(os.path.dirname(HOST_LOG_PATH), exist_ok=True)
+        sys.stdout = _StdoutTee(sys.stdout, HOST_LOG_PATH)
+        print(f"[Log] Mirroring stdout to {HOST_LOG_PATH}")
+    except Exception as e:  # never let logging break the service
+        print(f"[Log] Host log unavailable ({e}); stdout only")
+
+
+_install_host_log()
+
+
+# -- BHNM text -----------------------------------------------------------------
+# BHNM puts HTML in {OUTPUT} ("<br />Ping CRITICAL: Packet Loss 100%"), which
+# reaches the lock screen as literal markup.
+
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def clean_bhnm_text(value) -> str:
+    """Strip tags, decode entities, collapse whitespace."""
+    text = _TAG_RE.sub(" ", str(value or ""))
+    text = _html.unescape(text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+async def _deliver(tokens, web_push_subs, title: str, body: str, incident_id: str) -> None:
+    """Fan out after the response has gone back to BHNM.
+
+    BHNM waits ~30s for the webhook response and retries three times if it does
+    not arrive, so delivery must never happen inside the request.
+    """
+    try:
+        if tokens:
+            for stale in await send_to_all(tokens, title, body, incident_id):
+                delete_token(stale)
+                print(f"[Cleanup] Removed stale APNs token ...{stale[-8:]}")
+        if web_push_subs:
+            for endpoint in await send_web_push_to_all(web_push_subs, title, body, incident_id):
+                delete_web_push_subscription(endpoint)
+                print(f"[Cleanup] Removed expired Web Push subscription: {endpoint[:50]}...")
+    except Exception as e:
+        print(f"[Deliver] Fan-out failed: {e}")
+
+
 @app.post("/webhook")
-async def receive_webhook(request: Request):
+async def receive_webhook(request: Request, background: BackgroundTasks):
     secret = request.query_params.get("secret", "").strip()
     if not secret:
         raise HTTPException(status_code=400, detail="?secret= query parameter is required")
@@ -312,9 +400,9 @@ async def receive_webhook(request: Request):
     notification_type    = str(data.get("notification_type", "PROBLEM")).strip().upper()
     hostname             = str(data["hostname"]).strip()
     host_state           = data.get("host_state", "")
-    site                 = data.get("site", "")
-    service_desc         = data.get("service_desc", "")
-    output               = data.get("output", "")
+    site                 = clean_bhnm_text(data.get("site", ""))
+    service_desc         = clean_bhnm_text(data.get("service_desc", ""))
+    output               = clean_bhnm_text(data.get("output", ""))
     incident_id          = str(data.get("incident_id", ""))
     primary_alarm_status = str(data.get("primary_alarm_status", "")).strip()
 
@@ -366,19 +454,12 @@ async def receive_webhook(request: Request):
         print(f"[Webhook] No registered devices for this secret — nothing to notify.")
         return {"status": "ok", "notified": 0}
 
-    # Send APNs
-    apns_stale = await send_to_all(tokens, title, body, incident_id) if tokens else []
-    for t in apns_stale:
-        delete_token(t)
-        print(f"[Cleanup] Removed stale APNs token ...{t[-8:]}")
+    # Answer BHNM now; deliver afterwards. BHNM times out at ~30s and retries
+    # three times, and a retry is a duplicate alert on every engineer's phone.
+    background.add_task(_deliver, tokens, web_push_subs, title, body, incident_id)
 
-    # Send Web Push
-    webpush_gone = await send_web_push_to_all(web_push_subs, title, body, incident_id) if web_push_subs else []
-    for endpoint in webpush_gone:
-        delete_web_push_subscription(endpoint)
-        print(f"[Cleanup] Removed expired Web Push subscription: {endpoint[:50]}...")
-
-    notified = (len(tokens) - len(apns_stale)) + (len(web_push_subs) - len(webpush_gone))
+    notified = len(tokens) + len(web_push_subs)
+    print(f"[Webhook] Queued delivery to {notified} target(s) for incident {incident_id}")
     return {"status": "ok", "notified": notified}
 
 

@@ -200,3 +200,89 @@ def test_cache_patch_is_a_noop_for_an_unknown_incident(client):
     post(client, {"notification_type": "RECOVERY", "hostname": "other-host",
                   "host_state": "UP", "incident_id": "99999"})
     assert entry.active_incidents[0]["incident_state"] == "OPEN"
+
+
+# ── BHNM text cleaning (2.13.1) ───────────────────────────────────────────────
+
+from main import clean_bhnm_text
+
+
+def test_clean_strips_the_captured_html_string():
+    assert clean_bhnm_text("<br />Ping CRITICAL: Packet Loss 100%") == "Ping CRITICAL: Packet Loss 100%"
+
+
+def test_clean_decodes_entities():
+    assert clean_bhnm_text("Ping &amp; check &lt;ok&gt;") == "Ping & check <ok>"
+
+
+def test_clean_collapses_whitespace():
+    assert clean_bhnm_text(" (Host check triggered from Service PING)<br />Ping OK:  Packet Loss 0%") == \
+        "(Host check triggered from Service PING) Ping OK: Packet Loss 0%"
+
+
+def test_clean_handles_empty_and_none():
+    assert clean_bhnm_text("") == ""
+    assert clean_bhnm_text(None) == ""
+
+
+def test_problem_body_has_no_markup(client):
+    _title, body, _iid = post(client, {
+        "notification_type": "PROBLEM", "hostname": "raspi-050", "host_state": "DOWN",
+        "output": "<br />Ping CRITICAL: Packet Loss 100%", "site": "New_York",
+    })
+    assert "<br" not in body
+    assert body == "Ping CRITICAL: Packet Loss 100% | Site: New_York"
+
+
+def test_recovery_body_has_no_double_space(client):
+    """"Host recovered.  (Host check..." — the captured output starts with a space."""
+    _title, body, _iid = post(client, {
+        "notification_type": "RECOVERY", "hostname": "raspi-050", "host_state": "UP",
+        "output": " (Host check triggered from Service PING)<br />Ping OK: Packet Loss 0%",
+    })
+    assert "  " not in body
+    assert body == "Host recovered. (Host check triggered from Service PING) Ping OK: Packet Loss 0%"
+
+
+def test_retry_wording_from_bhnm_survives_cleaning(client):
+    """BHNM stamps its own retry label into {OUTPUT}; it is text, not markup."""
+    _title, body, _iid = post(client, {
+        "notification_type": "RECOVERY", "hostname": "raspi-050", "host_state": "UP",
+        "output": "Retry action by system 1 of 3.  (Host check triggered from Service PING)",
+    })
+    assert body == "Host recovered. Retry action by system 1 of 3. (Host check triggered from Service PING)"
+
+
+# ── Fast acknowledgement (2.13.1) ─────────────────────────────────────────────
+
+def test_webhook_responds_without_awaiting_delivery(client):
+    """The response must not wait on APNs: BHNM times out at ~30s and retries 3x."""
+    import main as main_mod
+    started, released = [], []
+
+    async def slow_send(tokens, title, body, incident_id=""):
+        started.append(True)
+        return []
+
+    with patch("main.get_tokens_for_secret", return_value=["tok"]), \
+         patch("main.get_web_push_subscriptions_for_secret", return_value=[]), \
+         patch("main.send_to_all", side_effect=slow_send):
+        resp = client.post("/webhook?secret=fastack", json={
+            "notification_type": "PROBLEM", "hostname": "raspi-050", "host_state": "DOWN"})
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok", "notified": 1}
+    released.append(True)
+    # TestClient drains background tasks after the response, so delivery still ran
+    assert started == [True]
+
+
+def test_stale_token_cleanup_still_happens_in_the_background(client):
+    with patch("main.get_tokens_for_secret", return_value=["tok-stale"]), \
+         patch("main.get_web_push_subscriptions_for_secret", return_value=[]), \
+         patch("main.send_to_all", new_callable=AsyncMock) as send, \
+         patch("main.delete_token") as delete:
+        send.return_value = ["tok-stale"]
+        resp = client.post("/webhook?secret=cleanup", json={
+            "notification_type": "PROBLEM", "hostname": "raspi-050", "host_state": "DOWN"})
+    assert resp.status_code == 200
+    delete.assert_called_once_with("tok-stale")

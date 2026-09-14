@@ -42,6 +42,26 @@ to registered iOS devices (APNs) and Android/web users (Web Push).
 
 ---
 
+## Upgrade runbook
+
+**Dump the container log before every deploy.** `docker compose up -d` recreates the
+container and `docker logs` starts empty; this erased the webhook evidence being
+measured on 2026-09-03 and again on 2026-09-14.
+
+```bash
+mkdir -p /root/logdumps
+docker logs -t benem-middleware > /root/logdumps/benem-middleware-$(date -u +%Y%m%dT%H%M%SZ)-pre-<version>.log 2>&1
+```
+
+Since 2.13.1 the app also mirrors stdout to `/logs/middleware.log` on the `./logs`
+bind mount (rotated 5 MB x 5), which survives recreation — but take the dump anyway
+until that has proven itself across a few deploys.
+
+Then: `./upgrade.sh`, confirm `/health` reports the expected version, and keep the
+previous image tagged for rollback (`docker tag bhnm-apns-bhnm-apns:latest bhnm-apns-bhnm-apns:<sha>`).
+
+---
+
 ## Deployment facts
 
 - **Runtime:** Python / FastAPI

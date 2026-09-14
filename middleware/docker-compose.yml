@@ -6,6 +6,9 @@ services:
     volumes:
       - db-data:/data
       - ./servers.json:/data/servers.json:ro
+      # Host-side log: container stdout dies with the container, and two deploys
+      # erased webhook evidence mid-measurement. Rotated by the app (5MB x 5).
+      - ./logs:/logs
     restart: unless-stopped
 
   benem-admin:
