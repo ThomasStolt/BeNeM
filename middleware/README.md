@@ -151,11 +151,9 @@ https://your-domain.example.com/webhook?secret=YOUR_SECRET
 **Method:** POST
 **Content-Type:** `application/json`
 
-**Method type:** **`WebHook`** — **Authorization token:** `None` — **SSL authentication:** `ON` — **Notify hours:** `24x7`
+**Action method type:** `WebHook` — **Authorization token:** `None` — **SSL authentication:** `ON` — **Notify hours:** `24x7`
 
-> ⚠️ **Not `Active Response Webhook`.** Measured 2026-09-14 on BHNM 26.3: an Active Response Webhook method fires **only on `PROBLEM`** — no `RECOVERY`, no `ACKNOWLEDGEMENT`, no `DEACKNOWLEDGEMENT`. A plain `WebHook` delivers all of them. If your users get outage alerts but never recovery alerts, this is why. See [`../docs/INSTALL.md` §7.4](../docs/INSTALL.md).
-
-**Payload template** (BHNM 26.x macro syntax is `{BRACED}`, not `$PREFIXED`):
+**Payload template** (BHNM macros are wrapped in curly braces):
 ```json
 {
     "incident_id": "{INCIDENTID}",

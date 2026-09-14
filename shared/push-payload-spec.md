@@ -29,8 +29,8 @@ Those seven `notification_type` values are BHNM's documented `{NOTIFICATIONTYPE}
 Alert Template Administration → Available Macros), not a BeNeM invention. `host_state` values are
 BHNM's documented `{HOSTSTATE}` set.
 
-BHNM's macro reference documents the fifth value as `UNACKNOWLEDGEMENT`, but the wire carries
-**`DEACKNOWLEDGEMENT`** (measured 2026-09-14, BHNM 26.3). Match the wire spelling, not the doc.
+BHNM's macro reference documents the fifth value as `UNACKNOWLEDGEMENT`; the wire carries
+**`DEACKNOWLEDGEMENT`**. Accept both spellings.
 
 **Only five of the seven are handled.** `DEACKNOWLEDGEMENT` and `CONFIG_CHANGE` fall through to the
 PROBLEM branch. `DEACKNOWLEDGEMENT` is the harmful one: BHNM leaves `host_state` at `DOWN` on it, so

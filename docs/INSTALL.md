@@ -389,7 +389,7 @@ the middleware can reach BHNM and the API key works. Red → see §13.
 ## 7. Configure the webhook in BHNM
 
 This is what makes notifications *instant* instead of polled. It is also the step most
-likely to look finished while silently doing nothing — see §7.3.
+likely to look finished while silently doing nothing — see §7.4.
 
 ### 7.1 The action
 
@@ -402,17 +402,14 @@ turn attached to your host and service checks):
 https://bhnm-apns.example.com/webhook?secret=YOUR_WEBHOOK_SECRET
 ```
 
-**Method type:** **`WebHook`** — **Authorization token:** `None` —
+**Action method type:** `WebHook` — **Authorization token:** `None` —
 **SSL authentication:** `ON` — **Notify hours:** `24x7`
 
-> **Choose `WebHook`, not `Active Response Webhook`.** BHNM offers both, and the difference is not
-> cosmetic: an *Active Response Webhook* fires **only on `PROBLEM`**. It never delivers `RECOVERY`,
-> `ACKNOWLEDGEMENT` or `DEACKNOWLEDGEMENT`, so your users are told when things break and never told
-> when they are fixed. Measured side by side on 2026-09-14 — see §7.4. A plain `WebHook` delivers
-> all of them, and additionally populates `{RENOTIFY}`, `{NOTIFICATIONNUMBER}` and `{SUBJ}`, which
-> the Active Response variant leaves empty.
+The `WebHook` method type delivers every notification type BHNM raises for the incident — problem,
+acknowledgement, un-acknowledgement and recovery — and populates `{RENOTIFY}`,
+`{NOTIFICATIONNUMBER}` and `{SUBJ}`.
 
-**Webhook data payload** — note the macros are wrapped in **curly braces**, not `$`-prefixed:
+**Webhook data payload** — BHNM macros are wrapped in curly braces:
 
 ```json
 {
@@ -430,13 +427,7 @@ https://bhnm-apns.example.com/webhook?secret=YOUR_WEBHOOK_SECRET
 }
 ```
 
-This is the exact payload running in the lab, transcribed from the BHNM UI. The form rejects single
-quotes and backticks — use double quotes only.
-
-> Earlier versions of this guide and of `middleware/README.md` showed `$NOTIFICATIONTYPE`-style
-> macros. That was wrong for BHNM 26.x: the macro syntax is `{NOTIFICATIONTYPE}`. A payload written
-> with `$` macros passes them through as literal text, and the middleware then rejects the body with
-> `422` because `hostname` is the literal string `$HOSTNAME` rather than a device name.
+The BHNM form rejects single quotes and backticks — use double quotes only.
 
 ### 7.2 What the middleware does with each field
 
@@ -480,9 +471,9 @@ How the middleware treats each one:
 | `DEACKNOWLEDGEMENT` | **Not handled** — falls to the problem branch | `🔴 {hostname} — DOWN` — **identical to a fresh outage alert** |
 | `CONFIG_CHANGE` | **Not handled** — falls to the problem branch | `⚠️ {hostname} — CONFIG_CHANGE` |
 
-> **The documented value `UNACKNOWLEDGEMENT` is not what BHNM actually sends.** Un-acknowledging an
-> incident on BHNM 26.3 puts **`DEACKNOWLEDGEMENT`** in `notification_type` — measured on the wire
-> 2026-09-14. Code that matches the documented spelling will never fire.
+> **The documented value `UNACKNOWLEDGEMENT` is not what BHNM sends.** Un-acknowledging an incident
+> on BHNM 26.3 puts **`DEACKNOWLEDGEMENT`** in `notification_type`. Code that matches only the
+> documented spelling will never fire.
 
 The un-acknowledgement case is the damaging one. On that notification BHNM leaves `host_state` at
 `DOWN`, so the middleware's problem branch renders it `🔴 {hostname} — DOWN` — a push that is
@@ -501,34 +492,23 @@ Two more macros worth putting in your payload if you are building anything on to
   identifier to deep-link against. **`{GUID}`** additionally encodes environment + license ID, so it
   stays unique across a multi-server or SaaS estate.
 
-### 7.4 Verify the types actually fire — do not assume
+### 7.4 Verify it actually delivers
 
-Configuring the action is not evidence that it delivers. Take one device down and back up and check
-that you receive **both** a problem and a recovery notification. A partial delivery is invisible from
-the BHNM side: the incident opens, closes, and looks perfectly healthy in the UI while your engineers
-are alerted to breakages and never told about fixes.
+Configuring the action is not evidence that it delivers. Take one device down and back up and confirm
+you receive **both** a problem and a recovery notification, then acknowledge the incident and confirm
+that arrives too.
 
-On 2026-09-14 the two method types were measured side by side on one device — same action group, same
-events, two capture URLs (`docs/evidence/2026-09-14-bhnm-recovery-close-call-measurement.md`):
+This matters because a partial delivery is invisible from the BHNM side: the incident opens, closes,
+and looks perfectly healthy in the UI while your engineers are alerted to breakages and never told
+about fixes.
 
-| Event | `Active Response Webhook` | `WebHook` |
-|---|---|---|
-| `PROBLEM` (host DOWN) | delivered | delivered |
-| `ACKNOWLEDGEMENT` | **never sent** | delivered |
-| `DEACKNOWLEDGEMENT` | **never sent** | delivered |
-| `RECOVERY` (host UP, after close delay) | **never sent** | delivered |
-
-The same asymmetry shows in the production middleware's own history: 31 webhooks over 11 days from
-several hosts, every one of them `PROBLEM`, because that middleware is wired to an
-*Active Response Webhook* method.
-
-Two more things to know before you conclude a recovery is missing:
+Two things to know before you conclude a recovery is missing:
 
 - **BHNM holds a recovered incident before firing the recovery notification.** The delay is the
   **Incident Close Delay Timer** in Administration → Alerts → Incident Management (default 5
-  minutes). Measured: host came UP at 15:05:22Z, the RECOVERY webhook was delivered at 15:11:07Z —
-  5m 45s later. The payload's `datetime_gmt` carries the *generation* time (15:05:22Z), not the
-  delivery time, so the notification looks on-time even though it is held.
+  minutes). With the default, a host that comes back at 15:05:22 produces a recovery webhook at
+  about 15:11. The payload's `datetime_gmt` carries the moment the notification was *generated*, not
+  when it was delivered, so a notification that was held still looks on-time.
 - **Incident rules can suppress notifications.** The same screen lists ordered rules; anything named
   like `outofbusinesshours` or `Suppress Alerts if …` can drop a notification before it reaches an
   action.
