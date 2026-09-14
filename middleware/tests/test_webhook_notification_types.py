@@ -215,9 +215,27 @@ def test_clean_decodes_entities():
     assert clean_bhnm_text("Ping &amp; check &lt;ok&gt;") == "Ping & check <ok>"
 
 
-def test_clean_collapses_whitespace():
+def test_clean_turns_br_into_a_real_line_break():
     assert clean_bhnm_text(" (Host check triggered from Service PING)<br />Ping OK:  Packet Loss 0%") == \
-        "(Host check triggered from Service PING) Ping OK: Packet Loss 0%"
+        "(Host check triggered from Service PING)\nPing OK: Packet Loss 0%"
+
+
+@pytest.mark.parametrize("markup", ["<br>", "<br/>", "<br />", "<BR />", "</p>", "</ p>"])
+def test_clean_treats_every_break_spelling_as_a_line_break(markup):
+    assert clean_bhnm_text(f"a{markup}b") == "a\nb"
+
+
+def test_clean_preserves_a_real_newline():
+    """If BHNM fixes the defect and emits \n, that must survive to the screen."""
+    assert clean_bhnm_text("Ping OK\nRTA = 0.5 ms") == "Ping OK\nRTA = 0.5 ms"
+
+
+def test_clean_collapses_spaces_and_tabs_but_not_newlines():
+    assert clean_bhnm_text("a  \t b\nc   d") == "a b\nc d"
+
+
+def test_clean_caps_blank_lines_at_one():
+    assert clean_bhnm_text("x\n\n\n\ny") == "x\n\ny"
 
 
 def test_clean_handles_empty_and_none():
@@ -234,14 +252,15 @@ def test_problem_body_has_no_markup(client):
     assert body == "Ping CRITICAL: Packet Loss 100% | Site: New_York"
 
 
-def test_recovery_body_has_no_double_space(client):
-    """"Host recovered.  (Host check..." — the captured output starts with a space."""
+def test_recovery_body_has_no_double_space_and_breaks_at_the_br(client):
+    """"Host recovered.  (Host check..." — the captured output starts with a space,
+    and its <br /> becomes a real line break rather than another space."""
     _title, body, _iid = post(client, {
         "notification_type": "RECOVERY", "hostname": "raspi-050", "host_state": "UP",
         "output": " (Host check triggered from Service PING)<br />Ping OK: Packet Loss 0%",
     })
     assert "  " not in body
-    assert body == "Host recovered. (Host check triggered from Service PING) Ping OK: Packet Loss 0%"
+    assert body == "Host recovered. (Host check triggered from Service PING)\nPing OK: Packet Loss 0%"
 
 
 def test_retry_wording_from_bhnm_survives_cleaning(client):
@@ -251,6 +270,7 @@ def test_retry_wording_from_bhnm_survives_cleaning(client):
         "output": "Retry action by system 1 of 3.  (Host check triggered from Service PING)",
     })
     assert body == "Host recovered. Retry action by system 1 of 3. (Host check triggered from Service PING)"
+    assert "\n" not in body  # no markup in this one, so no break
 
 
 # ── Fast acknowledgement (2.13.1) ─────────────────────────────────────────────

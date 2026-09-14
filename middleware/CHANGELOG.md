@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.13.3] - 2026-09-14
+
+### Changed
+
+- **`clean_bhnm_text()` preserves line breaks instead of flattening them.** `<br>`, `<br/>`, `<br />` and `</p>` become a real newline; remaining tags become a space; entities are decoded; only spaces and tabs are collapsed; three or more newlines cap at two. The previous version collapsed all whitespace, so if BHNM fixes the underlying defect by emitting a newline instead of `<br />`, that fix would have been flattened back to a space and never reached the screen. Tested against the captured strings, every break spelling, and a newline-bearing variant. Suite 146 passed.
+
+  BHNM 26.3.01 emits HTML in the plain-text `{OUTPUT}` macro; the incident API's own data is clean, so this is scoped to Action macro text. The defect is being filed with BMC.
+
+---
+
 ## [2.13.2] - 2026-09-14
 
 ### Fixed

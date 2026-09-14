@@ -366,17 +366,28 @@ _install_host_log()
 
 
 # -- BHNM text -----------------------------------------------------------------
-# BHNM puts HTML in {OUTPUT} ("<br />Ping CRITICAL: Packet Loss 100%"), which
-# reaches the lock screen as literal markup.
+# BHNM 26.3.01 emits HTML in the plain-text {OUTPUT} macro
+# ("<br />Ping CRITICAL: Packet Loss 100%"), which reaches the lock screen as
+# literal markup. The incident API's own data is clean, so this is scoped to
+# Action macro text. Thomas is filing the defect with BHNM.
+#
+# Line breaks are preserved rather than flattened: the likely BHNM fix is to emit
+# a real newline instead of "<br />", and collapsing all whitespace would swallow
+# that fix so it never reached the screen.
 
+_BREAK_RE = re.compile(r"<\s*(?:br\s*/?|/\s*p)\s*>", re.I)
 _TAG_RE = re.compile(r"<[^>]+>")
 
 
 def clean_bhnm_text(value) -> str:
-    """Strip tags, decode entities, collapse whitespace."""
-    text = _TAG_RE.sub(" ", str(value or ""))
+    """Turn BHNM's HTML-ish output into plain text, keeping real line breaks."""
+    text = _BREAK_RE.sub("\n", str(value or ""))
+    text = _TAG_RE.sub(" ", text)
     text = _html.unescape(text)
-    return re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"[ \t]+", " ", text)          # spaces/tabs only — never newlines
+    text = re.sub(r"[ \t]*\n[ \t]*", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
 
 
 async def _deliver(tokens, web_push_subs, title: str, body: str, incident_id: str) -> None:
