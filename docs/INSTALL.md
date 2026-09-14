@@ -6,6 +6,8 @@ an admin portal, an Android/desktop web app, and (optionally) the native iOS app
 
 No prior knowledge of BeNeM is assumed. Basic comfort with a terminal is.
 
+For the short version — a public VPS that can reach your BHNM server — the [README](../README.md) has a ten-step path. This guide is the one to read when that does not fit, or when you want to know why a step exists.
+
 ---
 
 ## 0. First: are you sure you need this guide?
