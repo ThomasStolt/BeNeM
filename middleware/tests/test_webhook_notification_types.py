@@ -286,3 +286,26 @@ def test_stale_token_cleanup_still_happens_in_the_background(client):
             "notification_type": "PROBLEM", "hostname": "raspi-050", "host_state": "DOWN"})
     assert resp.status_code == 200
     delete.assert_called_once_with("tok-stale")
+
+
+# ── Secret redaction in logs (2.13.2) ─────────────────────────────────────────
+
+from main import _redact
+
+
+def test_redact_removes_the_webhook_secret_from_an_access_line():
+    line = 'POST /webhook?secret=76acf51fc3952b0312b000140e23b40cc HTTP/1.1" 200 OK'
+    out = _redact(line)
+    assert "76acf51f" not in out
+    assert "secret=<redacted>" in out
+
+
+@pytest.mark.parametrize("key", ["secret", "token", "password", "pwd", "key"])
+def test_redact_covers_every_credential_parameter(key):
+    assert "abc123" not in _redact(f"/x?{key}=abc123&other=1")
+
+
+def test_redact_keeps_the_rest_of_the_line():
+    out = _redact("POST /webhook?secret=deadbeef HTTP/1.1 200 OK")
+    assert out.startswith("POST /webhook?secret=<redacted>")
+    assert out.endswith("200 OK")

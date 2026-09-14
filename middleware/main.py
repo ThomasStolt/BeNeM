@@ -292,6 +292,29 @@ def get_vapid_key():
 # printed here is also appended to a rotated file on the bind-mounted host path.
 
 HOST_LOG_PATH = os.environ.get("HOST_LOG_PATH", "/logs/middleware.log")
+# /data is the SQLite volume and is always writable by appuser; the bind mount is
+# only writable if the host directory is owned by the container user.
+FALLBACK_LOG_PATH = "/data/middleware.log"
+
+# The webhook secret rides in the query string, so uvicorn's access line contains
+# it verbatim. Keep it out of stdout and out of the persisted log.
+_SECRET_RE = re.compile(r"((?:secret|token|password|key|pwd)=)[^&\s\"']+", re.I)
+
+
+def _redact(text: str) -> str:
+    return _SECRET_RE.sub(r"\1<redacted>", text)
+
+
+class _RedactingFilter(logging.Filter):
+    def filter(self, record):
+        try:
+            if isinstance(record.msg, str):
+                record.msg = _redact(record.msg)
+            if isinstance(record.args, tuple):
+                record.args = tuple(_redact(a) if isinstance(a, str) else a for a in record.args)
+        except Exception:
+            pass
+        return True
 
 
 class _StdoutTee:
@@ -314,7 +337,7 @@ class _StdoutTee:
         text = data.rstrip("\n")
         if text:
             try:
-                self._log.info(text)
+                self._log.info(_redact(text))
             except Exception:
                 pass
 
@@ -326,12 +349,17 @@ class _StdoutTee:
 
 
 def _install_host_log() -> None:
-    try:
-        os.makedirs(os.path.dirname(HOST_LOG_PATH), exist_ok=True)
-        sys.stdout = _StdoutTee(sys.stdout, HOST_LOG_PATH)
-        print(f"[Log] Mirroring stdout to {HOST_LOG_PATH}")
-    except Exception as e:  # never let logging break the service
-        print(f"[Log] Host log unavailable ({e}); stdout only")
+    logging.getLogger("uvicorn.access").addFilter(_RedactingFilter())
+    logging.getLogger("uvicorn.error").addFilter(_RedactingFilter())
+    for path in (HOST_LOG_PATH, FALLBACK_LOG_PATH):
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            sys.stdout = _StdoutTee(sys.stdout, path)
+            print(f"[Log] Mirroring stdout to {path}")
+            return
+        except Exception as e:
+            print(f"[Log] {path} unavailable ({e})")
+    print("[Log] No persistent log available; stdout only")
 
 
 _install_host_log()
