@@ -22,9 +22,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **The webhook secret was being written to the log.** Now that `/webhook` returns a response, uvicorn writes an access line for it — and the secret travels in the query string, so the full credential appeared in stdout and would have been persisted to the host log file. A redaction filter on `uvicorn.access`/`uvicorn.error` and on the stdout mirror rewrites `secret=`, `token=`, `password=`, `pwd=` and `key=` values to `<redacted>`. This is the logging half of security-board item S1; the secret still travels in the URL.
 - **Host log fell back to stdout only.** Docker creates the `./logs` bind mount as `root`, and the container runs as `appuser`, so the file could not be opened. The installer now tries `HOST_LOG_PATH` and then `/data/middleware.log` on the SQLite volume, which is always writable and also survives container recreation.
 
-### Known issue
+### Known issue — next thing to fix
 
-- **The APNs fan-out still does not complete.** 2.13.1 moved it to a background task, so BHNM gets its response in ~0.3 s and no longer retries — the user-visible fault is fixed. But no `[APNs] Sent to …` line is ever printed, which means the task still hangs after the sends leave the process. Replacing the per-request `AsyncClient` with a shared one did not change this, so the original teardown hypothesis was wrong. Consequences while it stands: stale-token cleanup never runs, and one background task is leaked per notification. Deliveries themselves arrive.
+- **The APNs fan-out still does not complete.** 2.13.1 moved it to a background task, so BHNM gets its response in ~0.3 s and no longer retries — the user-visible fault is fixed. But no `[APNs] Sent to …` line has ever been printed, before or after the change, which means the task still hangs after the sends leave the process. Replacing the per-request `AsyncClient` with a shared one did not change this, so the teardown hypothesis was wrong and the cause is currently unknown. Deliveries themselves arrive.
+
+  Consequences while it stands: **stale-token cleanup never runs**, so dead tokens accumulate and every notification fans out to all of them; and **one background task is leaked per notification**. This is the top open item for the next release — ahead of token cleanup, which it blocks, and ahead of the richer-macros work. Full chain in `docs/evidence/2026-09-14-bhnm-recovery-close-call-measurement.md` §3.6.
 
 ---
 

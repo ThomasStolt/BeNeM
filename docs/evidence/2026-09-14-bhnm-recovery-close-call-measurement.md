@@ -251,3 +251,156 @@ Additional findings worth carrying into the spec:
 The capture Action `BeNeM capture (temporary)` and both its Methods are **left in place**, per
 instruction, until Thomas says to remove them. Incident 29483 is closed. raspi-050 is `UP`. The
 existing middleware Method was never edited.
+
+---
+
+## Part 3 — Four alerts per incident: the hang behind it (2026-09-14, 16:09–18:00 UTC)
+
+Switching the production Method to type `WebHook` (Part 2's conclusion) made every incident
+arrive on the phone **four times**. Chasing that duplicate exposed a fault that had been present
+all along and had already left an unexplained trace in the 2026-09-03 evidence.
+
+### 3.1 The symptom, measured
+
+Two independent events, both delivered four times to the middleware and **once** to the capture
+listener on the same action group:
+
+| event | middleware deliveries | spacing | capture listener |
+|---|---|---|---|
+| PROBLEM, incident 29490 | 16:09:13.508, 16:09:46.449, 16:10:19.696, 16:10:52.722 | 32.9s, 33.2s, 33.0s | 1 (16:09:13.405) |
+| RECOVERY, incident 29490 | 16:38:45.475, 16:39:18.428, 16:39:51.434, 16:40:24.660 | 33.0s, 33.0s, 33.2s | 1 (16:38:45.378) |
+
+Not a BHNM re-notification — a per-Method delivery retry. One delivery, one banner; the phone
+showed four, with BHNM's own label on three of them (Berlin time = UTC+2):
+
+```
+18:38  Host recovered.  (Host check triggered from Service PING)<br />Ping OK: Packet…
+18:39  Host recovered. Retry action by system 1 of 3.  (Host check triggered from Service…
+18:39  Host recovered. Retry action by system 2 of 3.  (Host check triggered from Service…
+18:40  Host recovered. Retry action by system 3 of 3.  (Host check triggered from Service…
+```
+
+**`Retry action by system N of 3.` is BHNM's own text, injected into the `{OUTPUT}` macro on each
+retry.** BHNM is stating plainly that its action engine considers the delivery failed.
+
+> A wrong turn worth recording: the captured payloads contain no retry wording, and I concluded
+> from that BHNM produced none. The capture endpoint is never retried, so it only ever received
+> delivery #1 — the retries carry the label and I had never held one. Reasoning from the sample
+> that by definition excludes the phenomenon.
+
+### 3.2 The cause
+
+Timing the production endpoint two ways:
+
+| request | result |
+|---|---|
+| `POST /webhook` with a secret that has **no** registered devices (×3, 16:25:52) | `200`, **48–69 ms** total including TLS |
+| `POST /webhook` with the **live** secret (16:56:17) | **`http=000` after 120 s** — curl's own cap; no response ever arrived |
+
+Log accounting over the container's entire life at that point:
+
+- `[APNs] Sent to …` lines: **0** — with `PYTHONUNBUFFERED=1` and the print present at line 84 of the running image
+- `[APNs] Failed` / `[APNs] Error` / `[Cleanup]` lines: **0**
+- uvicorn access lines for `POST /webhook` **with** tokens: **0**
+- uvicorn access lines for `POST /webhook` **without** tokens: **3** — the three fast probes
+- tracebacks or exceptions: **0**
+
+**The handler never returned whenever it entered `send_to_all`.** `apns.py` wrapped the fan-out in a
+per-request `async with httpx.AsyncClient(http2=True)`; the sends inside completed and the devices
+received the push, but execution never reached the per-token prints that follow the block, the
+response was never sent, and uvicorn never logged the request. Requests with no devices took the
+early return before `send_to_all`, which is why they always looked healthy — and why the fault
+survived every previous test.
+
+The full chain:
+
+```
+handler enters send_to_all
+  → sends succeed, phone gets the push
+  → execution never leaves the fan-out
+  → no response to BHNM
+  → BHNM waits ~30 s, times out
+  → retries 3× at 33 s, labelling each "Retry action by system N of 3."
+  → four alerts per incident
+```
+
+**This retires an open note from 2026-09-03**, which recorded that "the uvicorn access log carries no
+`POST /webhook` entry although it logs every other request" and left it unexplained. Same cause: the
+request never completed.
+
+### 3.3 What the Method type actually changed
+
+The hang is **independent of Method type and predates today**. Incident 29483 (Part 2, under
+`Active Response Webhook`) hung too — its access line is likewise absent — but arrived **once**.
+
+> `Active Response Webhook` does not retry on timeout. Plain `WebHook` retries three times.
+
+So Part 2's Method change did not create the duplicate; it made a pre-existing hang visible. Both
+findings stand: the Active Response type never delivers `RECOVERY`, `ACKNOWLEDGEMENT` or
+`DEACKNOWLEDGEMENT`, and the plain WebHook type exposes any endpoint that fails to answer.
+
+### 3.4 The fix, and one self-inflicted wound
+
+**2.13.1** — the fan-out moved to a `BackgroundTasks` job so the response returns immediately, and
+`apns.py` now uses one long-lived shared `AsyncClient`. **The backgrounding is what fixed it.** The
+shared client was my hypothesis for the hang itself and it was **wrong** — the fan-out still does not
+complete (§3.6). It was kept because Apple asks for persistent APNs connections.
+
+**2.13.2 — a secret leak introduced by the fix.** Once `/webhook` began returning a response, uvicorn
+wrote an access line for it for the first time in the service's life:
+
+```
+INFO: … - "POST /webhook?secret=76acf51f…64101c08 HTTP/1.1" 200 OK
+```
+
+The webhook secret rides in the query string (security-board item **S1**), so the full credential
+went to stdout — and would have been written to the host log file shipped in the same release. Caught
+on the post-deploy verification probe, before the verification cycle ran. A redaction filter on
+`uvicorn.access` / `uvicorn.error` and on the stdout mirror now rewrites `secret=`, `token=`,
+`password=`, `pwd=` and `key=` to `<redacted>`; confirmed zero raw-secret occurrences afterwards. The
+secret still travels in the URL — only the logging half of S1 is closed.
+
+Also in 2.13.2: the `./logs` bind mount is created by Docker as `root` while the container runs as
+`appuser`, so the log file could not be opened; a `/data/middleware.log` fallback was added and the
+host directory chowned.
+
+**2.13.3** — `clean_bhnm_text()` preserves real line breaks (`<br>`, `<br/>`, `<br />`, `</p>` → `\n`;
+only spaces and tabs collapsed) rather than flattening everything, so that BHNM's likely fix for the
+HTML-in-`{OUTPUT}` defect — emitting a newline — is not silently undone downstream.
+
+### 3.5 Verification cycle (2.13.3, one down/up on raspi-050)
+
+| check | result |
+|---|---|
+| PROBLEM deliveries, incident 29499 | **1** — 17:35:16.094 |
+| RECOVERY deliveries, incident 29499 | **1** — 17:57:23.225 |
+| retries in either window | **none** |
+| uvicorn access lines | **2 for 2**, secret `<redacted>` |
+| banners on the phone (DOWN) | **1** |
+| response time | ~0.3 s (was: never) |
+| webhook cache patch | fired live — `incident 29499 -> CLOSED (1 server(s))` |
+| BHNM close-delay hold | 5m 11s (UP 17:52:12 → RECOVERY 17:57:23) |
+
+The banner count establishes that this device is not duplicating. It says nothing about the other
+registered tokens, which remain a separate open item.
+
+### 3.6 Open — top of the list
+
+**The APNs fan-out still never completes.** No `[APNs] Sent to …` line has ever been emitted, before
+or after the fix. Backgrounding removed the user-visible fault and BHNM's retries, but the task
+itself still hangs after the sends leave the process. Consequences while it stands:
+
+- stale-token cleanup never runs, so dead tokens accumulate and every notification fans out to all of them
+- one background task is leaked per notification
+
+Deliveries themselves arrive. The shared-client change did not address it, so the cause is not the
+client teardown and is currently unknown.
+
+### 3.7 Log persistence
+
+Container recreation erased the evidence under measurement on 2026-09-03 and again today — the second
+time by my own 2.13.0 deploy, which destroyed the eleven days of `[Webhook]` history in the middle of
+analysing it. Since 2.13.1 stdout is mirrored to `/logs/middleware.log` on a bind mount, rotated
+5 MB × 5, with a `/data/middleware.log` fallback, and a pre-deploy `docker logs` dump is now a step in
+the upgrade runbook in `middleware/CLAUDE.md`. Dumps taken before all three deploys today are in
+`/root/logdumps/`.
