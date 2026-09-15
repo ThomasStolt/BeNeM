@@ -42,8 +42,8 @@ on both platforms unless explicitly marked platform-specific in
 Three states, always: *verified good*, *verified bad*, and **unverified** — and the third gets
 its own appearance, never the healthy one.
 
-This is written as a rule because it has now been shipped three times, in three different
-places, by three different mechanisms:
+This is written as a rule because it has now been shipped four times, in four different
+places, by four different mechanisms — three in the UI and one in a deploy:
 
 1. **The device icon showed green for a host BHNM reported `DOWN`.** Fixed in its own wave
    (`docs/evidence/2026-09-03-...`), because "no bad news yet" was being drawn as good news.
@@ -54,6 +54,21 @@ places, by three different mechanisms:
    on 2026-09-15 — a QR import that never selected the connection, and iOS notification
    permission denied at the OS level, which the app never reads. In both cases the UI asserted
    health it had never checked.
+4. **A migration that had not taken looked exactly like one that had.** 2026-09-15, deploying
+   S1 change 1a: three phones buzzed, the device count was right, `/health` was green, the push
+   arrived — and the migration had silently not applied at all, because an atomic rename had
+   broken the file bind mount and the container was still reading the old config. **One log line
+   was the entire difference**, and it existed only because the fallback path had been made to
+   announce itself. Every *positive* signal agreed, and every one of them was measuring
+   something other than the thing that mattered.
+
+**These four are the same failure in four costumes** — a device icon, a status label, a toggle,
+and a deploy. Each showed a positive result that had never actually been verified, and in three
+of them the positive result was real but irrelevant: the push genuinely arrived, it just did not
+mean what it appeared to mean. The operational form is the one to watch for, because it has no
+UI to inspect: **when a change is deployed, the thing to check is the assertion the change makes
+about itself, not whether the system still works.** A system that still works is the expected
+outcome of a change that did nothing at all.
 
 Each of those cost real engineer-hours and, in a paging product, each meant somebody believed
 they were covered when they were not. A green affordance is a **claim**. Do not make it on

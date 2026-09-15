@@ -110,20 +110,72 @@ def test_resolves_the_server_that_lists_the_secret(servers_file):
         {"id": "lab", "name": "Lab", "webhook_secrets": [NEW_SECRET]},
         {"id": "prod", "name": "Prod", "webhook_secrets": [GLOBAL_SECRET]},
     ])
-    assert main._server_for_webhook_secret(NEW_SECRET)["id"] == "lab"
-    assert main._server_for_webhook_secret(GLOBAL_SECRET)["id"] == "prod"
+    assert [m["id"] for m in main._servers_for_webhook_secret(NEW_SECRET)] == ["lab"]
+    assert [m["id"] for m in main._servers_for_webhook_secret(GLOBAL_SECRET)] == ["prod"]
 
 
-def test_unknown_secret_resolves_to_none(servers_file):
+def test_unknown_secret_resolves_to_nothing(servers_file):
     servers_file([{"id": "lab", "name": "Lab", "webhook_secrets": [NEW_SECRET]}])
-    assert main._server_for_webhook_secret("not-listed-anywhere") is None
-    assert main._server_for_webhook_secret("") is None
+    assert main._servers_for_webhook_secret("not-listed-anywhere") == []
+    assert main._servers_for_webhook_secret("") == []
 
 
-def test_servers_json_predating_1a_resolves_to_none(servers_file):
+def test_servers_json_predating_1a_resolves_to_nothing(servers_file):
     """No webhook_secrets key at all — the caller must fall back, not page nobody."""
     servers_file([{"id": "lab", "name": "Lab", "api_key": "k"}])
-    assert main._server_for_webhook_secret(GLOBAL_SECRET) is None
+    assert main._servers_for_webhook_secret(GLOBAL_SECRET) == []
+
+
+# ── the ambiguity guard ──────────────────────────────────────────────────────
+
+def test_a_shared_secret_matches_every_server_that_lists_it(servers_file):
+    """During 1a every server carries the same seeded secret, so "which server
+    sent this" has no answer. The resolver must not invent one."""
+    servers_file([
+        {"id": "a", "name": "Alpha", "webhook_secrets": [GLOBAL_SECRET]},
+        {"id": "b", "name": "Beta", "webhook_secrets": [GLOBAL_SECRET]},
+        {"id": "c", "name": "Gamma", "webhook_secrets": [GLOBAL_SECRET]},
+    ])
+    assert [m["id"] for m in main._servers_for_webhook_secret(GLOBAL_SECRET)] == ["a", "b", "c"]
+
+
+def test_the_log_label_names_a_server_only_when_it_is_unambiguous(servers_file):
+    servers_file([{"id": "lab", "name": "Lab", "webhook_secrets": [NEW_SECRET]}])
+    one = main._servers_for_webhook_secret(NEW_SECRET)
+    assert main.webhook_server_label(one) == "Lab"
+
+
+def test_the_log_label_refuses_to_name_an_arbitrary_server(servers_file):
+    """The guard. An arbitrary name in a log is read as fact by whoever did not
+    run the deploy, and per-server behaviour then gets built on it."""
+    servers_file([
+        {"id": "a", "name": "Alpha", "webhook_secrets": [GLOBAL_SECRET]},
+        {"id": "b", "name": "Beta", "webhook_secrets": [GLOBAL_SECRET]},
+    ])
+    label = main.webhook_server_label(main._servers_for_webhook_secret(GLOBAL_SECRET))
+    assert label == "<ambiguous: 2 servers share this secret>"
+    assert "Alpha" not in label and "Beta" not in label
+
+
+def test_a_registration_is_bound_to_a_server_only_when_unambiguous(servers_file):
+    """An arbitrary server_id stored on a device row would be worse than none —
+    it would survive into 1b as data nobody knows is fiction."""
+    servers_file([
+        {"id": "a", "name": "Alpha", "webhook_secrets": [GLOBAL_SECRET]},
+        {"id": "b", "name": "Beta", "webhook_secrets": [GLOBAL_SECRET]},
+    ])
+    matches = main._servers_for_webhook_secret(GLOBAL_SECRET)
+    server_id = str(matches[0].get("id", "")) if len(matches) == 1 else ""
+    assert server_id == ""
+
+
+def test_the_fingerprint_field_survives_the_redaction_filter():
+    """secret= is rewritten by the 2.13.2 redaction filter, which silently blanked
+    the fingerprint in the mirrored host log — the only log that survives a
+    container recreate. secret_fp= must pass through intact."""
+    fp = main.secret_fingerprint(GLOBAL_SECRET)
+    assert main._redact(f"[Webhook] server=Lab secret_fp={fp}").endswith(fp)
+    assert main._redact(f"?secret={GLOBAL_SECRET}") == "?secret=<redacted>"
 
 
 # ── the lookup gains a plural without changing the singular ──────────────────
@@ -169,8 +221,8 @@ def test_seeded_lists_select_exactly_what_the_single_secret_lookup_selected(serv
     before_tokens = get_tokens_for_secret(GLOBAL_SECRET)
     before_subs = get_web_push_subscriptions_for_secret(GLOBAL_SECRET)
 
-    server = main._server_for_webhook_secret(GLOBAL_SECRET)
-    accepted = server_accepted_secrets(server)
+    matches = main._servers_for_webhook_secret(GLOBAL_SECRET)
+    accepted = sorted({x for m in matches for x in server_accepted_secrets(m)})
     after_tokens = get_tokens_for_secrets(accepted)
     after_subs = get_web_push_subscriptions_for_secrets(accepted)
 
@@ -182,8 +234,9 @@ def test_seeded_lists_select_exactly_what_the_single_secret_lookup_selected(serv
 def test_registration_binds_to_a_server_without_changing_who_is_paged(servers_file):
     """A registration records its server; the fan-out still selects it by secret."""
     servers_file([{"id": "lab", "name": "Lab", "webhook_secrets": [GLOBAL_SECRET]}])
-    server = main._server_for_webhook_secret(GLOBAL_SECRET)
-    save_token("tok-bound", "iPhone", GLOBAL_SECRET, "production", server["id"])
+    matches = main._servers_for_webhook_secret(GLOBAL_SECRET)
+    assert len(matches) == 1, "single server listing it — binding is unambiguous"
+    save_token("tok-bound", "iPhone", GLOBAL_SECRET, "production", matches[0]["id"])
 
     with get_conn() as conn:
         row = conn.execute(
@@ -197,5 +250,5 @@ def test_a_device_on_an_unlisted_secret_is_still_reachable_by_fallback(servers_f
     """The pre-1a path. An unresolved webhook must page who it pages today."""
     servers_file([{"id": "lab", "name": "Lab", "webhook_secrets": [NEW_SECRET]}])
     save_token("tok-legacy", "iPhone", "some-older-secret")
-    assert main._server_for_webhook_secret("some-older-secret") is None
+    assert main._servers_for_webhook_secret("some-older-secret") == []
     assert [t for t, _ in get_tokens_for_secret("some-older-secret")] == ["tok-legacy"]

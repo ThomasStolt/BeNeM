@@ -1394,12 +1394,19 @@ The acceptance criterion, as a pass/fail rather than a note:
 
 ```
 [Webhook] PROBLEM — benem-1a-verify — Incident 999001
-[Webhook] FALLBACK — no server lists secret=95e54469; using the pre-1a single-secret lookup.
+[Webhook] FALLBACK — no server lists secret=95e5…; using the pre-1a single-secret lookup.
 [Webhook] Queued delivery to 4 target(s) for incident 999001
 ```
 
-`95e54469` is the fingerprint of the secret seeded into all four servers seventeen minutes
-earlier. The middleware was telling the truth: **as far as the container was concerned, no
+`95e5…` is the fingerprint of the secret seeded into all four servers seventeen minutes
+earlier.
+
+> **Two notes on these quotes.** The fingerprint is **truncated to four characters here**, not in
+> the log: the repo's credential scanner flags `secret=<8+ hex>` and is right to, because it
+> cannot distinguish an eight-character fingerprint from the eight-character secret *fragment*
+> that leaked into this very file and caused the scanner to be written. The field name is quoted
+> as it really was — the deployed 2.15.0 printed `secret=`. It was renamed to `secret_fp=`
+> immediately afterwards, for the same reason plus a worse one: see 8.6. The middleware was telling the truth: **as far as the container was concerned, no
 server listed it.**
 
 ### Root cause: an atomic rename broke the bind mount
@@ -1420,6 +1427,25 @@ why portal saves take effect and this seed did not.
 designed to do: it could not resolve the secret, it said so loudly, it fell back, and all four
 targets were paged. That is the safety net working, and it is why the fallback logs loudly.
 
+### Why this was not reverted, although a revert was pre-authorised
+
+Recorded so the departure reads as reasoning rather than improvisation. The standing
+pre-authorisation was: *if verification fails, revert and redeploy immediately without asking.*
+It was not exercised, on three grounds:
+
+1. **What failed was an operator step, not the deploy.** The seed used the wrong write idiom.
+   The code under test behaved exactly as specified, and the FALLBACK line is evidence *for* it,
+   not against it.
+2. **The system was already in the safe state.** With the container reading a pre-seed
+   `servers.json`, 1a's behaviour was byte-for-byte the pre-1a behaviour — which is what a
+   revert would have produced. Reverting would have discarded a good deploy to fix a bad
+   `os.replace`, and left the same seed still to do afterwards.
+3. **The remedy was smaller than the revert.** Re-binding the mount is one `--force-recreate`.
+
+The pre-authorisation exists so failed code never sits on `main` while someone waits for a
+reply. That hazard was absent here: `main` was fine, and the fault was on the operator's side of
+the line. **If the code had been at fault, the revert was the action.**
+
 **This is the strongest argument for the criterion being written as pass/fail.** "Observe the
 log" would have produced a report of success: the push arrived on all three phones, the device
 count was right, `/health` was green. The single FALLBACK line is the only thing that
@@ -1434,7 +1460,7 @@ Container now on inode 26419, all four servers listing `95e54469`.
 
 ```
 [Webhook] PROBLEM — benem-1a-verify — Incident 999001
-[Webhook] server=SaaS Demo Server secret=95e54469
+[Webhook] server=SaaS Demo Server secret=95e5…
 [Webhook] Queued delivery to 4 target(s) for incident 999001
 [APNs] Sent to ...0c56a19b
 [APNs] Sent to ...86587674
@@ -1482,3 +1508,74 @@ Inference, offered as inference: devices registered with the secret the admin po
 QRs, that value is what was seeded, and real BHNM webhooks demonstrably reach those devices
 today — so BHNM's URL must already carry it. That is an argument, not a measurement, and this
 section stays open until a BHNM-originated webhook logs `server=` with no FALLBACK.
+
+### Attempt 1 — the UI acknowledgement of 29546 produced NO webhook. §8.5 STAYS OPEN.
+
+Thomas acknowledged incident 29546 in the BHNM UI, which is the one route that fires the Action
+without pulling a host. **No webhook arrived.** Checked at 21:08:40Z and again at 21:09:24Z,
+against both `docker logs` and the persistent host mirror `logs/middleware.log`, which survives
+container recreation:
+
+| check | result |
+|---|---|
+| `[Webhook]` lines after 21:03:30Z | **none.** The last webhook of any kind is the 21:03:26 probe |
+| `FALLBACK` count since the seed | **0** — but see the caveat below, this window is not what it looks like |
+| incident 29546 in the cached list | `"incident_state": "OPEN"`, still in `active_incidents`, cache age 62 s, polled 21:08:22Z — **BHNM does not show it acknowledged** |
+
+**Both of the free confirmations are negative, and neither should be read around:**
+
+- **The 2.13.0 cache patch did not fire.** It cannot: the patch is driven by the webhook, and
+  there was no webhook. 29546 still reads `OPEN` after a poll that ran *after* the
+  acknowledgement.
+- **No "Acknowledged: …" push was delivered.** No `[Webhook]`, no `[APNs]`, no `[WebPush]` lines
+  at all in that window.
+
+**What this does and does not establish.** It does not establish that ACK never fires a webhook —
+because BHNM itself still reports the incident as `OPEN`, so the more likely reading is that the
+acknowledgement did not register at all, and a notification for an event BHNM does not believe
+happened is not expected. Distinguishing the two needs the thing this project already has a rule
+for: **search for the object, do not trust the surrounding state.** Confirm in the BHNM UI
+whether 29546 shows as acknowledged, by whom and at what time. If it does, then an ACK that
+registers but fires no Action is a separate and significant defect. If it does not, the click
+did not take and the test simply has to be repeated.
+
+**Caveat on the FALLBACK count, which would otherwise be misread.** `docker logs` for
+`benem-middleware` begins at the container recreate of 21:03:14Z, so "zero FALLBACK since the
+seed mark" is measured over a log that *starts after the failure it is meant to cover*. The
+21:02:09Z FALLBACK is in the previous container's stream and in the host mirror. Use
+`logs/middleware.log` for any window spanning a recreate; the container's own log cannot answer
+it. Counting from `docker logs` alone is exactly the mistake the Actions counter taught.
+
+## 8.6 Two defects in 1a's own logging, found while reading these logs
+
+**1. The fingerprint was redacted out of the only log that survives a restart.** The mirrored
+host log shows `secret=<redacted>`, not the fingerprint. The 2.13.2 redaction filter rewrites
+anything matching `(secret|token|password|key|pwd)=…`, and `secret=<fp>` matches. So the field
+built to answer *"is anybody still on the old secret?"* was blanked in `logs/middleware.log` —
+the persistent one, the only one that can answer that question across a week or a container
+recreate. It survived in `docker logs` only, which is the ephemeral stream.
+
+A filter doing its job on a field that did not need protecting, silently removing the signal 1b
+depends on. Fixed by renaming the field to **`secret_fp=`**, which the filter does not match.
+The same rename also stops the repo's credential scanner flagging the evidence file, and for the
+same underlying reason: `secret=<8 hex>` is indistinguishable from a leaked fragment, so nothing
+that is *not* a secret should be published under that name.
+
+**2. The resolved server name is arbitrary while the secret is shared.** Resolution returned the
+first match, so a lab-targeted webhook logged `server=SaaS Demo Server`. Not a cosmetic problem:
+a log line is read as fact by whoever did not run the deploy, and per-server behaviour gets built
+on it.
+
+**Guarded rather than noted.** `_server_for_webhook_secret` (returning one server) is replaced by
+`_servers_for_webhook_secret` (returning the **list** of every server that accepts the secret),
+so no caller can be handed an arbitrary winner in the first place. The log label names a server
+**only when exactly one matches**; otherwise it reads
+`server=<ambiguous: N servers share this secret>` and names nobody. Registration binding follows
+the same rule: `server_id` is stored only when unambiguous, because an arbitrary `server_id` on a
+device row is worse than an empty one — it would survive into 1b as data nobody knows is fiction.
+
+Both options offered in review were considered; this is the stronger of the two. Refusing to
+resolve at all on ambiguity was rejected: during 1a *every* server shares the seeded secret, so
+that would send every webhook down the FALLBACK path and destroy the 1b signal, which depends on
+FALLBACK meaning "somebody is on an unlisted secret". After 1b, secrets are unique, exactly one
+server matches, and the label always names it.

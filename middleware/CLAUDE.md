@@ -60,29 +60,6 @@ re-issued unless it is refused here.
 **On failure, revert immediately and without asking.** Leaving failed code on `main` while
 waiting for a reply is the worse of the two risks: `main` is what the next deploy pulls.
 
-## Never write a bind-mounted file with an atomic rename
-
-`docker-compose.yml` bind-mounts **files**, not directories:
-
-```
-- ./servers.json:/data/servers.json:ro      # bhnm-apns
-- ./servers.json:/app/servers.json          # benem-admin
-```
-
-A file bind mount binds the **inode**, not the path. Writing the host file with the usual safe
-pattern — write a temp file, `os.replace()` it over the target — creates a *new* inode, and the
-container goes on reading the old one. The host shows the new content, the container shows the
-old, and nothing errors.
-
-Measured 2026-09-15 while seeding `webhook_secrets` for S1 1a: host inode 26419 with the seeded
-lists, container inode 17049 with none, and the middleware correctly logging
-`[Webhook] FALLBACK — no server lists secret=…` for the secret that had just been seeded.
-
-**Write in place** (`open(path, "r+")`, write, `truncate()`), which is what
-`benem-admin/servers.py:save_servers()` already does — that is why portal saves take effect and
-this seed did not. If a rename has already happened, the mount is stale until the containers
-that mount the file are recreated: `docker compose up -d --force-recreate bhnm-apns benem-admin`.
-
 ## Upgrade runbook
 
 **Dump the container log before every deploy.** `docker compose up -d` recreates the
@@ -100,6 +77,33 @@ until that has proven itself across a few deploys.
 
 Then: `./upgrade.sh`, confirm `/health` reports the expected version, and keep the
 previous image tagged for rollback (`docker tag bhnm-apns-bhnm-apns:latest bhnm-apns-bhnm-apns:<sha>`).
+
+### If a deploy step edits `servers.json`: never write it with an atomic rename
+
+`docker-compose.yml` bind-mounts `servers.json` as a **file**, not a directory:
+
+```
+- ./servers.json:/data/servers.json:ro      # bhnm-apns
+- ./servers.json:/app/servers.json          # benem-admin
+```
+
+**A file bind mount binds the inode, not the path.** `os.replace()` — write a temp file, rename
+it over the target — is the *correct* safe-write idiom everywhere else, and exactly wrong here:
+it creates a new inode, and the containers go on reading the old one. The host shows the new
+content, the container shows the old, and **nothing errors**.
+
+Measured 2026-09-15 while seeding `webhook_secrets` for S1 1a: host inode 26419 with the seeded
+lists, container inode 17049 with none, and the middleware correctly logging
+`[Webhook] FALLBACK — no server lists secret_fp=…` for the value that had just been seeded.
+
+- **Do:** write in place — `open(path, "r+")`, write, `truncate()`.
+- **If a rename already happened:** the mount is stale until the containers that mount the file
+  are recreated — `docker compose up -d --force-recreate bhnm-apns benem-admin`.
+
+**Why this never bit before:** every previous `servers.json` edit went through the admin portal,
+and `benem-admin/servers.py:save_servers()` writes in place. The trap only appears the first time
+a deploy step edits the file directly, which is what made it a deploy-day surprise rather than a
+known hazard.
 
 ---
 

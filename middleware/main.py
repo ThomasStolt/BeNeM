@@ -124,20 +124,32 @@ def secret_fingerprint(secret: str) -> str:
     return hashlib.sha256(secret.encode()).hexdigest()[:8]
 
 
-def _server_for_webhook_secret(secret: str) -> dict | None:
-    """Which server accepts this webhook secret (S1 change 1a).
+def _servers_for_webhook_secret(secret: str) -> list[dict]:
+    """Every server that accepts this webhook secret (S1 change 1a).
 
-    Returns None when no server lists it — including every deployment whose
-    servers.json predates 1a. Callers must fall back to the pre-1a single-secret
-    lookup in that case: an unresolved webhook must still page the devices it
-    pages today, because the alternative is paging nobody.
+    Returns a LIST, deliberately, and never a single winner. While 1a seeds every
+    server with the same secret, "which server sent this" has no answer — the
+    first match is arbitrary, and a caller handed one `dict` would quietly build
+    per-server behaviour on an arbitrary name. A list cannot be misread that way.
+    Empty means no server lists it, including every servers.json predating 1a;
+    the caller then falls back to the pre-1a single-secret lookup, because an
+    unresolved webhook must still page the devices it pages today.
     """
     if not secret:
-        return None
-    for s in _load_all_servers():
-        if secret in server_accepted_secrets(s):
-            return s
-    return None
+        return []
+    return [s for s in _load_all_servers() if secret in server_accepted_secrets(s)]
+
+
+def webhook_server_label(matches: list[dict]) -> str:
+    """How the resolved server is named in the log.
+
+    Exactly one match: the name, which is then meaningful. More than one: no name
+    at all, because any name would be arbitrary. 1b makes secrets unique, at which
+    point this always takes the first branch.
+    """
+    if len(matches) == 1:
+        return str(matches[0].get("name") or matches[0].get("id") or "unnamed")
+    return f"<ambiguous: {len(matches)} servers share this secret>"
 
 
 def _load_all_servers() -> list[dict]:
@@ -269,8 +281,8 @@ def register_token(body: TokenRegistration, request: Request):
     if not active_secret:
         raise HTTPException(status_code=400, detail="X-Webhook-Token header is required")
     env = body.environment if body.environment in ("sandbox", "production") else "production"
-    server = _server_for_webhook_secret(active_secret)
-    server_id = str(server.get("id", "")) if server else ""
+    matches = _servers_for_webhook_secret(active_secret)
+    server_id = str(matches[0].get("id", "")) if len(matches) == 1 else ""
     save_token(body.token, body.device_name, active_secret, env, server_id)
     # Log the token suffix, as [Unregister], [APNs] and [Cleanup] all do. Without it
     # every registration in the log is anonymous and a token's history cannot be
@@ -279,9 +291,9 @@ def register_token(body: TokenRegistration, request: Request):
     # Server and secret fingerprint (1a): this is the cheap signal that answers
     # "is anybody still on the old secret?" before 1b retires it — see the S1
     # spec, Part 17. The fingerprint is a hash, never the secret.
-    where = f"{server.get('name', server_id)}" if server else "unresolved"
+    where = webhook_server_label(matches) if matches else "unresolved"
     print(f"[Register] Token saved: ...{body.token[-8:]} for {body.device_name} (APNs: {env}) "
-          f"server={where} secret={secret_fingerprint(active_secret)}")
+          f"server={where} secret_fp={secret_fingerprint(active_secret)}")
     return {"status": "ok"}
 
 
@@ -317,14 +329,14 @@ def register_webpush(body: WebPushRegistration, request: Request, response: Resp
         raise HTTPException(status_code=400, detail="X-Webhook-Token header is required")
     existing = get_web_push_subscriptions_for_secret(webhook_secret)
     is_update = any(s["endpoint"] == body.endpoint for s in existing)
-    server = _server_for_webhook_secret(webhook_secret)
-    server_id = str(server.get("id", "")) if server else ""
+    matches = _servers_for_webhook_secret(webhook_secret)
+    server_id = str(matches[0].get("id", "")) if len(matches) == 1 else ""
     save_web_push_subscription(body.endpoint, body.p256dh, body.auth, webhook_secret, server_id)
     if is_update:
         response.status_code = 200
-    where = f"{server.get('name', server_id)}" if server else "unresolved"
+    where = webhook_server_label(matches) if matches else "unresolved"
     print(f"[WebPush] Subscription {'updated' if is_update else 'registered'}: {body.endpoint[:50]}... "
-          f"server={where} secret={secret_fingerprint(webhook_secret)}")
+          f"server={where} secret_fp={secret_fingerprint(webhook_secret)}")
     return {"status": "ok"}
 
 @app.get("/vapid-key")
@@ -630,13 +642,20 @@ async def receive_webhook(request: Request):
     # lookup selected — the mechanism lands with no behavioural change. A secret
     # no server lists (any servers.json predating 1a) falls back to that lookup
     # rather than paging nobody.
-    server = _server_for_webhook_secret(secret)
-    if server:
-        accepted = server_accepted_secrets(server)
+    matches = _servers_for_webhook_secret(secret)
+    if matches:
+        # Union of every matching server's accepted list. While the lists are
+        # identical (1a) this is the same set either way.
+        accepted = sorted({x for m in matches for x in server_accepted_secrets(m)})
         tokens = get_tokens_for_secrets(accepted)
         web_push_subs = get_web_push_subscriptions_for_secrets(accepted)
-        print(f"[Webhook] server={server.get('name', server.get('id', ''))} "
-              f"secret={secret_fingerprint(secret)}")
+        # secret_fp=, not secret=: the 2.13.2 redaction filter rewrites anything
+        # matching `secret=…`, which silently blanked this fingerprint in the
+        # mirrored host log — the one log that survives a container recreate and
+        # therefore the only one that can answer "is anybody still on the old
+        # secret?" over a week. The fingerprint is a hash and is safe to keep.
+        print(f"[Webhook] server={webhook_server_label(matches)} "
+              f"secret_fp={secret_fingerprint(secret)}")
     else:
         tokens = get_tokens_for_secret(secret)
         web_push_subs = get_web_push_subscriptions_for_secret(secret)
@@ -646,7 +665,7 @@ async def receive_webhook(request: Request):
         # The count of devices still on the old path has to be visible in the log
         # rather than inferred from who remembers re-scanning. 1b deletes this
         # branch and refuses an unresolvable secret — see the S1 spec, Part 17.
-        print(f"[Webhook] FALLBACK — no server lists secret={secret_fingerprint(secret)}; "
+        print(f"[Webhook] FALLBACK — no server lists secret_fp={secret_fingerprint(secret)}; "
               f"using the pre-1a single-secret lookup. This path must be empty before "
               f"S1 change 1b retires the global secret.")
 
