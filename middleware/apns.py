@@ -55,13 +55,21 @@ async def _send_one(
     }
     if incident_id:
         payload["incident_id"] = incident_id
+    tag = device_token[-8:]
+    print(f"[Trace] _send_one enter {tag} env={environment}", flush=True)
     try:
+        print(f"[Trace] before POST {tag}", flush=True)
         r = await client.post(url, json=payload, headers=headers, timeout=APNS_TIMEOUT)
+        print(f"[Trace] after POST {tag} status={r.status_code}", flush=True)
+        body_len = len(r.content)
+        print(f"[Trace] after read body {tag} bytes={body_len}", flush=True)
         success = r.status_code == 200
         if not success:
             print(f"[APNs] Failed ({r.status_code}) via {environment}: {r.text}")
+        print(f"[Trace] _send_one leave {tag}", flush=True)
         return device_token, success, r.status_code
     except Exception as e:
+        print(f"[Trace] _send_one EXCEPTION {tag}: {type(e).__name__}: {e}", flush=True)
         print(f"[APNs] Error: {e}")
         return device_token, False, 0
 
@@ -89,14 +97,19 @@ async def send_to_all(tokens: list[tuple[str, str]], title: str, body: str, inci
         return []
 
     stale_tokens = []
+    print(f"[Trace] send_to_all enter, {len(tokens)} token(s)", flush=True)
     client = _get_client()
+    print(f"[Trace] client ready closed={client.is_closed}", flush=True)
+    print("[Trace] before gather", flush=True)
     results = await asyncio.gather(*[
         _send_one(client, token, title, body, incident_id, env)
         for token, env in tokens
     ], return_exceptions=False)
+    print(f"[Trace] after gather, {len(results)} result(s)", flush=True)
     for token, success, status in results:
         if status == 410:
             stale_tokens.append(token)
         elif success:
             print(f"[APNs] Sent to ...{token[-8:]}")
+    print(f"[Trace] send_to_all leave, {len(stale_tokens)} stale", flush=True)
     return stale_tokens
