@@ -1346,3 +1346,58 @@ load in the same tab fetched normally — and the app never calls `onlineManager
 `networkMode` anywhere in `pwa/src`. Dispatching an `online` event and forcing
 `networkMode: 'always'` did not unpause it. The three tests above stay as a regression guard on
 the signature regardless of what the cause turns out to be.
+
+---
+
+# Part 8 — S1 change 1a deploy (2026-09-15, 20:42–20:46 UTC) — **VERIFICATION INCOMPLETE**
+
+Status written first, because the doctrine applies to this file too: **1a is deployed and
+healthy, and it is NOT yet verified on the wire.** Do not record it as verified until Part 8.3
+is filled in.
+
+## 8.1 Order, and why it is this order
+
+Deploy **first**, seed **second**. The reverse leaves a window in which the old `save_servers()`
+is live while seeded accepted lists exist, and one portal save in that window erases them
+silently — the unresolved-secret fallback then hides the damage until 1b. Deploying first means
+the fixed `save_servers()` is already running before there is any list to lose.
+
+Push is a **prerequisite**, not a follow-up: `upgrade.sh` pulls from origin and exits early when
+local matches remote, so nothing unpushed can be deployed. Recorded as a rule in
+`middleware/CLAUDE.md`.
+
+## 8.2 What was done, in order
+
+| time (UTC) | step | result |
+|---|---|---|
+| 20:41 | push `main` | `746b922..0b49a42`, 8 commits |
+| 20:42:37 | log dump | `/root/logdumps/benem-middleware-20260915T204237Z-pre-2.15.0.log`, 126 KB |
+| 20:42 | tag images for rollback | `bhnm-apns-bhnm-apns:pre-2.15.0`, `bhnm-apns-benem-admin:pre-2.15.0` |
+| 20:43 | **before** device set | 3 devices — `…0c56a19b`, `…86587674`, `…018ab51d`, all `production`; 1 Web Push subscription (id 13, FCM); **`SELECT COUNT(DISTINCT active_secret)` = 1**, which is the single global secret the whole design describes; 4 servers, none carrying `webhook_secrets` |
+| 20:44 | `./upgrade.sh` | all three images rebuilt and recreated; `/health` → **2.15.0**, `registered_devices: 3`; admin 1.6.3 healthy; PWA serving |
+| **20:45:43** | **seed** | `servers.json` backed up, then every one of the 4 servers seeded with the current secret — fingerprint **`95e54469`**. No value printed at any point |
+| 20:46 | cache reload | all 4 servers `200 {"status":"ok"}` |
+
+**The seed timestamp is 2026-09-15T20:45:43Z.** Any `[Webhook] FALLBACK` line *before* that
+instant belongs to the window between deploy and seed and is expected. Any FALLBACK line *after*
+it is a failed verification.
+
+## 8.3 Verification — BLOCKED, not failed
+
+The acceptance criterion, as a pass/fail rather than a note:
+
+> After the seed, a real BHNM webhook must produce a `[Webhook]` line reading `server=<name>`,
+> and there must be **ZERO** `FALLBACK` lines after 20:45:43Z. Any FALLBACK after the seed means
+> the seed did not take, and that is a failed verification.
+
+Plus: the after device set must equal the before set above, and no QR may be reissued.
+
+**Not yet run.** SSH to the VPS stopped responding at 20:47 — port 22 refuses from this host
+while 443 continues to serve normally (`/health` 200, version 2.15.0, 3 devices), so the service
+is up and only the administrative channel is gone. Most likely fail2ban after a burst of
+connections during the deploy. Blocked is not failed: the pre-authorised revert is for a
+verification that *fails*, and reverting would need the same SSH channel anyway.
+
+**State meanwhile:** 2.15.0 live, seeded, caches reloaded, `/health` reporting the same three
+devices as before the deploy. Behaviourally inert by design and consistent with that so far —
+but the wire-level proof that server resolution fires is outstanding.
