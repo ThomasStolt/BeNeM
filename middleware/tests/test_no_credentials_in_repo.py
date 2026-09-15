@@ -57,14 +57,7 @@ PLACEHOLDER = re.compile(
 
 # Generated or vendored files whose long runs are not ours to police.
 SKIP_SUFFIX = {".pbxproj", ".svg", ".png", ".jpg", ".jpeg", ".ico", ".lock", ".pdf"}
-SKIP_PATH = (
-    "pwa/package-lock.json",
-    "docs/benem-runtime-architecture.",
-    # Build caches that are untracked but not ignored either. They hold hashes, not
-    # credentials. That they show up here at all is a .gitignore gap, which is a
-    # separate open item — remove these entries once it is closed.
-    ".vite/", "dist/", "coverage/", ".pytest_cache/",
-)
+SKIP_PATH = ("pwa/package-lock.json", "docs/benem-runtime-architecture.")
 
 
 def _tracked_text_files():

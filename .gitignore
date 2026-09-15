@@ -53,6 +53,13 @@ M1BJKI1M3C52.png
 # Node (root-level tooling)
 node_modules/
 
+# Build / tooling output (ruling 2026-09-15)
+.vite/
+*.tsbuildinfo
+.eslintcache
+coverage/
+.pytest_cache/
+
 # Firecrawl research / scraping cache
 .firecrawl/
 
