@@ -800,6 +800,64 @@ phones; "sent" and "rang" are not the same, as Jonah's phone demonstrated earlie
 
 ---
 
+## Part 3.14 — `...62f21e50` resolved: an old install, not a client defect (2026-09-15, 17:4x UTC)
+
+Every event for this token, across the live container and every log dump:
+
+```
+2026-09-14T16:09:49.994  [Unregister] Token removed: ...62f21e50
+2026-09-15T09:57:11.664  [APNs] Token gone (410)  → [Cleanup] Removed
+2026-09-15T10:14:55.272  [APNs] Token gone (410)  → [Cleanup] Removed
+2026-09-15T15:01:43.926  [APNs] Token gone (410)  → [Cleanup] Removed
+```
+
+Its last registration was **10:45:56 on 2026-09-15**, and it has **not reappeared since 15:01** —
+two and a half hours and a four-webhook burst later, the table holds only `0c56a19b`, `018ab51d`
+and `86587674`.
+
+### What it was
+
+10:45:56 is **roughly two minutes before the QR reinstall measurement** on the iPhone 13 Pro Max,
+which follow-up 2 records as reinstalled and fetching from 10:48, registering `...018ab51d` at
+10:50:50. So `...62f21e50` is the **old install's final registration**, made on a last launch just
+before the app was deleted. Once the app that held it was gone, nothing offered it again — which
+is exactly the silence observed after 15:01.
+
+**This retires the theory I proposed earlier**, that a client was re-sending a stale *cached*
+token. It could not have been: `cachedDeviceToken` is in-memory only and never persisted, so the
+app has no cached token to re-send across launches. The token was being supplied by iOS to a live
+install, repeatedly, until that install was deleted. **No client defect is evidenced here.**
+
+### The part that remains odd, stated as odd
+
+APNs reported this token unregistered **since 2026-05-29 00:35:25 UTC** while it was actively
+registering in September. The plausible reading is that the app was deleted and reinstalled back
+in May, iOS reissued the same token value, and APNs's invalidation record was never refreshed —
+its timestamp is *"when APNs last confirmed the token invalid"*, not a guarantee about the
+present. That is an explanation, not a measurement, and nothing here depends on it.
+
+Practical consequence worth keeping: **a `410` timestamp is not evidence about the current
+device.** Reading it as "this phone has been dead since May" would have been wrong.
+
+### The real finding: registrations are untraceable
+
+This took far longer than it should have because **`[Register]` does not log which token it
+saved**:
+
+```
+[Register] Token saved for: iPhone (APNs: production)      ← which token?
+[Unregister] Token removed: ...62f21e50                    ← says exactly which
+```
+
+Every registration in the log is anonymous, so a token's history cannot be reconstructed — the
+timeline above had to be assembled from `410`s and one lucky `[Unregister]`. One-line fix: log
+the last 8 characters, as `[Unregister]`, `[APNs]` and `[Cleanup]` all already do.
+
+Related: that `[Unregister]` at 2026-09-14 16:09:49 is the **only one in the entire log history**
+(9 `[Register]` lines against it), and it belongs to this token.
+
+---
+
 ## Follow-ups this measurement generated
 
 Recorded here so they are not carried only in conversation. None are started.
