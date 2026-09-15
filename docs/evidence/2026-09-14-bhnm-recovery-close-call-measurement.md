@@ -927,6 +927,47 @@ length cap or truncation would surface here rather than on the migration.
 4. **BHNM's webhook client is `curl/7.61.1`**, and the URL query string survives — useful when
    reasoning about what it will and will not do.
 
+### RECOVERY leg — `[header]` is not PROBLEM-only (19:15:40 UTC)
+
+raspi-050 reconnected at ~19:05; BHNM raised RECOVERY at 19:15:40, the usual poll-plus-close-delay
+after the host came back. Same incident, 29570.
+
+```
+2026-09-15T19:15:40.626020+00:00  from 192.168.2.211  POST /capture?m=hdr
+--- headers ---
+  User-Agent: curl/7.61.1
+  Authorization: Bearer deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+  Content-Type: application/json
+  X-Webhook-Token: deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+  Content-Length: 365
+--- body ---
+{ "incident_id": "29570", ..., "host_state": "UP", "notification_type": "RECOVERY", ...,
+  "output": " (Host check triggered from Service PING)<br />Ping OK: Packet Loss 0%  RTA = 0.555 ms",
+  "incident_time": "Tue Sep 15 20:42:13 2026" }
+```
+
+All three headers present, `application/json`, both 64-character values intact, body complete. So
+the `[header]` block is **method-level configuration, applied to every notification type the
+method delivers** — not something that only survives on PROBLEM. Header *order* differs between
+the two captures, which is immaterial but worth not being surprised by.
+
+One detail that re-confirms §2: **`incident_time` carries the original incident time**
+(`20:42:13` local = 18:42 UTC, the PROBLEM), not the recovery time. Anything reasoning about
+recovery latency from this field will be wrong by the whole outage.
+
+### Teardown
+
+- Temporary Action **deleted** — banner *"Action Contact: BeNeM header capture (temporary) has
+  been removed"*, and a search for `capture` returns **"No actions match your search"**. The
+  `BeNeM` group is back to `IN USE 1`, one action, `Mobile BeNeM Notification`, its Method
+  untouched throughout (SSL enabled, Auth Token disabled, 24X7, original URL and payload).
+- **The Actions counter is not trustworthy**: it read 16 before the run, 17 with the temporary
+  Action added, and **18 after deleting it**. The Methods counter behaved correctly (15 → 16 →
+  15). The 09-14 run saw the same counter move without a corresponding change. Verify by
+  searching, not by the number.
+- Listener stopped, port 8787 free, the `caffeinate` assertion released.
+- Captures preserved: 3 entries (one self-test, PROBLEM, RECOVERY).
+
 ### Production was unaffected
 
 The live method delivered the same incident normally, through 2.14.0's queue:
