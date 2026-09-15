@@ -1,9 +1,24 @@
 # Push Delivery, S1 and Incident Freshness — WIP Handoff
 
-**Date:** 2026-09-15
-**Status:** CLEAN CHECKPOINT. Nothing is half-built, the lab is restored, the deployment is
-healthy. Everything below is either shipped, designed-and-awaiting-approval, or blocked on a
-measurement that needs Thomas and a phone.
+**Date:** 2026-09-15, updated **2026-09-16 after an overnight run**.
+**Status:** CHECKPOINT — code and docs clean, **the lab is NOT restored.**
+
+Nothing is half-built. Everything in the repository is committed, pushed and green. But two
+things are deliberately left for the morning and must be read before anything else:
+
+> ### ⚠️ Open at the start of 2026-09-16
+>
+> 1. **`raspi-050` is still unplugged**, and `BHNM-B-SE01` (the Service Engine) is down as a
+>    result. Both were pulled for the 1a verification at ~21:35Z and never restored, because the
+>    overnight run was writing-and-testing only. **Plug it back in first.** While the SE is down,
+>    devices assigned to it are not being checked, and BHNM showing them healthy is itself
+>    unverified state rendered as healthy.
+> 2. **Middleware `2.15.2` is committed and pushed but NOT deployed.** Live is `2.15.1`. The
+>    undeployed change is the ACK cache-patch fix (queue item 12). Deploy needs a human present;
+>    the runbook is in `middleware/CLAUDE.md`.
+>
+> Incident `29586` (`raspi-050`, host) is currently **ACKNOWLEDGED** in BHNM. Restoring the Pi
+> will produce a RECOVERY webhook — which is worth watching, see "what is still unobserved".
 
 Written for a reader with **no memory of the work that produced it**. Every item names its file.
 
@@ -25,7 +40,32 @@ corrections — 18 commits, all pushed, detailed in `middleware/CHANGELOG.md` an
 
 ---
 
-## b. Lab and deployment state (verified by observation, 2026-09-15 ~19:30 UTC)
+## b. Lab and deployment state (verified by observation, 2026-09-16 ~00:2x UTC)
+
+| check | result |
+|---|---|
+| middleware live version | **2.15.1**, `/health` `running`, 3 registered devices + 1 Web Push subscription |
+| middleware repo version | **2.15.2 — pushed, NOT deployed** |
+| `raspi-050` | **UNPLUGGED.** Incident 29586 open and ACKNOWLEDGED |
+| `BHNM-B-SE01` | **DOWN** — Service Engine, incident 29585, a consequence of the above |
+| `servers.json` | all four servers seeded with `webhook_secrets`, fingerprint `95e54469` |
+| `/etc/hosts` workaround | **removed and confirmed** (`grep` empty, `curl` fails to resolve) |
+| middleware suite | `python -m pytest tests` → **208 passed**, exit 0 |
+| PWA suite | `npx vitest run` → **405 passed**, exit 0 |
+| admin suite | **34 passed**, exit 0 — needs its own venv, see `docs/DEVELOPING.md` |
+| git | everything pushed through `f40e5b8`. `git status --porcelain` shows only ` M CLAUDE.md`, Thomas's own table reformat, deliberately untouched |
+
+### What is still unobserved
+
+- **A RECOVERY webhook after 1a.** PROBLEM and ACKNOWLEDGEMENT were both seen post-1a; RECOVERY
+  was not. Restoring the Pi produces one, and it is the useful contrast for queue item 12: if
+  `Cache patched: … -> CLOSED` appears while `-> ACKNOWLEDGED` never did on 2.15.1, the defect is
+  localised exactly. **Watch the log when plugging it back in.**
+- **The BHNM Action configuration** (§8.10) — which devices or groups the `BeNeM` group is
+  attached to, and its notification criteria. Four attempts through the browser extension failed
+  to open Administration → Actions; no URL for it is recorded. **Needs a human with the UI.**
+
+## b-old. Lab and deployment state (verified by observation, 2026-09-15 ~19:30 UTC — superseded)
 
 | check | result |
 |---|---|
@@ -181,6 +221,38 @@ small fix to a defect that makes a core feature work only on incidents older tha
     value of zero is how this stayed invisible.
 
 ---
+
+## c2. Decisions waiting for Thomas, 2026-09-16
+
+Collected from the overnight run. **None was guessed at**; each is recorded where the work stopped.
+
+**Operational, this morning:**
+
+1. **Restore `raspi-050`** and confirm `BHNM-B-SE01` recovers. Watch for the RECOVERY webhook.
+2. **Deploy 2.15.2** (ACK cache-patch fix), or hold it.
+3. **Read the BHNM Action config** (§8.10) — the one measurement neither the extension nor the API
+   could reach, and the thing that turns the coverage finding into a fix.
+4. **Rotate `PROXY_TOKEN`?** Ruled *yes* on 2026-09-15 with a six-step procedure in the S1 spec,
+   decision 9. Never executed. Still outstanding.
+
+**Coverage visibility** — `specs/2026-09-16-coverage-visibility-design.md`:
+
+5. Approve the read-only measurement of whether the BHNM API exposes action-group assignment? It
+   decides the shape of the whole fix.
+6. If coverage proves unknowable, is the onboarding sentence acceptable product copy?
+7. Does the incident list get the per-row marker, or is Diagnostics enough for now?
+
+**Push relay** — `specs/2026-09-16-push-relay-design.md`:
+
+8. **Is the relay a product at all**, or is "publish your own build" the honest answer for iOS
+   self-hosters? Android self-hosters need nothing.
+9. Paid or free, decided before building?
+10. Per-device or per-server encryption key, with its rotation story attached?
+11. Approve the NSE measurement as the only next step?
+
+**Incident freshness** — `specs/2026-09-15-incident-freshness-design.md`:
+
+12. Approve the copy for the state strings — now **five** states, not four; the fifth is *paused*.
 
 ## d. Open decisions — recorded, do not re-derive
 
