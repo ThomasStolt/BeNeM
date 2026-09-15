@@ -745,6 +745,61 @@ The row is deleted but recoverable from the backup, so the question stays answer
 
 ---
 
+## Part 3.13 — Live concurrency burst against 2.14.0 (2026-09-15, 17:15:38 UTC)
+
+The verification the fix was deployed for, and the one the 09-15 14:49 accident stood in for.
+Four `POST /webhook` requests released simultaneously from four threads behind a barrier, all
+landing inside **30 ms** of each other — deliberately the shape that wedged 2.13.4.
+
+### Ingest
+
+```
+17:15:38.902  [Webhook] PROBLEM — burst-test-3 — Incident 903 — Queued delivery to 4 target(s)
+17:15:38.924  [Webhook] PROBLEM — burst-test-4 — Incident 904 — Queued delivery to 4 target(s)
+17:15:38.929  [Webhook] PROBLEM — burst-test-1 — Incident 901 — Queued delivery to 4 target(s)
+17:15:38.931  [Webhook] PROBLEM — burst-test-2 — Incident 902 — Queued delivery to 4 target(s)
+```
+
+All four answered `200 {"status":"ok","notified":4}` in **54–83 ms** — far inside BHNM's ~30 s
+timeout, so no retry storm.
+
+### Delivery — 16 sends, in four clean groups
+
+```
+17:15:39.359  0c56a19b   17:15:39.850  0c56a19b   17:15:40.336  0c56a19b   17:15:40.822  0c56a19b
+17:15:39.500  018ab51d   17:15:39.988  018ab51d   17:15:40.475  018ab51d   17:15:40.959  018ab51d
+17:15:39.637  86587674   17:15:40.126  86587674   17:15:40.613  86587674   17:15:41.097  86587674
+17:15:39.711  webpush    17:15:40.197  webpush    17:15:40.682  webpush    17:15:41.173  webpush
+```
+
+**Every fan-out completed in full, in registration order, one after another with no
+interleaving.** No `[Deliver] TIMEOUT`, no failure, no drop, no backlog warning. Sixteen
+deliveries in **1.81 s**, ~0.113 s per send — which also validates the 0.15 s seed proposed for
+the drain-time estimator.
+
+### Per target
+
+| target | phone | webhooks served |
+|---|---|---|
+| `...0c56a19b` | iPhone 13 Pro Max — Thomas, private | **4 / 4** |
+| `...018ab51d` | iPhone 15 — Thomas, work | **4 / 4** |
+| `...86587674` | iPhone 13 Pro — Jonah | **4 / 4** |
+| FCM `faLoG1PCQS0` | Edge 60 — Android | **4 / 4** |
+
+### Against the defect it fixes
+
+| | 2.13.4, 14:49 (2 webhooks, 255 ms apart) | 2.14.0, 17:15 (4 webhooks, 30 ms apart) |
+|---|---|---|
+| fan-outs completed | 0 of 2 | **4 of 4** |
+| targets served | ~3 of 16 attempted | **16 of 16** |
+| `[Deliver] TIMEOUT` | 2 | **0** |
+| wall time | 60 s, then abandoned | **1.81 s** |
+
+Whether each notification actually *rang* is a separate question for the people holding the
+phones; "sent" and "rang" are not the same, as Jonah's phone demonstrated earlier today.
+
+---
+
 ## Follow-ups this measurement generated
 
 Recorded here so they are not carried only in conversation. None are started.
