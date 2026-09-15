@@ -858,6 +858,92 @@ Related: that `[Unregister]` at 2026-09-14 16:09:49 is the **only one in the ent
 
 ---
 
+## Part 6 — `[header]` on a plain WebHook: measured, and it works (2026-09-15, 18:42 UTC)
+
+The gate on the whole S1 header design. BMC documents the `[header]` block in a walkthrough that
+says to pick *Active Response Webhook*; BeNeM's method must be plain **`WebHook`**, and the only
+example on the box was on an unused method that had never fired.
+
+### The rig
+
+Temporary Action `BeNeM header capture (temporary)` in the `BeNeM` group, one plain **WebHook**
+method, `SSL disabled`, `Auth Token None`, `24x7`, → `http://192.168.2.224:8787/capture?m=hdr`.
+**The live `Mobile BeNeM Notification` method was never touched** and paged normally throughout.
+
+Pre-flight, because the 09-14 run never proved reachability and paid for it:
+
+- The Mac's address was re-checked rather than reused — still `192.168.2.224` (`en21`), and BHNM
+  independently agrees: device `MacBook-Pro-Thomas.local`, `dev_index 126`, `ip 192.168.2.224`,
+  `monitor: 1`.
+- **The Mac was set to `sleep 1` on *both* battery and AC** — one minute idle. The listener would
+  have died mid-run and produced an empty capture, which would then have been misattributed to
+  `[header]` not working. Run under `caffeinate -dimsu`; `pmset -g assertions` confirmed
+  `PreventSystemSleep` held. Settings unchanged.
+
+The probe secret was **64 hex characters** (`deadbeef` × 8), the same shape as a real one, so a
+length cap or truncation would surface here rather than on the migration.
+
+### The capture, verbatim
+
+```
+2026-09-15T18:42:14.662911+00:00  from 192.168.2.211  POST /capture?m=hdr
+--- headers ---
+  Host: 192.168.2.224:8787
+  User-Agent: curl/7.61.1
+  Accept: */*
+  X-Webhook-Token: deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+  Authorization: Bearer deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+  Content-Type: application/json
+  Content-Length: 317
+--- body ---
+{ "incident_id": "29570", "hostname": "raspi-050", "host_address": "192.168.2.50",
+  "host_state": "DOWN", "notification_type": "PROBLEM", "severity": "", "site": "New_York",
+  "category": "Raspberry Pi", "service_desc": "", "output": "<br />Ping CRITICAL: Packet Loss 100%",
+  "incident_time": "Tue Sep 15 20:42:13 2026" }
+```
+
+### Every question answered
+
+| question | answer |
+|---|---|
+| Does `[header]` reach the wire on a **plain WebHook**? | **Yes.** Both custom headers arrived, from `192.168.2.211`. |
+| Does a **64-character** value survive? | **Yes, intact.** No truncation, no length cap. |
+| Does `Authorization` survive with `AUTHORIZATION TOKEN = None`? | **Yes** — it is not stripped or overwritten. |
+| Do the header block and the JSON body **coexist**? | **Yes.** All eleven fields arrived, `Content-Length: 317`. `[header]` does not consume the body. |
+| What `Content-Type` actually arrives? | **`application/json`.** |
+
+### Consequences
+
+1. **The S1 header design is confirmed on the method type BeNeM actually needs.** Option (a) in
+   the spec stands; option (c), the body field, is no longer needed as a fallback.
+2. **`Authorization: Bearer` is available**, so the recommendation to use it — rather than a
+   custom header that loggers do not redact — is implementable as written.
+3. **A wart is retired as a side effect.** Both method types previously sent JSON under
+   `application/x-www-form-urlencoded`, which is why the middleware's form-decode fallback was
+   load-bearing for every real webhook (§2). With `Content-Type` set in the `[header]` block the
+   body arrives correctly typed, and that fallback becomes what it was always meant to be — a
+   defensive path, not the main one. **Do not delete it**: existing deployments that have not
+   migrated their Action still depend on it.
+4. **BHNM's webhook client is `curl/7.61.1`**, and the URL query string survives — useful when
+   reasoning about what it will and will not do.
+
+### Production was unaffected
+
+The live method delivered the same incident normally, through 2.14.0's queue:
+
+```
+18:42:14.661  [Webhook] PROBLEM — raspi-050 — Incident 29570
+18:42:14.662  [Webhook] Queued delivery to 4 target(s)
+18:42:15.093  [APNs] Sent to ...0c56a19b     (13 Pro Max)
+18:42:15.232  [APNs] Sent to ...018ab51d     (iPhone 15)
+18:42:15.373  [APNs] Sent to ...86587674     (Jonah)
+```
+
+**One capture, no retries** — the listener answered `200` immediately, so BHNM's three-retry
+behaviour never engaged. Consistent with §3.3.
+
+---
+
 ## Follow-ups this measurement generated
 
 Recorded here so they are not carried only in conversation. None are started.
