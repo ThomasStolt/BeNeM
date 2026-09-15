@@ -467,3 +467,43 @@ Thomas's other two phones were parked as a device-side notification problem (iPh
 setup). **That conclusion is retired.** They may have been configured correctly all along and simply
 never sent to — their tokens were never the first row. They are to be retested **before** any setting
 on them is changed, and the result recorded here either way.
+
+
+---
+
+## Follow-ups this measurement generated
+
+Recorded here so they are not carried only in conversation. None are started.
+
+**1. Admin portal: device/token overview (agreed, not yet specced).** The `Push Config` page lists
+`device_name`, a truncated token and `registered_at` — which told us nothing this morning, because
+iOS 16+ reports every device as `iPhone` and the page shows no delivery state. Extend that page
+rather than adding a screen:
+
+- record `last_push_at`, `last_status` and `last_error` per token in `_fan_out`, which already sees
+  every result — that alone would have shown `410 Unregistered` and `400 BadDeviceToken` at a glance
+- show which BHNM server each token belongs to (`active_secret` → `servers.json` name)
+- per-device **Remove** (with a confirmation naming the consequence) and **Send test push**
+- **user label**: `device_name` is useless, but the QR already carries a username and the app already
+  stores it as the ACK user; having the app send it on `/register` turns five identical rows into
+  named ones. Needs a small change on both sides.
+
+**2. Push enablement fails silently on the client.** Three of four devices were not receiving, for
+three different reasons, and in none of them did the app say so:
+
+| device | cause |
+|---|---|
+| Android | in-app Push Notifications switch off — never subscribed |
+| colleague's iPhone 13 Pro | never called `/register` at all; app fetches data fine |
+| iPhone 13 Pro Max | registers, Apple rejects the token `410 Unregistered` |
+
+`AppDelegate.swift:47–52` returns before registering when `notificationsEnabled` is false, printing
+only locally. For a paging product the Settings screen should show registration state **as confirmed
+by the middleware** ("registered 2 minutes ago" vs "not registered") plus a test-push button, rather
+than a local toggle that can silently mean nothing.
+
+**3. `400 BadDeviceToken` is never cleaned up.** Only `410` triggers removal, so a token in that
+state is retried on every incident forever. Token `…b26fb517` is in this state now.
+
+**4. Android notifications arrive only in the shade**, not as a heads-up banner with sound —
+a notification-channel importance setting. Material for a paging product.
