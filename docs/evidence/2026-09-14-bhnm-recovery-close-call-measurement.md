@@ -350,7 +350,7 @@ complete (§3.6). It was kept because Apple asks for persistent APNs connections
 wrote an access line for it for the first time in the service's life:
 
 ```
-INFO: … - "POST /webhook?secret=76acf51f…64101c08 HTTP/1.1" 200 OK
+INFO: … - "POST /webhook?secret=<first-8-and-last-8-of-the-live-secret, redacted 2026-09-15> HTTP/1.1" 200 OK
 ```
 
 The webhook secret rides in the query string (security-board item **S1**), so the full credential
@@ -359,6 +359,30 @@ on the post-deploy verification probe, before the verification cycle ran. A reda
 `uvicorn.access` / `uvicorn.error` and on the stdout mirror now rewrites `secret=`, `token=`,
 `password=`, `pwd=` and `key=` to `<redacted>`; confirmed zero raw-secret occurrences afterwards. The
 secret still travels in the URL — only the logging half of S1 is closed.
+
+**How a fragment of the live secret reached the repo (found 2026-09-15).** The redaction filter
+above was tested against a *real* uvicorn access line, so the test fixture carried the live lab
+secret. Two tracked, pushed files were affected:
+
+| File | What it held | Characters of the 64-char secret exposed |
+|---|---|---|
+| `middleware/tests/test_webhook_notification_types.py:317` | a contiguous run in the sample access line | **33 leading** |
+| the same file, line 319 | `assert "…" not in out` | the same leading 8 |
+| this file, §3.4 | the quoted access line, `first8…last8` | **8 leading + 8 trailing** |
+
+Combined that is 41 of 64 hex characters — 23 unknown, so not exploitable (~2^92), and this secret
+is burned and due for rotation regardless. Hygiene, not an incident, and it does **not** change the
+rotation plan. The reviewer's estimate of "the first 32 characters" was close but understated it:
+the evidence file also carried the **tail**, which the test file did not.
+
+Fixed the same day: every fragment replaced with `deadbeef` repeated, and
+`middleware/tests/test_no_credentials_in_repo.py` added — a `git ls-files` scan that fails the suite
+on a long lowercase-hex run or on a credential keyword assigned a literal that is not an obvious
+placeholder. Run against the repo as it stood before the fix, it flags **both** files. Its known
+ceiling is recorded in its docstring: a bare 8-character hex fragment with no adjacent keyword is
+indistinguishable from an id and is not caught.
+
+**The rule this produced: never test a redaction filter with the string it is meant to redact.**
 
 Also in 2.13.2: the `./logs` bind mount is created by Docker as `root` while the container runs as
 `appuser`, so the log file could not be opened; a `/data/middleware.log` fallback was added and the

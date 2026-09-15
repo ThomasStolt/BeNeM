@@ -314,9 +314,9 @@ from main import _redact
 
 
 def test_redact_removes_the_webhook_secret_from_an_access_line():
-    line = 'POST /webhook?secret=76acf51fc3952b0312b000140e23b40cc HTTP/1.1" 200 OK'
+    line = 'POST /webhook?secret=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef HTTP/1.1" 200 OK'
     out = _redact(line)
-    assert "76acf51f" not in out
+    assert "deadbeef" not in out
     assert "secret=<redacted>" in out
 
 
