@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.13.4] - 2026-09-15
+
+### Fixed
+
+- **Only the first registered device was ever notified.** `send_to_all` fired every token concurrently through `asyncio.gather` on one shared HTTP/2 connection to APNs. Tracing showed the first request completing in ~430 ms and the remaining four never returning from `await client.post(...)` — no result, no exception, and **no timeout despite `timeout=10.0` on both the client and the request**, so they sat there indefinitely. Because `get_tokens_for_secret` had no `ORDER BY`, the served row was always the same device (the oldest registration), which is why this looked like working delivery. Sends are now **sequential**: one POST at a time, ~0.5 s per device, inside a background task nothing waits on.
+- **`get_tokens_for_secret` now has an explicit `ORDER BY id`.** Relying on SQLite's rowid order is what kept the above invisible.
+
+### Added
+
+- **`asyncio.wait_for` around the whole fan-out** (`FANOUT_TIMEOUT`, 60 s), logging `[Deliver] TIMEOUT after 60.0s — fan-out abandoned for incident N, X token(s), Y subscription(s)`. The previous stall was silent for months; a future one will not be.
+- `[APNs] Token gone (410) …` logged alongside the existing `[Cleanup]` line.
+
+### Note
+
+- Two devices were previously written off as having device-side notification problems (iPhone Focus, Android setup). That conclusion is **retired** — they may simply never have been sent to. Retest before changing any setting on them.
+
+---
+
 ## [2.13.3] - 2026-09-14
 
 ### Changed

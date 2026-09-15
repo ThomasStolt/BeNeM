@@ -26,6 +26,7 @@ from database import init_db, save_token, get_tokens_for_secret, get_all_tokens,
     save_web_push_subscription, get_web_push_subscriptions_for_secret, delete_web_push_subscription
 from apns import send_to_all
 from webpush import send_web_push_to_all
+import asyncio
 import time
 import html as _html
 import re
@@ -390,32 +391,39 @@ def clean_bhnm_text(value) -> str:
     return text.strip()
 
 
+# Sends are sequential at ~0.5s each, so this covers roughly a hundred devices.
+# It exists to make a stall loud, not to bound normal work.
+FANOUT_TIMEOUT = 60.0
+
+
 async def _deliver(tokens, web_push_subs, title: str, body: str, incident_id: str) -> None:
     """Fan out after the response has gone back to BHNM.
 
     BHNM waits ~30s for the webhook response and retries three times if it does
     not arrive, so delivery must never happen inside the request.
     """
-    print(f"[Trace] _deliver enter: {len(tokens)} token(s), {len(web_push_subs)} sub(s)", flush=True)
     try:
-        if tokens:
-            print("[Trace] before send_to_all", flush=True)
-            stale = await send_to_all(tokens, title, body, incident_id)
-            print(f"[Trace] after send_to_all, {len(stale)} stale", flush=True)
-            for token in stale:
-                delete_token(token)
-                print(f"[Cleanup] Removed stale APNs token ...{token[-8:]}")
-        if web_push_subs:
-            print("[Trace] before send_web_push_to_all", flush=True)
-            gone = await send_web_push_to_all(web_push_subs, title, body, incident_id)
-            print(f"[Trace] after send_web_push_to_all, {len(gone)} gone", flush=True)
-            for endpoint in gone:
-                delete_web_push_subscription(endpoint)
-                print(f"[Cleanup] Removed expired Web Push subscription: {endpoint[:50]}...")
+        await asyncio.wait_for(
+            _fan_out(tokens, web_push_subs, title, body, incident_id),
+            timeout=FANOUT_TIMEOUT)
+    except asyncio.TimeoutError:
+        # A stall must be loud. The previous one was silent for months.
+        print(f"[Deliver] TIMEOUT after {FANOUT_TIMEOUT}s — fan-out abandoned for "
+              f"incident {incident_id or '?'}, {len(tokens)} token(s), "
+              f"{len(web_push_subs)} subscription(s)")
     except Exception as e:
-        print(f"[Trace] _deliver EXCEPTION: {type(e).__name__}: {e}", flush=True)
-        print(f"[Deliver] Fan-out failed: {e}")
-    print("[Trace] _deliver leave", flush=True)
+        print(f"[Deliver] Fan-out failed: {type(e).__name__}: {e}")
+
+
+async def _fan_out(tokens, web_push_subs, title: str, body: str, incident_id: str) -> None:
+    if tokens:
+        for token in await send_to_all(tokens, title, body, incident_id):
+            delete_token(token)
+            print(f"[Cleanup] Removed stale APNs token ...{token[-8:]}")
+    if web_push_subs:
+        for endpoint in await send_web_push_to_all(web_push_subs, title, body, incident_id):
+            delete_web_push_subscription(endpoint)
+            print(f"[Cleanup] Removed expired Web Push subscription: {endpoint[:50]}...")
 
 
 @app.post("/webhook")

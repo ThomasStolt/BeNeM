@@ -386,15 +386,12 @@ registered tokens, which remain a separate open item.
 
 ### 3.6 Open — top of the list
 
-**The APNs fan-out still never completes.** No `[APNs] Sent to …` line has ever been emitted, before
-or after the fix. Backgrounding removed the user-visible fault and BHNM's retries, but the task
-itself still hangs after the sends leave the process. Consequences while it stands:
+**The APNs fan-out never completes.** No `[APNs] Sent to …` line had ever been emitted. Backgrounding
+removed the user-visible fault and BHNM's retries, but the task itself still hung. Localised and
+fixed the next morning — see §3.8.
 
-- stale-token cleanup never runs, so dead tokens accumulate and every notification fans out to all of them
-- one background task is leaked per notification
-
-Deliveries themselves arrive. The shared-client change did not address it, so the cause is not the
-client teardown and is currently unknown.
+> An earlier revision of this section said "deliveries themselves arrive". That was true for **one
+> device in five**, and the correction matters: see §3.8.
 
 ### 3.7 Log persistence
 
@@ -404,3 +401,69 @@ analysing it. Since 2.13.1 stdout is mirrored to `/logs/middleware.log` on a bin
 5 MB × 5, with a `/data/middleware.log` fallback, and a pre-deploy `docker logs` dump is now a step in
 the upgrade runbook in `middleware/CLAUDE.md`. Dumps taken before all three deploys today are in
 `/root/logdumps/`.
+
+
+---
+
+## Part 3.8 — The fan-out hang, traced (2026-09-15, 09:43 UTC)
+
+Instrumented rather than hypothesised, after the previous hypothesis (per-request
+`AsyncClient` teardown) proved wrong and cost a deploy. Trace lines around every await in the
+delivery path, then one live-secret probe against the production middleware.
+
+### What printed
+
+```
+[Trace] _deliver enter: 5 token(s), 0 sub(s)
+[Trace] before send_to_all
+[Trace] send_to_all enter, 5 token(s)
+[Trace] client ready closed=False
+[Trace] before gather
+[Trace] _send_one enter a0f85792 → before POST a0f85792
+[Trace] _send_one enter 32295bdd → before POST 32295bdd
+[Trace] _send_one enter 86587674 → before POST 86587674
+[Trace] _send_one enter b26fb517 → before POST b26fb517
+[Trace] _send_one enter 0c56a19b → before POST 0c56a19b
+[Trace] after POST a0f85792 status=200
+[Trace] after read body a0f85792 bytes=0
+[Trace] _send_one leave a0f85792          ← last line; nothing further, ever
+```
+
+**The hang is inside `await client.post(...)` for the 2nd–5th concurrent requests on the shared
+HTTP/2 connection.** The first completes in ~430 ms; the rest never return, no `after gather`, no
+exception. `httpx 0.28.1`, `h2 4.4.1`, `httpcore 1.0.9`.
+
+Decisive detail: both the client and the request carry `timeout=10.0`, and **no `TimeoutException`
+ever fired** — ten minutes later the four coroutines were still inside `client.post`. They are
+blocked somewhere httpx's timeouts do not reach, which rules out a slow network and points at the
+HTTP/2 connection state.
+
+Ruling out the other candidates from the trace itself: the client is **not** created outside the
+running loop (`client ready closed=False`, and one request on it succeeds), and the response body
+**is** read (`after read body … bytes=0` — APNs returns an empty body on 200).
+
+### Why this was worse than a leaked task
+
+`get_tokens_for_secret` had no `ORDER BY`, so SQLite returned rowid order and the first row was
+always the same device — id 516, the oldest registration, from 2026-05-30. **Only that one device
+has ever been notified.** The other four registrations were silently dead. Thomas confirmed the probe
+produced exactly one notification on his phone.
+
+Had his live phone not held the oldest token, BeNeM would have delivered nothing at all.
+
+### The fix (2.13.4)
+
+- **Sends are sequential**, not `asyncio.gather` — one POST at a time on the shared connection,
+  ~0.5 s per device inside a background task that nothing waits on.
+- **`asyncio.wait_for(..., 60 s)` around the whole fan-out**, logging
+  `[Deliver] TIMEOUT after 60.0s — fan-out abandoned for incident N, X token(s), Y subscription(s)`.
+  A future stall becomes a logged error instead of silence.
+- **`ORDER BY id`** added to `get_tokens_for_secret`. Relying on rowid order is how "only the oldest
+  token is served" stayed invisible.
+
+### Consequence for the two parked phones
+
+Thomas's other two phones were parked as a device-side notification problem (iPhone Focus, Android
+setup). **That conclusion is retired.** They may have been configured correctly all along and simply
+never sent to — their tokens were never the first row. They are to be retested **before** any setting
+on them is changed, and the result recorded here either way.

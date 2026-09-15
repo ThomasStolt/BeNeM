@@ -59,7 +59,12 @@ def get_tokens_for_secret(secret: str) -> list[tuple[str, str]]:
     """Return all (token, apns_environment) pairs registered for the given webhook secret."""
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT token, apns_environment FROM device_tokens WHERE active_secret = ?",
+            # ORDER BY is explicit: without it SQLite returned rowid order, and a
+            # fan-out bug that only ever served the first row stayed invisible
+            # because that row was always the same device. id ascending = oldest
+            # registration first.
+            "SELECT token, apns_environment FROM device_tokens WHERE active_secret = ? "
+            "ORDER BY id",
             (secret,)
         ).fetchall()
     return [(r[0], r[1]) for r in rows]

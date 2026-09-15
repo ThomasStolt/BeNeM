@@ -329,3 +329,87 @@ def test_redact_keeps_the_rest_of_the_line():
     out = _redact("POST /webhook?secret=deadbeef HTTP/1.1 200 OK")
     assert out.startswith("POST /webhook?secret=<redacted>")
     assert out.endswith("200 OK")
+
+
+# ── Fan-out reaches every device (2.13.4) ─────────────────────────────────────
+
+import asyncio
+import apns as apns_mod
+
+
+def test_send_to_all_sends_to_every_token_not_just_the_first():
+    """Concurrent sends on one HTTP/2 connection wedged after the first response,
+    so only the oldest registered device was ever notified. Sends are serial now."""
+    seen = []
+
+    async def fake_send_one(_client, token, _title, _body, _iid, env):
+        seen.append(token)
+        return token, True, 200
+
+    tokens = [(f"tok-{i}", "production") for i in range(5)]
+    with patch.object(apns_mod, "_send_one", fake_send_one), \
+         patch.object(apns_mod, "_get_client", lambda: object()):
+        stale = asyncio.run(apns_mod.send_to_all(tokens, "t", "b", "1"))
+
+    assert seen == [f"tok-{i}" for i in range(5)], "every token, in registration order"
+    assert stale == []
+
+
+def test_send_to_all_collects_410s_and_keeps_going():
+    async def fake_send_one(_client, token, _title, _body, _iid, env):
+        return token, False, 410 if token == "tok-dead" else 200
+
+    tokens = [("tok-a", "production"), ("tok-dead", "production"), ("tok-b", "production")]
+    with patch.object(apns_mod, "_send_one", fake_send_one), \
+         patch.object(apns_mod, "_get_client", lambda: object()):
+        stale = asyncio.run(apns_mod.send_to_all(tokens, "t", "b", "1"))
+
+    assert stale == ["tok-dead"]
+
+
+def test_one_failing_token_does_not_stop_the_others():
+    seen = []
+
+    async def fake_send_one(_client, token, _title, _body, _iid, env):
+        seen.append(token)
+        return token, False, 0        # _send_one swallows its own exceptions
+
+    tokens = [("tok-a", "production"), ("tok-b", "production")]
+    with patch.object(apns_mod, "_send_one", fake_send_one), \
+         patch.object(apns_mod, "_get_client", lambda: object()):
+        asyncio.run(apns_mod.send_to_all(tokens, "t", "b", "1"))
+
+    assert seen == ["tok-a", "tok-b"]
+
+
+def test_a_stalled_fan_out_is_logged_not_silent(capsys):
+    """The previous stall produced no output at all for months."""
+    import main as main_mod
+
+    async def never_returns(*_a, **_kw):
+        await asyncio.sleep(3600)
+
+    async def run():
+        with patch.object(main_mod, "send_to_all", never_returns), \
+             patch.object(main_mod, "FANOUT_TIMEOUT", 0.05):
+            await main_mod._deliver([("tok", "production")], [], "t", "b", "42")
+
+    asyncio.run(run())
+    out = capsys.readouterr().out
+    assert "[Deliver] TIMEOUT" in out
+    assert "incident 42" in out
+
+
+def test_a_completing_fan_out_logs_no_timeout(capsys):
+    import main as main_mod
+
+    async def quick(*_a, **_kw):
+        return []
+
+    async def run():
+        with patch.object(main_mod, "send_to_all", quick), \
+             patch.object(main_mod, "FANOUT_TIMEOUT", 5):
+            await main_mod._deliver([("tok", "production")], [], "t", "b", "42")
+
+    asyncio.run(run())
+    assert "TIMEOUT" not in capsys.readouterr().out
