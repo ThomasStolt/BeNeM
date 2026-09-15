@@ -387,6 +387,176 @@ S1 as written is about the secret travelling in a URL. This closes that, and not
 
 ---
 
+## Part 10 — Revocation, and what the client shows when the server disagrees with it
+
+Added 2026-09-15 by ruling. Revocation does not exist today, and it is the **client half of the
+per-server secret allowlist** in Part 5, so the two are one feature and are designed together.
+The connecting idea: *what does the app display when its own belief and the server's answer do
+not match?* Everything below is one answer to that.
+
+### 10.1 A distinguishable "no longer accepted"
+
+The app must be able to tell three outcomes apart, and today it can tell apart none of them:
+
+| outcome | meaning | client behaviour |
+|---|---|---|
+| **accepted** | credential valid | normal |
+| **refused** | this credential is no longer accepted | **terminal** revoked state |
+| **unreachable** | network failure, TLS failure, server down | transient — retry, and say so |
+
+Wire shape: **`401` with a JSON body `{"error": "credential_revoked"}`** on both the proxy path
+and `/register`. The status code alone is not enough — a captive portal or a misconfigured
+reverse proxy can produce a bare `401`, and treating that as revocation would throw an engineer
+out of the app on hotel wifi. The body discriminates; a `401` without it is treated as
+unreachable, not revoked.
+
+`403` is deliberately not used: it is what the existing proxy already returns for SSRF-blocked
+targets (`main.py`), and overloading it would make two unrelated conditions indistinguishable.
+
+### 10.2 What happens to cached data
+
+For a monitoring app, silently showing yesterday's incidents is worse than showing nothing —
+an engineer glancing at a green board cannot tell it is stale. On revocation:
+
+- **Cleared immediately:** cached incidents, tactical overview, threshold counts, maintenance
+  map, device lists. Anything that asserts a *current* state of the world.
+- **Kept:** the connection entry itself (name, URL, symbol, colour) and the ACK user, so the
+  administrator can re-issue a QR and the user recognises which server was revoked. The stored
+  secret is **wiped** — it is dead and keeping it invites a confusing retry.
+- **The screen:** the server's row shows *"Access revoked — contact your administrator"* in the
+  error colour, with the server name. Incident and tactical screens for that connection show an
+  empty state carrying the same sentence, **not** a spinner and not stale rows. If the user has
+  another working connection, offer to switch to it.
+
+### 10.3 Revoked is terminal
+
+No retry loop, no spinner, no background polling. The state persists across launches and is left
+only by a successful re-onboarding (new QR, or an edited secret). Re-check **once** on a manual
+"Try again" the user taps, never automatically — a fleet of revoked apps quietly hammering a
+middleware is how a revocation becomes an outage.
+
+### 10.4 It must not fire during a rotation overlap
+
+This is the concrete reason the allowlist and the overlap window in Part 5 are one mechanism.
+During rotation both the old and the new secret are in the server's accepted list, so a device
+still holding the old one is **accepted**, not refused, and sees nothing at all. Revocation is
+what happens when a secret is *removed from the list*, which is a deliberate administrative act
+after the admin device overview shows nobody still using it. Without the overlap window,
+rotating would tell every engineer simultaneously that they had been thrown out.
+
+**Rule to encode: a secret is never removed from the accepted list in the same operation that
+adds its replacement.**
+
+### 10.5 Is stale-data-while-disconnected already a defect today?
+
+**Unmeasured. Do not assume.** The measurement, which must happen before this part is built:
+
+- Point the app at the middleware, load incidents so the cache is warm.
+- **(a)** Make the proxy return `401` (retire the token server-side) and record exactly what each
+  client shows: stale incidents? a spinner? an error? how long before anything changes?
+- **(b)** Kill the network instead and record the same.
+- If (a) and (b) look identical to the user, that is a defect **today**, independent of
+  revocation, and it is the same class as the green-icon-on-a-dead-host wave.
+
+iOS must be measured on a device against the lab, per the standing rule. PWA can be measured in
+a browser. **Queue both so Thomas's part is one sitting** — see Part 12.
+
+---
+
+## Part 11 — "Registered and active" is local belief, not a verified fact
+
+Same class as a green device icon on a dead host: the UI asserting health it has not verified.
+Jonah's phone displayed a confident enabled toggle while being completely unreachable. **Stop at
+design.**
+
+### 11.1 The endpoint
+
+`POST /register/status`, mirroring `/register`: `X-Webhook-Token` header for the secret, body
+`{"token": "<device token>"}`. A POST for a read is deliberate — it keeps the device token out of
+the query string, consistent with the whole point of S1.
+
+```json
+{ "registered": true,
+  "registered_at":  "2026-09-15T16:58:33Z",
+  "last_push_at":   "2026-09-15T17:15:41Z",
+  "last_status":    200,
+  "last_error":     null,
+  "server_name":    "ThomasLabServer" }
+```
+
+`{"registered": false}` returns **`200`, not `404`** — "you are not registered" is a successful
+answer to the question, and a `404` would be indistinguishable from a middleware that has no such
+route, which is exactly the confusion this endpoint exists to end.
+
+Depends on the `last_push_at` / `last_status` / `last_error` columns proposed in the evidence
+file's follow-up 1. Those are worth adding for the admin portal anyway; this makes them
+load-bearing.
+
+### 11.2 Three states, and the third is the point
+
+| state | when | what the row says |
+|---|---|---|
+| **confirmed** | server says registered | "Registered · last alert delivered 2 minutes ago" |
+| **not registered** | server says no | "Not receiving alerts — tap to register" |
+| **unknown** | the status call itself failed | "Can't reach the push server · last confirmed 14:03" |
+| **revoked** | `401` + `credential_revoked` | "Access revoked — contact your administrator" |
+
+**Today the UI collapses "unknown" into "fine", which is the whole defect.** The rule, and it is
+the same one the device-status wave established: never render *unverified* as *good*.
+
+A **Send test push** button belongs on the same row — the only control that proves the path end
+to end rather than asserting it.
+
+### 11.3 When it is called
+
+On foreground, after registering, and when the Settings screen appears. **Not on a timer.**
+
+### 11.4 Cross-platform, one item
+
+Both clients need it, and both need the foreground re-check underneath it — `scenePhase ==
+.active` on iOS, `visibilitychange` on the PWA. Same defect, different mechanism, same pass.
+The PWA's version is `useState<PushState>(getPushState)`, which evaluates once on mount, so a
+user who revokes permission in browser settings keeps seeing a stale state until remount.
+
+---
+
+## Part 12 — One concept, two names
+
+`notificationsEnabled` on iOS (`SavedConnection`), `pushEnabled` on the PWA (`SavedServer`). The
+same per-connection control with two names, in a monorepo whose `shared/` directory exists to
+prevent exactly this. It already caused a wrong conclusion: a grep for `notificationsEnabled`
+across the repo returns nothing on the PWA side and reads as "the PWA has no per-connection
+control", which is false. The next person greps and reaches the same wrong conclusion.
+
+**Proposed canonical name: `pushEnabled`.** It is the more precise of the two — the control
+governs *push delivery*, not notifications in general, and the rest of the vocabulary in
+`shared/` is already "push" (`push-payload-spec.md`, "Per-server push notification
+configuration" in `feature-spec.md`). It is also the name that needs no migration on the side
+that already uses it.
+
+**Nothing is renamed yet.** The immediate step is to record the canonical name and both current
+spellings in `shared/feature-spec.md`, so the mapping is discoverable by the grep that currently
+misleads. When the iOS rename does happen it is not free: the field is `Codable` and the name is
+a persisted JSON key, so it needs a `decodeIfPresent` fallback to the old key or every existing
+installation silently loses its per-server setting — the same shape as the migration already in
+`SavedConnection.init(from:)`.
+
+---
+
+## Part 13 — Measurements that need Thomas, batched into one sitting
+
+Grouped deliberately so his involvement is one session rather than three.
+
+1. **Unregister A/B** (evidence item 5): force-quit, relaunch, toggle notifications off within a
+   second, check for `[Unregister]` and probe. Control: same with a 10 s wait.
+2. **401 vs network-down on iOS** (Part 10.5): warm the cache, retire the credential
+   server-side, record what the screen shows; then repeat with the network down.
+3. **`...62f21e50`**: whether the phone re-registering a token Apple has rejected since May is
+   restoring from backup or sending a cached token.
+
+All three are the same rig — one phone, the lab, and the middleware log open. The PWA halves of
+2 can be done in a browser without him.
+
 ## Decisions needed from Thomas
 
 1. **Approve the Part 6 measurement?** One temporary Action in the `BeNeM` group plus the capture
@@ -398,3 +568,6 @@ S1 as written is about the secret travelling in a URL. This closes that, and not
    is INSTALL.md §7.5 wrong? This changes what the docs sweep should say.
 5. **Rotation as a follow-on item** — schedule the overlap-window design after queue item 5, or
    drop it?
+6. **Canonical name `pushEnabled`** (Part 12) — agreed as the one name, recorded in `shared/`
+   now and renamed on iOS later? Or keep `notificationsEnabled` and rename the PWA instead?
+7. **Part 13 sitting** — when, and is one session with the phone and the lab workable?
