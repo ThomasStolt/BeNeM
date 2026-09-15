@@ -55,7 +55,9 @@ the phone buzzed. A and B differing is the whole result.
 Tests S1 spec Part 10.5. The question is whether stale-data-while-disconnected is **already** a
 defect today, independent of revocation. Do not assume it is.
 
-Warm the cache first: open the app, let the incident list and tactical screens load fully.
+Warm the cache for the warm half: open the app, let the incident list and tactical screens load
+fully, *then* apply the arm. For the cold half, force-quit and relaunch with the arm already in
+force. See the six observations and the warm/cold requirement below.
 
 **Arm A — the server refuses the credential.** Retire the proxy token server-side so the app's
 requests start failing authentication, without touching the network:
@@ -69,11 +71,23 @@ ssh root@bhnm-apns.hurrikap.org \
 
 With the phone **unlocked and the app foregrounded**, record, with timings:
 
-- What does the incident list show — stale incidents, a spinner, an error, an empty state?
-- How long before anything on screen changes at all?
-- Does any screen say something is wrong, or does it keep asserting the last good state?
-- Pull to refresh: what then?
-- Background the app for 30 s and return: does it change?
+1. What does the incident list show — stale incidents, a spinner, an error, an empty state?
+2. How long before anything on screen changes at all?
+3. Does any screen say something is wrong, or does it keep asserting the last good state?
+4. Pull to refresh: what then?
+5. Background the app for 30 s and return: does it change?
+6. **The connection indicator** — which of its states is it in, and does that state differ
+   between the two arms? On the PWA read `data-status` on the badge (`unknown` / `checking` /
+   `connected` / `disconnected`); on iOS read the equivalent indicator. This is the
+   doctrine-bearing affordance: it is the one element whose whole job is to claim the connection
+   is good, so whether it distinguishes "refused" from "no signal" *is* the measurement.
+
+**Run each arm twice — once with the cache WARM and once COLD.** Warm means the incident list
+loaded fully before the arm was applied; cold means the app started with the arm already in
+force. The two are not the same measurement and they are predicted to diverge: with a warm cache
+the client keeps rendering the last good list, which is the doctrine violation, and with a cold
+cache an error string is at least visible. Record all six observations for each of the four
+cells.
 
 **Restore immediately afterwards:**
 

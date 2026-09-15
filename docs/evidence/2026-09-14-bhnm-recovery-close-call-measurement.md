@@ -1137,3 +1137,176 @@ state is retried on every incident forever. Token `…b26fb517` is in this state
 
 **4. Android notifications arrive only in the shade**, not as a heads-up banner with sound —
 a notification-channel importance setting. Material for a paging product.
+
+---
+
+# Part 7 — Measurement 2, PWA half: a 401 versus a dead network (2026-09-15, ~19:5x–20:2x UTC)
+
+Runbook: `docs/runbooks/2026-09-15-one-sitting-device-measurements.md`, Measurement 2. The phone
+half is still outstanding; this is the browser half, which needed nobody but the browser.
+
+**The question.** Whether stale-data-while-disconnected is *already* a defect today, independent
+of revocation. Stated as a prediction before measuring, so a wrong prediction would be visible:
+the code suggested the two arms would be indistinguishable with a warm cache and faintly
+distinguishable with a cold one, by the error string in the `isError && !data` empty state. **The
+prediction was wrong in the app's disfavour** — see "What the prediction got wrong" below.
+
+## 7.0 A blocker first: the PWA host does not resolve on the work Mac
+
+| probe | result |
+|---|---|
+| `dig benem.hurrikap.org` (LAN resolver `192.168.2.11`) | **NXDOMAIN**, `flags: qr aa` — answered *authoritatively* |
+| `dig @1.1.1.1 / @8.8.8.8 / @9.9.9.9` | `172.104.142.164`, all three agree |
+| `curl --resolve benem.hurrikap.org:443:172.104.142.164 https://benem.hurrikap.org/` | **HTTP 200 in 0.05 s** |
+| `dig bhnm-apns.hurrikap.org` | resolves normally |
+
+Split-horizon DNS: the LAN resolver is authoritative for `hurrikap.org` and has no record for the
+PWA host, while public DNS does. The box and the route are fine. This is the open "LAN DNS" item,
+now root-caused.
+
+**Test-only workaround, and its removal.** Thomas added one line to `/etc/hosts`:
+
+```
+172.104.142.164 benem.hurrikap.org
+```
+
+Deliberately *not* Chrome's Secure DNS setting: that toggle changes resolution for every host in
+the profile, including the lab at `bhnm-b.tstolt.com`, and would have traded the lab for the PWA.
+`--host-resolver-rules` was also rejected — it maps exactly one host, but needs a separate Chrome
+instance, which has neither the extension attached nor the configured `benem_servers` in
+localStorage.
+
+**Removal confirmed 2026-09-15 20:19 UTC**, as the last step, because a stale hosts entry would
+mask the real DNS fix later:
+
+```
+$ grep -n "benem" /etc/hosts   → no benem entry
+$ curl --max-time 6 https://benem.hurrikap.org/   → 000, could not resolve (expected)
+```
+
+## 7.1 Method
+
+Four cells: each arm with the cache **warm** (incident list fully loaded before the arm was
+applied) and **cold** (the arm in force from the first paint).
+
+- **Arm A — the server refuses the credential.** The app's own requests, with the `X-Proxy-Token`
+  header rewritten to a wrong value, so the **401 is genuinely from the middleware**
+  (`{"detail":"Invalid proxy token"}`) rather than from a stub. Cold cell: the stored token
+  replaced with a same-length bogus value, the original backed up verbatim and restored after.
+  **The production `.env` was not touched** — the runbook's server-side rotation would have
+  refused the three live phones as well, for no gain.
+- **Arm B — the network is gone.** Warm cell: the three signals a browser gives a page when the
+  radio is off — `navigator.onLine` false, an `offline` event, `fetch` rejecting with
+  `TypeError: Failed to fetch`. **Simulated, not the real radio; labelled as such.** Cold cell:
+  real, measured with the hosts entry removed.
+
+## 7.2 The four cells
+
+**Arm A — 401.**
+
+| # | observation | warm cache | cold cache |
+|---|---|---|---|
+| 1 | incident list | 15 stale incidents, unchanged | **blank** — no rows, no empty state |
+| 2 | time to first change | **no change in 20 s** after two real 401s | **none, ever** (12 s sampled, 3 loads) |
+| 3 | anything saying it is wrong | **no** | **no** |
+| 4 | refresh | fires `/bhnm/api/v1/incidents` → 401, then the legacy fallback `/bhnm/api/incident_api.php` → 401. UI unchanged | **no refresh control exists** — `RefreshRing` renders only when `dataUpdatedAt > 0` |
+| 5 | background 30 s and return | not measurable, see 7.4 | not measurable |
+| 6 | connection badge | **`connected`. Green. Throughout.** | **`unknown`. Grey.** Never `disconnected` |
+
+**Arm B — no network.**
+
+| # | observation | warm cache (simulated) | cold cache (real) |
+|---|---|---|---|
+| 1 | incident list | 15 stale incidents, unchanged | **the app does not open at all** — Chrome's `DNS_PROBE_FINISHED_NXDOMAIN` page. Separately, with the shell already served from the Workbox precache: blank content, header and tab bar only |
+| 2 | time to first change | **none in 10 s** with no user action | n/a — no app on screen |
+| 3 | anything saying it is wrong | **no** | Chrome says so; **the app never does** |
+| 4 | refresh | **hangs indefinitely** — see 7.5 | no app on screen |
+| 5 | background and return | not measurable | not measurable |
+| 6 | connection badge | **`connected`. Green.** | grey `unknown` in the precache case; no badge at all in the error-page case |
+
+## 7.3 The answer
+
+**Warm cache: NOT distinguishable.** Green `connected` badge, the same fifteen stale rows, no
+message, in both arms. The only difference is invisible to the user — one arm sent two requests
+that came back 401, the other sent none.
+
+**Cold cache: NOT distinguishable.** Blank screen, grey `unknown` badge, no message and no
+control to tap, in both arms.
+
+**So it is a defect today, independent of revocation**, and it raises the priority of
+incident-freshness Part 3 rather than merely confirming it: Part 3 was scoped to the detail
+screen, and this says the list screen and the badge have the same disease.
+
+### What the prediction got wrong
+
+The prediction was that the cold cells would differ by an error string, because
+`IncidentListScreen.tsx:44` renders *"Could not reach BHNM"* with `(error as Error).message` on
+`isError && !data`. **In all three cold loads that branch did not render.** Read directly from the
+query cache: `status: "pending"`, `fetchStatus: "paused"`, `error: null` — so `isError` was false
+and there was nothing to render. Leading hypothesis, not a conclusion: the first attempt failed
+and the *retry* was paused, so the query never reached `error` at all. Unexplained, and it is not
+claimed as understood: `navigator.onLine` was `true` and a hand-rolled `fetch` from the same page
+returned 401 at the same moment. See 7.6 for the independence check on this observation.
+
+### The badge, which needs none of that mystery solved
+
+`components/AppHeader.tsx:34`:
+
+```tsx
+const derivedStatus: ConnectionStatus =
+  !config.isConfigured ? 'disconnected' :
+  isLoading             ? 'checking'     :
+  isError               ? 'disconnected' :
+  dataUpdatedAt > 0     ? 'connected'    :
+                          'unknown';
+```
+
+`dataUpdatedAt` never resets once data has loaded, so **a warm cache reads `connected`
+permanently regardless of what happens next.** The badge does not report the connection; it
+reports that data arrived at some point in the past. That is the doctrine violation as one
+ternary, and it explains the entire warm-cache row without reference to the paused-query
+question. Design direction is recorded in the incident-freshness spec, Part 3.
+
+## 7.4 What could not be measured, and why
+
+Observation 5 in every cell. The extension-driven tab reports `document.visibilityState ===
+"hidden"` permanently, so background-and-return could not be produced, and React Query's
+interval refetch — gated on visibility by design — **fired not once in 155 s** with a 120 s
+interval. An artifact of the harness, not the product. The phone half of the runbook covers it.
+
+## 7.5 Defect found in passing: Refresh hangs forever while offline
+
+`IncidentListScreen.onRefresh` awaits `queryClient.invalidateQueries(...)` and then `refetch()`.
+While the query is paused neither promise settles, so the control hangs with **no timeout and no
+feedback**: the tap does nothing, nothing spins, nothing errors. Observed as two CDP evaluations
+timing out at 45 s after the tap, UI unchanged throughout. It is the one control a user reaches
+for when they suspect the data is stale — which is exactly when it fails. Queued as handoff
+item 10.
+
+## 7.6 Independence check on the paused-query observation
+
+Challenged on review: was Arm A run in a tab that had earlier been put offline for Arm B, without
+a hard reload? A lingering offline state in React Query's online manager would produce exactly the
+`paused` / `error: null` that was observed.
+
+**Refuted by sequence.** In the measurement tab, in order: the tab was created *after* the hosts
+entry, loaded healthy (`connected`, 15 rows); Arm A warm was applied as a header rewrite only —
+no `onLine` spoofing, no `offline` event; the three cold Arm A loads followed, each a **full page
+load**, which resets the online manager regardless; the key was restored and the app returned to
+`success/idle` with 15 rows; **only then** was Arm B's offline simulation applied for the first
+time. No offline state of any kind existed in that tab before or during the Arm A cells, and
+`navigator.onLine` was measured `true` inside the paused state.
+
+**Still not independently re-run, deliberately.** A fresh never-offline tab would settle it
+beyond the timeline argument, but it needs the hosts entry re-added, and re-adding a
+deliberately-removed test-only workaround to re-prove something the sequence already excludes is
+not worth the risk of leaving it behind. **Status, stated exactly:** the challenge was raised on
+review and **answered by sequence, not by re-measurement**; the hypothesis was withdrawn by the
+reviewer on that basis. The observation is measured and reproducible — 3 of 3 cold loads — and
+**not independently reproduced.** Both halves of that sentence are the honest state; neither is
+to be rounded up.
+
+The mechanism question that remains — whether a failing first attempt with `retry: 1` leaves the
+query at `pending` / `paused` / `error: null` rather than reaching `error` — is about React
+Query's own behaviour, not about this deployment, and is settled in `pwa/src/lib/api/__tests__/`
+rather than by another browser sitting. See 7.7.
