@@ -176,6 +176,47 @@ Collapsing them reproduces today's defect with better wording.
 **Never use the string "Incident not found."** It is true only in the `404` case and is the
 current lie in the other three.
 
+### The connection badge is the same lie, in one ternary — PWA (measured 2026-09-15)
+
+**Part 3's scope now covers the list screen and the badge, not only the detail screen.** This was
+measured, not deduced: with a warm cache, a server that refuses the credential (real `401` from
+the middleware) and a dead network are **indistinguishable to a user** — same green badge, same
+fifteen stale rows, no message in either. With a cold cache both are a blank screen with a grey
+`unknown` badge and no control to tap.
+
+The whole derivation is `components/AppHeader.tsx:34`:
+
+```tsx
+const derivedStatus: ConnectionStatus =
+  !config.isConfigured ? 'disconnected' :
+  isLoading             ? 'checking'     :
+  isError               ? 'disconnected' :
+  dataUpdatedAt > 0     ? 'connected'    :
+                          'unknown';
+```
+
+Recorded verbatim, because it states the defect better than a paraphrase:
+
+> the badge's entire derivation is in AppHeader.tsx — `dataUpdatedAt > 0 ? 'connected' :
+> 'unknown'`, with isError the only path to 'disconnected'. dataUpdatedAt never resets once data
+> has loaded, so a warm cache reads CONNECTED permanently regardless of what happens next. The
+> badge does not report the connection; it reports that data arrived at some point in the past.
+
+That is the doctrine violation as one ternary, and **it explains the warm-cache measurement
+without needing the paused-query question answered at all** — `dataUpdatedAt` stays non-zero, so
+the badge stays green whatever `isError` does.
+
+**Design direction — do NOT build yet, it belongs with this part.** The badge infers connection
+health from one query's state, while the middleware already serves a real two-hop signal that the
+PWA's own diagnostics screen consumes: `GET /api/v1/diagnostics` returns `server.bhnm.reachable`
+as **`true` / `false` / `null`**, where `null` means the background monitor has no verdict yet —
+a tri-state that already encodes *unverified* — plus `last_success_age_seconds` and per-feed
+`age_seconds`. iOS has a genuine connection monitor. The badge should derive from **that signal
+plus a freshness judgement on the data on screen**, not from "we once had data". Practical form
+follows the doctrine in `CLAUDE.md`: green only for a hop confirmed good recently, its own
+appearance while a check is in flight or has no verdict, and stale-but-rendered data marked as
+stale rather than left looking current.
+
 ### iOS specifically
 
 `IncidentListView.navigateToPendingIncident()` must **always navigate** to the detail screen in
@@ -201,9 +242,36 @@ already distinguishes loading from loaded; it needs the *Gone* and *Unreachable*
 Part 3 first is deliberate: it is the only part that removes a falsehood, and it makes 1 and 2
 observable — with the four states in place, a failure says which of them it was.
 
-## Decisions needed
+## Decisions — DECIDED 2026-09-15. Do not reopen.
 
-1. Interim server resolution for Part 1 — refresh all cached servers, or wait for S1 change 1?
-2. Debounce interval — 15 s?
-3. Is the copy above right in tone for the product?
-4. Should Part 2 also accept a prefixed id from older clients, or require the numeric?
+Ruled in the decision sitting of 2026-09-15 (Thomas's calls and the reviewer's rulings, relayed).
+Recorded with reasoning so the reasoning is not re-derived.
+
+1. **Interim server resolution for Part 1: refresh ALL cached servers. Do not wait for S1
+   change 1.** *Reviewer.* Cheap at four servers, and it stops a usability fix blocking on a
+   security migration. **Ceiling, stated explicitly:** this is wrong at scale — every webhook
+   refreshes every server, so the upstream cost is O(servers) per alert and a server that never
+   raises alerts is polled because a different one did. **S1 change 1 retires it** by giving each
+   server its own secret, at which point the webhook identifies its origin and this fan-out is
+   replaced by a single targeted refresh. Do not build anything on top of the all-servers
+   behaviour that would make it hard to remove.
+2. **Debounce interval: 15 s. Accepted.** *Reviewer*, with a condition: **the first webhook of a
+   burst must refresh immediately** — the interval governs only the ones after it.
+   **Leading-edge, and the design text above did not say so.** "One refresh per server per 15 s"
+   is ambiguous between leading and trailing edge; a trailing-edge implementation would delay
+   *every* alert by 15 s, including a single isolated one, which inverts the entire purpose of
+   Part 1. Binding reading: **refresh on the first webhook, then suppress for 15 s, then the
+   next webhook refreshes immediately again.** No timer runs when no burst is in progress.
+3. **Copy: Thomas owns the wording; the four strings in "The states and the exact copy" above are
+   the draft submitted for approval.** *Thomas's call.* Drafted short and factual on the argument
+   that they are read at 3am. The four to approve or amend, verbatim:
+   - Looking — *"Loading incident 29570…"*
+   - Gone — *"Incident 29570 no longer exists."* / *"It was closed and removed from BHNM."*
+   - Unreachable — *"Can't load incident 29570."* / *"The server didn't respond."*
+   - And the prohibition that survives any rewording: **never "Incident not found."**
+   Amending a string does not reopen the four-state split, which is settled by the doctrine.
+4. **Part 2 ID handling: accept BOTH the bare numeric and the prefixed form. Tolerant in, strict
+   out.** *Reviewer.* Normalise to numeric at **exactly one place**, and store only the numeric.
+   Rejecting the prefixed form would break shipped clients for no gain. The rule already recorded
+   in "The ID question" — **more than one suffix candidate means no match** — stands for the
+   ambiguous case.

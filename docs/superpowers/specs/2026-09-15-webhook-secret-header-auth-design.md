@@ -285,6 +285,9 @@ closed with the exposure fixed and the rotation cost left open as a separate ite
    each server its own secret … There is no global secret."* **The admin portal contradicts the
    install guide.** Either the docs are wrong or the portal is; somebody has to rule. Not part of
    S1, but it is the reason rotation is per-*estate* rather than per-server today.
+   **RULED 2026-09-15 (decision 4): INSTALL.md was the wrong document and is corrected.** The
+   portal's global env var is the truth on the ground; §7.5's per-server promise was never
+   implemented. Change 1 is what finally makes the promise true.
 2. **There is no allowlist** (Part 1.1), so nothing server-side can refuse a retired secret, and
    deprecation cannot be enforced — only observed.
 
@@ -295,7 +298,14 @@ Not folded into S1; costed here so the option is on record. Give `servers.json` 
 fan out to the union. Both secrets then work during a rollout, devices migrate lazily as people
 re-scan, and the old one is dropped by deleting an array element once the admin device list
 shows nobody on it. ~20 lines plus the admin UI, and it needs queue item 5 (device overview) to
-be visible. **Recommend sequencing it after item 5, not before.**
+be visible. ~~**Recommend sequencing it after item 5, not before.**~~
+
+> **SUPERSEDED 2026-09-15 by decision 5 and Part 17.** This mechanism is **inside S1 change 1**,
+> not a follow-on. The recommendation above is left visible rather than deleted so that a reader
+> arriving at this paragraph does not act on it: a per-server secret split whose secrets cannot be
+> rotated solves half the problem and leaves the other half looking solved. The admin device list
+> (queue item 5) remains what makes "nobody is on the old secret" *observable*, but it is not a
+> prerequisite for shipping the accepted list.
 
 ---
 
@@ -776,26 +786,63 @@ Interim, regardless: `ServerConfigView.swift:309` should stop sending `draftPush
 `X-Proxy-Token`. Sending the *push* secret in the *proxy* header is an anomaly that only works
 because the deployment set both env vars to one value.
 
-## Decisions needed from Thomas
+## Decisions — ALL DECIDED 2026-09-15. Do not reopen.
 
-1. **Approve the Part 6 measurement?** One temporary Action in the `BeNeM` group plus the capture
-   listener; the live Method untouched. Nothing else here can start until it runs.
-2. **`Authorization: Bearer` or `X-Webhook-Token` on `/webhook`?** Recommendation: `Authorization`,
-   because loggers redact it by name and custom headers are logged verbatim.
-3. **Deprecation: loud forever, or a hard cut?** Recommendation: loud forever; docs change now.
-4. **The `WEBHOOK_SECRET`-is-global contradiction (Part 5, finding 1)** — is the portal wrong or
-   is INSTALL.md §7.5 wrong? This changes what the docs sweep should say.
-5. **Rotation as a follow-on item** — schedule the overlap-window design after queue item 5, or
-   drop it?
-6. **Canonical name `pushEnabled`** (Part 12) — agreed as the one name, recorded in `shared/`
-   now and renamed on iOS later? Or keep `notificationsEnabled` and rename the PWA instead?
-7. **Part 13 sitting** — when, and is one session with the phone and the lab workable?
-8. **`PROXY_TOKEN`'s future** (Part 16) — drop it, scope it to `/internal/*`, or keep it? And
-   may `proxy_token` be removed from the QR payload now, given nothing reads it?
-9. **Rotate `PROXY_TOKEN` now, or wait?** Measured: Test Connection is manual-config only, is
-   never reached during QR onboarding, and a failed test does not block saving. The only fleet
-   is three auto-updating phones. Rotating today severs "leaked webhook URL → read BHNM data"
-   immediately; the cost is a red test indicator for anyone manually adding a server until the
-   next iOS release. **Recommendation: rotate now.**
-10. **`WEBHOOK_SECRET` / `PROXY_TOKEN` reuse** — rotating waits for the overlap window (Part 15),
-   but should INSTALL.md §7.5's false isolation promise be corrected ahead of that?
+Ruled in the decision sitting of 2026-09-15 — Thomas's calls and the reviewer's rulings, relayed
+by Thomas. Recorded with reasoning so the reasoning is not re-derived. **With these, S1 change 1
+is unblocked.**
+
+1. **Part 6 measurement — SPENT. It ran, and it passed.** Approved and executed before this
+   sitting; do not re-ask. Result in Part 6 and in the evidence file: `[header]` works on a plain
+   WebHook method (not only on Active Response Webhook), a 64-character value survives intact,
+   `Authorization` survives with `AUTHORIZATION TOKEN = None`, a header block and a JSON body
+   coexist, and `Content-Type: application/json` arrives correctly. The gate on S1 change 2 is
+   therefore open.
+2. **`Authorization: Bearer` on `/webhook`. Settled.** Caddy and most loggers redact
+   `Authorization` by name; custom headers such as `X-Webhook-Token` are logged verbatim, which
+   is how a secret ends up in a log file nobody is watching.
+3. **Deprecation: loud forever. Settled.** No hard cut. **"Closed" means no supported
+   configuration uses the URL form** — not that the URL form has been made to fail. Docs change
+   now.
+4. **The `WEBHOOK_SECRET`-is-global contradiction: INSTALL.md was the wrong document, and is
+   corrected.** Settled. The portal's single global env var is the truth on the ground; §7.5's
+   per-server promise was never implemented. The docs sweep corrects INSTALL.md rather than
+   claiming the portal is broken.
+5. **Rotation is NOT a follow-on. The overlap window (Part 15) is part of S1.** Settled — this
+   supersedes the framing of the original question. It ships inside S1 change 1, not after queue
+   item 5, because a per-server secret split whose secrets cannot be rotated solves half the
+   problem and leaves the other half looking solved.
+6. **`pushEnabled` is canonical. Settled.** Recorded in `shared/` now; iOS renames at the next
+   natural touch of each file with a `decodeIfPresent` fallback (Part 12). The PWA already uses
+   `pushEnabled` — confirmed by observation, the stored server record on the live PWA carries
+   `pushEnabled` today.
+7. **Part 13 sitting — Thomas's calendar. The runbook stands as written:**
+   `docs/runbooks/2026-09-15-one-sitting-device-measurements.md`. Nothing to re-plan; it is a
+   scheduling item, not a design item.
+8. **`PROXY_TOKEN`'s future: scope it to `/internal/*`, then drop it from the data path.**
+   *Reviewer, accepting the recommendation in Part 16.* **Sequenced AFTER the Test Connection
+   fix**, because that button is the one thing still depending on it — removing the dependency
+   before fixing its only consumer would break the consumer. `proxy_token` is already gone from
+   the QR payload (commit `a36e37b`), so nothing new is required there.
+9. **Rotate `PROXY_TOKEN` now — YES**, *Thomas's call*, with one condition and a fixed procedure.
+   **Condition:** unless Thomas says someone outside himself and Jonah will be configuring a
+   server this week. **Tell Jonah first**, so a red indicator is not mistaken for a broken setup.
+   **Procedure, in order:**
+   1. Back up `.env`.
+   2. Rotate `PROXY_TOKEN` (and only it — `WEBHOOK_SECRET` is a separate decision).
+   3. Restart the middleware.
+   4. **Verify both apps still load incidents** — they authenticate with `api_key`, so they must
+      be unaffected. This is the check that proves the rotation was scoped correctly.
+   5. **Verify `check-env.sh` goes green, including the new identical-values check** — the check
+      that `PROXY_TOKEN` and `WEBHOOK_SECRET` are no longer byte-identical.
+   6. **Confirm Test Connection now fails on 2.13.1 — observed, not assumed.** The regression is
+      expected; recording it as an observation now means it is not rediscovered later as a
+      mystery. Measured basis for accepting it: Test Connection is manual-config only, is never
+      reached during QR onboarding, and a failed test does not block saving.
+10. **Correct INSTALL.md §7.5's false isolation promise now, ahead of the overlap window.**
+   Settled, and consistent with 4 — a document promising isolation the system does not provide
+   is worse than one that is silent, and it must not wait on the rotation work.
+
+**Also settled in the same sitting:** S1 ships as **two changes** — change 1 (per-server secret
+split + rotation/allowlist, including the overlap window) and change 2 (header transport) — not
+as one.
