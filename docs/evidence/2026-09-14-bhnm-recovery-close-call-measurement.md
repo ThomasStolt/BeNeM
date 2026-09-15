@@ -599,6 +599,152 @@ several retries and one probe attempt whose outcome could not be read back.
 
 ---
 
+## Part 3.10 — Prediction, recorded BEFORE the identification run (2026-09-15, 16:3x UTC)
+
+Written before a single identification push was sent, so the result can refute it.
+
+**Measured first (no pushes):** all six live registrations report `apns_environment =
+production` and `device_name = iPhone`. `SELECT DISTINCT` returns one value for each. So none
+is an Xcode debug build, and **the "one phone, two rows as a sandbox/production pair" theory is
+dead.** These are six distinct install events on TestFlight or App Store builds.
+
+**The untested theory, and the prediction it implies.** iOS issues a **new** device token when
+an app is reinstalled, and the middleware deletes a row only on APNs `410`, which Apple returns
+lazily — sometimes not for days. Stale rows therefore accumulate silently and still return
+`200`. Thomas has two or three iPhones against six production rows, so most of the older rows
+should be dead registrations of phones that already appear again under a newer token.
+
+| target | registered | prediction |
+|---|---|---|
+| `...a0f85792` | 2026-05-30 | **rings** — this is the row that was always first and was confirmed to produce a notification on Thomas's phone on 2026-09-15 (§3.8) |
+| `...32295bdd` | 2026-06-04 | **silent, accepted 200** — stale, superseded by a later reinstall |
+| `...86587674` | 2026-09-02 | **silent, accepted 200** — stale |
+| `...b26fb517` | 2026-09-04 | **rejected 400 BadDeviceToken**, no ring |
+| `...0c56a19b` | 2026-09-14 17:37 | **rings** — registered during the 2.13.3 verification cycle |
+| `...018ab51d` | 2026-09-15 10:50 | **rings** — Thomas's iPhone 13 Pro Max, confirmed working in the QR measurement |
+| FCM `faLoG1PCQS0` | 2026-09-15 10:12 | **rings** — the Android Web Push, delivered successfully at 15:01 |
+
+**Summary prediction: at most three distinct iPhones ring; `32295bdd` and `86587674` are
+accepted with `200` and reach nobody; `b26fb517` is rejected.**
+
+**What would refute it:** any of `32295bdd` / `86587674` ringing, or fewer than three iPhones
+ringing in total, or the colleague's phone appearing on a token predicted stale. If the
+colleague's phone rings nothing at all, that is consistent with the separate finding that their
+QR onboarding never registered them — which would mean the colleague is **not in this table**.
+
+Result recorded in the section that follows, against this prediction, whether or not it held.
+
+---
+
+## Part 3.11 — Identification run: APNs result (2026-09-15, 16:45–16:48 UTC)
+
+Seven targets, one push each, ~20 s apart, each body carrying its own token's last 8
+characters. Thomas's colleague was warned before the run. **The ring column is not yet filled
+— it can only come from the people holding the phones.**
+
+| target | APNs result | predicted | prediction held? |
+|---|---|---|---|
+| `...a0f85792` | `200` accepted | rings | pending |
+| `...32295bdd` | **`410 Unregistered`** | silent, accepted `200` | **partly wrong** — dead as predicted, but *rejected*, not accepted |
+| `...86587674` | `200` accepted | silent, accepted `200` | pending |
+| `...b26fb517` | **`400 BadDeviceToken`** | rejected `400`, no ring | **correct** |
+| `...0c56a19b` | `200` accepted | rings | pending |
+| `...018ab51d` | `200` accepted | rings | pending |
+| FCM `faLoG1PCQS0` | sent, not expired | rings | pending |
+
+So APNs accepts **four** of six iPhone tokens plus the Web Push subscription; one is
+unregistered and one is malformed.
+
+### What the 410 timestamps say — the useful part
+
+APNs returns the moment a token stopped being valid, and both are informative:
+
+- **`...32295bdd` has been unregistered since 2026-09-08 16:35:14 UTC** — a week. It survived
+  every notification in that week only because the fan-out bug meant nothing past the first row
+  was ever contacted. The sequential fan-out surfaced it on its first real use.
+- **`...62f21e50` reported unregistered since 2026-05-29 00:35:25 UTC** when it 410'd at 15:01
+  today — yet it was **registered at 10:45:56 today**, hours before. A device POSTed a token
+  that Apple has considered dead since May. That is not a token iOS would have just issued, so
+  something is re-registering a *stale cached* token rather than the current one — a restored
+  backup carrying old `UserDefaults`, or the client sending `cachedDeviceToken` instead of the
+  live one. This is the strongest lead so far for the `...62f21e50` investigation and it points
+  at the client, not at phone settings.
+
+### Note on cleanup
+
+The run called `apns.send_to_all` directly rather than going through `_fan_out`, so the `410`
+did **not** delete `...32295bdd` — the row is still present. Deliberate: a measurement should
+not mutate the thing being measured. It will be cleaned by the next real webhook.
+
+---
+
+## Part 3.12 — The fleet, finally identified (2026-09-15, 16:5x–17:00 UTC)
+
+Three rounds of one-push-per-token, with the humans reporting what appeared.
+
+| token | phone | established by |
+|---|---|---|
+| `...0c56a19b` | **iPhone 13 Pro Max** — Thomas, private | round 1 |
+| `...018ab51d` | **iPhone 15** — Thomas, work | round 1 |
+| `...86587674` | **iPhone 13 Pro** — Jonah | round 3, after he toggled notifications |
+| FCM `faLoG1PCQS0` | **Edge 60** — Android | round 1 (only one Android, so unambiguous) |
+| `...a0f85792` | **never claimed** | — |
+| `...32295bdd` | dead, `410` since 2026-09-08 | — |
+| `...b26fb517` | dead, `400 BadDeviceToken` | — |
+
+The three unclaimed/dead rows were deleted at Thomas's instruction, after being backed up to
+`/data/deleted_tokens_backup.json` on the VPS so they can be restored. Six rows became three.
+
+### The prediction (Part 3.10) was mostly wrong — and wrong in the direction that matters
+
+| target | predicted | actual | verdict |
+|---|---|---|---|
+| `...a0f85792` | rings, Thomas's phone | accepted `200`, never claimed | **wrong** |
+| `...32295bdd` | silent, accepted `200` | `410 Unregistered` | **half** — dead, but rejected |
+| `...86587674` | silent, stale row | **live phone**, notifications switched off | **wrong** |
+| `...b26fb517` | rejected `400` | `400 BadDeviceToken` | correct |
+| `...0c56a19b` | rings | rings — 13 Pro Max | correct |
+| `...018ab51d` | rings, 13 Pro Max | rings, **iPhone 15** | right that it rings, wrong phone |
+| FCM | rings | rings | correct |
+
+One of seven fully right on the first attempt. The theory under the prediction — that stale
+rows accumulate because APNs reports `410` lazily — explained two rows, not the fleet.
+
+**The specific error worth keeping:** `86587674` was written off as a stale row when it was a
+live phone with notifications turned off. That is the *device-settings* explanation which §3.8
+had parked and explicitly said to **retest before assuming**, and which the fan-out discovery
+had made me treat as retired. Both causes were real, in different phones, at the same time.
+Finding one true cause is not evidence that a previously suspected one is false.
+
+### `...a0f85792` — unresolved, and it is the important one
+
+This row was registered 2026-05-30 and, because the fan-out bug served only the first row of an
+unordered query, **it was the only token BeNeM contacted for months**. It accepted `200` in
+both identification rounds, and no phone was reported as showing it.
+
+That is not the same as proof that it reached nobody — no one was explicitly asked "did
+anything show `a0f85792`", so its absence from the reports is weak evidence, not a measurement.
+But if it is indeed a device nobody carries, it explains the entire silent-phones history in
+one line: every alert was delivered, successfully, to a phone that no longer exists, while
+three live phones were never contacted at all.
+
+The row is deleted but recoverable from the backup, so the question stays answerable.
+
+### Two observations from the same window
+
+- **`86587674` re-registered three times** (16:53:54, 16:57:03, 16:58:33), the same token each
+  time, each producing a new row id. Turning notifications off did **not** invalidate the token
+  and APNs kept returning `200` throughout — so a phone suppressing notifications on-device is
+  invisible to the middleware by construction. No amount of server-side instrumentation can
+  detect it; only the client can report it.
+- **No `[Unregister]` line appeared** in that window, only `[Register]`s, although the in-app
+  toggle was switched off and on. Either the toggle-off path did not fire `DELETE /register`,
+  or it was already off and only switched on. Not established from one observation — worth a
+  deliberate check, because if toggling off does not unregister, a user who disables
+  notifications in the app keeps receiving them.
+
+---
+
 ## Follow-ups this measurement generated
 
 Recorded here so they are not carried only in conversation. None are started.

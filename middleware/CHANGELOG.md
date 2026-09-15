@@ -34,7 +34,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
   **Proposed fix:** stamp each job with its arrival time on enqueue, and discard on dequeue anything older than a staleness threshold, logging `[Deliver] STALE — dropped incident N, queued Xs ago`. Suggested threshold **5 minutes** — longer than BHNM's own Incident Close Delay Timer (also 5 minutes, so a recovery that would cancel the page has had time to arrive) and still inside the window where an engineer wants to be woken. Worth pairing with exposing queue depth and oldest-job age in `/health` and `/api/v1/diagnostics`, so a backlog is visible to an operator and not only in the log.
 
+  **Warn on estimated drain time, not on queue depth** — designed here, not built, and it ships with the stale-job discard above.
+
+  Depth is the wrong unit. A job is a fan-out to *every* registered device, so the quantity that matters is `queued_targets x per_send_seconds`. Depth 32 with two devices is trivial; the same depth with a fifty-device fleet is minutes of pages arriving too late to act on. The alert count stays bounded by BHNM's correlation — but the **device count grows with adoption and nothing watches it**, so a threshold in jobs silently becomes stricter or looser as the fleet changes. Measured per-send latency today is ~0.14 s (seven targets served in 1.4 s on 2026-09-15).
+
+  Design:
+
+  - Keep a running `queued_targets` count, incremented by `len(tokens) + len(subs)` on enqueue and **decremented on every exit path — normal completion, `FANOUT_TIMEOUT`, an unhandled exception in the job, and a queue-full or no-worker drop.** A counter that only ever rises would latch the warning on permanently after the first busy minute and train the operator to ignore it, which is worse than no warning. The decrement belongs in the worker's `finally` alongside `task_done()`, and in the drop path of `_enqueue_delivery` where the job never reaches the queue at all. Worth an explicit test that the count returns to zero after a timed-out job and after a rejected one.
+  - Hold `per_send_seconds` as an exponentially weighted average of recent completed sends, seeded at 0.15. A stalled fan-out drives it toward `FANOUT_TIMEOUT`, so the estimate rises on its own exactly when it should; do not update it from a job that timed out, or one stall would poison the average permanently.
+  - **Warn when `queued_targets x per_send_seconds` exceeds 60 seconds.** Chosen to sit an order of magnitude below the 5-minute discard threshold: the operator is told while the backlog is still recoverable, and discarding only begins four minutes later. A minute of queue is also roughly where the last page in it stops being worth acting on.
+  - Keep raw depth as a **secondary** signal, not the trigger.
+
+  Expose all of it in `/health` and `/api/v1/diagnostics`, so a backlog is visible where an operator looks rather than only in the log:
+
+  ```json
+  "delivery": {
+    "queued_jobs": 3,
+    "queued_targets": 18,
+    "oldest_job_age_seconds": 4.2,
+    "estimated_drain_seconds": 2.7,
+    "per_send_seconds": 0.15,
+    "dropped_total": 0
+  }
+  ```
+
+  No secrets are involved and `/health` already publishes `registered_devices`, so this adds no exposure. Known ceiling of the estimate: it assumes every queued job fans out at the current average rate, which is wrong the moment one device is slow or a token is dead — it is a monitoring signal, not an SLA.
+
   Not done in 2.14.0 deliberately — the concurrency fix is the live defect and is worth shipping alone. Next in line.
+
+- **An operator cannot tell which humans are being paged.** Every row in `device_tokens` reports `device_name` as the literal `iPhone` — measured 2026-09-15 across all six live registrations, `SELECT DISTINCT device_name` returns exactly one value. iOS 16 removed the per-device name from `UIDevice.current.name` unless the app holds a special entitlement, so `AppDelegate` has been sending a constant since long before anyone noticed.
+
+  The same measurement retired a plausible explanation for the duplicates: `apns_environment` is `production` for **all six** rows, so none of them is an Xcode debug build. A single phone cannot be appearing twice as a sandbox/production pair — these are six distinct install events on TestFlight or App Store builds.
+
+  Why it is a real gap rather than cosmetic: for a paging product the question an admin must be able to answer is *"is my on-call engineer reachable?"*, and today the Push Config page answers it with six identical rows of truncated hex. It is also why three of four devices could be silently not receiving for three different reasons without anyone noticing, and why identifying which registration belongs to which colleague currently requires sending a distinct push to one token at a time and asking people what appeared on their screen.
+
+  **Proposed fix:** the QR already carries a username — the app stores it and uses it as the ACK user — so have the client send it on `/register` as a `user_label` alongside the token, store it in a new nullable column, and render it in the admin portal. That is a small change at both ends, it needs no entitlement, it survives reinstalls because the label comes from the QR rather than the device, and it turns six anonymous rows into named ones. Pair it with the `last_push_at` / `last_status` / `last_error` columns already proposed in the evidence file's follow-up 1, and the Push Config page can finally answer the on-call question directly. Ties in with queue item 5 (admin portal device overview).
 
 ### Housekeeping
 

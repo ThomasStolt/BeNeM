@@ -57,12 +57,27 @@ PLACEHOLDER = re.compile(
 
 # Generated or vendored files whose long runs are not ours to police.
 SKIP_SUFFIX = {".pbxproj", ".svg", ".png", ".jpg", ".jpeg", ".ico", ".lock", ".pdf"}
-SKIP_PATH = ("pwa/package-lock.json", "docs/benem-runtime-architecture.")
+SKIP_PATH = (
+    "pwa/package-lock.json",
+    "docs/benem-runtime-architecture.",
+    # Build caches that are untracked but not ignored either. They hold hashes, not
+    # credentials. That they show up here at all is a .gitignore gap, which is a
+    # separate open item — remove these entries once it is closed.
+    ".vite/", "dist/", "coverage/", ".pytest_cache/",
+)
 
 
 def _tracked_text_files():
-    out = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True, text=True, check=True)
-    for rel in out.stdout.splitlines():
+    # -c: files in the index (so a `git add`ed new file is covered)
+    # -o --exclude-standard: files on disk that are not yet added and not ignored
+    #
+    # Plain `git ls-files` lists only the index, which gave every NEW file a free
+    # pass on the commit that introduced it — run the suite before `git add` and the
+    # scanner could not see the file at all. This one proved it on itself. A file
+    # created with a live credential inside would have had exactly one free run.
+    out = subprocess.run(["git", "ls-files", "-c", "-o", "--exclude-standard"],
+                         cwd=REPO, capture_output=True, text=True, check=True)
+    for rel in dict.fromkeys(out.stdout.splitlines()):
         p = REPO / rel
         if p.suffix.lower() in SKIP_SUFFIX or rel.startswith(SKIP_PATH):
             continue
@@ -91,17 +106,29 @@ def test_no_credential_shaped_strings_in_tracked_files():
     assert not found, "credential-shaped strings in tracked files:\n  " + "\n  ".join(found)
 
 
+# A detector's positive fixtures necessarily look like the thing it detects, so
+# they are assembled at runtime from pieces that are individually below its own
+# thresholds. That keeps THIS file inside the scan rather than exempting it — an
+# exemption is where a real credential would eventually be pasted.
+_H15 = "0123456789abcde"        # 15 hex chars: under the 16-char HEX_RUN threshold
+_LONG_RUN = _H15 * 2 + "f"      # 31 chars once joined — credential-shaped
+_HEAD8, _TAIL8 = "0123abcd", "89efdcba"
+
+
 @pytest.mark.parametrize("line,caught", [
-    # the two shapes that actually reached this repo, in their original form
-    ('line = \'POST /webhook?secret=' + '0123456789abcdef0123456789abcdef0' + ' HTTP/1.1"\'', True),
-    ('INFO: "POST /webhook?secret=76acf51f…64101c08 HTTP/1.1" 200 OK', True),
-    # what they were replaced with
+    # The two shapes that actually reached this repo, in their original form.
+    ('line = \'POST /webhook?secret=' + _LONG_RUN + ' HTTP/1.1"\'', True),
+    # 8 leading + ellipsis + 8 trailing — the evidence-file shape.
+    ('INFO: "POST /webhook?secret=' + _HEAD8 + '\u2026' + _TAIL8 + ' HTTP/1.1" 200 OK', True),
+    # What they were replaced with.
     ('line = \'POST /webhook?secret=' + "deadbeef" * 8 + ' HTTP/1.1"\'', False),
     ('assert "deadbeef" not in out', False),
-    # everyday lines that must not trip it
+    # Everyday lines that must not trip it.
     ('commit a0d8d70 docs(shared): drop the superseded architecture SVG', False),
     ('resp = client.post("/webhook?secret=no-devices-yet", json=payload)', False),
     ('APNS_PRIVATE_KEY_B64=<your-base64-key>', False),
+    ('password=encodeURIComponent(pin)', False),
+    ('apiKey: server.apiKey,', False),
 ])
 def test_detector_catches_the_shapes_that_reached_this_repo(line, caught):
     hit = (any(not PLACEHOLDER.match(m.group(0)) for m in HEX_RUN.finditer(line))

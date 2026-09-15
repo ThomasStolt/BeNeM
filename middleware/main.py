@@ -420,16 +420,25 @@ FANOUT_TIMEOUT = 60.0
 # and FANOUT_TIMEOUT would then be measuring the wrong thing. With a queue nothing
 # waits on anything — the per-job timeout covers only that job's own sending.
 
-# 256 is not sized to absorb a flood. BHNM does its own alarm reduction, so a
-# healthy server does not emit hundreds of notifications at once — if it does, that
-# is a BHNM misconfiguration and this queue should not hide it. The bound is here so
-# the queue cannot grow without limit while *delivery* is stalled, and the depth-32
-# warning below is the signal that actually matters.
+# This bound exists for STALLED DELIVERY, not for a legitimate flood. Do not raise
+# it to "absorb more alerts" — that fixes the wrong side.
+#
+# BHNM performs its own alarm reduction (correlation, parenting, incident-criteria
+# rules), so a correctly configured server does not emit hundreds of simultaneous
+# notifications. If one does, that is a BHNM misconfiguration, and hiding it behind
+# a bigger queue here would turn a server-side fault into silent latency. Reaching
+# this bound at all should be treated as a signal, not as capacity to be increased.
+#
+# What it does guard: while APNs is unreachable the worker cannot drain, and without
+# a bound the queue would grow until the process died. The warning below is the part
+# that actually matters in practice.
 # Known ceiling, tracked in CHANGELOG.md under 2.14.0 "Known issue — carried
-# forward": this bounds by count, not by age. While APNs is stalled each job burns
-# the full FANOUT_TIMEOUT, so a full queue takes over four hours to drain and every
-# page in it arrives long after it mattered. Fix is to stamp jobs with an arrival
-# time and discard stale ones on dequeue.
+# forward": this discards by count, not by age. While APNs is stalled each job burns
+# the whole FANOUT_TIMEOUT, so every queued job pushes the next one a further minute
+# late — ten queued alerts is ten minutes of drain, and the one at the back arrives
+# as history. (Not the multi-hour figure a full 256-job queue would imply: getting
+# anywhere near the bound would itself be the BHNM misconfiguration described above.)
+# Fix is to stamp jobs with an arrival time and discard stale ones on dequeue.
 DELIVERY_QUEUE_MAX = 256
 DELIVERY_QUEUE_WARN = 32   # depth at which a backlog stops being normal
 
