@@ -847,6 +847,106 @@ Two related gaps in the same area:
   middleware** ("registered 2 minutes ago" vs "not registered"), plus a test-push button, rather than
   a local toggle that can silently mean nothing.
 
+**5. Turning notifications off in the app does not reliably stop the paging.** Established
+2026-09-15 from the code path, not from the single observation that prompted it.
+
+Three places call `unregisterWithMiddleware` — `ServerConfigView.saveConnection` (switch turned
+off), `ServerConfigView.deleteConnection`, and `ContentView.handleConnectionChange`. **All three
+are gated on `AppDelegate.shared?.cachedDeviceToken` inside an `if let` / `guard let` with no
+`else` branch.** When it is `nil` the unregister is skipped silently: no log line, no retry, no
+recorded intent.
+
+`cachedDeviceToken` is declared `var cachedDeviceToken: String? = nil` and is **in memory only**.
+It is populated in `didRegisterForRemoteNotificationsWithDeviceToken` and never persisted, so it
+is `nil`:
+
+- for the first moments of **every** launch, until APNs answers; and
+- for an entire session whenever `requestAuthorization` did not grant
+  (`guard granted else { return }` means `registerForRemoteNotifications()` is never called).
+
+So a user who launches BeNeM and promptly switches notifications off stays registered on the
+middleware. iOS-level permission is untouched, so the pushes keep arriving **and displaying**.
+The app says notifications are off and the phone still pages. That is a broken promise in
+shipped code, and nothing anywhere reports it — the same invisibility class as defects 1 and 2.
+
+Even on the happy path the call is best-effort: `unregisterWithMiddleware` fires and forgets,
+printing errors and never retrying or verifying.
+
+**What the logs say, and what they do not.** Across every log available (current container and
+all dumps) there are **9 `[Register]` lines and 1 `[Unregister]`**. That establishes the path is
+reachable, not how often it should have fired — people register more often than they
+unregister, so the ratio alone proves nothing. The defect rests on the code path, which is
+deterministic.
+
+**Not yet established on a device.** Proposed A/B, one phone against the lab:
+
+1. Confirm the phone is registered (row present in `device_tokens`).
+2. Force-quit BeNeM. Relaunch and **immediately** — within a second, before APNs answers — open
+   Settings → the server → switch notifications off → Save.
+3. Check for `[Unregister]` and whether the row is gone. Fire a probe: **if the phone buzzes,
+   the defect is confirmed.**
+4. Control: repeat, but wait ~10 s after launch before toggling. Expect `[Unregister]` to fire,
+   the row to disappear, and the probe to be silent.
+
+**Proposed fix, and it is small.** `didRegisterForRemoteNotificationsWithDeviceToken` already
+has the branch where the active connection has `notificationsEnabled == false` — today it
+prints and returns. Make that branch **unregister** instead of doing nothing. The token has just
+arrived, so it is available exactly when the earlier attempt lacked it, and the app then
+self-heals on the next launch regardless of why the original DELETE was skipped. Persisting the
+token in `UserDefaults` closes the same gap from the other side and is worth doing as well.
+
+**5b. Nothing reconciles the in-app switch with the OS permission — and the PWA is ahead of
+iOS here, but not everywhere.** Confirmed by grep 2026-09-15.
+
+The per-connection switch is **not** duplication of the OS setting and stays: `notificationsEnabled`
+lives on `SavedConnection`, so a user with two BHNM servers can mute one; iOS Settings is
+app-wide. They also act at different points — the switch stops the middleware **sending**, the OS
+setting lets the push arrive and drops it silently. Only the switch is per-server, and only the
+switch saves anything server-side.
+
+The defect is that neither client reconciles them. **iOS never reads the notification
+authorization state at all**: the only `authorizationStatus` calls in the app are
+`AVCaptureDevice.authorizationStatus(for: .video)` in `QRScannerView`, and `getNotificationSettings`
+appears nowhere. So the switch can read ON while iOS denies everything, with no signal. Jonah's
+phone was in exactly that state, and it cost two days.
+
+### Where each client stands
+
+| | iOS | PWA |
+|---|---|---|
+| Per-connection switch | **yes** — `SavedConnection.notificationsEnabled` | **yes** — `SavedServer.pushEnabled` (different name; easy to miss in a grep) |
+| Reads the OS permission state | **no** | **yes** — `Notification.permission` in `pushRegistration.ts` |
+| Shows the denied state in the UI | **no** | **yes** — *"Permission denied — enable in browser settings"* |
+| Blocks the switch when the OS denies | **no** | **yes** — the toggle is `disabled` |
+| Deep-links to OS settings | **no** — the pattern exists, for the camera only | n/a — browsers expose no such API |
+| Re-checks when the app returns to foreground | **no** | **no** — `useState(getPushState)` runs once on mount; there is no `visibilitychange` listener anywhere in `pwa/src` |
+| Removes the registration server-side on toggle-off | attempted, **silently skipped** when the token is nil (item 5) | **yes** — `unsubscribeFromPush()` |
+| Registration state confirmed by the middleware | **no** | **no** — the "Registered and active" label is local belief (open defect 2) |
+
+So the asymmetry runs both ways but not evenly: the PWA is ahead on OS-state awareness in three
+respects and on reliable un-subscription; iOS is ahead in none. **Both** share the foreground
+re-check gap and the middleware-confirmation gap. The two clients should converge on one model
+even though the mechanisms differ.
+
+### Design for the iOS half, riding with item 5
+
+Reuse the camera pattern in `QRScannerView` rather than inventing a second one — it already does
+`authorizationStatus` → denied → alert → `UIApplication.openSettingsURLString`:
+
+1. Read `UNUserNotificationCenter.current().getNotificationSettings` and surface
+   `authorizationStatus` **next to the switch**, not on a separate screen.
+2. When the OS is denying, the row says so and offers **Open Settings** via
+   `openSettingsURLString`, exactly as the camera alert does. The switch itself should not claim
+   to be ON while the OS denies.
+3. **Re-check on foreground** (`scenePhase == .active` / `willEnterForeground`), since the user
+   can change it in Settings while the app is backgrounded. This one is worth doing on the PWA
+   too, via `visibilitychange` — it is the one gap both clients share.
+4. Label both controls so "off" is never ambiguous: *this switch stops the server sending;
+   Settings stops the phone showing.*
+
+`getNotificationSettings` is asynchronous and returns on an arbitrary queue — hop to the main
+actor before touching the view state.
+
 **3. `400 BadDeviceToken` is never cleaned up.** Only `410` triggers removal, so a token in that
 state is retried on every incident forever. Token `…b26fb517` is in this state now.
 
