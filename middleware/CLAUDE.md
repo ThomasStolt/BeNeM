@@ -42,6 +42,24 @@ to registered iOS devices (APNs) and Android/web users (Web Push).
 
 ---
 
+## The deploy pulls from origin — so "verify before pushing" is impossible
+
+`upgrade.sh` runs `git fetch origin` and `git pull --ff-only`, and **exits early when the local
+checkout already matches the remote**. The VPS deploys what is on origin, not what is on a
+laptop. Any change that needs a deploy therefore cannot be verified before it is pushed.
+
+**The order is: push → deploy → verify → revert on failure.** Not push-last. A revert is a
+commit and a redeploy, and the tagged previous images cover the containers, so a failed
+verification is recovered forwards rather than prevented backwards.
+
+Written down because the opposite instruction — "push after the verification passes, not
+before" — was issued in review on 2026-09-15 and is not achievable with this pipeline. It is a
+reasonable-sounding rule that this repository's deploy mechanism cannot honour, so it will be
+re-issued unless it is refused here.
+
+**On failure, revert immediately and without asking.** Leaving failed code on `main` while
+waiting for a reply is the worse of the two risks: `main` is what the next deploy pulls.
+
 ## Upgrade runbook
 
 **Dump the container log before every deploy.** `docker compose up -d` recreates the
