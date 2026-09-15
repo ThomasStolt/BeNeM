@@ -160,7 +160,14 @@ One small service does the bridging. It also caches incident and device data so 
 and proxies their API calls to BHNM — which means the apps never need a route to BHNM themselves,
 only to your middleware.
 
-![BeNeM system architecture: iOS and Android/PWA clients connect via HTTPS to the middleware, which caches incidents, proxies API calls to BHNM, and delivers push notifications via APNs (iOS) and Web Push (Android)](shared/BHNM%20Mobile%20App%20-%20Detailed%20Architecture.png)
+<a href="https://thomasstolt.github.io/BeNeM/benem-runtime-architecture.html">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-dark.png">
+    <img alt="BeNeM runtime architecture: a BHNM incident webhook enters through Caddy, the middleware matches devices by webhook secret and fans out to APNs and Web Push, reaching the iOS app and the PWA. Trust boundaries separate the on-prem customer network, the VPS Docker network, the vendor push clouds, and untrusted user devices." src="docs/architecture-light.png">
+  </picture>
+</a>
+
+<sub>Click the diagram for the [interactive version](https://thomasstolt.github.io/BeNeM/benem-runtime-architecture.html) — guided views, search, relationship tracing and per-component source links back into this repo.</sub>
 
 Each BHNM server has its own webhook secret, and a device only receives alerts from the server it
 registered against — so one middleware can serve several BHNM servers without crossing their alerts.

@@ -1,0 +1,495 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "BeNeM Runtime Architecture",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/ThomasStolt/BeNeM",
+      "provider": "github",
+      "revision": "e381d1439dc35b03206eaf888806192d482942d6"
+    },
+    "views": [
+      {
+        "id": "alert-path",
+        "label": "Incident alert path",
+        "focus": [
+          "bhnm",
+          "caddy",
+          "ingest",
+          "fanout",
+          "apns",
+          "webpush",
+          "ios",
+          "pwa"
+        ],
+        "note": "The primary path: a BHNM incident becomes a push notification on both platforms."
+      },
+      {
+        "id": "read-path",
+        "label": "Client read path",
+        "focus": [
+          "caddy",
+          "proxy",
+          "caches",
+          "bhnm"
+        ],
+        "note": "Client reads enter at Caddy and are served from memory; BHNM is polled, not called per request."
+      },
+      {
+        "id": "state",
+        "label": "Durable state",
+        "focus": [
+          "ingest",
+          "db",
+          "caches"
+        ],
+        "note": "Push registrations live in SQLite; incident data is in-memory only and rebuilt on restart."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "bhnm",
+      "type": "external",
+      "label": "BHNM server",
+      "sublabel": "Helix NM 26.1.02+",
+      "tag": "on-prem",
+      "pos": [
+        40,
+        180
+      ],
+      "size": [
+        170,
+        66
+      ]
+    },
+    {
+      "id": "caddy",
+      "type": "security",
+      "label": "Caddy 2.9",
+      "sublabel": "TLS edge :443",
+      "tag": "sole ingress",
+      "pos": [
+        310,
+        180
+      ],
+      "size": [
+        170,
+        66
+      ],
+      "sources": [
+        {
+          "path": "middleware/Caddyfile",
+          "label": "reverse proxy + auth"
+        }
+      ]
+    },
+    {
+      "id": "ingest",
+      "type": "backend",
+      "label": "Webhook ingest",
+      "sublabel": "POST /webhook?secret=",
+      "pos": [
+        580,
+        180
+      ],
+      "size": [
+        170,
+        66
+      ],
+      "sources": [
+        {
+          "path": "middleware/main.py",
+          "line": 285,
+          "end_line": 382,
+          "label": "receive_webhook"
+        }
+      ]
+    },
+    {
+      "id": "fanout",
+      "type": "backend",
+      "label": "Push fan-out",
+      "sublabel": "apns.py · webpush.py",
+      "pos": [
+        580,
+        320
+      ],
+      "size": [
+        170,
+        66
+      ],
+      "sources": [
+        {
+          "path": "middleware/apns.py",
+          "label": "send_to_all"
+        },
+        {
+          "path": "middleware/webpush.py",
+          "label": "send_web_push_to_all"
+        }
+      ]
+    },
+    {
+      "id": "apns",
+      "type": "cloud",
+      "label": "Apple APNs",
+      "sublabel": "HTTP/2 · JWT ES256",
+      "pos": [
+        850,
+        180
+      ],
+      "size": [
+        170,
+        66
+      ]
+    },
+    {
+      "id": "webpush",
+      "type": "cloud",
+      "label": "Web Push service",
+      "sublabel": "FCM · Mozilla autopush",
+      "pos": [
+        850,
+        320
+      ],
+      "size": [
+        170,
+        66
+      ]
+    },
+    {
+      "id": "ios",
+      "type": "frontend",
+      "label": "BeNeM for iOS",
+      "sublabel": "SwiftUI · Keychain",
+      "pos": [
+        1120,
+        180
+      ],
+      "size": [
+        170,
+        66
+      ]
+    },
+    {
+      "id": "pwa",
+      "type": "frontend",
+      "label": "BeNeM PWA",
+      "sublabel": "React · Service Worker",
+      "pos": [
+        1120,
+        320
+      ],
+      "size": [
+        170,
+        66
+      ]
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "SQLite",
+      "sublabel": "/data/bhnm_apns.db",
+      "tag": "docker volume",
+      "pos": [
+        310,
+        320
+      ],
+      "size": [
+        170,
+        66
+      ],
+      "sources": [
+        {
+          "path": "middleware/database.py",
+          "label": "tokens + subscriptions"
+        }
+      ]
+    },
+    {
+      "id": "proxy",
+      "type": "backend",
+      "label": "BHNM API proxy",
+      "sublabel": "catch-all /{path}",
+      "tag": "SSRF guard",
+      "pos": [
+        580,
+        40
+      ],
+      "size": [
+        170,
+        66
+      ],
+      "sources": [
+        {
+          "path": "middleware/main.py",
+          "line": 1109,
+          "label": "proxy()"
+        }
+      ]
+    },
+    {
+      "id": "caches",
+      "type": "backend",
+      "label": "Cache loops",
+      "sublabel": "4 asyncio tasks/server",
+      "pos": [
+        310,
+        40
+      ],
+      "size": [
+        170,
+        66
+      ],
+      "sources": [
+        {
+          "path": "middleware/incident_cache.py",
+          "label": "one task per server"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Customer network — on-prem",
+      "wraps": [
+        "bhnm"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "VPS — Docker network",
+      "wraps": [
+        "caddy",
+        "ingest",
+        "fanout",
+        "db",
+        "proxy",
+        "caches"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Vendor push clouds",
+      "wraps": [
+        "apns",
+        "webpush"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "User devices — untrusted",
+      "wraps": [
+        "ios",
+        "pwa"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "TLS :443 · edge auth",
+      "wraps": [
+        "caddy"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "incident-webhook",
+      "from": "bhnm",
+      "to": "caddy",
+      "label": "incident webhook",
+      "variant": "emphasis"
+    },
+    {
+      "id": "tls-terminated",
+      "from": "caddy",
+      "to": "ingest",
+      "label": "TLS → :8889",
+      "variant": "emphasis"
+    },
+    {
+      "id": "match-by-secret",
+      "from": "ingest",
+      "to": "fanout",
+      "label": "matched by secret",
+      "variant": "emphasis",
+      "labelAt": [
+        672,
+        283
+      ]
+    },
+    {
+      "id": "apns-send",
+      "from": "fanout",
+      "to": "apns",
+      "label": "JWT ES256",
+      "variant": "emphasis",
+      "labelAt": [
+        818,
+        283
+      ],
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          800,
+          353
+        ],
+        [
+          800,
+          213
+        ]
+      ]
+    },
+    {
+      "id": "webpush-send",
+      "from": "fanout",
+      "to": "webpush",
+      "label": "VAPID signed",
+      "variant": "emphasis",
+      "labelAt": [
+        800,
+        420
+      ],
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "via": [
+        [
+          665,
+          420
+        ],
+        [
+          935,
+          420
+        ]
+      ]
+    },
+    {
+      "id": "apns-deliver",
+      "from": "apns",
+      "to": "ios",
+      "label": "alert push",
+      "variant": "emphasis"
+    },
+    {
+      "id": "webpush-deliver",
+      "from": "webpush",
+      "to": "pwa",
+      "label": "alert push",
+      "variant": "emphasis"
+    },
+    {
+      "id": "registrations",
+      "from": "ingest",
+      "to": "db",
+      "label": "tokens + subscriptions",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        [
+          545,
+          213
+        ],
+        [
+          545,
+          353
+        ]
+      ]
+    },
+    {
+      "id": "proxied-reads",
+      "from": "caddy",
+      "to": "proxy",
+      "label": "proxied reads",
+      "labelAt": [
+        520,
+        160
+      ],
+      "fromSide": "top",
+      "toSide": "bottom",
+      "via": [
+        [
+          395,
+          145
+        ],
+        [
+          665,
+          145
+        ]
+      ]
+    },
+    {
+      "id": "cache-hit",
+      "from": "proxy",
+      "to": "caches",
+      "label": "served from cache",
+      "labelAt": [
+        530,
+        73
+      ]
+    },
+    {
+      "id": "bhnm-poll",
+      "from": "caches",
+      "to": "bhnm",
+      "label": "polls BHNM API",
+      "fromSide": "left",
+      "toSide": "top",
+      "via": [
+        [
+          125,
+          73
+        ]
+      ],
+      "labelAt": [
+        217,
+        60
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "Primary path",
+      "items": [
+        "BHNM Active Response Webhook → /webhook?secret=; the secret is the only gate.",
+        "Only devices whose stored active_secret matches are notified.",
+        "Stale APNs tokens and expired Web Push subscriptions are pruned on send.",
+        "Tapping the alert deep-links to incident detail, even from a cold launch."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Trust boundaries",
+      "items": [
+        "Caddy publishes 80/443; every other container is expose-only.",
+        "/admin* needs bcrypt basic_auth plus app-enforced TOTP.",
+        "/internal* is answered 403 at the edge — cache reload stays internal.",
+        "Proxy calls need X-Proxy-Token; the SSRF guard re-resolves each target."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "External dependencies",
+      "items": [
+        "BHNM 26.1.02+ — UID identity, pagination, interface detail.",
+        "Apple APNs — .p8 key, JWT refreshed every 55 min, sandbox + production.",
+        "Web Push — VAPID via FCM / Mozilla autopush.",
+        "Let's Encrypt through Caddy ACME; caddy:2.9-alpine pinned by tag."
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Reads, state and omissions",
+      "items": [
+        "Both clients read through Caddy; neither reaches BHNM directly.",
+        "incidents, tactical, thresholds and maintenance-map come from memory.",
+        "SQLite on a docker volume holds device_tokens and web_push_subscriptions.",
+        "Not drawn: benem-admin (edits servers.json) and benem-pwa (static bundle)."
+      ]
+    }
+  ]
+}
