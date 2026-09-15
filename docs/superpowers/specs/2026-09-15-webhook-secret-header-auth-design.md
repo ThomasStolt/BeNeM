@@ -780,6 +780,26 @@ New per-server secrets, new QRs, Thomas and Jonah re-onboard, then the global se
 from the accepted lists. Rollback is removing the new secret from a list; the global one is still
 accepted until the last step.
 
+**Required step of 1b, not a nicety: REMOVE the unresolved-secret fallback.**
+
+1a falls back to the pre-1a single-secret lookup when no server lists the incoming secret. That
+fallback is **1a's safety net and 1b's obstacle**, and the two facts are the same fact: while it
+exists, a device still holding the global secret keeps being paged *through it*, so retiring the
+global secret from the accepted lists **does not actually split anything**. The migration would
+report success while every un-migrated device carries on exactly as before, and the first person
+to notice would be whoever eventually stopped being paged for an unrelated reason.
+
+So 1b is not complete when the global secret leaves the accepted lists. **1b is complete when the
+fallback is deleted and an unresolvable secret is refused.** Sequence inside 1b: new secrets
+issued → everyone re-onboarded → the loud log quiet for long enough to cover every device →
+global secret removed from the lists → **fallback removed** → an unresolved webhook now fails
+loudly instead of silently succeeding.
+
+**While the fallback remains, it logs loudly every single time it fires.** Not a debug line: the
+number of devices still on the old path must be *visible*, not inferred from someone's memory of
+who re-scanned. That log is the same cheap 1b signal described below, and it is what makes the
+"quiet for long enough" gate a measurement rather than a belief.
+
 **The dependency the queue order hides.** The global secret cannot be safely retired without
 seeing **which devices still use it** — retire it blind and whoever has not re-scanned stops being
 paged, silently, which is the exact failure mode this spec exists to prevent. That visibility is

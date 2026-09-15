@@ -65,8 +65,26 @@ cd middleware
 cp .env.example .env
 ./check-env.sh                 # validates .env before you start anything
 docker compose up -d
-python -m pytest tests         # 146 tests
+python -m pytest tests         # the whole middleware suite
 ```
+
+### The admin portal suite needs its own virtualenv
+
+`middleware/benem-admin` is a separate app with a separate suite, and **the documented command
+does not work from a clean shell on macOS.** Homebrew's Python is an externally-managed
+environment (PEP 668), so `pip install` refuses, and `pytest` then fails at collection with
+`ModuleNotFoundError: No module named 'pyotp'`. Do **not** reach for `--break-system-packages`:
+that writes into the interpreter the OS owns.
+
+```bash
+cd middleware/benem-admin
+python3 -m venv .venv                       # or anywhere outside the repo
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/python -m pytest                  # the admin suite
+```
+
+Verified 2026-09-15 on macOS with Homebrew Python 3.14. Filed rather than fixed: the failure is
+environmental, not a bug in the suite, and it costs the next person twenty minutes to rediscover.
 
 `middleware/README.md` documents every environment variable and endpoint;
 `middleware/CLAUDE.md` covers design decisions, the cache loops and the upgrade runbook.

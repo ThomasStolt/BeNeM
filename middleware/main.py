@@ -640,8 +640,15 @@ async def receive_webhook(request: Request):
     else:
         tokens = get_tokens_for_secret(secret)
         web_push_subs = get_web_push_subscriptions_for_secret(secret)
-        print(f"[Webhook] server=unresolved secret={secret_fingerprint(secret)} "
-              f"— no server lists this secret; using the pre-1a single-secret lookup")
+        # LOUD on purpose, every single time. This fallback is 1a's safety net and
+        # 1b's obstacle: while it exists, a device still holding the global secret
+        # keeps being paged through it, so retiring that secret splits nothing.
+        # The count of devices still on the old path has to be visible in the log
+        # rather than inferred from who remembers re-scanning. 1b deletes this
+        # branch and refuses an unresolvable secret — see the S1 spec, Part 17.
+        print(f"[Webhook] FALLBACK — no server lists secret={secret_fingerprint(secret)}; "
+              f"using the pre-1a single-secret lookup. This path must be empty before "
+              f"S1 change 1b retires the global secret.")
 
     if not tokens and not web_push_subs:
         print(f"[Webhook] No registered devices for this secret — nothing to notify.")
