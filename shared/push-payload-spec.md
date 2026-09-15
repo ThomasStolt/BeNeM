@@ -8,6 +8,15 @@ consumers — if you add a new payload type, update this file first.
 
 ## Webhook Input
 
+> **`incident_time` is the ORIGINAL incident time, on every notification type.** Measured
+> 2026-09-15 on incident 29570: the PROBLEM fired at 18:42:14 UTC and the RECOVERY at 19:15:40,
+> and **both** carried `"incident_time": "Tue Sep 15 20:42:13 2026"` — the opening time, in the
+> server's local zone. **Outage duration cannot be computed from this field alone**, and anything
+> treating it as "when this notification happened" will be wrong by the whole outage. Use
+> `{DATETIMEGMT}` for the notification's own timestamp if you need it, and note separately that
+> BHNM's close-delay means even that trails the real recovery by the close-delay window
+> (`docs/evidence/2026-09-14-bhnm-recovery-close-call-measurement.md` §2).
+
 BHNM sends a JSON POST to `middleware/webhook?secret=<value>` with:
 
 ```json

@@ -66,6 +66,19 @@ screen; and when a check is in flight, say so instead of showing the previous an
 current. Design detail for the push case is in
 `docs/superpowers/specs/2026-09-15-webhook-secret-header-auth-design.md` Part 11.
 
+## Verifying a change in the BHNM lab
+
+**Search for the object. Never trust the count.** The Actions Administration page shows
+`N Actions` alongside the groups, and that number has now been wrong twice: on 2026-09-14 it
+moved with no corresponding change, and on 2026-09-15 it read 16 before a temporary Action was
+added, 17 with it, and **18 after it was deleted** — while the Methods counter tracked correctly
+throughout. Deletion was confirmed instead by the removal banner and by searching for the
+object's name, which returned *"No actions match your search."*
+
+Trusting the counter on 09-15 would have meant concluding the teardown had failed and hunting a
+phantom object that was not there. Applies to any lab object: confirm by finding it, or failing
+to find it, by name.
+
 ## Push Notification Architecture
 
 ```
