@@ -78,9 +78,15 @@ small fix to a defect that makes a core feature work only on incidents older tha
    states) first.
 5. **Revocation + verified registration state — DESIGN WRITTEN, AWAITING APPROVAL.** Same S1
    spec, Parts 10, 11, 18.
-6. **Push relay spec — READY TO START, stop at design.** Target the encrypted variant (relay
-   sees only a token and an opaque blob), not the plaintext one. Context in the memory note
-   `push-delivery-defects-sept-2026`.
+6. **Push relay — DESIGN WRITTEN 2026-09-16, awaiting approval. STOP AT DESIGN.**
+   `docs/superpowers/specs/2026-09-16-push-relay-design.md`. Targets the encrypted variant (relay
+   sees a token, a tenant id and an opaque blob); the plaintext variant is documented only to be
+   rejected, and sharing the `.p8` is rejected outright.
+   Two things the design establishes that were not obvious: **Android self-hosters need no relay
+   at all** — Web Push has no vendor binding, so this is an iOS-only construct — and the existing
+   QR already provides a key channel from the customer's server to the device that bypasses the
+   relay. Four decisions for Thomas at the end, the first being whether the relay is a product at
+   all or whether "publish your own build" is the honest answer for iOS self-hosters.
 7. **Admin portal device overview — READY TO START.** Extend the existing Push Config page in
    `middleware/benem-admin/`; do not add a screen.
 8. **Delivery-queue monitoring — DESIGNED, NOT BUILT.** Two paired changes, designed 2026-09-15
