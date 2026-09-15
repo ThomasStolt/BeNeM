@@ -72,6 +72,47 @@ subscription (Android, "Edge 60").
    `push-delivery-defects-sept-2026`.
 7. **Admin portal device overview — READY TO START.** Extend the existing Push Config page in
    `middleware/benem-admin/`; do not add a screen.
+8. **Delivery-queue monitoring — DESIGNED, NOT BUILT.** Two paired changes, designed 2026-09-15
+   and recorded *only* in `middleware/CHANGELOG.md` under 2.14.0 "Known issue — carried forward",
+   which is why they appeared in neither this queue nor the parked list until now. The changelog
+   entry is the pointer; it holds the full design and is not restated here.
+   - **Stale-job discard.** The queue discards by count, not age, so an APNs stall delivers pages
+     after they stop mattering. Stamp arrival time on enqueue, discard on dequeue anything older
+     than **5 minutes** — longer than BHNM's own Incident Close Delay Timer, still inside the
+     window where an engineer wants waking — logging `[Deliver] STALE`.
+   - **Warn on estimated drain time, not queue depth.** Depth is the wrong unit: a job fans out
+     to every device, so the quantity is `queued_targets × per_send_seconds` (EWMA, seeded 0.15).
+     **Warn above 60 s**, an order of magnitude below the discard threshold. `queued_targets` must
+     be decremented on *every* exit path or the warning latches on permanently. Expose both in
+     `/health` and `/api/v1/diagnostics`.
+
+   The changelog calls this "next in line" after 2.14.0. **Its position in this queue is
+   unruled** — placed last only because that is where unranked items go, not as a priority claim.
+9. **PWA cannot open offline — DESIGNED, NOT BUILT. Do not fix now.** `pwa/src/sw.ts` calls
+   `precacheAndRoute(self.__WB_MANIFEST)` and **registers no `NavigationRoute`**, so a navigation
+   is never served from the precache. Measured 2026-09-15: with DNS for `benem.hurrikap.org`
+   failing, an already-open PWA kept running from the precache, but **reloading replaced the app
+   with Chrome's `DNS_PROBE_FINISHED_NXDOMAIN` page**. An installable PWA whose users are on-call
+   must open when the network is bad — that is when they tap the notification.
+   **Adjacent to the stale-data work, not separate from it:** both are the same question of what
+   the app does when it cannot reach the server, and the four-state work in the incident-freshness
+   spec Part 3 assumes the app is *on screen* to show a state at all. A shell that will not load
+   has no state to render.
+   Fix shape: register a `NavigationRoute` bound to the precached `index.html`
+   (`createHandlerBoundToURL('/index.html')`), so the shell always loads and the four states then
+   do their job. Small; it is queued rather than done because it is not what is being shipped now.
+10. **PWA Refresh hangs forever while offline — DEFECT, not fixed.** Measured 2026-09-15.
+    `IncidentListScreen.onRefresh` is `await queryClient.invalidateQueries({queryKey:['incidents']})`
+    followed by `await refetch()`. While React Query has the query paused, neither promise ever
+    settles, so **the control hangs indefinitely with no timeout and no feedback** — the tap does
+    nothing, nothing spins, nothing errors, and the user has no way to tell the refresh from a
+    refresh that silently did not happen. Observed as two CDP evaluations timing out at 45 s after
+    the tap, with the UI unchanged throughout.
+    Why it matters beyond the annoyance: this is the *one* control a user reaches for when they
+    suspect the data on screen is stale, which is exactly the situation it fails in. Fix shape:
+    bound the refresh (timeout, or don't await a paused query) and give the control a terminal
+    state — refreshed, or couldn't. Belongs with the incident-freshness Part 3 work, which now
+    owns the list screen and the badge.
 
 ---
 
