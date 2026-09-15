@@ -1579,3 +1579,75 @@ resolve at all on ambiguity was rejected: during 1a *every* server shares the se
 that would send every webhook down the FALLBACK path and destroy the 1b signal, which depends on
 FALLBACK meaning "somebody is on an unlisted secret". After 1b, secrets are unique, exactly one
 server matches, and the label always names it.
+
+## 8.7 §8.5 CLOSED — a BHNM-originated webhook, 2026-09-15 22:05:23Z
+
+Thomas unplugged raspi-050 at ~21:35Z. BHNM raised incident **29586** and fired the Action.
+Read from `logs/middleware.log`, the persisted log, not from `docker logs`:
+
+```
+2026-09-15 22:05:23,831Z [Webhook] PROBLEM — raspi-050 — Incident 29586
+2026-09-15 22:05:23,832Z [Webhook] server=<ambiguous: 4 servers share this secret> secret_fp=95e54469
+2026-09-15 22:05:23,832Z [Webhook] Queued delivery to 4 target(s) for incident 29586
+2026-09-15 22:05:24,297Z [APNs] Sent to ...0c56a19b
+2026-09-15 22:05:24,437Z [APNs] Sent to ...86587674
+2026-09-15 22:05:24,577Z [APNs] Sent to ...018ab51d
+2026-09-15 22:05:24,671Z [WebPush] Sent to https://fcm.googleapis.com/fcm/send/faLoG1PCQS0:AP...
+```
+
+| acceptance criterion | result |
+|---|---|
+| a **BHNM-originated** webhook, not a probe | **PASS** — BHNM raised 29586 itself from a real outage |
+| `server=` present | **PASS** — and correctly as the *ambiguous* label, which is the right answer while four servers share one secret. The guard shipped hours earlier is doing exactly its job on its first real webhook |
+| **zero** FALLBACK after the seed | **PASS, with one exception already on the record.** The persisted log holds exactly one FALLBACK ever — 21:02:09Z, the stale-inode failure of 8.3. Zero since the mount was fixed at 21:03:14Z |
+| `secret_fp=` surviving the redaction filter | **PASS**, and the same file proves the defect and the fix side by side: `21:02:09 … secret=<redacted>` against `22:05:23 … secret_fp=95e54469` |
+| `notification_type` matches the event | **PASS** — `PROBLEM`, an unplugged host |
+
+**The inference in 8.5 is retired.** BHNM's Action URL does carry the seeded secret; it is measured
+now, not argued.
+
+### Correction: the Service Engine reading was wrong
+
+While waiting, `BHNM-B-SE01` was declared down (incident 29585, 21:51:23) and raspi-050 had no
+incident, from which this file inferred that raspi-050 *is* the remote Service Engine and
+therefore could not be detected by itself. **That inference was wrong.** raspi-050 got its own
+host incident, 29586, at 22:05 — it was simply slow. The SE going down first is real and
+unexplained; the conclusion drawn from it was not.
+
+### Two lab facts worth keeping
+
+1. **Host-down detection took about 30 minutes** (~21:35 pull → 22:05:23 webhook), with the SE
+   noticed at 21:51. Any future test that pulls a host should budget that, and should not read
+   a quiet ten minutes as a failure — this session nearly did.
+2. **`BHNM-B-SE01` going down produced NO webhook, while raspi-050 going down produced one.**
+   Both are `host` incidents on the same BHNM. See the finding below.
+
+## 8.8 FINDING — coverage is scoped in BHNM and invisible from inside BeNeM
+
+Measured, in one window, on the same server:
+
+| incident | device | type | opened | webhook |
+|---|---|---|---|---|
+| 29585 | `BHNM-B-SE01` | `host` | 21:51:23Z | **none** — searched the whole persisted log by incident id |
+| 29586 | `raspi-050` | `host` | ~22:05Z | fired, 4 targets paged |
+| 29546 | `Synology920` | `service` | 15:48Z | none (acknowledged in the UI, also no webhook) |
+
+Two host-down incidents, minutes apart, on one server: **one paged, one did not.** Whatever the
+mechanism — the action group attached per device or per group, or notification criteria that
+exclude some objects — **coverage is configured per-object inside BHNM, and nothing in the BeNeM
+app or the admin portal tells a user which of their devices are covered.**
+
+This is the doctrine's failure in its most expensive form yet. The earlier instances rendered
+unverified state as healthy in a UI; this one renders *absence of a page* as identical to *no
+incident*. An engineer watching a silent phone cannot distinguish "nothing is wrong" from "this
+device was never wired to page me", and a paging product's entire value is that distinction.
+Worse than the green badge, because there is no affordance to be suspicious of.
+
+**Not diagnosed further, deliberately** — which mechanism it is needs the BHNM Action
+configuration read, and the extension cannot open that menu (four attempts, §8.9). The finding
+does not depend on which mechanism it turns out to be.
+
+**`INSTALL.md` §7 does not tell an administrator to attach the action group to everything they
+expect to be paged about.** That is the minimum fix and it is documentation. The product fix is
+larger: BeNeM cannot currently answer "which of my devices will page me?", and until it can, the
+answer a user assumes is "all of them".

@@ -113,6 +113,21 @@ subscription (Android, "Edge 60").
     bound the refresh (timeout, or don't await a paused query) and give the control a terminal
     state — refreshed, or couldn't. Belongs with the incident-freshness Part 3 work, which now
     owns the list screen and the badge.
+11. **Coverage is scoped in BHNM and invisible from inside BeNeM — FINDING, not yet designed.**
+    Measured 2026-09-15 in one window on one server: incident 29585 (`BHNM-B-SE01`, host, 21:51Z)
+    produced **no webhook**, while incident 29586 (`raspi-050`, host, 22:05Z) paged all four
+    targets. Two host-down incidents minutes apart; one paged, one did not. Whether the cause is
+    per-device action-group attachment or notification criteria is **not** yet established — the
+    finding holds either way.
+    Why it outranks its queue position: every other doctrine case renders unverified state as
+    healthy in a UI. This one makes *absence of a page* indistinguishable from *no incident*. An
+    engineer watching a silent phone cannot tell "nothing is wrong" from "this device was never
+    wired to page me", and that distinction is the entire product. There is no affordance to be
+    suspicious of.
+    Minimum fix is documentation: `INSTALL.md` §7 does not tell an administrator to attach the
+    action group to everything they expect to be paged about. The real fix is that BeNeM cannot
+    answer "which of my devices will page me?" — and until it can, users assume "all of them".
+    Evidence: `docs/evidence/2026-09-14-bhnm-recovery-close-call-measurement.md` §8.8.
 
 ---
 
