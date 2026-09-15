@@ -128,6 +128,19 @@ subscription (Android, "Edge 60").
     action group to everything they expect to be paged about. The real fix is that BeNeM cannot
     answer "which of my devices will page me?" — and until it can, users assume "all of them".
     Evidence: `docs/evidence/2026-09-14-bhnm-recovery-close-call-measurement.md` §8.8.
+12. **The ACK cache patch silently no-ops for an incident the cache has not seen — DEFECT.**
+    Measured 2026-09-15 (§8.9). `note_state_override_any_server()` patches only servers whose
+    cache already holds the incident and returns the count; `main.py` logs `if n:`. An incident
+    acknowledged before its first cache cycle therefore gets no override, no log line and no
+    error. 29586 was raised at 22:05:23 and acked 93 s later, inside the 120 s refresh window.
+    In the whole persisted log `Cache patched` appears three times and **every one is
+    `-> CLOSED`** — zero observations of the ACKNOWLEDGED path working, against three of
+    RECOVERY.
+    It is the fast-acknowledgement case a paging product must expect: somebody is woken, looks,
+    and acks within two minutes. Fix shape: record the override keyed by incident id whether or
+    not the incident is cached and apply it when the incident first appears (the override already
+    has a 5-minute TTL, two cycles), and make the zero-patch case loud — an unchecked return
+    value of zero is how this stayed invisible.
 
 ---
 

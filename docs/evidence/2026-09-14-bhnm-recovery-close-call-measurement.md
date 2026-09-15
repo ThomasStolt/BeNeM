@@ -1651,3 +1651,63 @@ does not depend on which mechanism it turns out to be.
 expect to be paged about.** That is the minimum fix and it is documentation. The product fix is
 larger: BeNeM cannot currently answer "which of my devices will page me?", and until it can, the
 answer a user assumes is "all of them".
+
+## 8.9 The acknowledgement: one confirmation passes, one fails
+
+Thomas acknowledged 29586 in the BHNM UI at ~22:06:5xZ. This is the first real-world ACK outside
+the measurement rig.
+
+```
+2026-09-15 22:06:56,856Z [Webhook] ACKNOWLEDGEMENT — raspi-050 — Incident 29586
+2026-09-15 22:06:56,858Z [Webhook] server=<ambiguous: 4 servers share this secret> secret_fp=95e54469
+2026-09-15 22:06:56,858Z [Webhook] Queued delivery to 4 target(s) for incident 29586
+2026-09-15 22:06:57,193Z [APNs] Sent to ...0c56a19b
+2026-09-15 22:06:57,309Z [APNs] Sent to ...86587674
+2026-09-15 22:06:57,427Z [APNs] Sent to ...018ab51d
+2026-09-15 22:06:57,486Z [WebPush] Sent to https://fcm.googleapis.com/fcm/send/faLoG1PCQS0:AP...
+```
+
+**Confirmation 1 — the "Acknowledged: …" push: PASS.** `notification_type` is `ACKNOWLEDGEMENT`,
+which also exercises the 2.13.0 wire-literal handling, and all four targets were delivered to.
+Also worth noting for its own sake: the *same device* produced PROBLEM at 22:05:23 and
+ACKNOWLEDGEMENT at 22:06:56, so a plain WebHook method does deliver both — the 09-14 finding
+about Active Response Webhook being PROBLEM-only is confirmed again from the other direction.
+
+**Confirmation 2 — the 2.13.0 cache patch marking it ACKNOWLEDGED immediately: FAIL.** No
+`[Webhook] Cache patched:` line was emitted. Not a logging gap — the patch genuinely did nothing.
+
+### Why, and it is worse than this one incident
+
+`incident_cache.note_state_override_any_server()` walks the cached buckets and patches only the
+servers whose cache **already contains** the incident, returning the count. `main.py` then logs
+only `if n:`. So when the incident is not cached, the call is a **silent no-op** — no patch, no
+log, no error, and a return value nobody checks against zero.
+
+29586 was raised at 22:05:23 and acknowledged 93 seconds later. Measured at 22:07: **29586 is not
+in the cache at all**, neither `active_incidents` nor `closed_incidents`, with the cache 50
+seconds old. The refresh cycle is 120 s, so the acknowledgement arrived inside the window before
+the incident had ever been cached. There was nothing to patch, and nothing said so.
+
+**The strong version of this finding:** in the entire persisted log, `Cache patched` appears
+**three times, and every one is `-> CLOSED`**. Not once `-> ACKNOWLEDGED`. The log covers
+2026-09-14 onward, so this is not proof the ACK path has never worked — but it is zero
+observations of it working, against three of the RECOVERY path working.
+
+The design comment at `incident_cache.py:139` says the override exists to survive "an in-flight
+cycle whose getincidents snapshot predates the ack". The case it does not survive is the one
+that just happened: an incident acknowledged *before its first cache cycle*, which is precisely
+the fast-acknowledgement case a paging product should expect — somebody is woken, looks, and acks
+within two minutes.
+
+**Fix shape, not built:** record the override keyed by incident id regardless of whether the
+incident is currently cached, and apply it when the incident first appears — the override already
+has a 5-minute TTL, which covers two cycles. And make the zero-patch case **loud**, because a
+silent no-op with an unchecked return value is how this stayed invisible.
+
+## 8.10 What could not be checked, and by whom
+
+The BHNM Action configuration — which devices or groups the `BeNeM` action group is attached to,
+and its notification criteria — was **not** read. Four attempts through the browser extension
+(direct link click, menu click, coordinate click, hover) failed to open Administration → Actions;
+the menu does not respond to synthetic events, and no URL for that page is recorded anywhere in
+this repository. It needs a human with the UI open, and §8.8's finding does not depend on it.
