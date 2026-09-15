@@ -742,6 +742,66 @@ touched twice. Doing the split first means change 2 migrates a secret that is al
 | devices touched | re-scan, staged behind the overlap window | **none** |
 | BHNM Action fields | URL (or none, if secrets are per-server in `servers.json`) | payload `[header]` block, then URL |
 
+### Change 1 splits again, into 1a and 1b (ruling, 2026-09-15)
+
+Same reasoning that split S1 into two changes, applied one level down: **1a is mechanism with no
+behavioural change, 1b is the operational split.** Separately deployable, separately verifiable,
+separately reversible.
+
+#### 1a — mechanism only. No behavioural change. No device touched.
+
+Scope:
+
+- An **accepted-secrets list per server** in `servers.json`.
+- **Server resolution on `/webhook`** — the handler learns which server a webhook came from.
+- **Per-server binding on `/register`** — a registration records which server it belongs to.
+- A **server dimension in the token lookup**, so a fan-out can be scoped to one server's devices.
+- The **admin portal reads per-server** rather than from the single global `WEBHOOK_SECRET` env var.
+
+**Seed every server's accepted list with the CURRENT global secret.** That is the whole reason
+this is safe to ship alone: every existing device keeps working, no QR is reissued, nobody
+re-onboards, and paging behaves exactly as it does today. The change is invisible from the outside
+— which is the point, because it means any change that *is* visible after deploying it is a bug in
+1a and nothing else.
+
+**Why it gets its own deploy and its own verification: this is where the risk lives.** It touches
+the webhook handler and the registration path, and this week those two have bitten three times —
+a handler that never returned, a fan-out that served only the first row, and a registration that
+never happened. A mechanism change landing on top of an operational migration would make the
+fourth one unattributable.
+
+Verified by: an alert still reaches every device it reaches today, a fresh `/register` still
+succeeds, and `/health` still reports the same device count — with no QR reissued and no phone
+touched.
+
+#### 1b — the operational split.
+
+New per-server secrets, new QRs, Thomas and Jonah re-onboard, then the global secret is retired
+from the accepted lists. Rollback is removing the new secret from a list; the global one is still
+accepted until the last step.
+
+**The dependency the queue order hides.** The global secret cannot be safely retired without
+seeing **which devices still use it** — retire it blind and whoever has not re-scanned stops being
+paged, silently, which is the exact failure mode this spec exists to prevent. That visibility is
+queue item 7, the admin device overview.
+
+**Ruling on which comes first: item 7 does NOT need to move ahead of 1b. A cheaper signal
+suffices, for this fleet.** The middleware should log which server and which accepted-secret entry
+each `/register` and each `/webhook` arrived with; with three devices and four servers, reading
+that log answers "is anybody still on the global secret?" directly, and it is a handful of lines
+rather than a portal feature. The admin overview remains the right long-term home and item 7 is
+where it lands — but blocking an operational migration on a UI feature, when a log line answers
+the same question for a three-device fleet, is the kind of sequencing this project has already
+paid for once.
+
+**Log the resolved server name and a short non-reversible fingerprint of the secret — never the
+secret, and never a prefix of it.** A truncated SHA-256 is enough to tell two secrets apart in a
+log, and 2.13.2 is the precedent for why this warning is written down rather than assumed.
+
+The gate on retiring the global secret is therefore: *no `/register` and no `/webhook` has arrived
+on the global secret's fingerprint for long enough to cover every device*, not *we think everyone
+re-scanned*.
+
 ---
 
 ## Part 18 — What Test Connection should authenticate against
