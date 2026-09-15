@@ -564,10 +564,21 @@ in a sweep.
 The iOS side is not free: the field is `Codable` and its name is a persisted JSON key, so it
 needs a `decodeIfPresent` fallback to `notificationsEnabled` or **every existing installation
 silently loses its per-server setting** — the same shape as the migration already in
-`SavedConnection.init(from:)`, which defaults the field to `false`. Note the direction of that
-default: a lost setting here fails *closed*, silently disabling push for a connection that had
-it on. That is a paging product going quiet, which is why the fallback is mandatory rather than
-tidy.
+`SavedConnection.init(from:)`.
+
+**The direction of the failure is what makes the fallback mandatory rather than tidy.** That
+initialiser defaults the field to `false`:
+
+```swift
+notificationsEnabled = try c.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? false
+```
+
+So a rename without a fallback does not merely lose a preference — it **fails closed**, silently
+switching push **off** for every connection that had it on, on the next launch after the update.
+For a paging product that is the wrong direction to fail in: the app keeps working, looks
+healthy, and nobody is paged. It is the same failure shape as the QR-onboarding defect and the
+same one the `CLAUDE.md` doctrine exists to prevent. A rename that fails *open* would be merely
+annoying; this one goes quiet.
 
 ---
 
@@ -585,6 +596,110 @@ Grouped deliberately so his involvement is one session rather than three.
 All three are the same rig — one phone, the lab, and the middleware log open. The PWA halves of
 2 can be done in a browser without him.
 
+## Part 14 — Severity: the links were each on the board, and nobody joined them
+
+Measured 2026-09-15. Each step below was already known and recorded separately; the chain is
+what nobody had written down.
+
+1. **The QR payload carries `push_secret` *and* `proxy_token`.** Both are put there by
+   `benem-admin/main.py` when an administrator generates an onboarding link.
+2. **In this deployment those two are the same 64-character value.** `WEBHOOK_SECRET` and
+   `PROXY_TOKEN` are read from two distinct environment variables by correct code, and the
+   `.env` sets both to one string. Verified: equal length, equal SHA-256, `a == b` true.
+3. **The webhook secret is global, not per-server.** Building the QR payload through the
+   portal's own code path for all four configured servers yields **four distinct `api_key`
+   values and one `push_secret`**. `servers.json` has no webhook-secret field at all.
+4. **The QR blob is encrypted with a static AES key that ships inside the public App Store
+   binary** — board item **S4**, `ios/BeNeM/Secrets.swift`, known and accepted.
+5. **The webhook secret travels in a URL** — board item **S1**, this document — so it also
+   lands in BHNM's outbound logs, any egress proxy, and any access log that records query
+   strings.
+
+**Joined up:** extracting the static key from the shipped binary and obtaining *any* BeNeM QR
+yields a credential that (a) pushes arbitrary alert text to every registered engineer, (b)
+authenticates API-proxy calls and therefore reads BHNM data, and (c) does both **across all four
+servers at once**, because the secret is global. Step 5 means the same credential is also
+recoverable without the binary at all, from a log.
+
+**`docs/INSTALL.md` §7.5 promises isolation the code does not provide:** *"Give each server its
+own secret … A device only receives alerts from the server whose secret it registered with.
+There is no global secret."* Every clause of that is false as deployed. The docs must be
+corrected in the same change that fixes the portal, and until then the promise is the more
+dangerous half — an administrator reading it has no reason to look.
+
+---
+
+## Part 15 — Is `PROXY_TOKEN` used by anything? Measured, and the answer is "almost nothing"
+
+The hope was that `PROXY_TOKEN` could be rotated immediately, severing the leaked-URL-to-BHNM-data
+link today without touching QR re-issue. **It cannot, but only just.**
+
+### Every `X-Proxy-Token` sender
+
+| sender | sends | notes |
+|---|---|---|
+| iOS `ContentView.swift:198` → `NetreoAPIService.swift:57` | **the `api_key`** (`proxyToken: apiKey`) | every normal data path |
+| PWA `incidents.ts`, `tactical-overview.ts`, `thresholds.ts`, `maintenance.ts`, `diagnostics.ts` | **`config.apiKey`** | every normal data path |
+| iOS `ServerConfigView.swift:309` | **`draftPushSecret`** | the **Test Connection** button |
+| `benem-admin` internal call | `PROXY_TOKEN` | server-to-server, same `.env` |
+
+**No client reads `proxy_token` out of the QR payload.** Neither `DeepLinkHandler.swift` nor
+`pwa/src/lib/qr-parser.ts` mentions it — it is carried, encrypted, and ignored. That is a
+credential shipped to every device for nothing, and it should be dropped from the payload.
+
+### Why rotation is not free
+
+`_verify_proxy_token` accepts the global `PROXY_TOKEN` **or** any `api_key` in `servers.json`.
+Probed live against the catch-all proxy route:
+
+```
+random value                        -> 401 {"detail":"Invalid proxy token"}
+a servers.json api_key              -> passes auth (403 from BHNM upstream)
+WEBHOOK_SECRET (= PROXY_TOKEN today)-> passes auth (403 from BHNM upstream)
+```
+
+So **Test Connection authenticates only because the two values are equal.** `draftPushSecret` is
+the webhook secret; it is not an `api_key`, so with a rotated `PROXY_TOKEN` it would match
+neither branch and the button would return `401` on the shipped App Store build.
+
+**Conclusion: something does use it, so rotation waits for the overlap window**, as ruled.
+
+### The fix that makes rotation free, and the wrinkle in it
+
+`ServerConfigView.swift:309` should send `draftApiKey`, exactly as every other call site does —
+sending the *push* secret in the *proxy* header is the anomaly. One line.
+
+The wrinkle: `_verify_proxy_token` accepts only `api_key`s **already present in `servers.json`**,
+and Test Connection is most useful precisely when a server is *not* yet known to the middleware.
+The global `PROXY_TOKEN` is currently what lets an unknown-to-the-middleware client test a
+connection at all. So the one-line change is necessary but not sufficient, and what Test
+Connection should authenticate with for an unknown server is an open question.
+
+---
+
+## Part 16 — Should `PROXY_TOKEN` exist at all? (design question, not a build)
+
+`PROXY_TOKEN` is a **single global credential granting proxy access to every configured server**,
+sitting beside per-server `api_key`s that already work and that every real data path already
+uses. That is the same design flaw as the global webhook secret, one layer down: one string,
+whole-estate blast radius, no per-server revocation, and nothing that can be rotated for one
+tenant.
+
+Rather than assume it must be kept, the question to settle is whether it should exist:
+
+- **Drop it.** Authenticate the proxy on `api_key` alone — already the only thing clients send
+  for data. Cost: the unknown-server Test Connection case (Part 15) needs another answer, and
+  `benem-admin`'s internal call needs a credential of its own, which it can have without being
+  the same one every device holds.
+- **Keep it, scoped.** Retain a global token but restrict it to `/internal/*` and admin-origin
+  calls, never the `/api/v1/*` data routes. The leak of a data credential then cannot become an
+  admin credential.
+- **Keep it as is.** Only defensible if something genuinely needs whole-estate proxy access from
+  a client, and Part 15 found nothing that does.
+
+Recommendation: **scope it**, then drop it once Test Connection has a per-server answer. Either
+way it should come out of the QR payload immediately, since nothing reads it.
+
 ## Decisions needed from Thomas
 
 1. **Approve the Part 6 measurement?** One temporary Action in the `BeNeM` group plus the capture
@@ -599,3 +714,7 @@ All three are the same rig — one phone, the lab, and the middleware log open. 
 6. **Canonical name `pushEnabled`** (Part 12) — agreed as the one name, recorded in `shared/`
    now and renamed on iOS later? Or keep `notificationsEnabled` and rename the PWA instead?
 7. **Part 13 sitting** — when, and is one session with the phone and the lab workable?
+8. **`PROXY_TOKEN`'s future** (Part 16) — drop it, scope it to `/internal/*`, or keep it? And
+   may `proxy_token` be removed from the QR payload now, given nothing reads it?
+9. **`WEBHOOK_SECRET` / `PROXY_TOKEN` reuse** — rotating waits for the overlap window (Part 15),
+   but should INSTALL.md §7.5's false isolation promise be corrected ahead of that?
