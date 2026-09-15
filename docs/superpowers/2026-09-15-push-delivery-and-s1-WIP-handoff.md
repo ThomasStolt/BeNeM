@@ -1,0 +1,162 @@
+# Push Delivery, S1 and Incident Freshness — WIP Handoff
+
+**Date:** 2026-09-15
+**Status:** CLEAN CHECKPOINT. Nothing is half-built, the lab is restored, the deployment is
+healthy. Everything below is either shipped, designed-and-awaiting-approval, or blocked on a
+measurement that needs Thomas and a phone.
+
+Written for a reader with **no memory of the work that produced it**. Every item names its file.
+
+---
+
+## a. State in one paragraph
+
+BeNeM is a network monitoring and incident alerting app built on **BMC Helix Network Management
+(BHNM)**, whose job is delivering timely push notifications to on-call engineers. A monorepo at
+`/Users/thomasstolt/dev/BeNeM`: `ios/` (Swift/SwiftUI, App Store, the lead platform), `pwa/`
+(React/TypeScript, Android via Web Push), `middleware/` (Python/FastAPI, ingests BHNM webhooks
+and delivers APNs + Web Push), `shared/` (specs). The middleware runs in Docker on a Linode at
+`bhnm-apns.hurrikap.org` behind Caddy, with `benem-admin` (admin portal), `benem-pwa` and
+`benem-proxy` alongside. The lab BHNM is `bhnm-b.tstolt.com` → `192.168.2.211` on the LAN,
+version **26.3**. What shipped this week: **middleware 2.14.0**, which fixed a delivery fan-out
+that only ever served one device, plus credential hygiene, test-collection and documentation
+corrections — 18 commits, all pushed, detailed in `middleware/CHANGELOG.md` and
+`docs/evidence/2026-09-14-bhnm-recovery-close-call-measurement.md`.
+
+---
+
+## b. Lab and deployment state (verified by observation, 2026-09-15 ~19:30 UTC)
+
+| check | result |
+|---|---|
+| BHNM temporary objects | **none.** Searched Actions Administration for `temporary` → *"No actions match your search"*; for `8787` (the capture listener port) → no matches. Searching for `BeNeM` returns the `BeNeM` group with **exactly one** action, `Mobile BeNeM Notification`, one WEBHOOK method, SSL enabled, Auth Token disabled, 24X7, its original 16-field payload — untouched all week. |
+| capture listener | **stopped.** No `capture_listener.py` process; TCP 8787 free. |
+| `caffeinate` assertion | **released.** The `caffeinate -dimsu` started for the measurement is gone. Assertions still shown belong to `screensharingd`, the Claude app and `powerd` — unrelated. |
+| middleware live version | **2.14.0**, `/health` reports `running`, 3 registered devices + 1 Web Push subscription. |
+| containers | `benem-middleware`, `benem-admin`, `benem-proxy`, `benem-pwa` all up. |
+| `PROXY_TOKEN` | **NOT rotated.** It is still byte-identical to `WEBHOOK_SECRET` — deliberate, see decision 9 in the S1 spec. Nothing is half-done here; rotating is a decision, not an unfinished task. |
+| middleware suite | `cd middleware && python -m pytest tests` → **181 passed**, exit 0. |
+| git | everything pushed. `git status --porcelain` shows only ` M CLAUDE.md`, which is **Thomas's own table reformat**, deliberately left alone. |
+
+The three registered devices are `...0c56a19b` (iPhone 13 Pro Max, Thomas private), `...018ab51d`
+(iPhone 15, Thomas work), `...86587674` (iPhone 13 Pro, Jonah), plus one FCM Web Push
+subscription (Android, "Edge 60").
+
+---
+
+## c. The queue, in order
+
+1. **Two device measurements — BLOCKED ON THOMAS.** Both need one phone, the lab and the
+   middleware log, batched into one sitting. Runbook, ready to run with no composing on the day:
+   **`docs/runbooks/2026-09-15-one-sitting-device-measurements.md`**.
+   - *Measurement 1 — the unregister A/B*: does switching notifications off in the app actually
+     stop the paging? Timing-sensitive: toggle off within a second of launch vs after ten.
+   - *Measurement 2 — 401 versus dead network*: what each client shows when the credential is
+     refused versus when the network is gone. Decides whether stale-data-while-disconnected is
+     already a defect. The PWA half can be done in a browser without Thomas.
+2. **S1 change 1 — per-server secret split + rotation/allowlist — STOP-AT-DESIGN APPROVED,
+   build not started.** `docs/superpowers/specs/2026-09-15-webhook-secret-header-auth-design.md`
+   Parts 5 and 17.
+3. **S1 change 2 — header transport — STOP-AT-DESIGN APPROVED, build not started.** Same spec,
+   Parts 2–4. **Its gating measurement is done and passed** (spec Part 6 / evidence "Part 6"):
+   `[header]` works on a plain WebHook method, a 64-character value survives intact,
+   `Authorization` survives with `AUTHORIZATION TOKEN = None`, header block and JSON body
+   coexist, and `Content-Type: application/json` arrives correctly.
+4. **Incident freshness, three parts — DESIGN WRITTEN, AWAITING APPROVAL.**
+   `docs/superpowers/specs/2026-09-15-incident-freshness-design.md`. Ships Part 3 (the four
+   states) first.
+5. **Revocation + verified registration state — DESIGN WRITTEN, AWAITING APPROVAL.** Same S1
+   spec, Parts 10, 11, 18.
+6. **Push relay spec — READY TO START, stop at design.** Target the encrypted variant (relay
+   sees only a token and an opaque blob), not the plaintext one. Context in the memory note
+   `push-delivery-defects-sept-2026`.
+7. **Admin portal device overview — READY TO START.** Extend the existing Push Config page in
+   `middleware/benem-admin/`; do not add a screen.
+
+---
+
+## d. Open decisions — recorded, do not re-derive
+
+**These have been argued out already. Do not reason them afresh from first principles — read
+them, and ask Thomas for a ruling.**
+
+- **`docs/superpowers/specs/2026-09-15-webhook-secret-header-auth-design.md`, "Decisions needed
+  from Thomas": numbers 1–10.** Includes the canonical name `pushEnabled`, whether to rotate
+  `PROXY_TOKEN` now, whether `PROXY_TOKEN` should exist at all, and the Part 13 measurement
+  sitting.
+- **`docs/superpowers/specs/2026-09-15-incident-freshness-design.md`, "Decisions needed":
+  numbers 1–4.** Interim server resolution, debounce interval, UI copy tone, and whether the
+  fetch route accepts prefixed ids.
+
+---
+
+## e. Parked, with why
+
+| item | why parked |
+|---|---|
+| `400 BadDeviceToken` cleanup | Only `410` triggers token removal, so a `400` token is retried forever. Real but low impact; queued behind the above. Evidence follow-up 3. |
+| Android heads-up banner | Notifications arrive in the shade rather than as a banner — a notification-channel importance setting. Not yet prioritised. |
+| Richer BHNM macros spec | Superseded in urgency by the delivery defects; no ruling yet. |
+| `ServerConfigView.swift:309` sending the push secret as `X-Proxy-Token` | The one-line client fix is necessary but not sufficient — see the S1 spec Part 18. Waits on the decision about `PROXY_TOKEN`. |
+| iOS rename `notificationsEnabled` → `pushEnabled` | Approved as canonical but **deliberately not renamed yet**; apply at the next natural touch of each file, with a `decodeIfPresent` fallback. S1 spec Part 12. |
+
+---
+
+## f. Doctrine added this week — read before designing any UI or touching the lab
+
+Both are in the repository root **`CLAUDE.md`**:
+
+- **"Doctrine: never render unverified state as healthy."** Three states always — verified good,
+  verified bad, and *unverified* — with the third given its own appearance. Written as a rule
+  because it shipped three times in three different places.
+- **"Verifying a change in the BHNM lab."** Search for the object by name. **Never trust the
+  count.**
+
+---
+
+## g. Working standards that are not obvious from the code
+
+- **"Verified" means measured.** Not "the code looks right", not "the test passes in principle".
+  State plainly what was observed and what was inferred, and label inconclusive results as
+  inconclusive rather than rounding them up.
+- **iOS "verified" means run on a device against the lab.** A simulator build only proves it
+  compiles. Commits may exist before that; pushes may not.
+- **Disclose inconclusive and negative results**, including one's own refuted hypotheses. Several
+  findings this week came from a prediction being written down first and then failing.
+- **Run the whole middleware suite**: `cd middleware && python -m pytest tests`. Gate on pytest's
+  own exit code with **no pipe** — a commit chain gated on `tail` once committed a red suite.
+- **Stage explicitly and split commits by content.** Never `git add -A`; the tree often carries
+  unrelated pre-existing changes (`CLAUDE.md` right now). Show `git diff --cached` and stop for
+  approval before committing anything that is not a deploy prerequisite.
+- **This project's reviewer is a separate Claude session.** Its rulings reach the working session
+  relayed by Thomas. Treat them as decisions, not suggestions — and when one rests on a wrong
+  premise, say so with the measurement rather than complying silently.
+- **Never echo the webhook secret**; redact before any screenshot. Do not test a redaction filter
+  with the string it is meant to redact.
+- **Dump `docker logs` before every deploy** — the runbook is in `middleware/CLAUDE.md`; dumps
+  live in `/root/logdumps/` on the VPS.
+- **Run `date`** rather than inferring the time.
+- BHNM ack/un-ack buttons open a native `prompt()` that freezes the Chrome extension — a human
+  must click those.
+
+---
+
+## h. Traps that cost time this week
+
+| trap | where |
+|---|---|
+| `incident_time` carries the **original** incident time on a RECOVERY, not the recovery time — outage duration cannot be computed from it | `shared/push-payload-spec.md` (warning at the top of the payload section) |
+| A stale `.git/index.lock` silently fails `git mv` with "Another git process seems to be running" when none is | repository root `.git/index.lock` — delete it after confirming no git process is live |
+| `pytest tests` did not collect root-level test files, so `middleware/test_webpush.py` sat red unnoticed | fixed — the files moved into `middleware/tests/`; noted in `middleware/CLAUDE.md` |
+| The BHNM Actions counter is wrong — it read 18 after deleting one from 17, while the Methods counter tracked correctly | repository root `CLAUDE.md`, "Verifying a change in the BHNM lab" |
+| A Mac set to `sleep 1` on **both** battery and AC will kill a capture listener mid-measurement and produce an empty capture that looks like a failed feature | `docs/evidence/2026-09-14-bhnm-recovery-close-call-measurement.md`, Part 6 pre-flight |
+
+---
+
+## Resume checklist
+
+1. Read `docs/evidence/2026-09-14-bhnm-recovery-close-call-measurement.md` — every measurement,
+   verbatim, Parts 1 through 6 plus follow-ups. It is long; it is the source of truth.
+2. Read the memory note `push-delivery-defects-sept-2026` for the queue and working agreements.
+3. Read the two specs named in section (d) before proposing anything in their areas.
+4. Confirm section (b) still holds before touching the lab or the deployment.
