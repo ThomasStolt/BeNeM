@@ -814,8 +814,23 @@ where it lands — but blocking an operational migration on a UI feature, when a
 the same question for a three-device fleet, is the kind of sequencing this project has already
 paid for once.
 
+**Resolution during 1a is ambiguous, and must never name a server.** Every server carries the
+same seeded secret, so the first match is arbitrary. The resolver returns the *list* of matching
+servers and the log names one only when exactly one matches; otherwise it prints
+`server=<ambiguous: N servers share this secret>`. After 1b, secrets are unique and it always
+names one.
+
+**Rejected, and recorded so it is not re-proposed: refusing to resolve at all when ambiguous.**
+It sounds like the stricter choice and is the opposite. During 1a every webhook is ambiguous by
+construction, so refusing would send *every* webhook down the FALLBACK path — and FALLBACK is the
+1b signal, whose entire meaning is "somebody is on an unlisted secret". Making it fire constantly
+destroys the measurement that gates retiring the global secret.
+
 **Log the resolved server name and a short non-reversible fingerprint of the secret — never the
-secret, and never a prefix of it.** A truncated SHA-256 is enough to tell two secrets apart in a
+secret, and never a prefix of it.** Name the field `secret_fp=`, not `secret=`: the 2.13.2
+redaction filter rewrites `secret=…` and blanked the fingerprint in the *persisted* log, the only
+one that survives a container recreate — so the 1b question would have been answered "nobody"
+when it meant "we can no longer tell". A truncated SHA-256 is enough to tell two secrets apart in a
 log, and 2.13.2 is the precedent for why this warning is written down rather than assumed.
 
 The gate on retiring the global secret is therefore: *no `/register` and no `/webhook` has arrived

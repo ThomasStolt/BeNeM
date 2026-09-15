@@ -5,6 +5,49 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.15.1] - 2026-09-15
+
+### Fixed
+
+- **The redaction filter was eating the diagnostic it was meant to protect.** 2.13.2 added a
+  filter rewriting anything matching `(secret|token|password|key|pwd)=…`, because the webhook
+  secret rode in a query string and reached uvicorn's access line. 1a then logged its secret
+  **fingerprint** as `secret=<fp>` — which matches — so the persisted log recorded
+  `secret=<redacted>`.
+
+  Why that is worse than cosmetic: the fingerprint exists to answer 1b's gating question, *"is
+  anybody still on the old secret?"*, and `logs/middleware.log` is the **only** log that survives
+  a container recreate and can therefore answer it across a week. The value survived in
+  `docker logs` alone, which is wiped on every deploy. Had 1b been run against the persisted log,
+  the answer would have read **"nobody"** when what it actually meant was **"we can no longer
+  tell"** — a safety mechanism silently consuming a diagnostic, and the answer it produced was
+  the reassuring one.
+
+  Fixed by renaming the field to `secret_fp=`, which the filter does not match. The same rename
+  also stops the repo's credential scanner flagging quoted log lines, for the same underlying
+  reason: `secret=<8 hex>` cannot be told apart from a leaked fragment, so nothing that is *not*
+  a secret should be published under that name. The filter itself is unchanged — it was right.
+
+- **The resolved server name was arbitrary whenever a secret was shared.** Resolution returned
+  the first matching server, so a lab-targeted webhook logged `server=SaaS Demo Server`. During
+  1a every server carries the same seeded secret, so "which server sent this" has no answer at
+  all. A log line is read as fact by whoever did not run the deploy, and per-server behaviour
+  gets built on it.
+
+  `_server_for_webhook_secret` (returning one server) is replaced by `_servers_for_webhook_secret`
+  (returning the **list** of every server that accepts the secret), so no caller can be handed an
+  arbitrary winner in the first place. The log names a server **only when exactly one matches**;
+  otherwise it reads `server=<ambiguous: N servers share this secret>` and names nobody.
+  Registration binding follows the same rule — `server_id` is stored only when unambiguous,
+  because an arbitrary `server_id` on a device row is worse than an empty one: it would survive
+  into 1b as data nobody knows is fiction.
+
+### Tests
+
+- Middleware: **202 passed** (`python -m pytest tests`, exit code 0).
+
+---
+
 ## [2.15.0] - 2026-09-15
 
 ### Added
