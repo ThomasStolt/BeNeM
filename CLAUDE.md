@@ -36,6 +36,36 @@ on both platforms unless explicitly marked platform-specific in
 
 **Always update `shared/feature-spec.md` before or alongside implementation.**
 
+## Doctrine: never render unverified state as healthy
+
+**If the app has not verified a thing is good, it must not draw it the way it draws good.**
+Three states, always: *verified good*, *verified bad*, and **unverified** — and the third gets
+its own appearance, never the healthy one.
+
+This is written as a rule because it has now been shipped three times, in three different
+places, by three different mechanisms:
+
+1. **The device icon showed green for a host BHNM reported `DOWN`.** Fixed in its own wave
+   (`docs/evidence/2026-09-03-...`), because "no bad news yet" was being drawn as good news.
+2. **"Registered and active" is local belief.** Both clients render it from their own stored
+   flag, never confirmed against the middleware. A phone that is not registered at all shows
+   the same label as one that is.
+3. **The push toggle reads ON while the device receives nothing.** Two independent causes found
+   on 2026-09-15 — a QR import that never selected the connection, and iOS notification
+   permission denied at the OS level, which the app never reads. In both cases the UI asserted
+   health it had never checked.
+
+Each of those cost real engineer-hours and, in a paging product, each meant somebody believed
+they were covered when they were not. A green affordance is a **claim**. Do not make it on
+cached data, on a local flag, on a request that has not returned, or on the absence of an
+error — only on a fact the app has confirmed and can date.
+
+Practical form: prefer "Registered · confirmed 2 minutes ago" to "Registered"; show
+"Can't reach the server · last confirmed 14:03" rather than leaving the last good state on
+screen; and when a check is in flight, say so instead of showing the previous answer as
+current. Design detail for the push case is in
+`docs/superpowers/specs/2026-09-15-webhook-secret-header-auth-design.md` Part 11.
+
 ## Push Notification Architecture
 
 ```

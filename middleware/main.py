@@ -239,7 +239,11 @@ def register_token(body: TokenRegistration, request: Request):
         raise HTTPException(status_code=400, detail="X-Webhook-Token header is required")
     env = body.environment if body.environment in ("sandbox", "production") else "production"
     save_token(body.token, body.device_name, active_secret, env)
-    print(f"[Register] Token saved for: {body.device_name} (APNs: {env})")
+    # Log the token suffix, as [Unregister], [APNs] and [Cleanup] all do. Without it
+    # every registration in the log is anonymous and a token's history cannot be
+    # reconstructed — tracing ...62f21e50 on 2026-09-15 had to be assembled from
+    # 410s and a single lucky [Unregister].
+    print(f"[Register] Token saved: ...{body.token[-8:]} for {body.device_name} (APNs: {env})")
     return {"status": "ok"}
 
 

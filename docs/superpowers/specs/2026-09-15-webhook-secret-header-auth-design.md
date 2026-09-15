@@ -404,11 +404,29 @@ The app must be able to tell three outcomes apart, and today it can tell apart n
 | **refused** | this credential is no longer accepted | **terminal** revoked state |
 | **unreachable** | network failure, TLS failure, server down | transient — retry, and say so |
 
-Wire shape: **`401` with a JSON body `{"error": "credential_revoked"}`** on both the proxy path
-and `/register`. The status code alone is not enough — a captive portal or a misconfigured
-reverse proxy can produce a bare `401`, and treating that as revocation would throw an engineer
-out of the app on hotel wifi. The body discriminates; a `401` without it is treated as
-unreachable, not revoked.
+Wire shape: **`401`, plus a JSON body `{"error": "credential_revoked"}`, plus proof the response
+came from the middleware** — all three, on both the proxy path and `/register`.
+
+The status code alone is nowhere near enough. A captive portal, a corporate proxy or a
+misconfigured reverse proxy can produce a bare `401`, and some portals return arbitrary JSON.
+**An engineer thrown out of their paging app in a hotel lobby is the worst false positive this
+feature can produce**, and it would be indistinguishable from real revocation because the state
+is terminal by design. So the client requires, as an `AND`:
+
+1. status `401`;
+2. body parses as JSON with `error == "credential_revoked"`; **and**
+3. the response identifies itself as the middleware. **Checked: no such marker exists today** —
+   `VERSION` appears only inside the `/health` and `/api/v1/diagnostics` JSON bodies, and the
+   only custom response headers in the live deployment are Caddy's `X-Content-Type-Options` and
+   `X-Frame-Options`. So this must be **added**: a `version` field in the revocation body
+   itself, e.g. `{"error": "credential_revoked", "version": "2.14.0"}`. Preferred over a new
+   response header because a reverse proxy can strip or rewrite headers and the body is already
+   JSON the client must parse anyway. This is the condition a captive portal cannot satisfy by
+   accident.
+
+Anything failing any of the three is **unreachable**, not revoked. When in doubt the client
+stays connected and retrying: a false "still working" self-corrects on the next request, a false
+"you are revoked" does not.
 
 `403` is deliberately not used: it is what the existing proxy already returns for SSRF-blocked
 targets (`main.py`), and overloading it would make two unrelated conditions indistinguishable.
@@ -528,18 +546,28 @@ prevent exactly this. It already caused a wrong conclusion: a grep for `notifica
 across the repo returns nothing on the PWA side and reads as "the PWA has no per-connection
 control", which is false. The next person greps and reaches the same wrong conclusion.
 
-**Proposed canonical name: `pushEnabled`.** It is the more precise of the two — the control
-governs *push delivery*, not notifications in general, and the rest of the vocabulary in
-`shared/` is already "push" (`push-payload-spec.md`, "Per-server push notification
-configuration" in `feature-spec.md`). It is also the name that needs no migration on the side
-that already uses it.
+**Canonical name: `pushEnabled`.** Approved 2026-09-15. The deciding reason is not brevity but
+collision: **`notificationsEnabled` reads as the OS notification setting**, which is a different
+control with different scope and a different effect — app-wide versus per-connection, and
+"stop the phone showing" versus "stop the server sending". That ambiguity is precisely what cost
+a round of this investigation, when a switch reading ON while iOS denied everything looked like
+a working configuration. `pushEnabled` names the thing it actually governs — push delivery — and
+matches the vocabulary already in `shared/` (`push-payload-spec.md`, "Per-server push
+notification configuration" in `feature-spec.md`). It also needs no migration on the side that
+already uses it.
 
-**Nothing is renamed yet.** The immediate step is to record the canonical name and both current
-spellings in `shared/feature-spec.md`, so the mapping is discoverable by the grep that currently
-misleads. When the iOS rename does happen it is not free: the field is `Codable` and the name is
-a persisted JSON key, so it needs a `decodeIfPresent` fallback to the old key or every existing
-installation silently loses its per-server setting — the same shape as the migration already in
-`SavedConnection.init(from:)`.
+**Nothing is renamed yet, and no rename gets its own commit.** Record the canonical name and both
+current spellings in `shared/feature-spec.md` so the mapping is discoverable by the grep that
+currently misleads, then **apply the rename at the next natural touch of each file** rather than
+in a sweep.
+
+The iOS side is not free: the field is `Codable` and its name is a persisted JSON key, so it
+needs a `decodeIfPresent` fallback to `notificationsEnabled` or **every existing installation
+silently loses its per-server setting** — the same shape as the migration already in
+`SavedConnection.init(from:)`, which defaults the field to `false`. Note the direction of that
+default: a lost setting here fails *closed*, silently disabling push for a connection that had
+it on. That is a paging product going quiet, which is why the fallback is mandatory rather than
+tidy.
 
 ---
 
