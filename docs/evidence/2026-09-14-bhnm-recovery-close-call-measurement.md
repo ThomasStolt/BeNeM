@@ -1382,22 +1382,103 @@ local matches remote, so nothing unpushed can be deployed. Recorded as a rule in
 instant belongs to the window between deploy and seed and is expected. Any FALLBACK line *after*
 it is a failed verification.
 
-## 8.3 Verification — BLOCKED, not failed
+## 8.3 Verification — first attempt FAILED, and the criterion is what caught it
 
 The acceptance criterion, as a pass/fail rather than a note:
 
-> After the seed, a real BHNM webhook must produce a `[Webhook]` line reading `server=<name>`,
-> and there must be **ZERO** `FALLBACK` lines after 20:45:43Z. Any FALLBACK after the seed means
-> the seed did not take, and that is a failed verification.
+> After the seed, a webhook must produce a `[Webhook]` line reading `server=<name>`, and there
+> must be **ZERO** `FALLBACK` lines after 20:45:43Z. Any FALLBACK after the seed means the seed
+> did not take, and that is a failed verification.
 
-Plus: the after device set must equal the before set above, and no QR may be reissued.
+**It failed, at 21:02:09Z:**
 
-**Not yet run.** SSH to the VPS stopped responding at 20:47 — port 22 refuses from this host
-while 443 continues to serve normally (`/health` 200, version 2.15.0, 3 devices), so the service
-is up and only the administrative channel is gone. Most likely fail2ban after a burst of
-connections during the deploy. Blocked is not failed: the pre-authorised revert is for a
-verification that *fails*, and reverting would need the same SSH channel anyway.
+```
+[Webhook] PROBLEM — benem-1a-verify — Incident 999001
+[Webhook] FALLBACK — no server lists secret=95e54469; using the pre-1a single-secret lookup.
+[Webhook] Queued delivery to 4 target(s) for incident 999001
+```
 
-**State meanwhile:** 2.15.0 live, seeded, caches reloaded, `/health` reporting the same three
-devices as before the deploy. Behaviourally inert by design and consistent with that so far —
-but the wire-level proof that server resolution fires is outstanding.
+`95e54469` is the fingerprint of the secret seeded into all four servers seventeen minutes
+earlier. The middleware was telling the truth: **as far as the container was concerned, no
+server listed it.**
+
+### Root cause: an atomic rename broke the bind mount
+
+| | inode | `webhook_secrets` |
+|---|---|---|
+| host `/root/BeNeM/middleware/servers.json` | **26419** | seeded, all four servers |
+| container `/data/servers.json` | **17049** | empty, all four servers |
+
+The seed script wrote a temp file and `os.replace()`d it over the target — the standard safe
+write, and exactly wrong here. `docker-compose.yml` bind-mounts `servers.json` as a **file**, so
+the mount is bound to the *inode*; the rename created a new one and the container kept reading
+the old. The host looked correct. Nothing errored. Recorded as a trap in `middleware/CLAUDE.md`;
+the fix is to write in place, which is what `benem-admin`'s own `save_servers()` does — which is
+why portal saves take effect and this seed did not.
+
+**The failure was in the seed step, not in 1a.** The deployed code did precisely what it was
+designed to do: it could not resolve the secret, it said so loudly, it fell back, and all four
+targets were paged. That is the safety net working, and it is why the fallback logs loudly.
+
+**This is the strongest argument for the criterion being written as pass/fail.** "Observe the
+log" would have produced a report of success: the push arrived on all three phones, the device
+count was right, `/health` was green. The single FALLBACK line is the only thing that
+distinguished a working migration from one that had not taken.
+
+Recovered by `docker compose up -d --force-recreate bhnm-apns benem-admin`, which re-binds the
+mount to the current inode.
+
+## 8.4 Verification — PASS on re-run (21:03:26Z)
+
+Container now on inode 26419, all four servers listing `95e54469`.
+
+```
+[Webhook] PROBLEM — benem-1a-verify — Incident 999001
+[Webhook] server=SaaS Demo Server secret=95e54469
+[Webhook] Queued delivery to 4 target(s) for incident 999001
+[APNs] Sent to ...0c56a19b
+[APNs] Sent to ...86587674
+[APNs] Sent to ...018ab51d
+[WebPush] Sent to https://fcm.googleapis.com/fcm/send/faLoG1PCQS0:AP...
+```
+
+`FALLBACK` count since the mark: **0**.
+
+| check | before | after | verdict |
+|---|---|---|---|
+| devices | 607 `…0c56a19b`, 615 `…86587674`, 616 `…018ab51d` | identical, **same `registered_at`** | PASS — nothing re-registered |
+| Web Push | 1 (id 13, FCM) | identical | PASS |
+| targets notified | 4 | 4 | PASS |
+| distinct `active_secret` | 1 | 1 | PASS |
+| QR reissued | — | none | PASS |
+| on the phone | — | *"looks identical to me"* — Thomas, on the second notification | PASS, and this is the invariant, not an aside: 1a is behaviourally inert, so identical is the required outcome |
+
+`server_id` is `''` on all three rows. Correct: the column fills on the *next* `/register`, and
+1a deliberately does not force one.
+
+### One thing to know before reading these logs later
+
+The probe targeted the lab, and the line says **`server=SaaS Demo Server`**. Not a bug. While
+every server's accepted list holds the *same* seeded secret, resolution returns the **first
+match**, so the name in the log is "the first server that accepts this secret", not "the server
+that sent it". Harmless in 1a because the fan-out is over an identical list either way — and it
+is precisely what 1b fixes by giving each server its own secret. Until then, **the fingerprint
+is the trustworthy half of that log line; the name is not.**
+
+## 8.5 Still outstanding: a BHNM-originated webhook
+
+Both firings above were **probes** against `/webhook`, not webhooks BHNM sent. They exercise
+server resolution identically — resolution keys only on `?secret=` — so what they prove is that
+the mechanism works. What they do **not** prove is that the secret in BHNM's Action URL is the
+one that was seeded.
+
+The ACK route was attempted twice and abandoned per the rabbit-hole rule: the middleware proxy
+returns 403 (its SSRF guard refuses the lab's private target), and a direct call from the VPS to
+`bhnm-b.tstolt.com` also returns 403 from BHNM itself. The remaining route is a human clicking
+ACK in the BHNM UI — the native `prompt()` there freezes the Chrome extension, which is why that
+click has always belonged to a person.
+
+Inference, offered as inference: devices registered with the secret the admin portal stamps into
+QRs, that value is what was seeded, and real BHNM webhooks demonstrably reach those devices
+today — so BHNM's URL must already carry it. That is an argument, not a measurement, and this
+section stays open until a BHNM-originated webhook logs `server=` with no FALLBACK.

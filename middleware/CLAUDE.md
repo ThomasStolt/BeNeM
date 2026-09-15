@@ -60,6 +60,29 @@ re-issued unless it is refused here.
 **On failure, revert immediately and without asking.** Leaving failed code on `main` while
 waiting for a reply is the worse of the two risks: `main` is what the next deploy pulls.
 
+## Never write a bind-mounted file with an atomic rename
+
+`docker-compose.yml` bind-mounts **files**, not directories:
+
+```
+- ./servers.json:/data/servers.json:ro      # bhnm-apns
+- ./servers.json:/app/servers.json          # benem-admin
+```
+
+A file bind mount binds the **inode**, not the path. Writing the host file with the usual safe
+pattern — write a temp file, `os.replace()` it over the target — creates a *new* inode, and the
+container goes on reading the old one. The host shows the new content, the container shows the
+old, and nothing errors.
+
+Measured 2026-09-15 while seeding `webhook_secrets` for S1 1a: host inode 26419 with the seeded
+lists, container inode 17049 with none, and the middleware correctly logging
+`[Webhook] FALLBACK — no server lists secret=…` for the secret that had just been seeded.
+
+**Write in place** (`open(path, "r+")`, write, `truncate()`), which is what
+`benem-admin/servers.py:save_servers()` already does — that is why portal saves take effect and
+this seed did not. If a rename has already happened, the mount is stale until the containers
+that mount the file are recreated: `docker compose up -d --force-recreate bhnm-apns benem-admin`.
+
 ## Upgrade runbook
 
 **Dump the container log before every deploy.** `docker compose up -d` recreates the
