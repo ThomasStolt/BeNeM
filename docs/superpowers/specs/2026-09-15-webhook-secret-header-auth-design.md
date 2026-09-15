@@ -700,6 +700,82 @@ Rather than assume it must be kept, the question to settle is whether it should 
 Recommendation: **scope it**, then drop it once Test Connection has a per-server answer. Either
 way it should come out of the QR payload immediately, since nothing reads it.
 
+## Part 17 — S1 ships as TWO changes, in this order (ruling, 2026-09-15)
+
+**Change 1 — per-server secret split**, with the accepted-list and overlap-window mechanism from
+Part 5. **Change 2 — header transport**, Parts 2–4. Not combined.
+
+**Why, and it is not caution for its own sake.** A combined migration touches BHNM Action
+configuration, middleware authentication, QR generation and every device registration *at the
+same time*. This week was three days spent untangling failures that hid behind one another — a
+method type that never delivered recoveries, masking a handler that never returned, masking a
+fan-out that served only the first row, masking a phone whose notifications were switched off.
+Each was invisible until the one in front of it was removed. A migration with four simultaneous
+moving parts is precisely the shape that makes the next failure unattributable: an alert that
+does not arrive could be the Action config, the auth path, a stale QR, or a device that never
+re-registered, and no log distinguishes them.
+
+Two touches per Action is cheap at four servers. Unattributable paging failures are not.
+
+**Order matters, and it is this way round for a reason.** The split comes first because the
+header change is *transport* — it moves an existing credential to a different part of the
+request — whereas the split changes *which devices a secret reaches*. Doing transport first
+would mean migrating a credential that is about to be replaced anyway, and every device would be
+touched twice. Doing the split first means change 2 migrates a secret that is already correct.
+
+**Each change independently verifiable**, which is the whole point:
+
+| | change 1 | change 2 |
+|---|---|---|
+| verified by | one alert per server reaching only that server's devices | one alert whose log line reads `auth via header` |
+| rollback | remove the new secret from the accepted list | put `?secret=` back in the URL |
+| devices touched | re-scan, staged behind the overlap window | **none** |
+| BHNM Action fields | URL (or none, if secrets are per-server in `servers.json`) | payload `[header]` block, then URL |
+
+---
+
+## Part 18 — What Test Connection should authenticate against
+
+Measured 2026-09-15, and it reframes the problem:
+
+- **`ServerConfigView` is reached from exactly two places**, both in `SettingsView`: edit an
+  existing connection, or add one manually. **The QR/deep-link path never opens it** —
+  `DeepLinkHandler` writes the connection straight to `UserDefaults`. So Test Connection is
+  **manual-configuration only** and is not on the onboarding path at all.
+- **A failed test does not block anything.** `saveDisabled` checks only empty fields and
+  `isTesting`; it does not consult `testStatus`. The user still saves and uses the server.
+
+So the button is a setup-time reassurance, not a gate — which is what makes rotating
+`PROXY_TOKEN` ahead of the next release a real option rather than a breakage (Part 15).
+
+**The design catch:** the button matters most for a server the middleware does **not** know yet,
+so "accept any `api_key` in `servers.json`" cannot be the whole answer. Three shapes:
+
+1. **Authenticate with the key the user just typed.** The request already carries
+   `password=draftApiKey` in its body and `X-BHNM-Target`. Let the proxy, for this one route,
+   accept the request when the *upstream* accepts the credentials — the middleware is relaying a
+   login attempt, not guarding its own resource. Simple, but it makes an unauthenticated route
+   that will happily relay to any target, so it needs the existing SSRF `_validate_proxy_target`
+   and a rate limit.
+2. **Bypass the proxy entirely.** What Test Connection actually tests is *"can I reach this BHNM
+   and do these credentials work"* — a question about BHNM, not about middleware auth. Have the
+   app call BHNM directly. Honest about what is being measured, and needs no proxy credential at
+   all. Fails where the app cannot reach BHNM directly, which is exactly the deployment the
+   proxy exists for — so it would report failure for a working configuration.
+3. **Test the middleware and BHNM separately, and say which failed.** Two checks, two results:
+   *"middleware reachable ✓ / BHNM reachable ✗"*. More code, and the only shape that does not
+   collapse two very different failures into one red indicator — which is the same
+   `CLAUDE.md` doctrine problem in miniature: today a single "test failed" cannot distinguish
+   a wrong API key, an unreachable BHNM, and a middleware that rejected the proxy token.
+
+**Recommendation: 3**, with 1 as the mechanism for its BHNM leg. It is the only one that
+answers the question the user is actually asking, and it removes the last client-side use of
+`PROXY_TOKEN` as a side effect.
+
+Interim, regardless: `ServerConfigView.swift:309` should stop sending `draftPushSecret` as
+`X-Proxy-Token`. Sending the *push* secret in the *proxy* header is an anomaly that only works
+because the deployment set both env vars to one value.
+
 ## Decisions needed from Thomas
 
 1. **Approve the Part 6 measurement?** One temporary Action in the `BeNeM` group plus the capture
@@ -716,5 +792,10 @@ way it should come out of the QR payload immediately, since nothing reads it.
 7. **Part 13 sitting** — when, and is one session with the phone and the lab workable?
 8. **`PROXY_TOKEN`'s future** (Part 16) — drop it, scope it to `/internal/*`, or keep it? And
    may `proxy_token` be removed from the QR payload now, given nothing reads it?
-9. **`WEBHOOK_SECRET` / `PROXY_TOKEN` reuse** — rotating waits for the overlap window (Part 15),
+9. **Rotate `PROXY_TOKEN` now, or wait?** Measured: Test Connection is manual-config only, is
+   never reached during QR onboarding, and a failed test does not block saving. The only fleet
+   is three auto-updating phones. Rotating today severs "leaked webhook URL → read BHNM data"
+   immediately; the cost is a red test indicator for anyone manually adding a server until the
+   next iOS release. **Recommendation: rotate now.**
+10. **`WEBHOOK_SECRET` / `PROXY_TOKEN` reuse** — rotating waits for the overlap window (Part 15),
    but should INSTALL.md §7.5's false isolation promise be corrected ahead of that?

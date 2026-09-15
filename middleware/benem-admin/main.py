@@ -226,7 +226,11 @@ def generate_link(
         "user":           user,
         "name":           server.name,
         "push_secret":    PUSH_SECRET,
-        "proxy_token":    PROXY_TOKEN,
+        # proxy_token deliberately NOT included. No client ever read it — neither
+        # DeepLinkHandler.swift nor pwa/src/lib/qr-parser.ts mentions the field —
+        # so it was a credential encrypted into every onboarding link for nothing,
+        # inflating what a decrypted blob is worth. PROXY_TOKEN is still used for
+        # this service's own server-to-server calls below. (2026-09-15)
         "symbol":         symbol,
         "color":          color,
     }

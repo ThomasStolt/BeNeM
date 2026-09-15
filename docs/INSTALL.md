@@ -511,10 +511,39 @@ Two things to know before you conclude a recovery is missing:
   like `outofbusinesshours` or `Suppress Alerts if …` can drop a notification before it reaches an
   action.
 
-### 7.5 Multiple BHNM servers
+### 7.5 Multiple BHNM servers — read this before onboarding a second one
 
-Give each server its **own** secret (`openssl rand -hex 32` per server). A device only
-receives alerts from the server whose secret it registered with. There is no global secret.
+**What the design intends:** each server has its own webhook secret, and a device only receives
+alerts from the server whose secret it registered with.
+
+**What actually happens today (measured 2026-09-15):** the admin portal stamps **one** secret —
+the single `WEBHOOK_SECRET` environment variable — into **every** onboarding link it generates,
+whichever server was selected. `servers.json` has no per-server webhook-secret field at all.
+Generating a link for each of four configured servers produced four distinct API keys and **one**
+push secret.
+
+The consequence, stated plainly:
+
+- **Every device onboarded through the portal shares one audience.** The middleware routes push
+  by matching the secret alone (`WHERE active_secret = ?`), with no server dimension, so an
+  alert raised by *any* configured BHNM server fans out to *every* device onboarded by the
+  portal — including devices belonging to a different customer's server.
+- **The secret cannot be rotated for one server**, because there is only one.
+- Per-server API keys *are* correctly isolated. This affects push routing, not BHNM data access.
+
+**Per-server isolation is planned, not implemented.** The design — a per-server list of accepted
+secrets with one marked primary, plus an overlap window so rotation never silently unpages
+anyone — is in
+[`docs/superpowers/specs/2026-09-15-webhook-secret-header-auth-design.md`](superpowers/specs/2026-09-15-webhook-secret-header-auth-design.md)
+Part 5, and ships ahead of the header-transport change.
+
+**Until then:** do not use one middleware instance to serve BHNM servers belonging to different
+teams or customers. One instance per trust boundary. If you run several of your own servers and
+everyone with the app should see all of their alerts, the current behaviour is harmless.
+
+Related and worth checking in the same sitting: `WEBHOOK_SECRET` and `PROXY_TOKEN` must be
+**different** values — §4 generates each separately for a reason, and `./check-env.sh` now fails
+if any two credentials in `.env` are identical.
 
 ### 7.6 Which BHNM version gates which feature
 
