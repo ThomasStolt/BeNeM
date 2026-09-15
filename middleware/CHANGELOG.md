@@ -5,6 +5,59 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.15.2] - 2026-09-16
+
+### Fixed
+
+- **An incident acknowledged before its first cache cycle never showed as acknowledged.**
+  `note_state_override_any_server()` patched only servers whose cache already held the incident
+  and returned the count; `main.py` logged `if n:`. When the incident had not been cached yet
+  there was nothing to patch, so the override was **dropped on the floor — no patch, no log, no
+  error**, and an unchecked return value of zero is what kept it invisible.
+
+  Measured 2026-09-15 (evidence §8.9): incident 29586 was raised at 22:05:23Z and acknowledged 93
+  seconds later, inside the 120 s refresh window. The strong version of the finding: in the whole
+  persisted log `Cache patched` appeared **three times and every one was `-> CLOSED`**. Never once
+  `-> ACKNOWLEDGED`. A feature that worked only on incidents older than two minutes, in a product
+  whose subject is the first two minutes — someone is woken, looks, and acks.
+
+  The override is now recorded as **pending, keyed by incident id**, whether or not the incident
+  is cached, and applied the first time it appears in any cycle — within the same
+  `STATE_OVERRIDE_TTL` of 5 minutes, which already covers two cycles. On first sighting it is
+  promoted to a normal per-server override so later cycles do not revert it, and that promotion
+  logs `[Cache:<server>] Pending state override applied on first sighting`.
+
+  Known ceiling, deliberate: pending overrides are keyed by incident id alone, with no server, so
+  two servers holding the same incident id would both be patched. The webhook cannot name its
+  server while every server shares one secret — S1 change 1b makes secrets unique, at which point
+  this can be keyed by server like the rest.
+
+- **The zero case is now logged.** `[Webhook] Cache not patched: incident N is in no cache yet —
+  override -> STATE recorded as pending, applies on first sighting within 300s`. It is not an
+  error and does not read as one; it exists because *"nothing to patch"* and *"patched"* must
+  never look the same in a log. The general rule is recorded in `middleware/CLAUDE.md`: **a return
+  value of zero that nobody checks is how a no-op stays invisible.**
+
+### Added
+
+- `tests/test_ack_before_first_cache_cycle.py` — reproduces that night's exact sequence. The
+  primary test asserts **behaviour only**, touching no private state, so against the pre-fix code
+  it fails on `OPEN != ACKNOWLEDGED` — the defect itself — rather than erroring on a name that did
+  not exist yet. Teeth verified by running the file against the previous `incident_cache.py`:
+  **5 failed, 1 passed**, the one pass being the deliberate regression guard for the
+  already-cached path that always worked. Also covers TTL expiry, survival across later cycles,
+  and RECOVERY taking the same route.
+
+### Tests
+
+- Middleware: **208 passed** (`python -m pytest tests`, exit code 0).
+
+### Not deployed
+
+- Built and tested only. Left for a deploy with a human present.
+
+---
+
 ## [2.15.1] - 2026-09-15
 
 ### Fixed

@@ -142,6 +142,21 @@ STATE_OVERRIDE_TTL = 300  # BHNM reflects acks in getincidents instantly; 5 min 
 
 _state_overrides: dict[str, dict[str, tuple[str, float]]] = {}  # server -> incident_id -> (state, ts)
 
+# Overrides for incidents no cache has seen yet, keyed by incident id alone.
+# An incident acknowledged before its first cache cycle — someone woken, looking,
+# and acking inside two minutes, which is the normal case for a paging product —
+# used to be dropped on the floor: note_state_override_any_server() found nothing
+# to patch, returned 0, and main.py logged only `if n:`. Measured 2026-09-15:
+# incident 29586 raised 22:05:23Z, acked 93 s later, inside the 120 s refresh
+# window; in the whole persisted log `Cache patched` had appeared three times and
+# every one was `-> CLOSED`, never once `-> ACKNOWLEDGED`.
+#
+# ponytail: one flat dict rather than per-server pending buckets — the webhook
+# cannot name its server while every server shares one secret (S1 1a). Known
+# ceiling: two servers holding the same incident id would both be patched. S1 1b
+# makes secrets unique, at which point this can be keyed by server like the rest.
+_pending_overrides: dict[str, tuple[str, float]] = {}  # incident_id -> (state, ts)
+
 
 def note_state_override(server_id: str, incident_id: str, state: str) -> None:
     _state_overrides.setdefault(server_id, {})[str(incident_id)] = (state, time.time())
@@ -156,7 +171,13 @@ def note_state_override(server_id: str, incident_id: str, state: str) -> None:
 def note_state_override_any_server(incident_id: str, state: str) -> int:
     """Same patch as note_state_override, for callers that know the incident but
     not the server. Webhooks are routed by shared secret, not by server id, so the
-    incident id is the only handle they have. Returns the number of servers patched."""
+    incident id is the only handle they have.
+
+    Returns the number of servers patched. **Zero is not a failure and is not a
+    no-op**: the override is recorded as pending and applied the first time the
+    incident appears in any cycle, within the same TTL. The caller must still log
+    the zero case — a silent zero is how this defect stayed invisible.
+    """
     patched = 0
     for server_id, entry in _cache.items():
         for bucket in (entry.active_incidents, entry.closed_incidents):
@@ -164,20 +185,37 @@ def note_state_override_any_server(incident_id: str, state: str) -> int:
                 note_state_override(server_id, incident_id, state)
                 patched += 1
                 break
+    if patched == 0:
+        _pending_overrides[str(incident_id)] = (state, time.time())
     return patched
 
 
 def _apply_state_overrides(server_id: str, incidents: list[dict]) -> None:
-    overrides = _state_overrides.get(server_id, {})
     now = time.time()
+    overrides = _state_overrides.get(server_id, {})
     for iid in [k for k, (_, ts) in overrides.items() if now - ts > STATE_OVERRIDE_TTL]:
         del overrides[iid]
-    if not overrides:
+    for iid in [k for k, (_, ts) in _pending_overrides.items() if now - ts > STATE_OVERRIDE_TTL]:
+        del _pending_overrides[iid]
+    if not overrides and not _pending_overrides:
         return
     for inc in incidents:
-        override = overrides.get(str(inc.get("incident_id")))
+        iid = str(inc.get("incident_id"))
+        override = overrides.get(iid)
         if override:
             inc["incident_state"] = override[0]
+            continue
+        pending = _pending_overrides.get(iid)
+        if pending:
+            # First sighting of an incident that was acked before it was ever
+            # cached. Promote it to a normal per-server override so it survives
+            # subsequent cycles for the rest of the TTL, and say so — this is the
+            # branch whose silence was the defect.
+            inc["incident_state"] = pending[0]
+            _state_overrides.setdefault(server_id, {})[iid] = pending
+            del _pending_overrides[iid]
+            print(f"[Cache:{server_id}] Pending state override applied on first "
+                  f"sighting: incident {iid} -> {pending[0]}")
 
 
 # -- Cache loop ----------------------------------------------------------------

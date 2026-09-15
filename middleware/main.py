@@ -635,6 +635,16 @@ async def receive_webhook(request: Request):
         n = incident_cache.note_state_override_any_server(incident_id, cache_state)
         if n:
             print(f"[Webhook] Cache patched: incident {incident_id} -> {cache_state} ({n} server(s))")
+        else:
+            # LOUD on purpose. This branch used to be `if n:` with no else, so an
+            # incident acknowledged before its first cache cycle produced no patch,
+            # no log and no error — an unchecked return value of zero, which is how
+            # it stayed invisible. It is not an error now: the override is pending
+            # and applies on first sighting. It is logged because "nothing to patch"
+            # and "patched" must never look the same.
+            print(f"[Webhook] Cache not patched: incident {incident_id} is in no cache yet — "
+                  f"override -> {cache_state} recorded as pending, applies on first sighting "
+                  f"within {incident_cache.STATE_OVERRIDE_TTL}s")
 
     # S1 change 1a: resolve which server this webhook came from, and fan out over
     # every secret that server accepts. While each server's list holds only the
