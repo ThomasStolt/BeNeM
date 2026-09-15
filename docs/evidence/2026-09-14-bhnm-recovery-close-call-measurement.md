@@ -1243,10 +1243,9 @@ The prediction was that the cold cells would differ by an error string, because
 `IncidentListScreen.tsx:44` renders *"Could not reach BHNM"* with `(error as Error).message` on
 `isError && !data`. **In all three cold loads that branch did not render.** Read directly from the
 query cache: `status: "pending"`, `fetchStatus: "paused"`, `error: null` — so `isError` was false
-and there was nothing to render. Leading hypothesis, not a conclusion: the first attempt failed
-and the *retry* was paused, so the query never reached `error` at all. Unexplained, and it is not
-claimed as understood: `navigator.onLine` was `true` and a hand-rolled `fetch` from the same page
-returned 401 at the same moment. See 7.6 for the independence check on this observation.
+and there was nothing to render. The hypothesis offered here first — that a failing first attempt
+with `retry: 1` leaves the query pending with the retry paused — **was tested and refuted**; see
+7.7. See 7.6 for the independence check on this observation.
 
 ### The badge, which needs none of that mystery solved
 
@@ -1310,3 +1309,40 @@ The mechanism question that remains — whether a failing first attempt with `re
 query at `pending` / `paused` / `error: null` rather than reaching `error` — is about React
 Query's own behaviour, not about this deployment, and is settled in `pwa/src/lib/api/__tests__/`
 rather than by another browser sitting. See 7.7.
+
+## 7.7 The paused-query signature, settled in vitest
+
+The mechanism question was about React Query's own behaviour, not about this deployment, so it was
+settled with a test rather than another browser sitting:
+`pwa/src/lib/api/__tests__/query-failure-state.test.ts`, three cases against the app's real
+`fetchJson` and `main.tsx`'s exact defaults (`retry: 1`, `staleTime: 30_000`).
+
+| case | result |
+|---|---|
+| `fetch` rejects (`TypeError: Failed to fetch`), browser online | **`status: "error"`**, `fetchStatus: "idle"`, error set |
+| `fetch` resolves `401`, browser online | **`status: "error"`**, `fetchStatus: "idle"`, error set |
+| React Query believes it is offline | **`status: "pending"`, `fetchStatus: "paused"`, `error: null`** |
+
+**The hypothesis in 7.3 is refuted, and this is the correction.** A failing first attempt with
+`retry: 1` does **not** leave the query pending — online, both a rejected fetch and a 401 reach
+`status: "error"` with the error populated. **The error branch is reachable, not unreachable**, and
+`IncidentListScreen.tsx:44` is not the bug.
+
+The only condition that reproduces the observed triple is React Query believing it is offline. So
+the browser observation means the page's `onlineManager` was offline, despite `navigator.onLine`
+reading `true` in that same page and a hand-rolled `fetch` returning 401 from it at that moment.
+
+**What this changes about the fix.** The defect is not a missing error branch — it is that
+**nothing in the PWA renders the paused state at all.** React Query has a first-class "I am not
+even trying, because I believe there is no network" state, and the app has no appearance for it:
+no list, no error, no spinner, no refresh control, and a grey `unknown` badge. That is precisely
+the doctrine's third state — *unverified* — going unrendered, and it is the same defect class as
+the badge ternary rather than a separate one. Part 3's four states must therefore cover *paused*,
+not only *loading / resolved / gone / unreachable*.
+
+**Still open, and not claimed as understood:** *why* `onlineManager` was offline on those three
+loads. It correlates with the refused credential and not with the tab being hidden — the healthy
+load in the same tab fetched normally — and the app never calls `onlineManager` or sets
+`networkMode` anywhere in `pwa/src`. Dispatching an `online` event and forcing
+`networkMode: 'always'` did not unpause it. The three tests above stay as a regression guard on
+the signature regardless of what the cause turns out to be.
