@@ -166,6 +166,10 @@ a root-level `test_endpoints.py` used to be skipped by `pytest tests` — moved 
 cd middleware && python -m pytest tests
 ```
 
+Since 2.14.0 this collects **everything** — `test_database.py`, `test_proxy_auth.py` and
+`test_webpush.py` were moved into `tests/`. They previously sat at `middleware/` root where the
+documented command never reached them, which is how `test_webpush.py` stayed red unnoticed.
+
 The admin portal is a separate app with its own suite:
 
 ```bash

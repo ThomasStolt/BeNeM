@@ -15,19 +15,19 @@ from webpush import build_payload, send_web_push_to_all
 
 
 def test_build_payload_all_fields():
-    payload = build_payload("Server Down", "core-switch-01 unreachable", "42", "critical")
-    assert payload["title"] == "Server Down"
-    assert payload["body"] == "core-switch-01 unreachable"
-    assert payload["incident_id"] == "42"
-    assert payload["severity"] == "critical"
+    # `severity` was removed from the payload; this test kept passing a fourth
+    # argument and went red unnoticed because `pytest tests` never collected it.
+    payload = build_payload("Server Down", "core-switch-01 unreachable", "42")
+    assert payload == {
+        "title": "Server Down",
+        "body": "core-switch-01 unreachable",
+        "incident_id": "42",
+    }
 
 
 def test_build_payload_missing_optional():
-    payload = build_payload("Alert", "Something happened", "", "")
-    assert payload["title"] == "Alert"
-    assert payload["body"] == "Something happened"
-    assert payload["incident_id"] == ""
-    assert payload["severity"] == ""
+    payload = build_payload("Alert", "Something happened", "")
+    assert payload == {"title": "Alert", "body": "Something happened", "incident_id": ""}
 
 
 @pytest.mark.asyncio
@@ -37,7 +37,9 @@ async def test_send_web_push_to_all_returns_gone_endpoints():
         {"endpoint": "https://push.example.com/gone", "p256dh": "k2", "auth": "a2"},
     ]
 
-    def mock_webpush_send(subscription_info, data, vapid_private_key, vapid_claims):
+    def mock_webpush_send(subscription_info, data, **_kwargs):
+        # webpush.py also passes `headers=`; pinning the exact signature is how
+        # this test broke silently once already.
         if subscription_info["endpoint"] == "https://push.example.com/gone":
             from pywebpush import WebPushException
             response = MagicMock()
