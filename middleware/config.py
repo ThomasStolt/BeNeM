@@ -41,3 +41,19 @@ def server_cache_enabled(server: dict) -> bool:
 DIAG_PROBE_INTERVAL: float = float(os.environ.get("DIAG_PROBE_INTERVAL", "15"))
 DIAG_DOWN_THRESHOLD: int = int(os.environ.get("DIAG_DOWN_THRESHOLD", "2"))
 BENEM_SECRET_KEY: str = os.environ.get("BENEM_SECRET_KEY", "")
+
+
+def server_accepted_secrets(server: dict) -> list[str]:
+    """Webhook secrets this server accepts (S1 change 1a).
+
+    A list, not a value, because rotation needs an overlap window: the new secret
+    and the old one are both accepted until every device has moved. 1a seeds each
+    server's list with the current global secret, so the set of devices a webhook
+    reaches is unchanged — the mechanism lands without the migration.
+    Missing or malformed means an empty list, and the caller falls back to the
+    pre-1a single-secret lookup rather than silently paging nobody.
+    """
+    raw = server.get("webhook_secrets") or []
+    if not isinstance(raw, list):
+        return []
+    return [s for s in (str(x).strip() for x in raw) if s]

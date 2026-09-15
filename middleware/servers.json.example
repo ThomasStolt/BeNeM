@@ -4,13 +4,15 @@
     "name": "Production",
     "url": "https://bhnm.corp.com",
     "api_key": "your-api-key-here",
-    "pin": ""
+    "pin": "",
+    "webhook_secrets": ["your-webhook-secret-here"]
   },
   {
     "id": "demo",
     "name": "Demo",
     "url": "https://bhnm.demo.netreo.com",
     "api_key": "your-api-key-here",
-    "pin": "1234"
+    "pin": "1234",
+    "webhook_secrets": ["your-webhook-secret-here"]
   }
 ]

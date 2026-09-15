@@ -5,6 +5,64 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.15.0] - 2026-09-15
+
+### Added
+
+- **Per-server accepted webhook secrets — S1 change 1a, mechanism only.** `servers.json` entries
+  gain `webhook_secrets`, a **list** rather than a value, because rotation needs an overlap window:
+  the new secret and the old one are both accepted until every device has moved. `/webhook` now
+  resolves which server a secret belongs to and fans out over that server's whole accepted list;
+  `/register` and `/register-webpush` record which server a registration belongs to in a new
+  `server_id` column.
+
+  **This is deliberately not a behavioural change.** Seed every server's list with the secret in
+  use today and the set of devices a webhook reaches is *identical* to what it reached before — no
+  QR is reissued, no device re-onboards, nobody is touched. `tests/test_server_secret_split.py`
+  asserts that invariant directly, and if it ever fails then 1a has become a behavioural change and
+  must not ship without the 1b migration behind it.
+
+  It ships alone, with its own deploy and its own verification, because this is where the risk
+  lives: it touches the webhook handler and the registration path, and those two have bitten three
+  times this week — a handler that never returned, a fan-out that served only the first row, and a
+  registration that never happened. Anything visible after this deploy is a bug in 1a and nothing
+  else. The operational half — new per-server secrets, new QRs, re-onboarding, retiring the global
+  secret — is change 1b and is not in this release.
+
+- **A secret a server does not list still pages the devices it pages today.** Any `servers.json`
+  predating this release resolves to no server, and the handler falls back to the pre-1a
+  single-secret lookup. An unresolved webhook paging nobody would be a far worse failure than an
+  unresolved webhook behaving exactly as it did yesterday.
+
+- **`[Register]`, `[WebPush]` and `[Webhook]` log the resolved server and a secret fingerprint.**
+  The fingerprint is eight hex characters of SHA-256 — **not a prefix of the secret**, because a
+  prefix is a piece of the secret, and 2.13.2 is the precedent for writing that warning down rather
+  than assuming it. This is the cheap signal that answers "is anybody still on the old secret?"
+  before 1b retires it, which is why the admin device overview (queue item 7) does not have to move
+  ahead of 1b for a three-device fleet.
+
+### Fixed
+
+- **The admin portal would have erased every accepted list on the next save.** `save_servers()`
+  rebuilt each entry from a fixed key list, so any `servers.json` key it did not know about was
+  dropped on write — silently, and with every registered device ceasing to be paged as a result.
+  Found while wiring 1a, before it could happen.
+- **`Server(**s)` raised on any unknown `servers.json` key**, which would have taken the whole
+  portal down the moment the middleware started writing one. Unknown keys are now ignored.
+
+### Changed
+
+- The QR's push secret comes from the server's accepted list (its first entry) rather than from the
+  global `WEBHOOK_SECRET` env var, which remains only as the seed/fallback for a `servers.json`
+  that predates 1a. INSTALL.md §7.5 promised per-server secrets and the portal did not provide
+  them; this is where that promise starts being true.
+
+### Tests
+
+- Middleware: **197 passed** (`python -m pytest tests`, exit code 0). Admin portal: **34 passed**.
+
+---
+
 ## [2.14.0] - 2026-09-15
 
 ### Fixed

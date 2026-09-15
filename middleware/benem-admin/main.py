@@ -36,7 +36,22 @@ load_dotenv()
 
 MIDDLEWARE_URL = os.environ.get("MIDDLEWARE_URL", "")
 MIDDLEWARE_INTERNAL_URL = os.environ.get("MIDDLEWARE_INTERNAL_URL", "http://benem-middleware:8889")
+# S1 change 1a: the QR's push secret comes from the server's accepted list, not
+# from one global env var. PUSH_SECRET remains only as the seed/fallback for a
+# servers.json that predates 1a, so onboarding keeps working during the rollout.
+# INSTALL.md §7.5 promised per-server secrets and the portal did not provide
+# them; this is where that promise starts being true (decision 4, 2026-09-15).
 PUSH_SECRET = os.environ.get("WEBHOOK_SECRET", "")
+
+
+def push_secret_for(server) -> str:
+    """The secret to stamp into this server's QR: the first accepted entry.
+
+    Falls back to the global env var while a server has no list yet — during 1a
+    every list is seeded with exactly that value, so the QR is unchanged.
+    """
+    secrets = [s for s in (str(x).strip() for x in (server.webhook_secrets or [])) if s]
+    return secrets[0] if secrets else PUSH_SECRET
 PROXY_TOKEN = os.environ.get("PROXY_TOKEN", "")
 
 limiter = Limiter(key_func=get_remote_address)
@@ -225,7 +240,7 @@ def generate_link(
         "pin":            server.pin,
         "user":           user,
         "name":           server.name,
-        "push_secret":    PUSH_SECRET,
+        "push_secret":    push_secret_for(server),
         # proxy_token deliberately NOT included. No client ever read it — neither
         # DeepLinkHandler.swift nor pwa/src/lib/qr-parser.ts mentions the field —
         # so it was a credential encrypted into every onboarding link for nothing,

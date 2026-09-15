@@ -26,7 +26,7 @@ to registered iOS devices (APNs) and Android/web users (Web Push).
 | `tactical_cache.py` | Background tactical overview cache: pre-fetches category/site/app grouping data from BHNM, stores raw JSON in memory. Same lifecycle as `incident_cache.py`. |
 | `threshold_cache.py` | Background threshold counts cache: pre-fetches `list-thresholds-csv` from BHNM, parses server-side, stores `{deviceName: count}` dict in memory. Reduces per-client payload from ~50 MB CSV to ~200 KB JSON at scale. |
 | `config.py` | Loads all configuration from environment variables (via `python-dotenv`). No secrets in code. |
-| `database.py` | SQLite helpers: `init_db`, `save_token`, `get_tokens_for_secret`, `get_all_tokens`, `delete_token`. |
+| `database.py` | SQLite helpers: `init_db`, `save_token`, `get_tokens_for_secrets` (and the single-secret wrapper `get_tokens_for_secret`), `get_all_tokens`, `delete_token`. |
 | `apns.py` | APNs delivery: JWT generation, HTTP/2 POST via `httpx`, stale token detection. |
 | `webpush.py` | Web Push delivery: VAPID-signed push via `pywebpush`, stale subscription detection. |
 | `Dockerfile` | Builds the FastAPI app image. Uses `uvicorn` as the server. |
@@ -73,10 +73,16 @@ previous image tagged for rollback (`docker tag bhnm-apns-bhnm-apns:latest bhnm-
 
 ## Key Design Decisions
 
-### Per-Device `active_secret` Routing
-Each BHNM server has its own unique webhook secret. When BeNeM registers a device via `POST /register`, it sends `X-Webhook-Token: <secret>` — this value is stored as `active_secret` in the `device_tokens` SQLite row. When a webhook arrives at `POST /webhook?secret=<value>`, only devices with a matching `active_secret` receive the notification. This enables a single middleware instance to serve multiple BHNM servers without cross-contamination of alerts.
+### Per-Device `active_secret` Routing, and the per-server accepted list (2.15.0)
+When BeNeM registers a device via `POST /register`, it sends `X-Webhook-Token: <secret>` — this value is stored as `active_secret` in the `device_tokens` SQLite row. When a webhook arrives at `POST /webhook?secret=<value>`, only devices reachable from that secret receive the notification.
 
-There is **no global `WEBHOOK_SECRET` environment variable**. Authentication is implicit: possessing the correct secret proves authorisation.
+Since **2.15.0 (S1 change 1a)** the webhook additionally **resolves which server the secret belongs to**, via `webhook_secrets` in `servers.json` (`config.server_accepted_secrets()`), and fans out over that server's whole accepted list. It is a *list* because rotation needs an overlap window — old and new accepted together while devices migrate. `/register` and `/register-webpush` also record `server_id`.
+
+**A secret no server lists falls back to the pre-1a single-secret lookup.** That fallback is not tidiness: an unresolved webhook must page the devices it pages today, because the alternative is paging nobody.
+
+There is still **no global `WEBHOOK_SECRET` environment variable in this service**. (`benem-admin` has one, as the seed/fallback for the QR while a server has no list — that is the contradiction with INSTALL.md §7.5, ruled 2026-09-15: the install guide was the wrong document and is corrected.) Authentication is implicit: possessing an accepted secret proves authorisation.
+
+**Never log a secret, and never log a prefix of one** — a prefix is a piece of the secret. `main.secret_fingerprint()` gives eight hex characters of SHA-256, which is enough to tell two secrets apart in a log and tells an attacker nothing.
 
 ### Dual APNs environment
 The middleware routes per-device-token to sandbox or production APNs endpoints — the same registered device can be served from either pool. See `apns.py`.
@@ -104,6 +110,7 @@ All secrets and configuration live in `.env` (gitignored). `config.py` reads the
 Clients call `GET /api/v1/incidents` and receive the full incident list with alarm counts in a single response. If the cache is cold (startup, new server), the endpoint falls through to the live BHNM proxy.
 
 Configuration is per-server in `servers.json`:
+- `webhook_secrets` (list of strings, default empty) — the webhook secrets this server accepts. Empty means the pre-1a fallback. **`benem-admin` must write this key back on every save**; it once rebuilt entries from a fixed key list, which would have erased every accepted list and silently stopped paging every device.
 - `cache_enabled` (bool, **default true** since 2.11.0; single home `config.CACHE_ENABLED_DEFAULT`, mirrored in `benem-admin/servers.py`) — set `false` to opt a server out. Gates all four crawlers: incidents, tactical, thresholds, maintenance map.
 - `cache_refresh_seconds` (int, default 120, min 60, max 900) — full cycle interval
 

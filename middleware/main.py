@@ -10,6 +10,7 @@ except OSError:
 
 from contextlib import asynccontextmanager
 import base64
+import hashlib
 import ipaddress
 import json
 import socket
@@ -21,9 +22,10 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, field_validator
 
-from config import MIDDLEWARE_PORT, VAPID_PUBLIC_KEY, BHNM_TLS_VERIFY, SERVERS_JSON_PATH, PROXY_TIMEOUT, PROXY_TOKEN, BENEM_SECRET_KEY, server_cache_enabled
-from database import init_db, save_token, get_tokens_for_secret, get_all_tokens, delete_token, \
-    save_web_push_subscription, get_web_push_subscriptions_for_secret, delete_web_push_subscription
+from config import MIDDLEWARE_PORT, VAPID_PUBLIC_KEY, BHNM_TLS_VERIFY, SERVERS_JSON_PATH, PROXY_TIMEOUT, PROXY_TOKEN, BENEM_SECRET_KEY, server_cache_enabled, server_accepted_secrets
+from database import init_db, save_token, get_tokens_for_secret, get_tokens_for_secrets, get_all_tokens, delete_token, \
+    save_web_push_subscription, get_web_push_subscriptions_for_secret, \
+    get_web_push_subscriptions_for_secrets, delete_web_push_subscription
 from apns import send_to_all
 from webpush import send_web_push_to_all
 import asyncio
@@ -106,6 +108,35 @@ def _resolve_server_config(request: Request) -> dict | None:
     bhnm_target = request.headers.get("X-BHNM-Target", "").strip()
     if bhnm_target:
         return _server_config_for_bhnm_url(bhnm_target)
+    return None
+
+
+def secret_fingerprint(secret: str) -> str:
+    """A short, non-reversible label for a webhook secret, for logs.
+
+    NOT a prefix of the secret — a prefix is a piece of the secret, and 2.13.2 is
+    the precedent for why that warning is written down rather than assumed. Eight
+    hex characters of SHA-256 is enough to tell two secrets apart in a log and
+    tells an attacker nothing.
+    """
+    if not secret:
+        return "none"
+    return hashlib.sha256(secret.encode()).hexdigest()[:8]
+
+
+def _server_for_webhook_secret(secret: str) -> dict | None:
+    """Which server accepts this webhook secret (S1 change 1a).
+
+    Returns None when no server lists it — including every deployment whose
+    servers.json predates 1a. Callers must fall back to the pre-1a single-secret
+    lookup in that case: an unresolved webhook must still page the devices it
+    pages today, because the alternative is paging nobody.
+    """
+    if not secret:
+        return None
+    for s in _load_all_servers():
+        if secret in server_accepted_secrets(s):
+            return s
     return None
 
 
@@ -238,12 +269,19 @@ def register_token(body: TokenRegistration, request: Request):
     if not active_secret:
         raise HTTPException(status_code=400, detail="X-Webhook-Token header is required")
     env = body.environment if body.environment in ("sandbox", "production") else "production"
-    save_token(body.token, body.device_name, active_secret, env)
+    server = _server_for_webhook_secret(active_secret)
+    server_id = str(server.get("id", "")) if server else ""
+    save_token(body.token, body.device_name, active_secret, env, server_id)
     # Log the token suffix, as [Unregister], [APNs] and [Cleanup] all do. Without it
     # every registration in the log is anonymous and a token's history cannot be
     # reconstructed — tracing ...62f21e50 on 2026-09-15 had to be assembled from
     # 410s and a single lucky [Unregister].
-    print(f"[Register] Token saved: ...{body.token[-8:]} for {body.device_name} (APNs: {env})")
+    # Server and secret fingerprint (1a): this is the cheap signal that answers
+    # "is anybody still on the old secret?" before 1b retires it — see the S1
+    # spec, Part 17. The fingerprint is a hash, never the secret.
+    where = f"{server.get('name', server_id)}" if server else "unresolved"
+    print(f"[Register] Token saved: ...{body.token[-8:]} for {body.device_name} (APNs: {env}) "
+          f"server={where} secret={secret_fingerprint(active_secret)}")
     return {"status": "ok"}
 
 
@@ -279,10 +317,14 @@ def register_webpush(body: WebPushRegistration, request: Request, response: Resp
         raise HTTPException(status_code=400, detail="X-Webhook-Token header is required")
     existing = get_web_push_subscriptions_for_secret(webhook_secret)
     is_update = any(s["endpoint"] == body.endpoint for s in existing)
-    save_web_push_subscription(body.endpoint, body.p256dh, body.auth, webhook_secret)
+    server = _server_for_webhook_secret(webhook_secret)
+    server_id = str(server.get("id", "")) if server else ""
+    save_web_push_subscription(body.endpoint, body.p256dh, body.auth, webhook_secret, server_id)
     if is_update:
         response.status_code = 200
-    print(f"[WebPush] Subscription {'updated' if is_update else 'registered'}: {body.endpoint[:50]}...")
+    where = f"{server.get('name', server_id)}" if server else "unresolved"
+    print(f"[WebPush] Subscription {'updated' if is_update else 'registered'}: {body.endpoint[:50]}... "
+          f"server={where} secret={secret_fingerprint(webhook_secret)}")
     return {"status": "ok"}
 
 @app.get("/vapid-key")
@@ -582,8 +624,24 @@ async def receive_webhook(request: Request):
         if n:
             print(f"[Webhook] Cache patched: incident {incident_id} -> {cache_state} ({n} server(s))")
 
-    tokens = get_tokens_for_secret(secret)
-    web_push_subs = get_web_push_subscriptions_for_secret(secret)
+    # S1 change 1a: resolve which server this webhook came from, and fan out over
+    # every secret that server accepts. While each server's list holds only the
+    # seeded global secret this selects exactly the devices the single-secret
+    # lookup selected — the mechanism lands with no behavioural change. A secret
+    # no server lists (any servers.json predating 1a) falls back to that lookup
+    # rather than paging nobody.
+    server = _server_for_webhook_secret(secret)
+    if server:
+        accepted = server_accepted_secrets(server)
+        tokens = get_tokens_for_secrets(accepted)
+        web_push_subs = get_web_push_subscriptions_for_secrets(accepted)
+        print(f"[Webhook] server={server.get('name', server.get('id', ''))} "
+              f"secret={secret_fingerprint(secret)}")
+    else:
+        tokens = get_tokens_for_secret(secret)
+        web_push_subs = get_web_push_subscriptions_for_secret(secret)
+        print(f"[Webhook] server=unresolved secret={secret_fingerprint(secret)} "
+              f"— no server lists this secret; using the pre-1a single-secret lookup")
 
     if not tokens and not web_push_subs:
         print(f"[Webhook] No registered devices for this secret — nothing to notify.")
