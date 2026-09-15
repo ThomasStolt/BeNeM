@@ -96,7 +96,7 @@ async def send_to_all(tokens: list[tuple[str, str]], title: str, body: str, inci
     # the remaining coroutines never returned, no request timeout fired, and only
     # the first registered device was ever notified. Traced 2026-09-15; see
     # docs/evidence/2026-09-14-bhnm-recovery-close-call-measurement.md §3.8.
-    # ponytail: ~0.5s per device in a background task — revisit only if a
+    # Deliberately simple: ~0.5s per device in a background task — revisit only if a
     # deployment has enough devices for that to matter.
     for token, environment in tokens:
         _token, success, status = await _send_one(

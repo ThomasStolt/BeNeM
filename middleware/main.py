@@ -17,7 +17,7 @@ import zlib
 from urllib.parse import parse_qs, urlparse
 import httpx
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, field_validator
 
@@ -208,8 +208,12 @@ async def lifespan(app: FastAPI):
     maintenance_cache.start_all()
     for server in _load_all_servers():
         diagnostics.start_monitor(server, BHNM_TLS_VERIFY)
+    global _delivery_queue, _delivery_worker
+    _delivery_queue = asyncio.Queue(maxsize=DELIVERY_QUEUE_MAX)
+    _delivery_worker = asyncio.create_task(_delivery_worker_loop())
     print(f"[Startup] BHNM APNs middleware v{VERSION} ready on port {MIDDLEWARE_PORT} — dynamic multi-server routing enabled")
     yield
+    _delivery_worker.cancel()
 
 app = FastAPI(lifespan=lifespan)
 
@@ -396,23 +400,85 @@ def clean_bhnm_text(value) -> str:
 FANOUT_TIMEOUT = 60.0
 
 
-async def _deliver(tokens, web_push_subs, title: str, body: str, incident_id: str) -> None:
-    """Fan out after the response has gone back to BHNM.
+# ── Delivery queue: ONE worker, one fan-out at a time ─────────────────────────
+#
+# APNs caps HTTP/2 stream concurrency per connection, and with token-based
+# authentication Apple documents that it "allows only one stream until you post a
+# request with a valid authentication token". Concurrent POSTs down the shared
+# connection therefore wedge: the first completes and the rest never return, with
+# httpx's own timeouts not firing (traced in evidence §3.8).
+#
+# 2.13.4 made sends sequential *inside* one fan-out, which is not enough — two
+# webhooks arriving in the same second each start their own fan-out and the two
+# race on the same client. Measured 2026-09-15: both stalled ~3 sends in and were
+# abandoned by the 60s guard; the two newest devices got nothing (§3.9). A site
+# outage raises several host alerts in the same second, so this is the normal
+# case, not a corner.
+#
+# One consumer task drains a bounded queue. Not a lock: a lock would make every
+# alert wait behind every other one with no way to tell lock-wait from send-stall,
+# and FANOUT_TIMEOUT would then be measuring the wrong thing. With a queue nothing
+# waits on anything — the per-job timeout covers only that job's own sending.
 
-    BHNM waits ~30s for the webhook response and retries three times if it does
-    not arrive, so delivery must never happen inside the request.
-    """
+# 256 is not sized to absorb a flood. BHNM does its own alarm reduction, so a
+# healthy server does not emit hundreds of notifications at once — if it does, that
+# is a BHNM misconfiguration and this queue should not hide it. The bound is here so
+# the queue cannot grow without limit while *delivery* is stalled, and the depth-32
+# warning below is the signal that actually matters.
+# Known ceiling, tracked in CHANGELOG.md under 2.14.0 "Known issue — carried
+# forward": this bounds by count, not by age. While APNs is stalled each job burns
+# the full FANOUT_TIMEOUT, so a full queue takes over four hours to drain and every
+# page in it arrives long after it mattered. Fix is to stamp jobs with an arrival
+# time and discard stale ones on dequeue.
+DELIVERY_QUEUE_MAX = 256
+DELIVERY_QUEUE_WARN = 32   # depth at which a backlog stops being normal
+
+_delivery_queue: asyncio.Queue | None = None
+_delivery_worker: asyncio.Task | None = None
+
+
+def _enqueue_delivery(tokens, web_push_subs, title: str, body: str, incident_id: str) -> bool:
+    """Hand a fan-out to the worker. False means it was dropped — never silently."""
+    if _delivery_queue is None:
+        print("[Deliver] DROPPED — delivery worker is not running; "
+              f"incident {incident_id or '?'} notified nobody")
+        return False
     try:
-        await asyncio.wait_for(
-            _fan_out(tokens, web_push_subs, title, body, incident_id),
-            timeout=FANOUT_TIMEOUT)
-    except asyncio.TimeoutError:
-        # A stall must be loud. The previous one was silent for months.
-        print(f"[Deliver] TIMEOUT after {FANOUT_TIMEOUT}s — fan-out abandoned for "
-              f"incident {incident_id or '?'}, {len(tokens)} token(s), "
-              f"{len(web_push_subs)} subscription(s)")
-    except Exception as e:
-        print(f"[Deliver] Fan-out failed: {type(e).__name__}: {e}")
+        _delivery_queue.put_nowait((tokens, web_push_subs, title, body, incident_id))
+    except asyncio.QueueFull:
+        print(f"[Deliver] QUEUE FULL ({DELIVERY_QUEUE_MAX}) — DROPPED incident "
+              f"{incident_id or '?'}, {len(tokens)} token(s), "
+              f"{len(web_push_subs)} subscription(s). Nobody was paged for it.")
+        return False
+    depth = _delivery_queue.qsize()
+    if depth >= DELIVERY_QUEUE_WARN:
+        print(f"[Deliver] BACKLOG — {depth}/{DELIVERY_QUEUE_MAX} jobs queued; "
+              f"delivery is falling behind")
+    return True
+
+
+async def _delivery_worker_loop() -> None:
+    """Drain the queue forever, one fan-out at a time."""
+    print("[Deliver] Worker started")
+    while True:
+        tokens, web_push_subs, title, body, incident_id = await _delivery_queue.get()
+        try:
+            await asyncio.wait_for(
+                _fan_out(tokens, web_push_subs, title, body, incident_id),
+                timeout=FANOUT_TIMEOUT)
+        except asyncio.TimeoutError:
+            # A stall must be loud. The previous one was silent for months.
+            print(f"[Deliver] TIMEOUT after {FANOUT_TIMEOUT}s — fan-out abandoned for "
+                  f"incident {incident_id or '?'}, {len(tokens)} token(s), "
+                  f"{len(web_push_subs)} subscription(s)")
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            # One bad job must never kill the worker — that would silence every
+            # alert after it.
+            print(f"[Deliver] Fan-out failed: {type(e).__name__}: {e}")
+        finally:
+            _delivery_queue.task_done()
 
 
 async def _fan_out(tokens, web_push_subs, title: str, body: str, incident_id: str) -> None:
@@ -427,7 +493,7 @@ async def _fan_out(tokens, web_push_subs, title: str, body: str, incident_id: st
 
 
 @app.post("/webhook")
-async def receive_webhook(request: Request, background: BackgroundTasks):
+async def receive_webhook(request: Request):
     secret = request.query_params.get("secret", "").strip()
     if not secret:
         raise HTTPException(status_code=400, detail="?secret= query parameter is required")
@@ -512,9 +578,11 @@ async def receive_webhook(request: Request, background: BackgroundTasks):
 
     # Answer BHNM now; deliver afterwards. BHNM times out at ~30s and retries
     # three times, and a retry is a duplicate alert on every engineer's phone.
-    background.add_task(_deliver, tokens, web_push_subs, title, body, incident_id)
+    queued = _enqueue_delivery(tokens, web_push_subs, title, body, incident_id)
 
     notified = len(tokens) + len(web_push_subs)
+    if not queued:
+        return {"status": "dropped", "notified": 0}
     print(f"[Webhook] Queued delivery to {notified} target(s) for incident {incident_id}")
     return {"status": "ok", "notified": notified}
 

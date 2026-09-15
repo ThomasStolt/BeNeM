@@ -495,6 +495,110 @@ on them is changed, and the result recorded here either way.
 
 ---
 
+## Part 3.9 — 2.13.4 does not fix the fan-out: two concurrent webhooks still wedge it
+### (2026-09-15, 14:49–15:02 UTC)
+
+Fired as the closing verification of 2.13.4 — the one §3.8 left open, and the one that was to be
+done "before any setting on the parked phones is changed". It failed.
+
+### The accident that exposed it
+
+Two `POST /webhook` requests arrived **255 ms apart** (14:49:25.397 and 14:49:25.652), from
+`127.0.0.1` on two different source ports, against a single uvicorn worker. Only one probe was
+issued deliberately. **The origin of the second request is not established** — most likely an
+earlier SSH attempt whose `docker exec` appeared dead and landed late, except that the container
+log is empty from 14:40 to 14:49, which argues against it. Recorded as unattributed rather than
+guessed at. It was a lucky duplicate: it is the only reason the defect was seen.
+
+### What happened
+
+```
+14:49:25.397  [Webhook] PROBLEM — Queued delivery to 8 target(s)      ← fan-out A
+14:49:25.652  [Webhook] PROBLEM — Queued delivery to 8 target(s)      ← fan-out B
+14:49:25.742  [APNs] Sent to ...a0f85792
+14:49:25.857  [APNs] Sent to ...32295bdd
+14:49:25.858  [APNs] Sent to ...a0f85792
+14:49:25.975  [APNs] Sent to ...32295bdd
+14:49:25.978  [APNs] Sent to ...86587674
+              ── 60 seconds of nothing ──
+14:50:25.401  [Deliver] TIMEOUT after 60.0s — fan-out abandoned, 7 token(s), 1 subscription(s)
+14:50:25.402  [APNs] Sent to ...86587674
+14:50:25.508  [APNs] Failed (400) BadDeviceToken
+14:50:25.625  [APNs] Sent to ...0c56a19b
+14:50:25.653  [Deliver] TIMEOUT after 60.0s — fan-out abandoned, 7 token(s), 1 subscription(s)
+```
+
+Both fan-outs stalled after roughly three sends and were abandoned by the 60 s guard. Tokens
+`...62f21e50` and `...018ab51d` — the two newest registrations, one of them the device onboarded by
+QR that morning — and the Web Push subscription **received nothing at all**.
+
+### The control: one webhook, nothing concurrent
+
+Same probe, same 7 tokens and 1 subscription, 12 minutes later with nothing else in flight:
+
+```
+15:01:42.781  [Webhook] PROBLEM — Queued delivery to 8 target(s)
+15:01:43.220  [APNs] Sent to ...a0f85792
+15:01:43.360  [APNs] Sent to ...32295bdd
+15:01:43.502  [APNs] Sent to ...86587674
+15:01:43.642  [APNs] Failed (400) via production: {"reason":"BadDeviceToken"}      ← ...b26fb517
+15:01:43.785  [APNs] Sent to ...0c56a19b
+15:01:43.926  [APNs] Failed (410) Unregistered → [Cleanup] Removed ...62f21e50
+15:01:44.067  [APNs] Sent to ...018ab51d
+15:01:44.145  [WebPush] Sent to https://fcm.googleapis.com/fcm/send/...
+```
+
+**All 8 targets served in 1.4 seconds. No stall, no timeout.**
+
+### Verdict
+
+**2.13.4 fixed concurrency *within* one fan-out and left concurrency *between* fan-outs untouched.**
+The sends were made sequential inside `send_to_all`, but nothing serialises two `send_to_all` calls
+running as separate `BackgroundTasks` on the same shared HTTP/2 `AsyncClient`. Two overlapping
+webhooks reproduce §3.8's original condition exactly: concurrent POSTs on one HTTP/2 connection,
+wedged after the first few responses, with httpx's own timeouts not firing.
+
+This matters in production, not just under a probe: a site outage raises several host alerts in the
+same second, and BHNM renotifications batch. **The single-webhook case that was verified on 09-14 is
+the easy case.**
+
+Two things did work and should be credited:
+
+- The **60 s `asyncio.wait_for` guard added in 2.13.4 did its job** — it turned a silent, permanent
+  stall into two logged `[Deliver] TIMEOUT` lines. Without it this run would have looked like
+  silence again.
+- The **2.13.2 redaction filter held** — both access lines read `secret=<redacted>`.
+
+### Still open from this run
+
+- `...b26fb517` returned **400 BadDeviceToken** again and was **not** removed — only 410 triggers
+  cleanup. Open defect 3, now observed twice more.
+- `...62f21e50` returned 410 and *was* cleaned, leaving 6 tokens. It had already been cleaned on
+  09-15 at 09:57 and 10:14 and re-registered at 10:45:56 — a device is re-registering a token APNs
+  considers dead.
+- **Which physical phones buzzed at 15:01:43 is not established** and needs Thomas. Five distinct
+  live tokens plus one FCM Web Push subscription were served; the §3.8 question of whether the two
+  parked phones were merely never sent to is answered "they are being sent to now", but not
+  "they rang".
+
+### Side observation — SSH to the VPS was flapping throughout (2026-09-15, 14:4x–15:0x UTC)
+
+Not chased, recorded in case it recurs. `bhnm-apns.hurrikap.org` (172.104.142.164):
+
+- **TCP to port 22 connects** (`nc -z` succeeds), but the SSH handshake then times out —
+  `kex_exchange_identification: read: Operation timed out` / `banner exchange`. So it is not a
+  firewall block and not a DNS problem.
+- It failed for stretches of **2–5 minutes at a time**, then worked normally (`ssh -vv` completing
+  in 0.7 s), then failed again. Four consecutive attempts failed, one succeeded, four failed.
+- **HTTPS was unaffected throughout** — `/health` answered in **57 ms** during the same windows,
+  and the incident/tactical caches kept updating on schedule.
+
+So the box and the application were healthy; only sshd was intermittently failing to complete a
+handshake. Consistent with sshd `MaxStartups` throttling or fail2ban, but not diagnosed. It cost
+several retries and one probe attempt whose outcome could not be read back.
+
+---
+
 ## Follow-ups this measurement generated
 
 Recorded here so they are not carried only in conversation. None are started.

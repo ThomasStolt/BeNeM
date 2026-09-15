@@ -5,6 +5,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.14.0] - 2026-09-15
+
+### Fixed
+
+- **2.13.4 did not fix the fan-out — concurrent webhooks still wedged it.** Sends were made sequential *inside* one fan-out, but nothing serialised **two** fan-outs: each `/webhook` spawned its own `BackgroundTask`, and two webhooks arriving in the same second raced on the shared HTTP/2 client. Measured 2026-09-15: two requests 255 ms apart both stalled after ~3 sends, sat for 60 s and were abandoned by the `FANOUT_TIMEOUT` guard; the two most recently registered devices and the Web Push subscription received nothing. A control run with a single webhook served all 8 targets in 1.4 s. Full write-up in `docs/evidence/2026-09-14-bhnm-recovery-close-call-measurement.md` §3.9.
+
+  Root cause is not an httpx bug and **no dependency upgrade is available** — `httpx 0.28.1`, `httpcore 1.0.9` and `h2 4.4.1` are all the newest released versions. It is an APNs constraint: Apple documents that APNs caps HTTP/2 stream concurrency per connection and that with token authentication it "allows only one stream until you post a request with a valid authentication token". Serialising is the correct design, not a workaround.
+
+### Changed
+
+- **Delivery now runs through one bounded queue and a single long-lived worker task**, replacing the per-request `BackgroundTask`. The webhook still enqueues and returns immediately, so BHNM is answered well inside its ~30 s timeout. Deliberately a queue rather than a lock: a lock would put every alert behind every other one with no way to distinguish lock-wait from send-stall, and `FANOUT_TIMEOUT` would then be measuring the wrong thing. With a queue nothing waits on anything, so the per-job timeout covers only that job's own sending. It also gives ordering, back-pressure, and one place to add retry later.
+- **Queue bounded at 256 jobs** (`DELIVERY_QUEUE_MAX`), with a `[Deliver] BACKLOG` warning from depth 32. The bound is **not** sized to absorb a legitimate flood: BHNM does its own alarm reduction (correlation, parenting, incident-criteria rules), so a healthy server does not emit hundreds of notifications at once — if it does, that is a BHNM misconfiguration and the middleware should not paper over it. The bound exists to stop unbounded growth when *delivery* is stalled, and the depth-32 warning is the real signal: a queue that ever gets near full means either a stalled APNs or a misconfigured BHNM, and both should be loud. A drop is logged as `[Deliver] QUEUE FULL … Nobody was paged for it.` and the endpoint returns `{"status": "dropped", "notified": 0}` — a dropped page is survivable, a silent one is not.
+- One failing job can no longer kill the worker and silence every alert behind it.
+
+### Added
+
+- `tests/test_delivery_queue.py` — the concurrent case is now tested **deliberately**, against a stub APNs transport rather than a mocked `send_to_all`, because the defect lived below `send_to_all`. The stub asserts that **no two APNs requests are ever in flight at once**; a test that only checked "every device was served" would have passed against the broken code, since a mock transport never stalls. Includes a teeth check that reproduces the pre-2.14 concurrent shape and asserts the detector fires on it.
+- `tests/test_no_credentials_in_repo.py` — fails the suite on credential-shaped strings in tracked files. Added after the 2.13.2 redaction filter was found to have been tested with the **live** lab webhook secret, leaving a 33-character fragment in a test and an 8+8-character fragment in the evidence file. Both replaced with synthetic values. Rule: never test a redaction filter with the string it is meant to redact.
+
+### Known issue — carried forward
+
+- **The delivery queue discards by count, not by age, so an APNs stall delivers pages after they stop mattering.** While APNs is healthy a job takes ~1 s and the queue never builds. While APNs is stalled every job burns the whole `FANOUT_TIMEOUT` of 60 s, and each queued job pushes the next one a further minute late. **Ten queued alerts is ten minutes of drain**; the alert at the back is delivered when it is already history. A late page is worse than a dropped one, because a drop is logged loudly and a late page looks like a working system.
+
+  Magnitude, stated honestly: this is *not* the four-hour scenario a full 256-job queue would imply. BHNM performs its own alarm reduction, so a correctly configured server does not produce hundreds of simultaneous notifications — reaching the bound at all would itself be a misconfiguration. The realistic case is a handful of jobs and a drain of minutes, which is still long enough to matter for a paging product.
+
+  Not hypothetical: the fan-out defect this release fixes stalled for exactly the 60 s the guard allows, twice in one run.
+
+  **Proposed fix:** stamp each job with its arrival time on enqueue, and discard on dequeue anything older than a staleness threshold, logging `[Deliver] STALE — dropped incident N, queued Xs ago`. Suggested threshold **5 minutes** — longer than BHNM's own Incident Close Delay Timer (also 5 minutes, so a recovery that would cancel the page has had time to arrive) and still inside the window where an engineer wants to be woken. Worth pairing with exposing queue depth and oldest-job age in `/health` and `/api/v1/diagnostics`, so a backlog is visible to an operator and not only in the log.
+
+  Not done in 2.14.0 deliberately — the concurrency fix is the live defect and is worth shipping alone. Next in line.
+
+### Housekeeping
+
+- `test_database.py`, `test_proxy_auth.py` and `test_webpush.py` moved from `middleware/` into `middleware/tests/`, so **`pytest tests` now collects the whole suite**. They were never collected by the documented command, which is how `test_webpush.py` sat red: it called `build_payload()` with a fourth `severity` argument removed from the function long ago, and pinned an exact `webpush_send` signature. Both fixed.
+- Suite: **179 passed** (`pytest tests`, exit code 0).
+
+---
+
 ## [2.13.4] - 2026-09-15
 
 ### Fixed

@@ -16,10 +16,27 @@ os.environ.setdefault("VAPID_CONTACT_EMAIL", "mailto:test@test.com")
 
 import pytest
 from fastapi.testclient import TestClient
+from tests.helpers import wait_until
 from database import init_db, get_web_push_subscriptions_for_secret
 from main import app
 
 client = TestClient(app)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _app_lifespan():
+    """Run the app lifespan for this module's tests.
+
+    The lifespan starts the single delivery worker; without it every webhook is
+    dropped with a loud log. The module-level `client` above is rebound to the
+    context-managed one so the existing call sites keep working unchanged.
+    """
+    global client
+    plain = client
+    with TestClient(app) as c:
+        client = c
+        yield
+    client = plain
 
 
 @pytest.fixture(autouse=True)
@@ -110,8 +127,11 @@ def test_webhook_form_encoded_body_is_accepted():
             "/webhook?secret=formsecret",
             content=b"notification_type=PROBLEM&hostname=raspi-050&host_state=DOWN&incident_id=1",
             headers={"Content-Type": "application/x-www-form-urlencoded"})
-    assert resp.status_code == 200
-    assert resp.json() == {"status": "ok", "notified": 1}
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "ok", "notified": 1}
+        # Delivery is drained by the worker after the response, so the patch has
+        # to stay in scope until it has actually run.
+        assert wait_until(lambda: send.await_count == 1)
     assert "raspi-050" in send.await_args.args[1]   # title built from the form fields
 
 

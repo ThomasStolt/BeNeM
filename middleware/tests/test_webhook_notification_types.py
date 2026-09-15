@@ -18,13 +18,17 @@ from fastapi.testclient import TestClient
 
 import incident_cache
 from main import app
+from tests.helpers import wait_until
 
 SECRET = "types-secret"
 
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    # Context-managed on purpose: the app lifespan starts the single delivery
+    # worker, and without it every webhook would be dropped with a loud log.
+    with TestClient(app) as c:
+        yield c
 
 
 @pytest.fixture(autouse=True)
@@ -44,7 +48,8 @@ def post(client, payload):
         send.return_value = []
         resp = client.post(f"/webhook?secret={SECRET}", json=payload)
         assert resp.status_code == 200, resp.text
-        assert send.await_count == 1, "expected exactly one push"
+        # The response returns before delivery; the worker drains afterwards.
+        assert wait_until(lambda: send.await_count == 1), "expected exactly one push"
         _tokens, title, body, incident_id = send.await_args.args
         return title, body, incident_id
 
@@ -289,11 +294,13 @@ def test_webhook_responds_without_awaiting_delivery(client):
          patch("main.send_to_all", side_effect=slow_send):
         resp = client.post("/webhook?secret=fastack", json={
             "notification_type": "PROBLEM", "hostname": "raspi-050", "host_state": "DOWN"})
-    assert resp.status_code == 200
-    assert resp.json() == {"status": "ok", "notified": 1}
-    released.append(True)
-    # TestClient drains background tasks after the response, so delivery still ran
-    assert started == [True]
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "ok", "notified": 1}
+        released.append(True)
+        # The response does not wait for delivery — the worker picks it up after.
+        # This must stay inside the patch context or the worker sees the real
+        # send_to_all.
+        assert wait_until(lambda: started == [True])
 
 
 def test_stale_token_cleanup_still_happens_in_the_background(client):
@@ -304,7 +311,8 @@ def test_stale_token_cleanup_still_happens_in_the_background(client):
         send.return_value = ["tok-stale"]
         resp = client.post("/webhook?secret=cleanup", json={
             "notification_type": "PROBLEM", "hostname": "raspi-050", "host_state": "DOWN"})
-    assert resp.status_code == 200
+        assert resp.status_code == 200
+        assert wait_until(lambda: delete.call_count == 1)
     delete.assert_called_once_with("tok-stale")
 
 
@@ -382,6 +390,17 @@ def test_one_failing_token_does_not_stop_the_others():
     assert seen == ["tok-a", "tok-b"]
 
 
+async def _run_one_job_through_the_worker(main_mod, incident_id="42"):
+    """Drive one fan-out through the real queue + worker and wait for it."""
+    main_mod._delivery_queue = asyncio.Queue(maxsize=main_mod.DELIVERY_QUEUE_MAX)
+    worker = asyncio.create_task(main_mod._delivery_worker_loop())
+    try:
+        assert main_mod._enqueue_delivery([("tok", "production")], [], "t", "b", incident_id)
+        await main_mod._delivery_queue.join()
+    finally:
+        worker.cancel()
+
+
 def test_a_stalled_fan_out_is_logged_not_silent(capsys):
     """The previous stall produced no output at all for months."""
     import main as main_mod
@@ -392,7 +411,7 @@ def test_a_stalled_fan_out_is_logged_not_silent(capsys):
     async def run():
         with patch.object(main_mod, "send_to_all", never_returns), \
              patch.object(main_mod, "FANOUT_TIMEOUT", 0.05):
-            await main_mod._deliver([("tok", "production")], [], "t", "b", "42")
+            await _run_one_job_through_the_worker(main_mod)
 
     asyncio.run(run())
     out = capsys.readouterr().out
@@ -409,7 +428,36 @@ def test_a_completing_fan_out_logs_no_timeout(capsys):
     async def run():
         with patch.object(main_mod, "send_to_all", quick), \
              patch.object(main_mod, "FANOUT_TIMEOUT", 5):
-            await main_mod._deliver([("tok", "production")], [], "t", "b", "42")
+            await _run_one_job_through_the_worker(main_mod)
 
     asyncio.run(run())
     assert "TIMEOUT" not in capsys.readouterr().out
+
+
+def test_a_stalled_job_does_not_kill_the_worker(capsys):
+    """One bad job must not silence every alert after it — the failure mode that
+    would turn a single stall into a dead middleware."""
+    import main as main_mod
+    delivered = []
+
+    async def stall_then_work(tokens, title, body, incident_id=""):
+        if incident_id == "stall":
+            await asyncio.sleep(3600)
+        delivered.append(incident_id)
+        return []
+
+    async def run():
+        with patch.object(main_mod, "send_to_all", stall_then_work), \
+             patch.object(main_mod, "FANOUT_TIMEOUT", 0.05):
+            main_mod._delivery_queue = asyncio.Queue(maxsize=8)
+            worker = asyncio.create_task(main_mod._delivery_worker_loop())
+            try:
+                main_mod._enqueue_delivery([("tok", "production")], [], "t", "b", "stall")
+                main_mod._enqueue_delivery([("tok", "production")], [], "t", "b", "after")
+                await main_mod._delivery_queue.join()
+            finally:
+                worker.cancel()
+
+    asyncio.run(run())
+    assert "[Deliver] TIMEOUT" in capsys.readouterr().out
+    assert delivered == ["after"], "the job after a stalled one must still be delivered"
