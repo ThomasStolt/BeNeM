@@ -488,19 +488,35 @@ rather than adding a screen:
   stores it as the ACK user; having the app send it on `/register` turns five identical rows into
   named ones. Needs a small change on both sides.
 
-**2. Push enablement fails silently on the client.** Three of four devices were not receiving, for
-three different reasons, and in none of them did the app say so:
+**2. A first-time user onboarded by QR gets a working app that will never alert them.** Confirmed
+on 2026-09-15, root cause found by Thomas rather than by code reading.
 
-| device | cause |
-|---|---|
-| Android | in-app Push Notifications switch off — never subscribed |
-| colleague's iPhone 13 Pro | never called `/register` at all; app fetches data fine |
-| iPhone 13 Pro Max | registers, Apple rejects the token `410 Unregistered` |
+QR import deliberately adds a server **without making it active** — correct when the user already has
+servers, wrong on a fresh install where it is the only one. The app then holds exactly one saved
+connection and no active connection. Everything the user can see says it works: incidents and
+tactical data load, Settings lists the server, "Enable Push Notifications" reads enabled. But
+`AppDelegate.swift:47–52` needs `netreo_active_connection_id` to resolve before registering, it is
+empty, so registration is skipped with a local `print` and nothing retries.
 
-`AppDelegate.swift:47–52` returns before registering when `notificationsEnabled` is false, printing
-only locally. For a paging product the Settings screen should show registration state **as confirmed
-by the middleware** ("registered 2 minutes ago" vs "not registered") plus a test-push button, rather
-than a local toggle that can silently mean nothing.
+Measured on the iPhone 13 Pro Max: reinstalled, QR scanned, notifications allowed — app fetching
+`/api/v1/incidents` and `/api/v1/tactical-overview` on its 30 s cycle from 10:48, and **zero
+`POST /register`**. Ticking the radio button beside the server at 10:50:50 registered token
+`…018ab51d` within a second; a single-token probe then returned `200` and the notification arrived.
+
+**Fix:** when a QR import produces the only saved connection, select it. More generally, register
+when the token arrives **or** when a connection becomes active, whichever is last, and re-check on
+foreground.
+
+The same signature is present on a colleague's iPhone 13 Pro — fetching data, never registered.
+
+Two related gaps in the same area:
+
+- Three of four devices were silently not receiving, for three different reasons (Android in-app
+  switch off and never subscribed; this QR/active-connection defect; and dead tokens from previous
+  installations). **In none of them did the app say so.**
+- For a paging product the Settings screen should show registration state **as confirmed by the
+  middleware** ("registered 2 minutes ago" vs "not registered"), plus a test-push button, rather than
+  a local toggle that can silently mean nothing.
 
 **3. `400 BadDeviceToken` is never cleaned up.** Only `410` triggers removal, so a token in that
 state is retried on every incident forever. Token `…b26fb517` is in this state now.
