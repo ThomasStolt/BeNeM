@@ -84,6 +84,34 @@ This is a monorepo with four top-level subprojects:
 
 The full platform strategy (why native iOS + PWA Android, not a single cross-platform app) is documented in [`shared/DECISION.md`](../shared/DECISION.md).
 
+### The architecture diagram in `docs/`
+
+`docs/benem-runtime-architecture.html` is a **generated 802 KB single-file page**, tracked
+deliberately. It is the interactive runtime map the README links to, and it is served straight from
+GitHub Pages (this repo has Pages enabled on `main` + `/docs`, so anything in `docs/` is public at
+`https://thomasstolt.github.io/BeNeM/<file>`). A `.html` blob linked on github.com renders as
+source, not as a page — Pages is the reason the README link works at all. It is large because the
+page inlines its own CSS, JS and fonts; do not "optimise" it by hand.
+
+**Do not edit the HTML.** The source of truth is
+[`docs/benem-runtime-architecture.json`](benem-runtime-architecture.json) (~10 KB). Edit that, then
+regenerate:
+
+```bash
+node ~/.agents/skills/archify/bin/archify.mjs deliver architecture \
+  docs/benem-runtime-architecture.json docs/benem-runtime-architecture.html \
+  --quality showcase --repo-root . --json
+```
+
+Then re-shoot the two README thumbnails (`docs/architecture-light.png`, `-dark.png`) with headless
+Chrome against `docs/benem-runtime-architecture.html?embed=1&theme=light` and `…&theme=dark`
+(`--force-device-scale-factor=2 --window-size=1400,506`, then `sips -c 980 2800`).
+
+Several components in the JSON pin `sources` to a commit SHA. That SHA goes stale as the repo
+moves, and `--repo-root` verification fails if a referenced path or line range disappears — update
+it when files move.
+
+
 ## Project Structure
 
 ```
