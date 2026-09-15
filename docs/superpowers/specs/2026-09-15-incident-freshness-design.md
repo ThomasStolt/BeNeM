@@ -176,6 +176,42 @@ Collapsing them reproduces today's defect with better wording.
 **Never use the string "Incident not found."** It is true only in the `404` case and is the
 current lie in the other three.
 
+### A fifth state: *paused*. The error branch is reachable; nothing renders "not even trying"
+
+**Settled in vitest, not in a browser** — `pwa/src/lib/api/__tests__/query-failure-state.test.ts`,
+against the app's real `fetchJson` and `main.tsx`'s exact defaults (`retry: 1`, `staleTime 30_000`):
+
+| case | resulting state |
+|---|---|
+| `fetch` rejects (`TypeError: Failed to fetch`), browser online | `status: "error"`, `fetchStatus: "idle"`, error set |
+| `fetch` resolves `401`, browser online | `status: "error"`, `fetchStatus: "idle"`, error set |
+| React Query believes it is offline | **`status: "pending"`, `fetchStatus: "paused"`, `error: null`** |
+
+**The hypothesis that the error branch was unreachable is REFUTED.** A failing first attempt with
+`retry: 1` does *not* leave the query pending — online, both a rejected fetch and a 401 reach
+`status: "error"` with the error populated. `IncidentListScreen.tsx:44` is therefore **not** the
+bug and must not be "fixed".
+
+The only condition producing the triple observed in the browser is React Query believing it is
+offline. So **what Part 3 is missing is a rendering for `fetchStatus: "paused"`** — the state
+where the client is not attempting a request at all and holds no error to show. Today that
+renders as: no list, no error, no spinner, no refresh control (the `RefreshRing` needs
+`dataUpdatedAt > 0`), and a grey `unknown` badge. A blank screen that says nothing.
+
+This is the doctrine's third state — *unverified* — going unrendered, and it is the same defect
+family as the badge ternary below rather than a separate one. **The four states become five:**
+
+| state | when | primary | secondary | action |
+|---|---|---|---|---|
+| **Not trying** | `fetchStatus: "paused"` | **"Not checking — no network."** | "BeNeM will retry when the connection returns." | "Try anyway" |
+
+The action matters: the one control a user reaches for is currently absent in exactly this state,
+and when it *is* present it hangs (queue item 10). Whatever "Try anyway" does, it must terminate.
+
+**Still open and not claimed as understood:** *why* the page's `onlineManager` was offline while
+`navigator.onLine` read `true` and a hand-rolled `fetch` returned 401 from the same page. The
+three tests stay as a regression guard on the signature regardless of the cause.
+
 ### The connection badge is the same lie, in one ternary — PWA (measured 2026-09-15)
 
 **Part 3's scope now covers the list screen and the badge, not only the detail screen.** This was
