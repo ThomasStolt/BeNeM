@@ -297,14 +297,14 @@ Not folded into S1; costed here so the option is on record. Give `servers.json` 
 `webhook_secrets: ["new", "old"]` field, have `/webhook` and `/register` accept any entry, and
 fan out to the union. Both secrets then work during a rollout, devices migrate lazily as people
 re-scan, and the old one is dropped by deleting an array element once the admin device list
-shows nobody on it. ~20 lines plus the admin UI, and it needs queue item 5 (device overview) to
+shows nobody on it. ~20 lines plus the admin UI, and it needs queue item 7 (admin device overview) to
 be visible. ~~**Recommend sequencing it after item 5, not before.**~~
 
 > **SUPERSEDED 2026-09-15 by decision 5 and Part 17.** This mechanism is **inside S1 change 1**,
 > not a follow-on. The recommendation above is left visible rather than deleted so that a reader
 > arriving at this paragraph does not act on it: a per-server secret split whose secrets cannot be
 > rotated solves half the problem and leaves the other half looking solved. The admin device list
-> (queue item 5) remains what makes "nobody is on the old secret" *observable*, but it is not a
+> (queue item 7) remains what makes "nobody is on the old secret" *observable*, but it is not a
 > prerequisite for shipping the accepted list.
 
 ---

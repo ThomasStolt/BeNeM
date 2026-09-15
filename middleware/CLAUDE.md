@@ -60,6 +60,18 @@ re-issued unless it is refused here.
 **On failure, revert immediately and without asking.** Leaving failed code on `main` while
 waiting for a reply is the worse of the two risks: `main` is what the next deploy pulls.
 
+## A return value of zero that nobody checks is how a no-op stays invisible
+
+`note_state_override_any_server()` returns the number of servers patched, and `main.py` logs
+`if n:`. When an incident is acknowledged before its first cache cycle there is nothing to patch,
+so `n` is 0 — **no patch, no log, no error**. Measured 2026-09-15: in the whole persisted log
+`Cache patched` appears three times and every one is `-> CLOSED`; never once `-> ACKNOWLEDGED`.
+
+The general rule, which is cheap and applies to every helper here that counts what it did: **if a
+function returns "how many things I affected", the zero case is a finding and must be logged.**
+Silence on zero makes a broken path and an idle one look identical, which is the operational form
+of the doctrine in the root `CLAUDE.md`.
+
 ## Upgrade runbook
 
 **Dump the container log before every deploy.** `docker compose up -d` recreates the

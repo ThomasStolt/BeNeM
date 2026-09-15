@@ -44,7 +44,18 @@ subscription (Android, "Edge 60").
 
 ---
 
-## c. The queue, in order
+## c. The queue
+
+**Numbers are stable identifiers, not priority.** Several other documents cite them
+(`middleware/CHANGELOG.md`, the S1 spec), so items are never renumbered when priority changes.
+Priority is stated here and here only.
+
+**Priority order, 2026-09-16:**
+**11** → 1 → 2 → 3 → 4 → 5 → **12** → 6 → 7 → 8 → 9 → 10.
+
+Item **11 (coverage visibility) is the most serious open item in the project** and sits above the
+push relay spec (6) and the admin device overview (7). Item **12** sits above them too: it is a
+small fix to a defect that makes a core feature work only on incidents older than two minutes.
 
 1. **Two device measurements — BLOCKED ON THOMAS.** Both need one phone, the lab and the
    middleware log, batched into one sitting. Runbook, ready to run with no composing on the day:
@@ -113,21 +124,42 @@ subscription (Android, "Edge 60").
     bound the refresh (timeout, or don't await a paused query) and give the control a terminal
     state — refreshed, or couldn't. Belongs with the incident-freshness Part 3 work, which now
     owns the list screen and the badge.
-11. **Coverage is scoped in BHNM and invisible from inside BeNeM — FINDING, not yet designed.**
-    Measured 2026-09-15 in one window on one server: incident 29585 (`BHNM-B-SE01`, host, 21:51Z)
-    produced **no webhook**, while incident 29586 (`raspi-050`, host, 22:05Z) paged all four
-    targets. Two host-down incidents minutes apart; one paged, one did not. Whether the cause is
-    per-device action-group attachment or notification criteria is **not** yet established — the
-    finding holds either way.
-    Why it outranks its queue position: every other doctrine case renders unverified state as
-    healthy in a UI. This one makes *absence of a page* indistinguishable from *no incident*. An
-    engineer watching a silent phone cannot tell "nothing is wrong" from "this device was never
-    wired to page me", and that distinction is the entire product. There is no affordance to be
-    suspicious of.
-    Minimum fix is documentation: `INSTALL.md` §7 does not tell an administrator to attach the
-    action group to everything they expect to be paged about. The real fix is that BeNeM cannot
-    answer "which of my devices will page me?" — and until it can, users assume "all of them".
+11. **Coverage is scoped inside BHNM and invisible from BeNeM — HIGHEST PRIORITY. Needs a design.**
+    Design: `docs/superpowers/specs/2026-09-16-coverage-visibility-design.md`.
     Evidence: `docs/evidence/2026-09-14-bhnm-recovery-close-call-measurement.md` §8.8.
+
+    **The action group covers host-down only, while the incident list displays service checks,
+    thresholds and anomalies too — with nothing marking which entries would ever reach a phone.**
+    Measured from the deployment's own logs: every incident that has ever produced a webhook is a
+    host event (29499, 29517, 29570, 29586), while the list at that moment held **18 active
+    incidents, 16 of them types that have never caused a phone to ring** — 4 service, 2 threshold,
+    10 anomaly, all rendered identically to the one row that would.
+    An earlier draft rested this on 29585 (`BHNM-B-SE01`) producing no webhook. **Withdrawn:**
+    that was the Service Engine crashing, and the SE is what fires actions, so no webhook is
+    expected — correct behaviour, and the scenario the connection badge and two-hop diagnostics
+    exist to surface. The finding is stronger without it: it is now about what the product
+    displays, measured from its own logs, depending on no unestablished BHNM configuration.
+
+    **This is not a fourth instance of the "never render unverified state as healthy" doctrine,
+    and must not be filed beside the other three.** Those all rendered unverified state as healthy
+    *somewhere a person could look* — a device icon, a status label, a toggle. Each had an
+    affordance that made a claim, and the fix is to make that affordance tell the truth.
+
+    **Here the failure mode is a phone that does not ring.** *Absence of a page* is
+    indistinguishable from *absence of an incident*, and both look exactly like a quiet night.
+    There is nothing on screen to doubt. The incident list is the nearest affordance and its
+    defect runs the *opposite* way — it shows more than it will ever tell you about, so it
+    reassures rather than alarms. A perfectly fresh, perfectly verified list of eighteen incidents
+    is what a user sees today, and it is still misleading; no badge or timestamp reaches that.
+
+    That is why it outranks everything else open: a paging product's entire value is the
+    difference between "nothing is wrong" and "I was never going to hear about it", and BeNeM
+    currently cannot express that difference at all.
+
+    Minimum fix is documentation — `INSTALL.md` §7 does not tell an administrator to attach the
+    action group to everything they expect to be paged about. That is not the fix, only the stop-
+    gap. The real question the design has to answer: **what can BeNeM know about its own coverage,
+    and what should it say when it cannot know?**
 12. **The ACK cache patch silently no-ops for an incident the cache has not seen — DEFECT.**
     Measured 2026-09-15 (§8.9). `note_state_override_any_server()` patches only servers whose
     cache already holds the incident and returns the count; `main.py` logs `if n:`. An incident

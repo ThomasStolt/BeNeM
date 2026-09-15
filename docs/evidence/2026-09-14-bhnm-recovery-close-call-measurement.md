@@ -1611,46 +1611,95 @@ now, not argued.
 While waiting, `BHNM-B-SE01` was declared down (incident 29585, 21:51:23) and raspi-050 had no
 incident, from which this file inferred that raspi-050 *is* the remote Service Engine and
 therefore could not be detected by itself. **That inference was wrong.** raspi-050 got its own
-host incident, 29586, at 22:05 — it was simply slow. The SE going down first is real and
-unexplained; the conclusion drawn from it was not.
+host incident, 29586, at 22:05 — it was simply slow.
+
+The SE *was* down, though: 29585 is the Service Engine crashing, which is also why it produced no
+webhook of its own — the SE is what fires actions. Both halves are now accounted for, and neither
+supports the coverage finding; see 8.8.
 
 ### Two lab facts worth keeping
 
 1. **Host-down detection took about 30 minutes** (~21:35 pull → 22:05:23 webhook), with the SE
    noticed at 21:51. Any future test that pulls a host should budget that, and should not read
    a quiet ten minutes as a failure — this session nearly did.
-2. **`BHNM-B-SE01` going down produced NO webhook, while raspi-050 going down produced one.**
-   Both are `host` incidents on the same BHNM. See the finding below.
+2. **`BHNM-B-SE01` going down produced no webhook — explained, not a gap.** It is the Service
+   Engine, and the Service Engine is what fires actions; a crashed SE cannot notify anyone of its
+   own crash. Surfacing *that* is the job of the connection badge and the two-hop diagnostics
+   signal, not of the action group. See 8.8, where this case is withdrawn.
 
-## 8.8 FINDING — coverage is scoped in BHNM and invisible from inside BeNeM
+## 8.8 FINDING — the incident list shows what will never page you, unmarked
 
-Measured, in one window, on the same server:
+### First, a case withdrawn
 
-| incident | device | type | opened | webhook |
-|---|---|---|---|---|
-| 29585 | `BHNM-B-SE01` | `host` | 21:51:23Z | **none** — searched the whole persisted log by incident id |
-| 29586 | `raspi-050` | `host` | ~22:05Z | fired, 4 targets paged |
-| 29546 | `Synology920` | `service` | 15:48Z | none (acknowledged in the UI, also no webhook) |
+An earlier draft rested this finding on incident 29585 (`BHNM-B-SE01`, host, 21:51:23Z) producing
+no webhook. **That is withdrawn, and it is not an unexplained gap: 29585 was the Service Engine
+crashing.** The Service Engine is what fires actions, so an SE that has stopped cannot notify
+anyone about its own stopping — no webhook is *expected*, and its absence is correct behaviour
+rather than a coverage defect. Resolved, not open.
 
-Two host-down incidents, minutes apart, on one server: **one paged, one did not.** Whatever the
-mechanism — the action group attached per device or per group, or notification criteria that
-exclude some objects — **coverage is configured per-object inside BHNM, and nothing in the BeNeM
-app or the admin portal tells a user which of their devices are covered.**
+That scenario is precisely what the connection badge and the two-hop diagnostics signal exist to
+surface — `server.bhnm.reachable` with its `null` "no verdict yet" state, plus
+`last_success_age_seconds`. It belongs to the incident-freshness work (Part 3), not here.
 
-This is the doctrine's failure in its most expensive form yet. The earlier instances rendered
-unverified state as healthy in a UI; this one renders *absence of a page* as identical to *no
-incident*. An engineer watching a silent phone cannot distinguish "nothing is wrong" from "this
-device was never wired to page me", and a paging product's entire value is that distinction.
-Worse than the green badge, because there is no affordance to be suspicious of.
+### The finding, on stronger ground
 
-**Not diagnosed further, deliberately** — which mechanism it is needs the BHNM Action
-configuration read, and the extension cannot open that menu (four attempts, §8.9). The finding
-does not depend on which mechanism it turns out to be.
+**The action group covers host-down only. The incident list displays service checks, thresholds
+and anomalies as well, with nothing marking which entries would ever have reached a phone.**
 
-**`INSTALL.md` §7 does not tell an administrator to attach the action group to everything they
-expect to be paged about.** That is the minimum fix and it is documentation. The product fix is
-larger: BeNeM cannot currently answer "which of my devices will page me?", and until it can, the
-answer a user assumes is "all of them".
+Measured against the entire persisted log — every incident id that has *ever* produced a webhook,
+probes with `Incident 0` excluded:
+
+| incident | device | event |
+|---|---|---|
+| 29499 | `raspi-050` | PROBLEM + RECOVERY |
+| 29517 | `C800` | RECOVERY |
+| 29570 | `raspi-050` | PROBLEM + RECOVERY |
+| 29586 | `raspi-050` | PROBLEM + ACKNOWLEDGEMENT |
+
+**Four incidents, all host events. Not one service check, threshold or anomaly has ever produced
+a webhook.**
+
+Against the list the app was showing at the same moment — 18 active incidents:
+
+| type | count | ever paged |
+|---|---|---|
+| host | 2 (29585 SE, 29586 raspi-050) | 29586 yes |
+| service | 4 — `25076`, `25482`, `27516`, `29546` | **never** |
+| threshold | 2 — `24951`, `27190` | **never** |
+| anomaly | 10 — `29581`–`29584`, `29587`–`29592` | **never** |
+
+**Sixteen of eighteen rows on the incident screen are of a type that has never, in the whole
+recorded history of this deployment, caused a phone to ring.** Nothing on those rows says so.
+They are rendered exactly like the one row that would.
+
+### Why this is the serious version
+
+It is no longer a claim about action-group attachment, which was unmeasured and needed a UI nobody
+could open. It is a claim about **what the product displays**, measured from the product's own
+logs, and it does not depend on any BHNM configuration detail being established.
+
+And it inverts the usual reading of the screen. A user looking at eighteen open incidents
+reasonably concludes they are being kept informed about eighteen things. In fact they will hear
+about one class of them, and the other sixteen rows are — for paging purposes — decoration. A
+service check that has been failing since May sits in the same list, in the same style, as the
+host outage that woke three people ninety seconds ago.
+
+**This is not the "never render unverified state as healthy" doctrine and should not be filed as
+a fourth instance.** Those three all had an affordance making a false claim, and the fix is to
+make the affordance honest. Here the failure is a phone that does not ring: *absence of a page*
+is indistinguishable from *absence of an incident*, and both look like a quiet night. There is
+nothing displayed to doubt. The incident list is the closest thing to an affordance, and its
+defect is the opposite one — it shows *more* than it will tell you about, so it reassures rather
+than alarms.
+
+For a paging product this is the most expensive failure available, because the product's whole
+value is the difference between *nothing is wrong* and *I was never going to hear about it*.
+
+**Design:** `docs/superpowers/specs/2026-09-16-coverage-visibility-design.md`. Queue item 11,
+highest priority, above the relay spec and the admin device overview.
+
+**Stop-gap, which is not the fix:** `INSTALL.md` §7 does not tell an administrator to attach the
+action group to everything they expect to be paged about.
 
 ## 8.9 The acknowledgement: one confirmation passes, one fails
 
