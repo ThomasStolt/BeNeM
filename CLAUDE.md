@@ -12,13 +12,15 @@ timely, reliable push notifications to engineers when incidents occur.
 
 ## Structure
 
-| Path | Purpose |
-|---|---|
-| `ios/` | Native Swift/SwiftUI iOS app. Primary platform. Distributed via App Store / TestFlight. |
-| `middleware/` | Python/FastAPI service. Handles BHNM webhook ingestion and APNs / Web Push delivery. |
-| `pwa/` | Progressive Web App (React/TypeScript), targeting Android via Web Push. |
-| `shared/` | Specifications and documentation. Not deployed. Source of truth for feature parity and API contracts. |
+
+| Path                | Purpose                                                                                                                                                                                                                 |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ios/`              | Native Swift/SwiftUI iOS app. Primary platform. Distributed via App Store / TestFlight.                                                                                                                                 |
+| `middleware/`       | Python/FastAPI service. Handles BHNM webhook ingestion and APNs / Web Push delivery.                                                                                                                                    |
+| `pwa/`              | Progressive Web App (React/TypeScript), targeting Android via Web Push.                                                                                                                                                 |
+| `shared/`           | Specifications and documentation. Not deployed. Source of truth for feature parity and API contracts.                                                                                                                   |
 | `docs/superpowers/` | Claude Code brainstorming output. `specs/YYYY-MM-DD-<topic>-design.md` holds approved designs; `plans/YYYY-MM-DD-<topic>.md` holds the derived step-by-step implementation plan. Each feature flows spec → plan → code. |
+
 
 ## Platform Strategy
 
