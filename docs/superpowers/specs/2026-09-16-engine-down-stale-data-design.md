@@ -120,6 +120,66 @@ marker that would light up permanently on a healthy device. That is the same err
 other entry in this repository's doctrine, pointed the other way: crying stale on something fine
 trains users to ignore the marker that matters.
 
+## Service Engine GROUPS — new domain knowledge, and it reshapes the check
+
+**[THOMAS]** Service Engines can be arranged in **groups**. If one SE in a group fails, **another
+SE takes over management of the devices the failed one handled.** This was not known when the
+controlled outage of 2026-09-16 was designed, and it changes what the staleness check is for.
+
+### What follows, marked honestly
+
+**[PREDICTION — not measured]** Under *working* failover, `lastUpdateTime` should **keep
+advancing**, because a different Service Engine is polling the same devices. The staleness check
+should therefore stay **correctly quiet** during a single-SE failure inside a healthy group. This
+is the desired behaviour and it is a prediction, not an observation — the 2026-09-16 outage
+measured **a standalone engine**, not a grouped one, so it says nothing about failover.
+
+**[INFERENCE]** The cases the staleness check must still catch, because failover cannot rescue
+them:
+
+1. **A standalone Service Engine with no group.** Nothing takes over. Devices freeze. This is
+   exactly what was measured on 2026-09-16.
+2. **A whole group failing.** Nothing left to take over. Devices freeze.
+
+**Both leave the operator's screen green**, which is the whole point of item 13 and is unchanged
+by the existence of failover.
+
+**[INFERENCE]** Failover also strengthens the case for a *freshness* check over an *engine* check.
+A check that watches "is SE01 up?" would fire loudly during a successful failover in which nobody
+lost anything — a false alarm on a system working as designed. A check that watches
+`lastUpdateTime` stays quiet exactly when failover works and fires exactly when it does not. **The
+cheap check is not merely cheaper; with groups in the picture it is the more correct one.**
+
+### PLANNED MEASUREMENT — grouped SE failover (not scheduled)
+
+Thomas has said "at some point soon". **Filed with its method written so it needs no composing on
+the day. Do not schedule it; do not ask for it.**
+
+**Question:** during a single-SE failure inside a healthy group, does `lastUpdateTime` keep
+advancing on the devices that were handed over, and how long does the handover take?
+
+**Method**, identical in shape to the 2026-09-16 run, which worked:
+
+1. Identify a group with at least two SEs and the device set handled by the one to be stopped.
+   **This is the prerequisite and it needs Thomas** — group membership is not known to be readable
+   from the API.
+2. Capture a baseline: `get-host-and-service-status` for those devices, recording `status`,
+   `lastUpdateTime`, `currentStateDuration` verbatim, plus the incident list, `host_down`, and the
+   middleware log position.
+3. Start a 60-second sampler *before* the stop, so the normal advance rate is on record.
+4. **Thomas stops one SE in the group and reports the exact time. Nobody else touches it.**
+5. Sample for at least 60 minutes. Record, per device: does `lastUpdateTime` keep advancing; if it
+   pauses, **for how long** — that gap is the handover time and it is the number the design needs;
+   does `status` change at any point.
+6. Record whether the failed SE raises its own incident, and whether it pages. That is Q1 again,
+   on a grouped engine, and BMC may answer it first.
+7. Thomas restores it; record what arrives.
+
+**What the answer changes:** if `lastUpdateTime` keeps advancing, the staleness threshold only has
+to clear the *handover gap* — measure it and set the threshold above it. If it pauses for minutes,
+the threshold must be generous enough not to cry stale during every normal failover, and that
+number cannot be guessed.
+
 ## What BeNeM should show
 
 Only the shape, since the mechanism above is unsettled.
