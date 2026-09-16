@@ -229,6 +229,46 @@ small fix to a defect that makes a core feature work only on incidents older tha
     not the incident is cached and apply it when the incident first appears (the override already
     has a 5-minute TTL, two cycles), and make the zero-patch case loud — an unchecked return
     value of zero is how this stayed invisible.
+13. **What BeNeM shows when the engine behind the data is down — DESIGN WRITTEN 2026-09-16.**
+    `docs/superpowers/specs/2026-09-16-engine-down-stale-data-design.md`. **STOP AT DESIGN.**
+    Measured in a controlled outage (§8.13/§8.14): devices **retain their last state** while the
+    Service Engine is down — all four watched devices read `UP` with `lastUpdateTime` frozen for
+    26 minutes — and BeNeM renders that green faithfully. Unverified state presented as healthy,
+    originating a layer below anything BeNeM checks: the two-hop diagnostics verify the middleware
+    reaching BHNM's *front end*, which answers perfectly while the engine is dead.
+    **The hinge is measured and favourable:** `lastUpdateTime` **stalls**, so staleness is
+    detectable from a field the middleware already fetches and discards, without identifying the
+    engine. Open fork on `bhnm-apns.hurrikap.org` (stale a week, no outage) — do not close it.
+    Service Engine **groups** reshape this (failover should keep timestamps advancing — a
+    prediction, not a measurement); a planned measurement is written up, not scheduled.
+14. **iOS renders a wrong incident duration, and cannot know it is wrong — DEFECT, not fixed.**
+    Found 2026-09-16 during the 2.15.2 field test.
+    `ios/BeNeM/Services/NetreoAPIService.swift:1273` parses `open_time` with two ISO8601
+    formatters and falls back to **`?? Date()`**. `open_time` arrives as `"2026-09-16T21:42:12"`
+    with no `Z` and no offset, both parsers fail, and the start time silently becomes **the moment
+    of parsing** — so every duration reads as "time since the app last refreshed".
+    **Measured, with a cross-platform control:** at 19:55:21Z incident 29656 was **13m 09s** old;
+    **iOS showed 3m, the Android PWA showed 13m**, from identical data and middleware. The
+    giveaway was ordering — the *oldest* incident showed the *smallest* number, which no timezone
+    offset can produce. The PWA is right because it accepts more shapes:
+    `coerceStartTime(row.start_time ?? row.startTime ?? row.incident_open_time ?? row.open_time)`.
+    **Second defect, same root:** `ios/BeNeM/Models/IncidentDetail.swift:111` reads
+    `incident_open_time`, while the cached list payload carries `open_time` — so the detail
+    screen's *Created* and *Duration* rows are wrong or blank too.
+    **Doctrine, not tidy-up:** a failed parse is rendered as a confident "3m" — no dash, no
+    "unknown", no sign anything failed. The green badge hidden inside a `??`.
+15. **A stale BHNM URL makes the app list incidents it cannot open — DEFECT, not fixed.**
+    Found 2026-09-16. Thomas's iPhone 15 (`…018ab51d`) held a connection pointing at
+    `https://vpn.hurrikap.org:8888` — an address the lab has since moved away from, in no
+    `servers.json` entry, unreachable from the middleware.
+    The phone **listed** incident 29656 but spun and failed to open it with *"The request timed
+    out."* Nine `[Proxy] Timeout` lines in thirty minutes, each burning the full 60 s
+    `PROXY_TIMEOUT`.
+    **The defect is not the stale address — it is that two code paths on one device resolved to
+    two different servers.** The list resolves by `api_key` → the lab → works; the detail sends
+    `X-BHNM-Target` → the dead host → times out. Same family as incident-freshness Part 2: *two
+    identifiers, two resolutions, no cross-check.* And the error said "timed out" where the truth
+    was "this connection's server address no longer exists".
 
 ---
 
