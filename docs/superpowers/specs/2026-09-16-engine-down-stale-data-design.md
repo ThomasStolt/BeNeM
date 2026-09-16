@@ -22,9 +22,10 @@ This document mixes three kinds of statement and they must not be read as equiva
 anything — so an SE outage is the *cause* of device-level symptoms, never the effect of one host
 going away.
 
-**[THOMAS]** When the Service Engine is down, **devices retain their last state in BHNM**. They do
-not go unknown, they do not go down. They stay exactly as they were at the moment the engine
-stopped.
+**[MEASURED — was [THOMAS], confirmed by controlled outage 2026-09-16, evidence §8.13]** When the
+Service Engine is down, **devices retain their last state in BHNM**. They do not go unknown, they
+do not go down. All four watched devices read `UP` with `lastUpdateTime` frozen at `10:47:03` for
+the whole 26-minute outage, and `host_down` contained only the engine itself.
 
 **[MEASURED]** Wave B made BeNeM's device list mirror BHNM's host status
 (`restful/devices/get-host-and-service-status`, fetched by `middleware/maintenance_cache.py:144`).
@@ -78,11 +79,46 @@ keeps successfully fetching, the data is stale whatever the cause — engine dow
 one device stuck. A freshness test is more general than an engine test, and it needs no new
 endpoint and no naming convention.
 
-**Must be measured before building:** whether `lastUpdateTime` actually stops advancing during an
-engine outage, or is rewritten on every fetch. **If it is rewritten, this entire approach fails**
-and the design falls back to identifying the SE. That measurement is one engine outage and a
-before/after read — and the lab has just had an unplanned one, so it may already be reproducible
-from history.
+**[MEASURED 2026-09-16, evidence §8.13] `lastUpdateTime` STALLS. The hinge lands favourably.**
+Across a controlled 26-minute engine outage, sampled every 60 s, the four managed rows held
+`10:47:03` throughout while `BHNM-B-SE01`'s own row advanced with every fetch — a field rewritten
+on query could not do both at once. **The cheap staleness check is viable**, and item 13 does not
+depend on identifying the Service Engine.
+
+*Two premature readings of this field were recorded and withdrawn before the outage settled it.
+Neither survived contact with a controlled test.*
+
+### OPEN FORK — `bhnm-apns.hurrikap.org`, and it decides the feature's shape
+
+One row has read `UP` with `lastUpdateTime` **2026-09-09 18:26:13** — a week stale — in every
+sample taken, before, during and after the outage, while its `currentStateDuration` advances
+normally.
+
+**[THOMAS]** It is a VPS he configured with a direct tunnel into the BHNM appliance, managed by
+the main appliance rather than by a Service Engine. **[THOMAS] He states explicitly that this does
+not explain the stale timestamp.** Low priority to investigate — but **not closed**, because the
+two branches lead to different features:
+
+| branch | if true | consequence for this design |
+|---|---|---|
+| **A — BHNM genuinely has not verified that host in a week** | the appliance is reporting `UP` for a device it has not checked since 2026-09-09 | the cheap staleness check **works and has already found a real gap in Thomas's own estate**, before a line of code is written |
+| **B — the field behaves differently for tunnel-managed devices** | `lastUpdateTime` is not comparable across management paths | the check has a **false-positive class**: every tunnel-managed device would render permanently "stale". The design must then detect or exempt them |
+
+**Do not pick one.** What would distinguish them, all read-only:
+
+1. **Compare against the same host's *service* rows** (`serviceFilter=service_desc`). If services
+   on that host carry fresh timestamps while the host row does not, the host row is anomalous
+   (branch B or a bug); if the service rows are equally stale, the device genuinely is not being
+   checked (branch A).
+2. **Look for a second tunnel-managed device.** If one exists and shows the same frozen pattern,
+   that is branch B; if it updates normally, branch A.
+3. **BHNM's own Device Polling Status check** for that device, read in the UI — it states whether
+   polling is succeeding, independently of this field.
+
+Until it is settled, **the design must assume branch B is possible** and not ship a staleness
+marker that would light up permanently on a healthy device. That is the same error class as every
+other entry in this repository's doctrine, pointed the other way: crying stale on something fine
+trains users to ignore the marker that matters.
 
 ## What BeNeM should show
 
@@ -125,8 +161,8 @@ contradiction.
 
 ## Decisions for Thomas
 
-1. **Confirm the premise:** do devices really retain their last state during an engine outage,
-   rather than going unknown? Everything here rests on it and it is marked **[THOMAS]**.
+1. ~~Confirm the premise~~ — **DONE, confirmed by measurement 2026-09-16 (§8.13).** Devices retain
+   their last state; the premise is no longer an assumption.
 2. **Can the Service Engine be identified programmatically** — a category, a template, an
    endpoint — or should BeNeM simply ask the user which device it is?
 3. Approve the `lastUpdateTime` measurement (read-only) as the first step: does it stop advancing

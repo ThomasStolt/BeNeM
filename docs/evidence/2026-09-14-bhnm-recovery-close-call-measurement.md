@@ -1927,3 +1927,48 @@ today, not only during an engine failure.
 An engineer looking at BeNeM during a total monitoring outage saw **a full screen of green, no
 staleness marking anywhere, and no notification** — while nothing in the estate had been checked
 for twelve minutes and the incident saying so had not yet reached the app.
+
+## 8.14 The recovery — and it did not page either
+
+| time (UTC) | event |
+|---|---|
+| 09:11:40 → 09:12:41 | `BHNM-B-SE01`'s own row flips `DOWN` → `UP` |
+| **09:13:43** | the four managed devices **unfreeze** — `lastUpdateTime` jumps from `10:47:03` to `11:13:02` and resumes advancing |
+| 12:42 | incident 29628 is gone from the active list; `host_down` empty; estate normal |
+
+**Outage length: ~26 minutes** (08:47:03 → ~09:13:00). Note the ordering: the engine's own row
+recovered **about a minute before** the devices behind it resumed updating.
+
+**Webhooks fired across the entire episode, in both directions: ZERO.** Searched the persisted log
+from 08:47Z to 12:42Z — nearly four hours spanning the outage, the incident, and the recovery.
+Incident 29628 opened and closed without producing a single notification.
+
+So the earlier finding understates it. It is not only that an engine outage does not page — **the
+whole episode is invisible to a BeNeM user from beginning to end.** No alert, no recovery, and
+during the outage a screen of green.
+
+### Q1 is now EXTERNAL — awaiting BMC, and not ours to explain
+
+Thomas is surprised an SE outage does not fire the action group and is taking it to the BMC dev
+team. **Recorded as EXTERNAL: awaiting BMC dev input. Not a BeNeM defect, and not ours to
+explain.** Two explanations have already collapsed here (§8.8); **no third one is to be attempted
+in this repository.** When BMC answer, their answer either closes §8.8's strongest case or
+confirms it as product behaviour.
+
+**The §8.8 design does not wait for that answer.** BeNeM supports **BHNM 26.1.02 and up**, and
+whatever BMC change in a future release does not reach deployments already in the field. The
+design must answer *"the engine died and nothing told me"* regardless of how the question
+resolves upstream.
+
+### `bhnm-apns.hurrikap.org` — Thomas's explanation, and what it does not explain
+
+Thomas's account, recorded as his: it is **a VPS he configured with a direct tunnel into the BHNM
+appliance, and it is managed by the main appliance rather than by a Service Engine** — which is
+why it behaves unlike the rest of the estate.
+
+**He states explicitly that this does not explain the stale `lastUpdateTime`.** A row reading `UP`
+with a timestamp a week old is unexplained by the tunnel. **Low priority, to be investigated at
+some point** — filed that way, and deliberately not resolved by a plausible story.
+
+It stays an **open fork in item 13's design**, because which branch is true decides the shape of
+the feature. See `specs/2026-09-16-engine-down-stale-data-design.md`.
