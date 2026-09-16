@@ -1637,9 +1637,15 @@ crashing.** The Service Engine is what fires actions, so an SE that has stopped 
 anyone about its own stopping — no webhook is *expected*, and its absence is correct behaviour
 rather than a coverage defect. Resolved, not open.
 
-That scenario is precisely what the connection badge and the two-hop diagnostics signal exist to
-surface — `server.bhnm.reachable` with its `null` "no verdict yet" state, plus
-`last_success_age_seconds`. It belongs to the incident-freshness work (Part 3), not here.
+**Correction, 2026-09-16:** an earlier version of this paragraph said that scenario "is precisely
+what the connection badge and the two-hop diagnostics signal exist to surface". **That is wrong,
+and the corrected Service Engine model is what exposes it.** The two-hop signal verifies the
+middleware reaching BHNM's *front end* — and the front end answers perfectly while the engine
+behind it is dead. `server.bhnm.reachable` would read `true` throughout an SE outage.
+
+An SE outage is therefore surfaced by **nothing BeNeM currently has**, which is queue item 13 and
+its own design (`specs/2026-09-16-engine-down-stale-data-design.md`). What belongs to the
+incident-freshness work is the *badge*; what belongs to item 13 is the engine.
 
 ### The finding, on stronger ground
 

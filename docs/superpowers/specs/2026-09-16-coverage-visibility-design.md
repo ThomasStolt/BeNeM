@@ -20,10 +20,16 @@ as the host outage that woke three people ninety seconds earlier.
 
 An earlier draft rested this on incident 29585 (`BHNM-B-SE01`) producing no webhook. **That case
 is withdrawn:** 29585 was the Service Engine crashing, and the Service Engine is what fires
-actions, so no webhook is expected — correct behaviour, not a gap. Surfacing *that* is the job of
-the connection badge and the two-hop diagnostics signal. The finding no longer rests on it, and
-is stronger for it: it is now a claim about what the product displays, measured from the
+actions, so no webhook is expected — correct behaviour, not a gap. The finding no longer rests on
+it, and is stronger for it: it is now a claim about what the product displays, measured from the
 product's own logs, depending on no unestablished BHNM configuration detail.
+
+**Do not assume the two-hop diagnostics cover that withdrawn case.** They verify the middleware
+reaching BHNM's *front end*, which answers perfectly while the engine behind it is dead —
+`server.bhnm.reachable` would read `true` throughout an SE outage. The engine case is queue item
+13 with its own design (`2026-09-16-engine-down-stale-data-design.md`), and it is a different gap
+from this one: item 11 is about incidents that will never page, item 13 is about device state that
+has silently stopped being true.
 
 ## Why this is not the doctrine case, and must not be filed as one
 
