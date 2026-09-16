@@ -1760,3 +1760,81 @@ and its notification criteria — was **not** read. Four attempts through the br
 (direct link click, menu click, coordinate click, hover) failed to open Administration → Actions;
 the menu does not respond to synthetic events, and no URL for that page is recorded anywhere in
 this repository. It needs a human with the UI open, and §8.8's finding does not depend on it.
+
+## 8.11 The RECOVERY contrast — item 12 localised exactly (no new outage needed)
+
+The experiment had already run unattended. raspi-050 recovered at ~22:19Z:
+
+```
+2026-09-15 22:19:03,732Z [Webhook] RECOVERY — raspi-050 — Incident 29586
+2026-09-15 22:19:03,732Z [Webhook] Cache patched: incident 29586 -> CLOSED (1 server(s))
+2026-09-15 22:19:03,734Z [Webhook] server=<ambiguous: 4 servers share this secret> secret_fp=95e54469
+2026-09-15 22:19:03,734Z [Webhook] Queued delivery to 4 target(s) for incident 29586
+```
+
+**Same incident id. Same server. Same code (2.15.1). Seventy-two minutes after the acknowledgement
+of that very incident produced no patch at all.**
+
+| event | time | cache patch |
+|---|---|---|
+| PROBLEM 29586 | 22:05:23Z | n/a |
+| **ACKNOWLEDGEMENT 29586** | 22:06:56Z | **none** — incident not yet cached |
+| **RECOVERY 29586** | 22:19:03Z | **`-> CLOSED (1 server(s))`** — by then it was cached |
+
+A second, fully independent instance arrived overnight with nobody watching:
+
+```
+2026-09-16 05:50:25,228Z [Webhook] PROBLEM — Miele-T1 — Incident 29620
+2026-09-16 06:02:43,805Z [Webhook] RECOVERY — Miele-T1 — Incident 29620
+2026-09-16 06:02:43,805Z [Webhook] Cache patched: incident 29620 -> CLOSED (1 server(s))
+```
+
+Twelve minutes between PROBLEM and RECOVERY — comfortably more than the 120 s cache cycle, so the
+incident was cached by the time the recovery arrived, and the patch fired.
+
+**This localises item 12 precisely and rules out the alternative.** The ACK branch is not broken:
+the same handler, on the same incident, patched correctly once the incident existed in the cache.
+The variable is **whether the incident had been cached yet**, exactly as diagnosed — and exactly
+what 2.15.2 fixes by holding the override pending until first sighting. No further outage is
+needed to justify that change.
+
+It also explains the earlier "three observations, all `-> CLOSED`, never `-> ACKNOWLEDGED`"
+asymmetry without appeal to anything else: **recoveries arrive late in an incident's life, by
+which time it is cached; acknowledgements arrive early, when it is not.** The bias was in the
+timing of the event types, not in the code paths.
+
+## 8.12 Three corrections to this file and to last night's reporting
+
+### 1. The Service Engine causality was inverted
+
+Earlier text said `BHNM-B-SE01` went down "as a result" of raspi-050 being unplugged. **That is
+backwards.** Per Thomas: the Service Engine manages **all** devices, so if it is down BHNM cannot
+reach anything. An SE outage is therefore the **cause** of device-level symptoms and never the
+**effect** of one host being unplugged.
+
+Corrected model: raspi-050 was genuinely unplugged at ~21:35Z (measured: 3/3 packet loss from the
+LAN at 21:46Z). `BHNM-B-SE01` went down at 21:51:23Z **for reasons not established here**. The two
+are not established as related in either direction, and nothing in this file should imply a
+device outage can take the engine down.
+
+### 2. The "~30 minutes to detect a host down" lab fact is withdrawn as contaminated
+
+That figure (pull ~21:35Z → PROBLEM 22:05:23Z) spans a window in which the Service Engine was
+down from 21:51:23Z. Under the corrected model, BHNM's ability to detect anything during that
+window is in question, so the interval measures an unknown mixture of check cadence and engine
+outage. **Do not budget a future pull test against it.** The detection interval is unmeasured.
+
+### 3. The overnight report asserted a lab state it had not re-checked
+
+The overnight checkpoint stated that raspi-050 was "still unplugged" and the SE "down", from
+memory of 21:35Z, without measuring. Both were wrong: raspi-050 was reconnected before Thomas
+slept, BHNM has shown it reachable since ~00:25Z, and it is pingable from inside SE01, so the
+engine is up too.
+
+Measured 2026-09-16 07:52Z, which is what should have been done first: `raspi-050` answers
+2/2 pings at 1.1 ms; `host_down` is `[]`; no incident exists for raspi-050, SE01 or Miele-T1.
+
+**This is the doctrine turned on the reporting rather than the product.** A confident claim about
+a state that had not been checked is the same error as a green badge drawn from a cached flag —
+"no news since 21:35" was rendered as "the current state". The rule applies to a status section in
+a handoff exactly as it applies to a device icon: **date the observation, or re-measure it.**

@@ -6,21 +6,21 @@
 Nothing is half-built. Everything in the repository is committed, pushed and green. But two
 things are deliberately left for the morning and must be read before anything else:
 
-> ### ⚠️ Open at the start of 2026-09-16
+> ### State at 2026-09-16 07:52Z — measured, not remembered
 >
-> 1. **`raspi-050` is still unplugged**, and `BHNM-B-SE01` (the Service Engine) is down as a
->    result. Both were pulled for the 1a verification at ~21:35Z and never restored, because the
->    overnight run was writing-and-testing only. **Plug it back in first.** While the SE is down,
->    devices assigned to it are not being checked, and BHNM showing them healthy is itself
->    unverified state rendered as healthy.
-> 2. **Middleware `2.15.2` is committed and pushed but NOT deployed.** Live is `2.15.1`. The
->    undeployed change is the ACK cache-patch fix (queue item 12). Deploy needs a human present;
->    the runbook is in `middleware/CLAUDE.md`.
+> **The lab is healthy.** `raspi-050` answers 2/2 pings at 1.1 ms, BHNM's `host_down` list is
+> empty, and no incident exists for `raspi-050`, `BHNM-B-SE01` or `Miele-T1`. Thomas reconnected
+> the Pi before sleeping; BHNM has shown it reachable since ~00:25Z.
 >
-> Incident `29586` (`raspi-050`, host) is currently **ACKNOWLEDGED** in BHNM. Restoring the Pi
-> will produce a RECOVERY webhook — which is worth watching, see "what is still unobserved".
-
-Written for a reader with **no memory of the work that produced it**. Every item names its file.
+> An earlier version of this section claimed the Pi was "still unplugged" and the Service Engine
+> "down as a result". **Both wrong**: the state was stale and the causality inverted. See evidence
+> §8.12 — the Service Engine manages all devices, so an SE outage *causes* device-level symptoms
+> and is never the effect of one host being unplugged.
+>
+> **One thing is genuinely open:** middleware **2.15.2 is committed and pushed but NOT deployed**.
+> Live is **2.15.1**. The undeployed change is the ACK cache-patch fix (queue item 12), whose
+> diagnosis is now confirmed by measurement — see §8.11. Deploy needs a human present; runbook in
+> `middleware/CLAUDE.md`.
 
 ---
 
@@ -55,15 +55,22 @@ corrections — 18 commits, all pushed, detailed in `middleware/CHANGELOG.md` an
 | admin suite | **34 passed**, exit 0 — needs its own venv, see `docs/DEVELOPING.md` |
 | git | everything pushed through `f40e5b8`. `git status --porcelain` shows only ` M CLAUDE.md`, Thomas's own table reformat, deliberately untouched |
 
-### What is still unobserved
+### Observed since — the RECOVERY contrast is in (§8.11)
 
-- **A RECOVERY webhook after 1a.** PROBLEM and ACKNOWLEDGEMENT were both seen post-1a; RECOVERY
-  was not. Restoring the Pi produces one, and it is the useful contrast for queue item 12: if
-  `Cache patched: … -> CLOSED` appears while `-> ACKNOWLEDGED` never did on 2.15.1, the defect is
-  localised exactly. **Watch the log when plugging it back in.**
+The experiment ran unattended. raspi-050 recovered at 22:19:03Z and logged
+`[Webhook] RECOVERY … Cache patched: incident 29586 -> CLOSED (1 server(s))` — **the same
+incident id whose acknowledgement 72 minutes earlier produced no patch at all.** A second
+independent instance followed overnight (Miele-T1, 29620, PROBLEM 05:50:25Z → RECOVERY 06:02:43Z,
+patched). Item 12 is localised exactly: the ACK branch is not broken, the incident simply was not
+cached yet. No further outage is needed to justify 2.15.2.
+
+### Still unobserved / unmeasured
+
 - **The BHNM Action configuration** (§8.10) — which devices or groups the `BeNeM` group is
   attached to, and its notification criteria. Four attempts through the browser extension failed
   to open Administration → Actions; no URL for it is recorded. **Needs a human with the UI.**
+- **How long BHNM takes to detect a host down.** The earlier "~30 minutes" figure is **withdrawn
+  as contaminated** — it spans a window in which the Service Engine was down. Unmeasured.
 
 ## b-old. Lab and deployment state (verified by observation, 2026-09-15 ~19:30 UTC — superseded)
 
@@ -91,7 +98,10 @@ subscription (Android, "Edge 60").
 Priority is stated here and here only.
 
 **Priority order, 2026-09-16:**
-**11** → 1 → 2 → 3 → 4 → 5 → **12** → 6 → 7 → 8 → 9 → 10.
+**11** → **13** → 1 → 2 → 3 → 4 → 5 → **12** → 6 → 7 → 8 → 9 → 10.
+
+Item 13 sits second by importance but may ship before 11: it is plausibly a small change (the
+freshness field is already fetched), whereas 11 may end in an admission rather than a fix.
 
 Item **11 (coverage visibility) is the most serious open item in the project** and sits above the
 push relay spec (6) and the admin device overview (7). Item **12** sits above them too: it is a
