@@ -1857,3 +1857,73 @@ Measured 2026-09-16 07:52Z, which is what should have been done first: `raspi-05
 a state that had not been checked is the same error as a green badge drawn from a cached flag —
 "no news since 21:35" was rendered as "the current state". The rule applies to a status section in
 a handoff exactly as it applies to a device icon: **date the observation, or re-measure it.**
+
+## 8.13 The controlled Service Engine outage — 2026-09-16, three questions
+
+Thomas took `BHNM-B-SE01` down deliberately. **He operated the engine; I never touched it.**
+A baseline was captured first and a sampler ran every 60 s throughout, from inside the middleware
+container, against `get-host-and-service-status`.
+
+### Timeline, measured
+
+| time (UTC) | event |
+|---|---|
+| 08:11:22 | baseline: 28 host rows, all watch devices `UP`, `host_down` empty, 8 active incidents (none host), live version 2.15.1 |
+| 08:12 | sampler starts, one line per minute |
+| **08:47:03** | **the four SE-managed devices freeze.** `lastUpdateTime` stops here and never moves again |
+| ~08:52 | Thomas reports the engine down — five minutes *after* the data had already frozen |
+| **08:59:12** | BHNM raises incident **29628**, `Host BHNM-B-SE01` (local 10:59:12, confirmed against the UI) |
+| ~09:00 | Thomas checks his phone: **all devices green, nothing marked stale**, and the new incident **not visible in the app** |
+| 09:01:24 | `BHNM-B-SE01`'s own row flips `UP` → `DOWN`; its `lastUpdateTime` keeps advancing |
+| 09:02:20 → 09:03:05 | incident 29628 finally reaches the middleware cache, ~4 minutes after BHNM raised it |
+| 09:06:32 | **still zero webhooks** since the freeze |
+
+**Detection interval: 12 min 09 s** from freeze to incident. This *replaces* the "~30 minutes"
+figure withdrawn in §8.12 as contaminated — with the caveat that it measures **Service Engine**
+outage detection, not host-down detection generally.
+
+### Q1 — does an SE outage fire the action group and page? **NO.**
+
+**Zero webhooks** in the nineteen minutes from the freeze, with incident 29628 open since
+08:59:12Z. Searched the persisted log across the window: not a single `[Webhook]` line.
+
+**And the old excuse is gone.** The appliance sends webhooks, not the engine, so the sender was
+healthy and able to page throughout. This is a clean, controlled repeat of 29585 with the wrong
+explanation removed.
+
+### Q2 — do the SE's devices retain their last state? **YES. Premise confirmed.**
+
+`raspi-050`, `Synology920`, `Miele-T1` and `raspi-059` all read **`UP`** for the entire outage,
+with `lastUpdateTime` frozen at `10:47:03` local. They do not go unknown. They do not go down.
+`host_down` contained only `BHNM-B-SE01` — the engine itself — and none of the devices behind it.
+
+Thomas's account moves from **[THOMAS]** to **[MEASURED]**. And it was confirmed independently
+from the user's side: *"all devices still green, nothing says stale."*
+
+### Q3 — does `lastUpdateTime` stall, or is it rewritten on every fetch? **IT STALLS.**
+
+This was the hinge for item 13, and it lands on the favourable side. The sampler fetched every
+60 s throughout; the four managed rows held `10:47:03` for the whole outage while
+`BHNM-B-SE01`'s own row advanced with each fetch (`11:01:06`, `11:02:06`, `11:05:11`,
+`11:06:06`). **A field that were rewritten on query could not do both at once.**
+
+So staleness is detectable from a field the middleware already fetches and discards, **without
+identifying the Service Engine at all.**
+
+*Two premature readings of this field were recorded and withdrawn before the outage settled it:*
+first that a ~30 s lag proved it was a real check time, then that timestamps equal to the fetch
+instant proved it was rewritten. Both were artefacts of devices that happened to be polled at
+that moment. Neither survived; the controlled outage did.
+
+### A control nobody arranged
+
+`bhnm-apns.hurrikap.org` has read **`UP` with a `lastUpdateTime` of 2026-09-09 18:26:13** in every
+sample — a week stale — while its `currentStateDuration` advances normally. **A row can sit stale
+and green for a week with no engine outage at all.** Item 13's problem is live in this estate
+today, not only during an engine failure.
+
+### What the user saw, which is the finding in one sentence
+
+An engineer looking at BeNeM during a total monitoring outage saw **a full screen of green, no
+staleness marking anywhere, and no notification** — while nothing in the estate had been checked
+for twelve minutes and the incident saying so had not yet reached the app.
