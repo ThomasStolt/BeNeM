@@ -18,18 +18,19 @@ phone to ring** — 4 service, 2 threshold, 10 anomaly. Those sixteen rows rende
 the one that would. A service check failing since May sits in the same list, in the same style,
 as the host outage that woke three people ninety seconds earlier.
 
-An earlier draft rested this on incident 29585 (`BHNM-B-SE01`) producing no webhook. **That case
-is withdrawn:** 29585 was the Service Engine crashing, and the Service Engine is what fires
-actions, so no webhook is expected — correct behaviour, not a gap. The finding no longer rests on
-it, and is stronger for it: it is now a claim about what the product displays, measured from the
-product's own logs, depending on no unestablished BHNM configuration detail.
+**And the sharpest case is a host-down incident that did not page** — incident 29585
+(`BHNM-B-SE01`), repeated under control on 2026-09-16 as incident 29628. It was briefly withdrawn
+from this finding on the explanation that "a crashed Service Engine cannot notify anyone of its
+own crash". **That explanation was wrong** — the main BHNM appliance sends the webhooks, not the
+Service Engine, so the sender was healthy and could have paged. It is the **second** collapsed
+explanation for this same incident, and it came from a reviewer ruling accepted without
+measurement. See §8.8 and §8.13, and treat the next tidy explanation for it sceptically.
 
-**Do not assume the two-hop diagnostics cover that withdrawn case.** They verify the middleware
-reaching BHNM's *front end*, which answers perfectly while the engine behind it is dead —
-`server.bhnm.reachable` would read `true` throughout an SE outage. The engine case is queue item
-13 with its own design (`2026-09-16-engine-down-stale-data-design.md`), and it is a different gap
-from this one: item 11 is about incidents that will never page, item 13 is about device state that
-has silently stopped being true.
+**The two-hop diagnostics do not cover it.** They verify the middleware reaching BHNM's *front
+end*, which answers perfectly while the engine behind it is dead. The engine case is queue item 13
+(`2026-09-16-engine-down-stale-data-design.md`) — a different gap: item 11 is incidents that will
+never page, item 13 is device state that has silently stopped being true. **The missing page for
+the engine belongs to item 11**, and it is this document's strongest case.
 
 ## Why this is not the doctrine case, and must not be filed as one
 

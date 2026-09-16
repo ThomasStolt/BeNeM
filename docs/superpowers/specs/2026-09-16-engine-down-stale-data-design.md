@@ -48,10 +48,15 @@ The reviewer asked for this to be established before designing. What follows was
 state is readable through exactly the API BeNeM already uses; no new integration is required to
 *see* it.
 
-**[MEASURED] But it did not page.** 29585 produced no webhook — searched by incident id across the
-whole persisted log. So today, **the one device whose outage invalidates every other device's
-state is the one whose outage does not reach a phone.** That is the sharpest single fact in this
-document.
+**[MEASURED] But it did not page**, and the explanation previously recorded for that is wrong.
+29585 produced no webhook, and neither did its controlled repeat 29628 on 2026-09-16. The
+explanation "a crashed Service Engine cannot notify anyone of its own crash" **has collapsed**:
+per Thomas, **the main BHNM appliance sends the webhooks, not the Service Engine**, so during
+both outages the sender was healthy and able to page.
+
+So: **the one device whose outage invalidates every other device's status is the one whose outage
+reaches nobody, while the machine that would do the paging is up.** That belongs to queue item 11
+(coverage), not here — see the dedicated section below.
 
 **[INFERENCE, needs confirming]** Recognising *which* host row is the Service Engine is the open
 part. `BHNM-B-SE01` is a name, and naming conventions are not an API. Candidates, in order:

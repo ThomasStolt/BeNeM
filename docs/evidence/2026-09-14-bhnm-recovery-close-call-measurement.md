@@ -1629,23 +1629,36 @@ supports the coverage finding; see 8.8.
 
 ## 8.8 FINDING — the incident list shows what will never page you, unmarked
 
-### First, a case withdrawn
+### First, a withdrawal that is itself withdrawn — 29585 is evidence again
 
-An earlier draft rested this finding on incident 29585 (`BHNM-B-SE01`, host, 21:51:23Z) producing
-no webhook. **That is withdrawn, and it is not an unexplained gap: 29585 was the Service Engine
-crashing.** The Service Engine is what fires actions, so an SE that has stopped cannot notify
-anyone about its own stopping — no webhook is *expected*, and its absence is correct behaviour
-rather than a coverage defect. Resolved, not open.
+This finding twice lost, and has now regained, incident 29585 (`BHNM-B-SE01`, host, 21:51:23Z,
+no webhook). The history matters, because **two tidy explanations for it have collapsed** and the
+third should be treated with corresponding suspicion.
 
-**Correction, 2026-09-16:** an earlier version of this paragraph said that scenario "is precisely
-what the connection badge and the two-hop diagnostics signal exist to surface". **That is wrong,
-and the corrected Service Engine model is what exposes it.** The two-hop signal verifies the
-middleware reaching BHNM's *front end* — and the front end answers perfectly while the engine
-behind it is dead. `server.bhnm.reachable` would read `true` throughout an SE outage.
+1. **First explanation (mine, 2026-09-15):** raspi-050 *is* the Service Engine, so it could not be
+   detected by itself. **Collapsed** — raspi-050 got its own host incident thirty minutes later.
+2. **Second explanation (the reviewer's ruling, 2026-09-15, recorded here as mechanism):** "the
+   Service Engine is what fires actions, so a crashed SE cannot notify anyone about its own
+   stopping — no webhook is expected." **Collapsed.** Per Thomas: **the main BHNM appliance sends
+   the webhooks, not the Service Engine.** When SE01 went down, the machine that fires actions was
+   **up and able to page** — and did not.
 
-An SE outage is therefore surfaced by **nothing BeNeM currently has**, which is queue item 13 and
-its own design (`specs/2026-09-16-engine-down-stale-data-design.md`). What belongs to the
-incident-freshness work is the *badge*; what belongs to item 13 is the engine.
+   Recorded explicitly as a **reviewer ruling that was wrong**, not as a passing error. It was
+   inference presented as mechanism, it was accepted here without measurement, and it removed the
+   single strongest case from this finding for a day.
+
+3. **Consequently the two-hop claim built on it was also wrong**, and is corrected below.
+
+**29585 is therefore restored as the strongest case in §8.8** — and confirmed by a controlled
+repeat on 2026-09-16 (§8.13): a host-down incident on the one device whose failure invalidates
+every other device's status, raised while the webhook sender was healthy, and **no page**.
+
+**The two-hop signal does not cover it either.** It verifies the middleware reaching BHNM's
+*front end*, and the front end answers perfectly while the engine behind it is dead —
+`server.bhnm.reachable` reads `true` throughout. An SE outage is surfaced by **nothing BeNeM
+currently has**: that is queue item 13
+(`specs/2026-09-16-engine-down-stale-data-design.md`). The badge belongs to incident-freshness;
+the engine belongs to item 13; **the missing page belongs here.**
 
 ### The finding, on stronger ground
 
