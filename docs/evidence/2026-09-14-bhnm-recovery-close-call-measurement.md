@@ -1972,3 +1972,307 @@ some point** — filed that way, and deliberately not resolved by a plausible st
 
 It stays an **open fork in item 13's design**, because which branch is true decides the shape of
 the feature. See `specs/2026-09-16-engine-down-stale-data-design.md`.
+
+---
+
+## 8.15 Anomaly incidents produced no webhook — measured, 2026-09-16
+
+**Question, posed narrowly:** did *any* webhook arrive for incidents **29657, 29658, 29659** — three
+`Anomaly Bandwidth` incidents on `U6-Pro-EG` and `UAP-AC-LR`, opened 2026-09-16 at 22:10:09,
+22:10:10 and 22:10:17 local (20:10Z)?
+
+**Answer: NO.** Not one line, for any of the three.
+
+**Method, and why the feed was not used.** The incidents feed comes from polling `getincidents`;
+it shows that an incident exists, never that it notified anybody. Only a `[Webhook]` line proves a
+webhook fired. The search was against the middleware's own persisted log.
+
+**Coverage proof — the log was demonstrably alive across the window:**
+
+```
+2026-09-16 20:09:11,972Z [Cache:ThomasLabServer] Cache updated: 7 active, 0 closed
+2026-09-16 20:09:12,210Z [Cache:ThomasLabServer] Enriching 7 incidents (pacing: 15.0s between calls)
+2026-09-16 20:09:47,009Z [MaintenanceCache:ThomasLabServer] Cache updated: 0 in maintenance, 41 host rows, 0 down
+2026-09-16 20:10:38,892Z [Proxy] Timeout proxying POST https://vpn.hurrikap.org:8888/…/devices/list
+2026-09-16 20:10:46,178Z [ThresholdCache:ThomasLabServer] Cache updated: 37 devices, 1827 total thresholds
+2026-09-16 20:10:50,818Z [MaintenanceCache:ThomasLabServer] Cache updated: 0 in maintenance, 41 host rows, 0 down
+2026-09-16 20:10:58,522Z [TacticalCache:ThomasLabServer] Cache updated: category=15 groups, site=3 groups, app=8 groups
+2026-09-16 20:10:59,859Z [Cache:ThomasLabServer] Cache updated: 7 active, 0 closed
+```
+
+**The absence, stated plainly:**
+
+```
+$ grep -nE "29657|29658|29659" /logs/middleware.log
+$ echo $?
+1                      ← no match, anywhere in the file
+```
+
+**Every `[Webhook]` line in the same hour — all of them one host event:**
+
+```
+2026-09-16 19:42:15,687Z [Webhook] PROBLEM — raspi-050 — Incident 29656
+2026-09-16 19:43:24,745Z [Webhook] ACKNOWLEDGEMENT — raspi-050 — Incident 29656
+2026-09-16 20:00:28,874Z [Webhook] RECOVERY — raspi-050 — Incident 29656
+```
+
+Three anomaly incidents opened ten minutes after the last of those lines, on two different devices,
+and produced nothing.
+
+### What this is evidence for — CORRECTED 2026-09-16, after the first write-up
+
+**The measurement above stands unchanged. The conclusion first written on top of it was wrong and
+has been replaced.**
+
+**What was first written (WRONG, do not reuse):** *"anomaly incidents in the Default template
+produced no page"*, filed as another incident type joining host on the never-pages side of the
+line. That reads the silence as a statement about what anomalies **can** do.
+
+**What is true [THOMAS, confirmed in the product 2026-09-16]:** **BHNM thresholds — anomalies
+included — CAN call webhooks.** Those three incidents produced nothing because **the BeNeM Action
+Group was not attached to that alarm.** Not a capability limit. A per-object configuration gap.
+
+**So the finding is:** *anomaly incidents produced no webhook because the action group was not
+attached — coverage is per-object **configuration**, not a capability limit.*
+
+### Why the corrected finding is worth more than the wrong one
+
+The wrong version said: *some incident types never page, and BeNeM could learn which.* That is a
+fact about BHNM, the same for everyone, discoverable once.
+
+The right version says something sharper and much less comfortable:
+
+1. **Coverage varies per customer, and per object within a customer.** Two deployments of the same
+   BHNM version, same incident types, can have completely different paging coverage, because
+   coverage is which Action Group somebody attached to which alarm.
+2. **An operator can silently be wrong about what pages them** — and nothing in BHNM or BeNeM
+   tells them. Three anomaly incidents opened on two devices and no phone moved, and the only
+   reason anyone knows is that this file went looking.
+3. **It is readable data.** Configuration lives in BHNM and is, in principle, queryable. A
+   capability limit would have to be memorised and hard-coded; a configuration can be *read*, per
+   object, per customer, and reported as fact with a date on it.
+
+**This raises the value of §8.8 decision 1** — the read-only probe of whether the BHNM API exposes
+action-group assignment. Under the wrong conclusion the probe was a nice-to-have on top of a static
+type table. Under the correct one, **the probe is the feature**: it is the difference between BeNeM
+guessing from history and BeNeM stating, per incident, whether the thing that just happened is
+wired to page anybody.
+
+### The error class, named
+
+The measurement was good: a real absence, in a log proved to cover the window, with the count
+trap avoided and the orphan-log trap caught. **The inference laid on top of it was not.** A
+*configuration* observation — this alarm has no action group attached — was written up as a
+*capability* claim — this incident type cannot page.
+
+**This is the same error class as the Service Engine ruling** recorded in the handoff's section (f)
+item 1: a plausible mechanism asserted on top of a real observation, without the measurement that
+would separate "did not" from "cannot". Both times the evidence was sound and the sentence built on
+it went one step too far. Recorded in section (f) of the session handoff as a withdrawn claim.
+
+### A trap in the method, worth recording because it nearly produced a confident wrong answer
+
+The first search was run against **`/app/logs/middleware.log`** — a plausible path, a file that
+looks exactly like the persisted log, 1,007,261 bytes, opening line
+`[Log] Mirroring stdout to /logs/middleware.log`. It returned "no matches", which is the same
+answer the real log gives.
+
+It was **an orphan, frozen at 19:19:29Z** — fifty-one minutes before the window the question was
+about. Its silence about 20:10Z was not a finding; it was a file that had never seen 20:10Z.
+
+```
+/app/logs/middleware.log   last write 2026-09-16 19:19:29Z   (orphan, owned by root)
+/logs/middleware.log       last write 2026-09-16 21:00:08Z   (live, bind-mounted from
+                                                              /root/BeNeM/middleware/logs)
+```
+
+**Identified, not guessed [MEASURED]:** the orphan is an **exact byte-prefix** of the live log —
+
+```
+orphan bytes:          1007261
+orphan md5:            6dcd771c9564a3e0133725cd2f9a4da8
+live-log prefix md5:   6dcd771c9564a3e0133725cd2f9a4da8   ← head -c 1007261 /logs/middleware.log
+```
+
+— i.e. **a copy of the live log taken at 19:19:29Z**, not a second log stream. `/app/logs` is
+root-owned with a creation time of 19:19:44Z while the container runs as `appuser`, which is the
+signature of `docker cp`. `HOST_LOG_PATH` is unset in the running container, so the default
+`/logs/middleware.log` applies and **the product is behaving correctly** — the orphan is a working
+copy left inside the container by an earlier session, at a path that looks exactly like the real
+one. See §8.17.
+
+**This is the operational doctrine case again, in its purest form: a negative result from an
+instrument that was not connected to the thing being measured.** The check that caught it was
+requiring the log to *prove its own coverage of the window* before its silence was allowed to mean
+anything — the same discipline as §8.5's "search for the object, never trust the count". The right
+answer and the wrong answer were the same string; only the coverage proof distinguished them.
+
+---
+
+## 8.16 DEFECT — a failed `alert_type` lookup renders as the strongest possible paging claim
+
+**Filed against §8.8, independent of any cache redesign.**
+
+When the `getincidentdetail` call fails, three code paths substitute the literal string `host`:
+
+| file | line | code |
+|---|---|---|
+| `middleware/incident_cache.py` | 97 | `return {"alarm_counts": None, "alert_type": "host"}` |
+| `middleware/incident_cache.py` | 252 | `detail = {"alarm_counts": None, "alert_type": "host"}` |
+| `ios/BeNeM/Services/NetreoAPIService.swift` | 940 | `let alertType = (incident["alert_type"] as? String ?? "host").lowercased()` |
+
+**Why it matters, and why it belongs to §8.8 rather than to a refactor:** `host` is the **one type
+measured to page** — every webhook this project has ever recorded is a host event (§8.7, §8.8,
+§8.15). §8.8's whole proposal is to mark incident rows by whether their type has ever paged. Under
+that feature, a failed lookup would not degrade to "unknown"; it would degrade to **"this type
+pages you"** — the strongest coverage claim the product can make, asserted on the basis of a
+request that did not return.
+
+**It is the doctrine's failure class, inverted into the paging direction:** not a green dot for
+unverified health, but a *reassuring* dot for unverified coverage. The engineer reads "this would
+page me" from a network error.
+
+**Severity today is limited by accident, not by design.** The cache overwrites the bad value on the
+next cycle a minute or two later, so the wrong value is transient. Any design that stops
+re-enriching every incident every cycle removes that accident and makes it permanent — which is why
+`2026-09-16-incident-cache-cost-model-design.md` §5.5 states the requirement rather than inheriting
+the behaviour.
+
+**The fix, in one line:** a failed lookup yields `UNKNOWN`, never a type, and `UNKNOWN` renders as
+its own state on every surface. Not scheduled here.
+
+**Also recorded:** `NetreoAPIService.swift:921` documents the value set as *"`Host`, `Service`,
+`Threshold`"*. **`anomaly` is a fourth value**, real, and was 3 of 13 incidents in the lab at the
+time of measurement. The comment is wrong, and any code that switches exhaustively on the
+documented three would mis-handle it.
+
+
+---
+
+## 8.17 DEFECT — a stale log copy at a plausible path answers greps with silence
+
+**[MEASURED 2026-09-16.]** `/app/logs/middleware.log` inside `benem-middleware`:
+
+| property | value |
+|---|---|
+| size | 1,007,261 bytes — large enough to look complete |
+| first line | `2026-09-14 17:12:12,548Z [Log] Mirroring stdout to /logs/middleware.log` — identical to the real log's |
+| last write | **2026-09-16 19:19:29Z**, and never again |
+| content | **exact byte-prefix of `/logs/middleware.log`** (md5 `6dcd771c…` both) |
+| owner | `root`, while the app runs as `appuser`; directory created 19:19:44Z |
+| `HOST_LOG_PATH` | **unset** — the app writes `/logs/middleware.log`, correctly |
+
+**What it is:** a `docker cp` working copy of the live log, taken at 19:19:29Z by an earlier session
+and left behind. **Not** a second log stream, **not** a product bug, **not** a bind-mount failure.
+
+**Why it is a defect anyway.** A grep against it for anything after 19:19:29Z returns **nothing**,
+and nothing is the same answer the real log gives when the event genuinely did not happen. It
+produced a **correct-looking negative result for §8.15** — *"no webhook for incidents 29657/29658/
+29659"* — from a file that had never seen the window in question. The right answer and the wrong
+answer were the same string.
+
+**It is the `os.replace` / bind-mount failure in a new costume.** That one (root `CLAUDE.md`
+doctrine, case 4) was: every positive signal agreed, and every one measured something other than
+the thing that mattered. This one is the negative-space version: **every signal a reader would
+check — plausible path, right name, right opening line, megabyte of real content — agreed, and none
+of them was coverage of the window.** A log file's *existence* and *plausibility* say nothing about
+whether it was recording when the event would have happened.
+
+### The check that caught it, which is the one worth keeping
+
+**Before an absence is allowed to mean anything, the log must prove it was writing during the
+window.** §8.15 does this explicitly — eight lines timestamped 20:09–20:11 — and that is the only
+reason the orphan was noticed. It is the same discipline as **"search for the object, never trust
+the count"** from the root `CLAUDE.md`, applied to time instead of to objects:
+
+> **Never trust a silence. Make the log show you lines from inside the window first.**
+
+### Fix proposal — STOP AT DESIGN, nothing applied
+
+Ranked by cost. The first two are the whole fix; the rest are optional.
+
+1. **Name the live path in the repo, where a reader will hit it.** `middleware/CLAUDE.md` says the
+   app "mirrors stdout to `/logs/middleware.log`" in a deploy-hygiene paragraph; the session handoff
+   says *"the only log that survives a container recreate"* **without naming a path at all**. A
+   reader with both documents still has to guess, and `/app/logs` answers. **Done in this commit** —
+   an explicit "read this path, never that one" note.
+2. **Practice rule: never copy a log *into* the container.** Read it in place
+   (`docker exec … grep`), or copy it *out* to the session scratchpad. A working copy inside the
+   container is indistinguishable from the real thing at a glance and outlives the session that
+   made it. **Done in this commit.**
+3. **Delete the orphan.** One `rm` on the VPS. Not done — it is on the production host and needs
+   Thomas's go-ahead, and it is inert as long as rule 1 is followed. *(It will also vanish by itself
+   on the next container recreate, which is worth knowing: the hazard is self-clearing but recurs
+   every time somebody repeats the mistake.)*
+4. **Not proposed: making the app defend against this.** The app is already correct — it writes the
+   right path, from an env var with a sane default, and announces it. A guard inside the product
+   against a human leaving a file somewhere would be code that cannot see the problem. *ponytail:
+   this is a doc-and-habit defect, and a doc-and-habit fix is the whole of it.*
+
+---
+
+## 8.18 The `[Proxy] Timeout` line is queue item 15, firing continuously — and yes, it is routine
+
+**Asked:** the log excerpt in §8.15 contains
+`20:10:38Z [Proxy] Timeout proxying POST https://vpn.hurrikap.org:8888/…/devices/list`.
+Is that routine?
+
+**Answer: it is routine, and that is the bad answer.** It is **queue item 15** — the stale BHNM URL
+on the iPhone 15 — not a new fault. What was not known is how often it fires and what it costs.
+
+### Measured, 2026-09-16, live persisted log (span 2026-09-14 17:12Z → 2026-09-16 21:12Z)
+
+| | |
+|---|---|
+| `[Proxy] Timeout` lines, whole log | **71** |
+| per day | 18 (09-14) · 9 (09-15) · **44 (09-16)** |
+| requests to `vpn.hurrikap.org:8888` today | **44** |
+| of which timed out | **44 — 100%** |
+| by target | 58 `devices/list` · 7 `incident_api.php` · 2 `site/list` · 2 `category/list` · 2 `ha_status_api.php` |
+| cadence | **~121–124 s**, in bursts (e.g. 19:54:17 → 20:10:38 unbroken, nine attempts) |
+| cost per attempt | `PROXY_TIMEOUT = 60.0` s (`config.py:27`) — each failure is a 60-second hang |
+
+**Reachability, probed directly from inside `benem-middleware`:**
+
+```
+GET https://vpn.hurrikap.org:8888/  →  FAILED after 15.31s: ConnectTimeout('timed out')
+```
+
+Not a slow endpoint. **Not reachable at all** — no TCP connect, no TLS handshake.
+
+**And it is not one of the four configured servers:**
+
+```
+SaaS Demo Server  https://portal-netreo-ash-np2.onbmc.com/
+ThomasLabServer   https://bhnm-b.tstolt.com                  ← the only cache-enabled one
+Steve             https://im-ui-server-netreo.qa.sps.secops.bmc.com
+Luiz              https://lpolli.ddns.info:9443
+```
+
+`vpn.hurrikap.org:8888` appears in `servers.json` **nowhere**. It arrives as a client-supplied
+`X-BHNM-Target`, and the middleware faithfully tries to proxy to it.
+
+### Why "routine" is the worse answer
+
+1. **A client has been completely broken for at least three days** — the log's whole span — and
+   nothing surfaced it. The failure is not intermittent and not degraded: every single request to
+   that target failed.
+2. **It is broader than item 15 was written up as.** Item 15 records *"lists incidents it cannot
+   open"*. The measurement shows `devices/list`, `site/list`, `category/list`, `ha_status_api.php`
+   and `incident_api.php` all failing — **the Devices screen, the site and category pickers, and the
+   HA status check are all dead on that client**, not just incident detail.
+3. **It is the doctrine case on the client side.** Something retries every two minutes, waits a full
+   60 s, fails, and tries again — which means the app is *asking* often enough to know perfectly
+   well that it is not getting answers, and evidently renders something other than "I cannot reach
+   this server". The handoff's push-toggle case is the same shape: the UI asserting a state it has
+   never confirmed.
+4. **It is a 60-second connection hold, 44 times a day**, on the middleware, for a host that does
+   not answer. Small, but it is pure waste and it is billed to the wrong party.
+
+### What this does not need
+
+**No new defect is filed.** This is item 15, with a size attached. What changes is its severity and
+its description: not "a stale URL breaks incident detail" but **"a stale URL breaks every proxied
+read on that client, silently, and has been doing so for days."** The fix is the same one item 15
+already names — and the client-side question of why a total proxy failure is not surfaced to the
+user belongs with queue item 5 and the connection-status work.

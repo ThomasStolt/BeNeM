@@ -31,7 +31,8 @@ unknown `servers.json` key.
 
 1. **The redaction filter was eating its own diagnostic.** 2.13.2 rewrites anything matching
    `(secret|token|password|key|pwd)=…`; 1a logged its fingerprint as `secret=<fp>`, which matched,
-   so `logs/middleware.log` — the only log that survives a container recreate — recorded
+   so `/logs/middleware.log` — the only log that survives a container recreate, and **that exact
+   path: never `/app/logs/middleware.log`, see evidence §8.17** — recorded
    `secret=<redacted>`. Run against it, 1b's gating question *"is anybody still on the old
    secret?"* would have answered **"nobody"** when it meant **"we can no longer tell"**. Renamed to
    `secret_fp=`. The filter is unchanged; it was right.
@@ -154,6 +155,28 @@ configuration:
 
 ---
 
+### LAB CHANGE — action group attached to the Bandwidth anomaly, 2026-09-16
+
+**Thomas attached the BeNeM Action Group to the recurring `Bandwidth` anomaly on `U6-Pro-EG` /
+`UAP-AC-LR`.** Anomaly webhooks should fire from this point onward.
+
+**Time: NOT RECORDED — needs Thomas to fill in.** What is known is a bound, and it is written as a
+bound on purpose rather than guessed:
+
+| bound | basis |
+|---|---|
+| **after 2026-09-16 20:10:17Z** | the last of incidents 29657/29658/29659 opened; the grep window covering them found zero webhooks (evidence §8.15) |
+| **before 2026-09-16 ~21:10Z** | Thomas stated the change had been made |
+
+**Why this matters to whoever reads this next:** the first `[Webhook] … Anomaly …` line in the log
+is **a change Thomas made at a known time, not new behaviour and not a BHNM upgrade.** Without this
+record the obvious reading of that line — "anomalies started paging" — is wrong in exactly the way
+§8.15's first conclusion was wrong. The event to expect is a configuration effect with a cause.
+
+**Before the change:** zero anomaly webhooks, ever, in the whole persisted log.
+**After the change:** anomaly webhooks expected on `U6-Pro-EG` / `UAP-AC-LR` bandwidth alarms.
+**Nothing else in the lab was changed**, and no BeNeM code, config or deployment was touched.
+
 ## (d) Verified vs deployed-but-unverified
 
 ### VERIFIED — measured in the field
@@ -212,7 +235,11 @@ self-hosters need nothing — Web Push has no vendor binding.
 
 **6 — iOS defects found during the field test**, queue items 14 and 15, neither fixed: wrong
 incident duration from a `?? Date()` fallback (iOS showed 3m where Android showed 13m on identical
-data), and a stale BHNM URL making the app list incidents it cannot open.
+data), and a stale BHNM URL making the app list incidents it cannot open. **Item 15 resized
+2026-09-16 (evidence §8.18): it is not just incident detail — `devices/list`, `site/list`,
+`category/list` and `ha_status_api.php` all fail too, 44 of 44 requests on 09-16, every ~2 minutes,
+60 s per attempt, for a host the middleware cannot even TCP-connect to. Every proxied read on that
+client is dead and has been for at least three days, silently.**
 
 **7 — Notification presentation.** The pushes arrive; on the iPhone 15 they sit in
 Mitteilungszentrale with no banner and no sound. BeNeM reads none of iOS's presentation settings
@@ -252,7 +279,25 @@ Mitteilungszentrale with no banner and no sound. BeNeM reads none of iOS's prese
 9. **`[APNs] Sent to …` does not mean a phone showed anything.** It means APNs returned 200. This
    session reported "Sent" for three pushes while both iPhones stayed silent.
 
+10. **"Anomaly incidents cannot page" / "anomaly joins the never-paged types."** Written 2026-09-16
+    on top of a sound measurement — incidents 29657/29658/29659 produced no webhook, grep exit 1, in
+    a log proved to cover the window (evidence §8.15). **The measurement stands. The conclusion was
+    wrong.** BHNM thresholds, anomalies included, **can** call webhooks; those three fired nothing
+    because **the BeNeM Action Group was not attached to that alarm.**
+
+    **The error class, and it is not new:** a *configuration* observation was written up as a
+    *capability* claim — "did not" reported as "cannot". **This is exactly item 1 above**, the
+    Service Engine ruling: a plausible mechanism asserted on top of a real observation without the
+    measurement that separates the two. Twice in two days, both times the evidence was good and the
+    sentence built on it went one step further than the evidence reached.
+
+    **The check that would have caught it both times:** before writing "cannot", ask what
+    observation would distinguish it from "did not", and if there isn't one in hand, write "did
+    not". The corrected finding is *stronger*, not weaker — coverage being per-object configuration
+    is what makes §8.8 decision 1 the feature rather than a refinement.
+
 ---
+
 
 ## (g) Rules and doctrine added this session
 

@@ -80,6 +80,71 @@ server, **which incident types and which hosts have ever produced a page**.
   app"* — never as *"this will not page you"*.
 - Per-host coverage has the same ceiling and a weaker signal, since most hosts never alarm.
 
+### 1b. DEFECT that must be fixed before option 1 ships — the `"host"` fallback
+
+**[MEASURED 2026-09-16, evidence §8.16]** When the `getincidentdetail` call fails, three paths
+substitute the literal `host` as the alert type: `middleware/incident_cache.py:97`, `:252`, and
+`ios/BeNeM/Services/NetreoAPIService.swift:940`.
+
+`host` is **the one type measured to page**. Option 1 above marks rows by whether their type has
+ever paged — so under option 1 a failed lookup does not degrade to "unknown", it degrades to
+**"this type pages you"**, the strongest coverage claim the product can make, asserted from a
+request that did not return.
+
+Today the damage is bounded by accident: the cache re-enriches every incident every cycle, so a
+wrong value survives a minute or two. That accident disappears in any design that stops
+re-enriching unconditionally (see `2026-09-16-incident-cache-cost-model-design.md` §5.5).
+
+**Requirement: a failed lookup yields `UNKNOWN`, never a type, and `UNKNOWN` gets its own
+rendering.** This is the root `CLAUDE.md` doctrine applied to coverage rather than to health.
+
+**Also:** `NetreoAPIService.swift:921` documents the value set as "`Host`, `Service`, `Threshold`".
+**`anomaly` is a fourth, real value** — 3 of 13 incidents in the lab on 2026-09-16.
+
+### 1c. CORRECTION 2026-09-16 — coverage is configuration, and that changes what option 1 is worth
+
+**[MEASURED, evidence §8.15]** Incidents 29657, 29658, 29659 (`Anomaly Bandwidth`, `U6-Pro-EG` and
+`UAP-AC-LR`) opened at 20:10Z and produced **no webhook** — searched in a log proven to be writing
+across the window. The only webhooks that hour were `raspi-050` incident 29656, a host event.
+
+**[THOMAS, confirmed in the product 2026-09-16]** **BHNM thresholds, anomalies included, CAN call
+webhooks.** Those three fired nothing because **the BeNeM Action Group was not attached to that
+alarm**. **Anomaly is therefore NOT on the never-paged list and must not be counted there** — an
+earlier draft of this section did exactly that and was wrong.
+
+**The measured tally is now a statement about this lab's configuration, not about BHNM:**
+
+| | |
+|---|---|
+| types observed to page **in this lab, as configured** | host |
+| types not observed to page **in this lab, as configured** | service, threshold, application, anomaly |
+| types BHNM is **capable** of paging on | **unknown to BeNeM — and that is the point** |
+
+### What this does to the options above
+
+**Option 1 (mark rows whose type has never paged) is weakened.** Its ceiling was already "never
+paged yet ≠ will never page". The correction makes that ceiling the *normal* case rather than an
+edge: a type that has never paged usually means *nobody attached the action group*, which can be
+fixed in thirty seconds by an operator — so presenting it as a property of the incident type
+misleads in a new way. It is still usable as history, but it describes the deployment's wiring, not
+the product's behaviour, and the copy must say so.
+
+**Option 2 (read action-group assignment from the BHNM API) is now the feature, not a nice-to-have.**
+If coverage is per-object configuration then:
+
+1. **It varies per customer and per object.** No static table BeNeM ships can be right for two
+   deployments.
+2. **An operator can silently be wrong about what pages them.** Three anomaly incidents on two
+   devices, no phone moved, and nothing in either product said so.
+3. **It is readable data.** Configuration lives in BHNM and is in principle queryable — a
+   capability limit would have to be memorised, a configuration can be *read*, per object, and
+   reported as fact with a date on it. That is the difference between BeNeM guessing from history
+   and BeNeM stating coverage.
+
+**Consequence for decision 1 below: its value goes up, not down.** The read-only probe is no longer
+deciding whether to gild a history-based heuristic; it is deciding whether the honest version of
+this feature exists at all.
+
 ### 2. What BHNM will admit about the Action (unmeasured, and the pivotal unknown)
 
 BHNM knows exactly which devices or groups the action group is attached to and under what
@@ -245,7 +310,9 @@ the phone, which is why it is a stop-gap and why this item is not closed by writ
 
 ## Decisions needed
 
-1. Approve the option-2 measurement (read-only, BHNM API only, no lab change)?
+1. Approve the option-2 measurement (read-only, BHNM API only, no lab change)? **Its value rose on
+   2026-09-16 — see §1c. Coverage is per-object configuration, so this probe decides whether the
+   honest version of this feature can exist at all, rather than whether to refine a heuristic.**
 2. If coverage proves unknowable, is the onboarding sentence acceptable product copy, given it
    tells a new user the app cannot fully answer a question they had not thought to ask?
 3. Does the device list get the third state (surface 2), or is Diagnostics (surface 3) enough

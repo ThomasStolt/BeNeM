@@ -87,6 +87,28 @@ Since 2.13.1 the app also mirrors stdout to `/logs/middleware.log` on the `./log
 bind mount (rotated 5 MB x 5), which survives recreation — but take the dump anyway
 until that has proven itself across a few deploys.
 
+### The persisted log lives at `/logs/middleware.log` — and only there
+
+**Inside the container: `/logs/middleware.log`.** On the host:
+`/root/BeNeM/middleware/logs/middleware.log`. The path comes from `HOST_LOG_PATH`
+(`main.py:357`), which defaults to `/logs/middleware.log` and is normally unset.
+
+**`/app/logs/middleware.log` is NOT the log. Never read it.** On 2026-09-16 that path held a
+1 MB file with the right name, the right opening line, and real content — an exact byte-prefix of
+the live log, left behind by a `docker cp` at 19:19:29Z. **It answers greps about anything later
+with silence, and silence is the same answer the real log gives when the event did not happen.**
+It produced a correct-looking negative result for a webhook search. Full write-up: evidence §8.17.
+
+Two rules follow:
+
+- **Never copy a log *into* the container.** Read it in place (`docker exec … grep`) or copy it
+  *out* to the session scratchpad. A copy inside the container looks exactly like the real thing
+  and outlives the session that made it.
+- **Never trust a silence: make the log prove it was writing during the window first.** Before an
+  absence is allowed to mean anything, show timestamped lines from inside the window being asked
+  about. This is "search for the object, never trust the count" applied to time, and it is the only
+  reason the orphan above was caught rather than believed.
+
 Then: `./upgrade.sh`, confirm `/health` reports the expected version, and keep the
 previous image tagged for rollback (`docker tag bhnm-apns-bhnm-apns:latest bhnm-apns-bhnm-apns:<sha>`).
 
