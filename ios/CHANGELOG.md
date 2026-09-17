@@ -10,6 +10,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [2.13.2] — 2026-09-17
+
+### Fixed
+
+- **Saving a server no longer fails with "Authentication failed".** The probe behind **Test & Save** / **Save** sent the *push secret* as `X-Proxy-Token`, which only ever worked because the deployment had `PROXY_TOKEN` and `WEBHOOK_SECRET` set to the same value. Once those were separated (middleware, 2026-09-17) the probe returned 401 — and because the connection is saved only on a 200, **the edit was discarded**. It now sends the **API key**, exactly as every other call in the app already does (`ContentView.swift` → `NetreoAPIService`). One behaviour for one thing.
+
+### Changed
+
+- **401 and 403 no longer share a message.** They mean different things: **401** is a wrong API key or PIN, and keeps the existing wording; **403** means the middleware refused that BHNM URL for this key — a wrong URL, or a server this key does not own — and now says so instead of blaming the key and the PIN. A message that names the wrong cause sends the user to fix the wrong field.
+
+### Known issue
+
+- **A failed probe still discards the edit.** `saveConnection()` runs only inside the `200` branch, so any probe failure — including a genuine network blip — throws away what was typed. The PWA already saves regardless of the probe result. Not changed here because it needs a decision, not just a code move: see `docs/evidence/2026-09-17-ios-2.13.2-save-probe-fix.md`.
+
 ## [2.13.1] — 2026-09-03
 
 ### Changed

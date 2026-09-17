@@ -305,8 +305,16 @@ struct ServerConfigView: View {
         var request = URLRequest(url: testURL, timeoutInterval: 15)
         request.httpMethod = "POST"
         request.setValue(bhnmURLString, forHTTPHeaderField: "X-BHNM-Target")
-        if !draftPushSecret.isEmpty {
-            request.setValue(draftPushSecret, forHTTPHeaderField: "X-Proxy-Token")
+        // The api_key IS the proxy token — the same value the runtime path sends
+        // (ContentView.swift:198 -> NetreoAPIService.swift:57). One behaviour for one thing.
+        //
+        // This used to send draftPushSecret, and it only ever worked because the
+        // deployment had PROXY_TOKEN and WEBHOOK_SECRET set to the same value. When
+        // PROXY_TOKEN was rotated on 2026-09-17 the probe began returning 401 — and
+        // since saveConnection() runs only on a 200, that discarded the user's edit.
+        // See docs/evidence/2026-09-17-2.17.0-deploy-record.md section 6.
+        if !draftApiKey.isEmpty {
+            request.setValue(draftApiKey, forHTTPHeaderField: "X-Proxy-Token")
         }
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
@@ -357,9 +365,18 @@ struct ServerConfigView: View {
                     alertMessage = "Could not parse server response as JSON."
                     showingAlert = true
                 }
-            case 401, 403:
+            // 401 and 403 mean different things now that the api_key is the proxy
+            // token. One message for both named the wrong cause for half of them.
+            case 401:
                 testStatus = .failure; alertTitle = "Authentication failed"
-                alertMessage = "HTTP \(statusCode): Check your API key and PIN."
+                alertMessage = "HTTP 401: Check your API key and PIN."
+                showingAlert = true
+            case 403:
+                testStatus = .failure; alertTitle = "Server not allowed"
+                alertMessage = "HTTP 403: The middleware refused this BHNM URL for this API key.\n\n"
+                    + "Check the BHNM URL — it must be a server the middleware is configured for, "
+                    + "and the one this API key belongs to.\n\n"
+                    + "The API key and PIN are not the problem."
                 showingAlert = true
             case 404:
                 testStatus = .failure; alertTitle = "Endpoint not found"
