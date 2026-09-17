@@ -222,15 +222,61 @@ def _target_key(url: str) -> tuple[str, str, int] | None:
     return (scheme, host, port)
 
 
-def _proxy_allowlist() -> set[tuple[str, str, int]]:
-    """Every configured server as a normalised key. Raises if servers.json is unreadable."""
+class _AmbiguousServers(Exception):
+    """Two servers in servers.json share an api_key, so a key cannot name one server."""
+
+
+def _routing_servers() -> list[dict]:
+    """servers.json, refused outright when an api_key cannot name exactly one server.
+
+    Under key-target binding (2.17.0) a duplicate api_key is a **correctness bug, not
+    a curiosity**: `_server_id_for_api_key` returns the FIRST match, so two servers
+    sharing a key would bind a caller to whichever entry sorts first in the file —
+    routing one operator's request to another operator's server and calling it
+    correct.
+
+    **Checked at load, not at startup**, because servers.json is a bind mount that
+    benem-admin rewrites at runtime: a startup-only check passes at boot and is
+    silently wrong for every edit after it. And it refuses rather than crashing,
+    because webhook ingestion and APNs delivery do not depend on proxy routing —
+    refusing proxy requests while continuing to page is strictly the better failure.
+    See docs/evidence/2026-09-17-cross-server-key-reachability-defect.md 7.
+    """
     with open(SERVERS_JSON_PATH) as f:
         servers = json.load(f)
-    return {key for s in servers if (key := _target_key(s.get("url", "")))}
+    seen: set[str] = set()
+    dupes: set[str] = set()
+    for s in servers:
+        key = s.get("api_key", "")
+        if not key:
+            continue
+        (dupes if key in seen else seen).add(key)
+    if dupes:
+        # Fingerprints, never values: the same rule as secret_fingerprint's docstring.
+        raise _AmbiguousServers(
+            f"{len(dupes)} api_key(s) shared by more than one server "
+            f"(fingerprints: {', '.join(sorted(secret_fingerprint(k) for k in dupes))})")
+    return servers
+
+
+def _proxy_allowlist() -> set[tuple[str, str, int]]:
+    """Every configured server as a normalised key. Raises if servers.json is unusable."""
+    return {key for s in _routing_servers() if (key := _target_key(s.get("url", "")))}
 
 
 def _validate_proxy_target(target_url: str, request: Request | None = None) -> None:
-    """Refuse any proxy target that is not a configured server.
+    """Refuse any proxy target that is not a configured server, or not THIS caller's.
+
+    **Two gates, in order: the allowlist, then key-target binding (2.17.0).** A
+    request authenticated with a server's api_key may target only that server.
+
+    **This is the single place the binding lives, and it is deliberate.** All six
+    call sites route through here, including the cold-cache fall-throughs that read
+    `target_base` from X-BHNM-Target while sending `server_cfg["api_key"]` — the
+    caller's own credential. Those lines are NOT patched separately: once the target
+    can only be the key's own server, A's key can only ever go to A, so the leak is
+    closed by construction. A second guard beside `bhnm_api_key = ...` would be a new
+    place for the two to disagree. See the defect note 6, ruling 3.
 
     **servers.json is the ALLOWLIST, not a bypass list.** There is deliberately no
     "resolves to a public address, therefore allowed" fall-through: that was the
@@ -249,7 +295,13 @@ def _validate_proxy_target(target_url: str, request: Request | None = None) -> N
     docs/superpowers/specs/2026-09-17-proxy-target-allowlist-design.md 2.3 and 7.4.
     """
     try:
-        allowed = _proxy_allowlist()
+        servers = _routing_servers()
+    except _AmbiguousServers as exc:
+        # Same 503 as unreadable: both mean "I cannot route safely", and both must stay
+        # distinct from the 403, which is about the caller's target and not the config.
+        # The LOG is where the two are told apart.
+        print(f"[Proxy] CONFIG AMBIGUOUS: {SERVERS_JSON_PATH} ({exc}) — refusing all proxy targets")
+        raise HTTPException(status_code=503, detail="Server configuration unavailable")
     except Exception as exc:
         # Distinct from a refusal on purpose: "I cannot read my config" and "your
         # target is wrong" are different incidents, and the status code is where
@@ -257,14 +309,38 @@ def _validate_proxy_target(target_url: str, request: Request | None = None) -> N
         print(f"[Proxy] CONFIG UNREADABLE: {SERVERS_JSON_PATH} ({exc}) — refusing all proxy targets")
         raise HTTPException(status_code=503, detail="Server configuration unavailable")
 
-    if _target_key(target_url) not in allowed:
+    allowed = {key for s in servers if (key := _target_key(s.get("url", "")))}
+    ua = request.headers.get("user-agent", "(none)") if request is not None else "(none)"
+    target = _target_key(target_url)
+
+    if target not in allowed:
         # Full target and client in the log; a constant in the response. Echoing
         # the target back buys nothing and would confirm by probe which hosts are
         # configured. This log line is also the enumeration the log could not
         # produce before — it answers "which client is naming an unconfigured
         # host" without a packet capture.
-        ua = request.headers.get("user-agent", "(none)") if request is not None else "(none)"
         print(f"[Proxy] REFUSED target not in servers.json: {target_url!r} user-agent={ua!r}")
+        raise HTTPException(status_code=403, detail="Proxy target is not a configured server.")
+
+    # ── 2.17.0 — KEY-TARGET BINDING ───────────────────────────────────────────
+    token = request.headers.get("X-Proxy-Token", "").strip() if request is not None else ""
+
+    if PROXY_TOKEN and token == PROXY_TOKEN:
+        # The operator token keeps multi-server access — that is its job. It is LOGGED
+        # so operator cross-server use is visible rather than indistinguishable from a
+        # client's. This is the only unbound path, and the log is what says so.
+        print(f"[Proxy] OPERATOR TOKEN selected target: {target_url!r} user-agent={ua!r}")
+        return
+
+    own = next((_target_key(s.get("url", "")) for s in servers
+                if s.get("api_key") and s.get("api_key") == token), None)
+    if own != target:
+        # Fail closed: an unmatched token (own is None) is refused, not waved through.
+        # The detail is the SAME constant as the allowlist refusal, deliberately — a
+        # caller must not be able to tell "not configured" from "not yours", or the
+        # endpoint becomes a way to enumerate the other servers. The log tells them
+        # apart; the response does not.
+        print(f"[Proxy] REFUSED target not owned by this key: {target_url!r} user-agent={ua!r}")
         raise HTTPException(status_code=403, detail="Proxy target is not a configured server.")
 
 

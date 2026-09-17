@@ -26,6 +26,13 @@ import main as main_mod
 
 TOKEN = "secret-key-123"
 
+# 2.17.0 added a SECOND gate after the allowlist: a server's api_key may target only
+# that server. These tests are about the FIRST gate, so they authenticate with the
+# operator token, which is exempt from binding by ruling. Key-target binding has its
+# own file, tests/test_proxy_key_target_binding.py — keeping the two apart means a
+# binding regression cannot be masked by an allowlist pass, or the reverse.
+OPERATOR_TOKEN = "operator-token-for-allowlist-tests"
+
 # One public host, one on-prem server on a private address, one non-default port.
 SERVERS = [
     {"id": "prod", "name": "Prod", "url": "https://bhnm.example.com", "api_key": TOKEN},
@@ -43,6 +50,12 @@ def servers_file(tmp_path):
     main_mod.SERVERS_JSON_PATH = str(f)
     yield f
     main_mod.SERVERS_JSON_PATH = original
+
+
+@pytest.fixture(autouse=True)
+def operator_token(monkeypatch):
+    """Authenticate these tests past the binding gate — see OPERATOR_TOKEN above."""
+    monkeypatch.setattr(main_mod, "PROXY_TOKEN", OPERATOR_TOKEN)
 
 
 @pytest.fixture
@@ -67,10 +80,10 @@ def no_dns(monkeypatch):
     return calls
 
 
-def refuse(url, ua="TestAgent/1.0"):
-    """Call the validator with a fake request carrying a User-Agent."""
+def refuse(url, ua="TestAgent/1.0", token=None):
+    """Call the validator with a fake request carrying a User-Agent and a token."""
     class _Req:
-        headers = {"user-agent": ua}
+        headers = {"user-agent": ua, "X-Proxy-Token": token or OPERATOR_TOKEN}
     return main_mod._validate_proxy_target(url, _Req())
 
 
@@ -167,7 +180,7 @@ def test_api_key_resolved_target_passes_the_allowlist(no_dns):
     """A target derived from servers.json by api_key must round-trip through the allowlist."""
     derived = main_mod._target_for_api_key(TOKEN)
     assert derived, "fixture precondition: the api_key resolves to a URL"
-    assert main_mod._validate_proxy_target(derived, None) is None
+    assert refuse(derived) is None
 
 
 def test_every_configured_url_passes_its_own_allowlist(no_dns):
@@ -178,7 +191,7 @@ def test_every_configured_url_passes_its_own_allowlist(no_dns):
     it configures.
     """
     for entry in SERVERS:
-        assert main_mod._validate_proxy_target(entry["url"], None) is None, entry["url"]
+        assert refuse(entry["url"]) is None, entry["url"]
 
 
 def test_single_server_fallback_target_passes_the_allowlist(tmp_path, no_dns):
@@ -189,7 +202,7 @@ def test_single_server_fallback_target_passes_the_allowlist(tmp_path, no_dns):
     main_mod.SERVERS_JSON_PATH = str(only)
     derived = main_mod._single_server_url()
     assert derived == "https://solo.example.com"
-    assert main_mod._validate_proxy_target(derived, None) is None
+    assert refuse(derived) is None
 
 
 def test_server_with_unusable_url_is_excluded_and_therefore_refused(tmp_path, no_dns):
