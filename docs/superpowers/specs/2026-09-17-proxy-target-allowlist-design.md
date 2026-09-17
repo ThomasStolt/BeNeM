@@ -200,20 +200,26 @@ argument.
 
 ## 5. Recorded, deliberately not designed now
 
-### 5.1 The DNS-rebinding comment claims a protection it does not provide
+### 5.1 DNS rebinding — the shape of this changed when the resolver was deleted **[UPDATED 2026-09-17]**
 
-**[MEASURED]** Lines 227–230 assert that resolving the hostname *"prevents DNS rebinding attacks
-where a hostname initially points to a public IP but later resolves to an internal address."*
+**As first written, this item said:** lines 227–230 assert that resolving the hostname *"prevents
+DNS rebinding attacks"*, and it does not, because `getaddrinfo` in the validator and httpx's own
+resolution at request time are two separate lookups with a window between them.
 
-**It does not.** `getaddrinfo` in the validator and httpx's own resolution at request time are **two
-separate lookups**, and the gap between them *is* the rebinding window. The mitigation is to **pin
-the validated IP and connect to that address**, not to resolve twice and hope.
+**That description is now obsolete.** The implementation deletes the resolution entirely (§7.4) —
+`getaddrinfo`, the private-address loop, and the `socket`/`ipaddress` imports are gone, along with
+the comment that made the false claim. **The two-lookup window no longer exists, because there is
+only one lookup: httpx's.**
 
-**The allowlist shrinks this to admin-controlled surface** — only configured hostnames are resolved
-at all — so it stops being reachable by a client. **It does not disappear**: a configured hostname
-whose DNS is hostile still rebinds. Not designed here. **The comment must be corrected either way**,
-because a comment asserting a protection that does not exist is the same doctrine failure as a green
-dot on unverified data.
+**What remains, and it is a different thing:** a host that *is* in `servers.json` whose DNS later
+resolves somewhere hostile. That is **admin-trust territory** — the same trust level as an operator
+typing a private address into `servers.json` directly (§5.2). A client can no longer steer it,
+which is the part that mattered.
+
+**Still not designed, and the mitigation is unchanged in principle:** pin the validated address and
+connect to that. But note it is now a *smaller* and *lower-priority* item than when it was written:
+it is no longer a client-reachable weakness, and the false comment that motivated recording it has
+been deleted rather than corrected.
 
 ### 5.2 A server pointed at a private address re-opens the internal surface for that hostname
 

@@ -83,6 +83,30 @@ screen; and when a check is in flight, say so instead of showing the previous an
 current. Design detail for the push case is in
 `docs/superpowers/specs/2026-09-15-webhook-secret-header-auth-design.md` Part 11.
 
+## The test suite runs before every COMMIT, not before every push
+
+**Twice in one session a commit went into history red.** `c0aafc9` added two md5 digests to an
+evidence file; `tests/test_no_credentials_in_repo.py` flags any 32-character hex run, and it was
+right to — a full digest and a leaked key are the same shape to a scanner. The failure sat in
+history until the next unrelated test run surfaced it.
+
+**Run the suite before `git commit`, not before `git push`.** The reasons are specific to this
+repository:
+
+- **The deploy pulls from origin**, so `main` is what the next deploy takes. A red commit on `main`
+  is not "caught later", it is armed.
+- **Docs commits are not exempt.** Both red commits this session were documentation-only. The
+  credential guard scans *tracked files*, not source files, so prose can and does break it.
+- **A green suite at push time does not clear the commits underneath it.** History is what gets
+  bisected, reverted to, and cherry-picked.
+
+```bash
+cd middleware && python3 -m pytest tests -q   # before the commit, every time
+```
+
+**And do not relax a guard to fit the evidence.** The fix for the digests was to truncate them in
+the evidence file, not to teach the scanner to ignore 32-character hex runs.
+
 ## Verifying a change in the BHNM lab
 
 **Search for the object. Never trust the count.** The Actions Administration page shows

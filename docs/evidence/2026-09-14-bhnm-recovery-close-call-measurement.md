@@ -2090,8 +2090,8 @@ about. Its silence about 20:10Z was not a finding; it was a file that had never 
 
 ```
 orphan bytes:          1007261
-orphan md5:            6dcd771c9564a3e0133725cd2f9a4da8
-live-log prefix md5:   6dcd771c9564a3e0133725cd2f9a4da8   ← head -c 1007261 /logs/middleware.log
+orphan md5:            6dcd771c9564…   (truncated: see note)
+live-log prefix md5:   6dcd771c9564…   ← head -c 1007261 /logs/middleware.log — IDENTICAL
 ```
 
 — i.e. **a copy of the live log taken at 19:19:29Z**, not a second log stream. `/app/logs` is
@@ -2159,6 +2159,11 @@ documented three would mis-handle it.
 | first line | `2026-09-14 17:12:12,548Z [Log] Mirroring stdout to /logs/middleware.log` — identical to the real log's |
 | last write | **2026-09-16 19:19:29Z**, and never again |
 | content | **exact byte-prefix of `/logs/middleware.log`** (md5 `6dcd771c…` both) |
+
+> **Hashes truncated on purpose.** `tests/test_no_credentials_in_repo.py` flags any 32-character hex
+> run in a tracked file, and it was right to: a full md5 and a leaked key are the same shape to a
+> scanner. The prefix carries the finding — the two digests are identical — without teaching the
+> guard to ignore a class of string it exists to catch. **Do not relax the guard to fit evidence.**
 | owner | `root`, while the app runs as `appuser`; directory created 19:19:44Z |
 | `HOST_LOG_PATH` | **unset** — the app writes `/logs/middleware.log`, correctly |
 

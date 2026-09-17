@@ -11,9 +11,7 @@ except OSError:
 from contextlib import asynccontextmanager
 import base64
 import hashlib
-import ipaddress
 import json
-import socket
 import zlib
 from urllib.parse import parse_qs, urlparse
 import httpx
@@ -200,46 +198,74 @@ def _verify_proxy_token(request: Request) -> None:
     raise HTTPException(status_code=401, detail="Invalid proxy token")
 
 
-def _validate_proxy_target(target_url: str) -> None:
-    """Block SSRF: only allow targets whose hostname is in servers.json or is non-private.
+_DEFAULT_PORTS = {"http": 80, "https": 443}
 
-    Raises HTTPException(403) if the target resolves to a private/reserved IP range.
+
+def _target_key(url: str) -> tuple[str, str, int] | None:
+    """Normalised (scheme, host, port) for allowlist comparison, or None if unusable.
+
+    Normalises case, a trailing slash, and the default port, so that
+    `https://H/` and `https://h:443` are the same key. The scheme is part of the
+    key on purpose: X-Proxy-Token rides on every proxied request and the BHNM
+    api_key rides in proxied bodies as pwd=, so an http downgrade to a host
+    configured as https would put a credential on the wire in cleartext.
     """
-    parsed = urlparse(target_url)
-    hostname = parsed.hostname or ""
-
-    # Collect allowed hostnames from servers.json
-    allowed_hosts: set[str] = set()
+    parsed = urlparse(url.strip().rstrip("/"))
+    scheme = (parsed.scheme or "").lower()
+    host = (parsed.hostname or "").lower()
+    if scheme not in _DEFAULT_PORTS or not host:
+        return None
     try:
-        with open(SERVERS_JSON_PATH) as f:
-            for s in json.load(f):
-                url = s.get("url", "")
-                if url:
-                    h = urlparse(url).hostname
-                    if h:
-                        allowed_hosts.add(h.lower())
-    except (FileNotFoundError, json.JSONDecodeError, Exception):
-        pass
+        port = parsed.port or _DEFAULT_PORTS[scheme]
+    except ValueError:          # malformed port in the URL
+        return None
+    return (scheme, host, port)
 
-    if hostname.lower() in allowed_hosts:
-        return  # Explicitly configured — always allowed
 
-    # Resolve hostname to IP(s) and block private/reserved ranges (RFC 1918,
-    # loopback, link-local, metadata).  Resolving prevents DNS rebinding attacks
-    # where a hostname initially points to a public IP but later resolves to an
-    # internal address.
+def _proxy_allowlist() -> set[tuple[str, str, int]]:
+    """Every configured server as a normalised key. Raises if servers.json is unreadable."""
+    with open(SERVERS_JSON_PATH) as f:
+        servers = json.load(f)
+    return {key for s in servers if (key := _target_key(s.get("url", "")))}
+
+
+def _validate_proxy_target(target_url: str, request: Request | None = None) -> None:
+    """Refuse any proxy target that is not a configured server.
+
+    **servers.json is the ALLOWLIST, not a bypass list.** There is deliberately no
+    "resolves to a public address, therefore allowed" fall-through: that was the
+    defect (evidence 8.18) and it made any api_key a relay token for the whole
+    public internet, since _verify_proxy_token accepts any api_key in servers.json
+    and those keys live on phones and in onboarding QR codes.
+
+    **Nothing is resolved here.** A refused target must never reach DNS, so a
+    client-supplied hostname is never handed to getaddrinfo.
+
+    **A configured host is allowed whatever it resolves to, including a private
+    address.** An on-prem BHNM legitimately sits on one. That is why the old
+    private-address check is gone rather than kept for a second pass: with only
+    configured hosts reaching past the allowlist, no path could reach it. This is
+    NOT an oversight to tidy up — see
+    docs/superpowers/specs/2026-09-17-proxy-target-allowlist-design.md 2.3 and 7.4.
+    """
     try:
-        infos = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
-    except socket.gaierror:
-        raise HTTPException(status_code=403, detail="Proxy target hostname could not be resolved")
-    for info in infos:
-        ip_str = info[4][0]
-        try:
-            addr = ipaddress.ip_address(ip_str)
-        except ValueError:
-            continue
-        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
-            raise HTTPException(status_code=403, detail="Proxy target address is not allowed")
+        allowed = _proxy_allowlist()
+    except Exception as exc:
+        # Distinct from a refusal on purpose: "I cannot read my config" and "your
+        # target is wrong" are different incidents, and the status code is where
+        # that has to be visible, not only the log.
+        print(f"[Proxy] CONFIG UNREADABLE: {SERVERS_JSON_PATH} ({exc}) — refusing all proxy targets")
+        raise HTTPException(status_code=503, detail="Server configuration unavailable")
+
+    if _target_key(target_url) not in allowed:
+        # Full target and client in the log; a constant in the response. Echoing
+        # the target back buys nothing and would confirm by probe which hosts are
+        # configured. This log line is also the enumeration the log could not
+        # produce before — it answers "which client is naming an unconfigured
+        # host" without a packet capture.
+        ua = request.headers.get("user-agent", "(none)") if request is not None else "(none)"
+        print(f"[Proxy] REFUSED target not in servers.json: {target_url!r} user-agent={ua!r}")
+        raise HTTPException(status_code=403, detail="Proxy target is not a configured server.")
 
 
 @asynccontextmanager
@@ -763,7 +789,7 @@ async def cached_incidents(request: Request):
         target_base = _single_server_url()
     if not target_base:
         raise HTTPException(status_code=502, detail="Bad Gateway: BHNM target server not configured")
-    _validate_proxy_target(target_base)
+    _validate_proxy_target(target_base, request)
 
     bhnm_api_key = server_cfg["api_key"] if server_cfg else api_key
     form = {"pwd": bhnm_api_key, "method": "getincidents"}
@@ -871,7 +897,7 @@ async def cached_tactical_overview(request: Request, grouping_type: str = "categ
         target_base = _single_server_url()
     if not target_base:
         raise HTTPException(status_code=502, detail="Bad Gateway: BHNM target server not configured")
-    _validate_proxy_target(target_base)
+    _validate_proxy_target(target_base, request)
 
     bhnm_api_key = server_cfg["api_key"] if server_cfg else api_key
     form = {"password": bhnm_api_key, "grouping_type": grouping_type}
@@ -965,7 +991,7 @@ async def cached_threshold_counts(request: Request):
         target_base = _single_server_url()
     if not target_base:
         raise HTTPException(status_code=502, detail="Bad Gateway: BHNM target server not configured")
-    _validate_proxy_target(target_base)
+    _validate_proxy_target(target_base, request)
 
     bhnm_api_key = server_cfg["api_key"] if server_cfg else api_key
     form: dict[str, str] = {"password": bhnm_api_key}
@@ -1103,7 +1129,7 @@ async def _proxy_to_bhnm(request: Request, bhnm_path: str) -> Response:
         raise HTTPException(status_code=502, detail="Bad Gateway: BHNM target server not configured")
     if not (target_base.startswith("http://") or target_base.startswith("https://")):
         raise HTTPException(status_code=400, detail="X-BHNM-Target must be an http/https URL")
-    _validate_proxy_target(target_base)
+    _validate_proxy_target(target_base, request)
 
     target = f"{target_base}/{bhnm_path.lstrip('/')}"
 
@@ -1372,7 +1398,7 @@ def _resolve_bhnm_target_and_key(request: Request) -> tuple[str, str]:
         raise HTTPException(status_code=502, detail="Bad Gateway: BHNM target server not configured")
     if not (target_base.startswith("http://") or target_base.startswith("https://")):
         raise HTTPException(status_code=400, detail="X-BHNM-Target must be an http/https URL")
-    _validate_proxy_target(target_base)
+    _validate_proxy_target(target_base, request)
     return target_base, api_key
 
 
@@ -1446,7 +1472,7 @@ async def proxy(path: str, request: Request):
         raise HTTPException(status_code=502, detail="Bad Gateway: BHNM target server not configured")
     if not (target_base.startswith("http://") or target_base.startswith("https://")):
         raise HTTPException(status_code=400, detail="X-BHNM-Target must be an http/https URL")
-    _validate_proxy_target(target_base)
+    _validate_proxy_target(target_base, request)
 
     target = f"{target_base}/{path}"
     if request.url.query:
