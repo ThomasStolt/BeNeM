@@ -1,6 +1,7 @@
 # Runbook: capture the first anomaly webhook, and the 2.15.2 pending-override case
 
-**Written 2026-09-16. STOP AT DESIGN applies to fixes, not to this — this is observation only.**
+**Written 2026-09-16. EXECUTED 2026-09-17 — results in evidence §8.19.**
+**STOP AT DESIGN applies to fixes, not to this — this is observation only.**
 **Nothing here changes code, config or a deployment.**
 
 **Why now:** Thomas attached the BeNeM Action Group to the recurring `Bandwidth` anomaly on
@@ -47,10 +48,38 @@ Then extract the POST bodies:
 tcpdump -r /root/webhook-capture.pcap -A -s0 | sed -n '/POST \/webhook/,/^$/p'
 ```
 
-**Needs Thomas's go-ahead before arming, for one reason:** a pcap writes webhook bodies —
-hostnames, site names, alarm output — to disk on the VPS, which is the thing the middleware
-deliberately refuses to do. It is local-only, nothing leaves the host, and the file should be
-deleted once the fields are transcribed.
+**CORRECTED 2026-09-17 — the risk first written here was the wrong one.** The original note said
+the hazard was webhook *bodies* (hostnames, site names, alarm output) reaching disk. That is the
+small half of it.
+
+**Port 8889 after Caddy is plaintext, and it carries credentials.** Measured in the 2026-09-17
+capture, out of 292 reassembled requests:
+
+| what a capture on this port records | count |
+|---|---:|
+| `X-Proxy-Token` header — a BHNM api_key — on every proxied request | **285** |
+| `?secret=` — the webhook secret, in the query string, because S1 1b has not landed | **6** |
+| `pwd=` / `password=` in proxied request bodies | **67** |
+
+**A capture here recreates on disk precisely the leak 2.13.2's redaction filter was written to
+close.** The filter scrubs credentials out of the *log*; a pcap collects them from the wire in the
+clear, below the level the filter operates at.
+
+**Therefore, every capture on this port is run under all five of these, without exception:**
+
+1. **Self-terminating.** A `timeout` wrapper *and* a packet cap (`-c`). Never open-ended on prod.
+   Re-arm rather than extend.
+2. **Mode `0600`** (`umask 077`), written to `/root`, never to a shared or mounted path.
+3. **Extract once, then destroy in the same session.** `shred -u`. Field values go to the evidence
+   file; the pcap never enters the repository, not even gitignored. If a session ends before
+   deletion, **the pcap is the first thing handled on resume.**
+4. **Every credential redacted** before any value is printed to a terminal or written to a file.
+5. **Confirm deletion by name**, plus a `find / -name "*.pcap"` sweep — never by assuming the `rm`
+   worked.
+
+This is not a routine diagnostic tool. It is a last resort for questions the log is structurally
+incapable of answering, and 2026-09-17 documents two such questions (the wire payload, and the
+`X-BHNM-Target` enumeration).
 
 **Do not report "worked as expected". Report the observed fields**, including the ones that come
 back empty — an empty `SERVICE*` on a threshold alarm is a finding, not a gap in the notes.

@@ -2276,3 +2276,175 @@ its description: not "a stale URL breaks incident detail" but **"a stale URL bre
 read on that client, silently, and has been doing so for days."** The fix is the same one item 15
 already names — and the client-side question of why a total proxy failure is not surfaced to the
 user belongs with queue item 5 and the connection-status work.
+
+---
+
+## 8.19 The first non-host webhook payloads, captured on the wire — 2026-09-17
+
+**[MEASURED]** Bounded packet capture on the docker bridge `br-722f981ebb8a`, 10:04:28Z–10:39:28Z,
+`timeout 2100` + `-c 20000`, 4352 packets, 0 dropped by kernel. 292 HTTP requests reassembled,
+**6 of them `POST /webhook`**. Every field value below was read off the wire, not from the log.
+
+**The pcap was deleted in the same session and never entered the repository.** Credentials are
+redacted here and were never printed in full anywhere.
+
+### Why this capture was itself a risk, stated plainly
+
+Port 8889 after Caddy is **plaintext**. Measured in this very capture:
+
+| what the pcap contained | count (of 292 requests) |
+|---|---:|
+| `X-Proxy-Token` header (a BHNM api_key) | **285** |
+| `?secret=` webhook secret in the query string (S1 1b has not landed) | **6** |
+| `pwd=` / `password=` in proxied bodies | **67** |
+
+**This capture recreated on disk exactly the leak 2.13.2's redaction filter was written to close.**
+That is the reason it was time-boxed, packet-capped, mode `0600`, extracted once and destroyed in
+the same session. Any repeat must do the same. It is not a routine tool.
+
+---
+
+### (a) The anomaly payload, field by field
+
+Six webhooks: 1 `WARNING`, 3 `RECOVERY`, 1 `ACKNOWLEDGEMENT`, 1 `DEACKNOWLEDGEMENT`.
+
+**Transport, and a lie in the header:**
+
+```
+User-Agent:   curl/7.61.1                          ← BHNM's Action shells out to curl
+Content-Type: application/x-www-form-urlencoded    ← and the body is JSON
+```
+
+`main.py:570–577` already tries JSON first and falls back to form parsing, with the comment *"BHNM
+may send JSON without the Content-Type: application/json header."* **Measured, it is worse than
+that comment says: BHNM sends JSON while actively declaring form encoding.** The existing code
+survives it. Anything that trusts `Content-Type` would not.
+
+**`{NOTIFICATIONTYPE}` — the wire literal, which is what was asked:**
+
+| wire value | count | documented? |
+|---|---:|---|
+| `WARNING` | 1 | docs say `CRITICAL`/`WARNING` for thresholds — **`WARNING` confirmed, uppercase on the wire** |
+| `RECOVERY` | 3 | yes |
+| `ACKNOWLEDGEMENT` | 1 | yes |
+| `DEACKNOWLEDGEMENT` | 1 | **NO — the macro reference documents `UNACKNOWLEDGEMENT`** |
+
+**All four arrive UPPERCASE on the wire.** So `main.py:588`'s `.strip().upper()` is not masking a
+different casing — the log's token was the wire token all along. `DEACKNOWLEDGEMENT` is now
+confirmed a second time, directly off the wire rather than inferred from behaviour.
+
+**A `WARNING`, complete (incident 29699, 10:10:13Z):**
+
+```
+category             = 'Network Infrastructure'
+host_address         = '192.168.2.20'
+host_state           = ''                  <-- EMPTY on WARNING
+hostname             = 'U6-Pro-EG'
+incident_id          = '29699'
+incident_time        = 'Thu Sep 17 12:10:10 2026'
+incident_time_t      = '1789639810'
+notification_number  = '0'
+notification_type    = 'WARNING'
+output               = 'Upper Warning Weekly Anomaly: Value = 89.194, Expected Max = 17.005'
+primary_alarm_status = 'WARNING'
+server               = ''
+service_desc         = ''                  <-- EMPTY
+severity             = ''
+site                 = 'New_York'
+uid                  = '110'
+```
+
+**Which `SERVICE*` macros are populated: NONE.** `service_desc` is **empty on all six payloads**,
+including the threshold/anomaly ones. The expectation that a non-host alarm would populate a
+service field is **wrong** — it is empty here exactly as it is on host-down. Also empty on every
+payload: `server`, `severity`.
+
+**`host_state` is empty on `WARNING` and `ACKNOWLEDGEMENT`, and `UP` on `RECOVERY` and
+`DEACKNOWLEDGEMENT`.** It is not a state field for threshold alarms; `primary_alarm_status` carries
+the real state (`WARNING` / `OK`).
+
+**Does `{OUTPUT}` contain HTML? NO — not in any of the six.** Every value is plain text with no
+tags and no entities:
+
+```
+WARNING           'Upper Warning Weekly Anomaly: Value = 89.194, Expected Max = 17.005'
+RECOVERY          'OK: Value = 77119.137'
+ACKNOWLEDGEMENT   'Acknowledged by Thomas Android PWA: No comment.'
+DEACKNOWLEDGEMENT 'Deacknowledged by Thomas Android PWA: No comment.'
+```
+
+`clean_bhnm_text()` is therefore a no-op on this alarm class. **It is not proven unnecessary** —
+host-down output has carried `<br />` before, which is why the function exists. What is measured is
+that threshold/anomaly output does not.
+
+**Seven fields BHNM sends that the middleware never reads:** `category`, `host_address`,
+`incident_time`, `incident_time_t`, `severity`, `uid`, `server`. `host_address` and `category` in
+particular are exactly the kind of context a page could carry. Not a defect — recorded because the
+data is already arriving and is being discarded.
+
+**`notification_number = '0'`, not `1`.** `main.py:601–604` reads `int(str(...).strip() or 1)`; the
+`or 1` guards an *empty string*, so a literal `'0'` parses to `0`, and `notice` is `0`. The comment
+says *"absent or unparseable means first notice"* — in practice BHNM sends `0` and the code carries
+`0`. Harmless today (`if notice > 1` is false either way, so no "notice N" suffix is rendered) but
+the variable does not mean what the comment says it means.
+
+**The cache-patch branch — the prediction recorded in advance was correct.** From the same window's
+log: every `WARNING` line has **no** `Cache patched` line (`cache_state` is `None` — `WARNING` is
+in neither the `ACKNOWLEDGEMENT`/`RECOVERY` map nor the unack branch), while `RECOVERY` patched to
+`CLOSED`, `ACKNOWLEDGEMENT` to `ACKNOWLEDGED`, and `DEACKNOWLEDGEMENT` to `OPEN`:
+
+```
+10:10:13,944Z [Webhook] WARNING — U6-Pro-EG — Incident 29699          (no patch line: the None branch)
+10:15:47,378Z [Webhook] RECOVERY — UAP-AC-Pro-DB — Incident 29697
+10:15:47,379Z [Webhook] Cache patched: incident 29697 -> CLOSED (1 server(s))
+10:21:44,737Z [Webhook] ACKNOWLEDGEMENT — UAP-AC-LR — Incident 29701
+10:21:44,737Z [Webhook] Cache patched: incident 29701 -> ACKNOWLEDGED (1 server(s))
+10:21:50,724Z [Webhook] DEACKNOWLEDGEMENT — UAP-AC-LR — Incident 29701
+10:21:50,725Z [Webhook] Cache patched: incident 29701 -> OPEN (1 server(s))
+```
+
+**[DERIVED — not observed, the phone is the only witness]** Feeding the measured `WARNING` fields
+through `main.py:620–627`: `host_state` is empty so the emoji is `⚠️`; `state` falls back to
+`notification_type`; `notice` is 0 so no suffix; `service_desc` is empty so the body falls back to
+`output`. Title `⚠️ U6-Pro-EG — WARNING`, body
+`Upper Warning Weekly Anomaly: Value = 89.194, Expected Max = 17.005 | Site: New_York`.
+**This is arithmetic on the code, not a screenshot. It needs confirming against a phone.**
+
+---
+
+### (b) Every `X-BHNM-Target` on the wire, per client
+
+The enumeration the log structurally cannot produce, because the target is printed only on failure.
+
+**Exactly ONE distinct target across all 292 requests:**
+
+| target | requests | first | last | in `servers.json`? |
+|---|---:|---|---|---|
+| `https://bhnm-b.tstolt.com` | **241** | 10:05:35Z | 10:37:53Z | **YES** |
+
+**Per client:**
+
+| client (User-Agent) | target | requests |
+|---|---|---:|
+| `BeNeM/36 CFNetwork/3860.700.1 Darwin/25.6.0` | `https://bhnm-b.tstolt.com` | 156 |
+| `BeNeM/36 CFNetwork/3860.700.2 Darwin/25.6.0` | `https://bhnm-b.tstolt.com` | 57 |
+| | *(no header)* | 1 |
+| `Mozilla/5.0 (Linux; Android 10; K) … Chrome/152.0.0.0 Mobile Safari` | `https://bhnm-b.tstolt.com` | 28 |
+| | *(no header)* | 44 |
+
+**Zero requests to any host outside `servers.json`. Zero to `vpn.hurrikap.org`.** The 45
+header-less requests resolve by api_key from the body or query string (`main.py:1426–1441`); the
+log shows **zero** `No target header/key found` fallback lines, so all of them resolved.
+
+**The `vpn.hurrikap.org` question is closed for the clients that transmitted — and only for those.**
+
+**Coverage limit, stated because it is the whole caveat:** a capture sees only clients that
+transmit. Three user-agents appeared, matching the three clients Thomas exercised (two iPhones —
+distinguishable by CFNetwork build `3860.700.1` vs `3860.700.2` — and the Android PWA). But **four
+iOS tokens are registered** (§ device table, 2026-09-17). At least one registered client did not
+transmit during the window and is therefore **unexamined**, not cleared. One of those is the
+iPhone 15's pre-reinstall token, which may simply be stale.
+
+`X-Forwarded-For` was `87.166.74.218` for every client — the same egress address the stale
+`vpn.hurrikap.org` target resolved to, i.e. Thomas's own network. It does not separate the devices;
+the CFNetwork build and User-Agent do.
