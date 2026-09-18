@@ -43,7 +43,12 @@ struct ServerConfigView: View {
 
     private var isAddMode: Bool { existingConnection == nil }
 
-    // Save button disabled when required fields are empty or nothing changed
+    // Save button disabled only when a required field is empty, or a probe is in
+    // flight. Deliberately NOT disabled when nothing has changed: Save is also the
+    // only way to re-run the connection probe, so "nothing changed" does not mean
+    // "nothing to do". Editing a bad value back to the original used to leave the
+    // screen showing "Connection failed" with the only control that could clear it
+    // greyed out.
     private var saveDisabled: Bool {
         isTesting
         || draftName.isEmpty
@@ -52,21 +57,6 @@ struct ServerConfigView: View {
         || draftApiKey.isEmpty
         || draftAckUser.isEmpty
         || (draftNotificationsEnabled && draftPushSecret.isEmpty)
-        || (!isAddMode && !hasChanges)
-    }
-
-    private var hasChanges: Bool {
-        guard let conn = existingConnection else { return true }
-        return draftName != conn.name
-            || draftBhnmURL != conn.bhnmURL
-            || draftApiKey != conn.apiKey
-            || draftPin != conn.pin
-            || draftAckUser != conn.ackUser
-            || draftSymbol != conn.symbol
-            || draftColor != conn.accentColor
-            || draftNotificationsEnabled != conn.notificationsEnabled
-            || draftMiddlewareURL != conn.middlewareURL
-            || draftPushSecret != conn.webhookSecret
     }
 
     var body: some View {
@@ -375,8 +365,7 @@ struct ServerConfigView: View {
                 testStatus = .failure; alertTitle = "Server not allowed"
                 alertMessage = "HTTP 403: The middleware refused this BHNM URL for this API key.\n\n"
                     + "Check the BHNM URL — it must be a server the middleware is configured for, "
-                    + "and the one this API key belongs to.\n\n"
-                    + "The API key and PIN are not the problem."
+                    + "and the one this API key belongs to."
                 showingAlert = true
             case 404:
                 testStatus = .failure; alertTitle = "Endpoint not found"

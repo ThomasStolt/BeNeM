@@ -10,7 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
-## [2.13.2] — 2026-09-17
+## [2.13.2] — 2026-09-18
 
 ### Fixed
 
@@ -19,6 +19,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Changed
 
 - **401 and 403 no longer share a message.** They mean different things: **401** is a wrong API key or PIN, and keeps the existing wording; **403** means the middleware refused that BHNM URL for this key — a wrong URL, or a server this key does not own — and now says so instead of blaming the key and the PIN. A message that names the wrong cause sends the user to fix the wrong field.
+
+- **Save is no longer greyed out when nothing has changed.** Save is also the only control that re-runs the connection probe, so "nothing changed" never meant "nothing to do": editing a bad URL back to the correct one left the screen showing **Connection failed** with the only button that could clear it disabled. It is now enabled whenever the required fields are filled.
+- **The 403 message drops its closing sentence.** "The API key and PIN are not the problem" was written to counter the old wrong wording; with the message already saying *check the BHNM URL*, a trailing negation only invites doubt about fields the user was not asked to touch.
 
 ### Known issue
 
