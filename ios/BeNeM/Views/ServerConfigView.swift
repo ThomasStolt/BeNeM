@@ -344,8 +344,10 @@ struct ServerConfigView: View {
                     saveConnection(bhnmURLString: bhnmURLString)
                     testStatus = .success
                     alertTitle = "Connection verified"
-                    alertMessage = "BHNM is reachable through the middleware and accepted the API key.\n\n"
-                        + "Not covered by this test: push notifications and the PIN on SaaS servers."
+                    // The PIN is NOT listed as uncovered: it is sent when one is entered,
+                    // and BHNM checks credentials before the method, so a wrong PIN fails
+                    // this probe exactly as a wrong key does.
+                    alertMessage = "BHNM is reachable through the middleware and accepted the credentials."
                     dismissAfterAlert = true
                     showingAlert = true
 
