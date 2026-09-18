@@ -1,6 +1,9 @@
 # Security hardening, the connection probe and diagnostics — session handoff
 
-**Date:** 2026-09-18, written at 21:50Z.
+**Date:** 2026-09-18, written at 21:50Z. **Amended 22:50Z** after iOS 2.13.2 (45) was uploaded and
+submitted for review: (a), (d), (e) and (h) changed. **(b) and (c) were re-verified independently
+at 21:56Z** and matched, with two moving numbers — the incidents cache read `count=10` rather than
+16, and both lab devices' `lastUpdateTime` had advanced. Neither is a state change.
 **Supersedes:** `docs/superpowers/2026-09-17-proxy-allowlist-and-webhook-payload-handoff.md` for
 **state**. That file remains the authority for the older decision records.
 
@@ -12,8 +15,9 @@ this was written; the unit is closed.
 
 ## (a) What landed
 
-**Eighteen commits, `81c5159..27f447e`, all pushed.** Three middleware releases, one PWA release,
-one iOS build that is **deliberately not released**.
+**Twenty commits, `81c5159..86d1106`, all pushed.** Three middleware releases, one PWA release, and
+an iOS build **submitted for App Store review** — build 44, which is field-verified, was never
+uploaded; build 45 is what went to Apple.
 
 | commit | what changes in behaviour |
 |---|---|
@@ -33,7 +37,9 @@ one iOS build that is **deliberately not released**.
 | `adde589` | **iOS: a toggle no longer destroys the webhook secret**, and the add/edit lock-out is gone |
 | `1b87765` | **middleware 2.18.0** `/health` reduction, versions in the topology, secret masking, QR unlock |
 | `abd71a4` | **PWA 0.17.0** — and the rule that a deploy must state what it deployed |
-| `27f447e` | **iOS 2.13.2 (44)** installed on the 13 Pro Max. **NOT released** |
+| `27f447e` | **iOS 2.13.2 (44)** installed on the 13 Pro Max. Field-verified, **never uploaded** |
+| `646c784` | this handoff |
+| `86d1106` | **iOS 2.13.2 (45) — archived Release, uploaded 22:17:43Z and SUBMITTED FOR REVIEW.** A new build number because 44 names a binary App Store Connect has never seen. **No TestFlight install — Thomas's decision**, so no device has run these bytes. Record: `docs/evidence/2026-09-18-ios-2.13.2-45-appstore-submission.md` |
 
 ### The behaviour changes that matter
 
@@ -139,13 +145,17 @@ Nobody has yet ruled on whether that volume is wanted.
 | **The connection probe is O(1)** | 51 bytes good key, 46 bad, independent of estate size. `getincidents` cannot be bounded: `limit=1` and `count=1` both returned the identical 1921 bytes |
 | **iOS save flow, all three tests** | passed on build 39 on the 13 Pro Max |
 | **The four clients and the browser on the final build** | Thomas, 2026-09-18: versions correct, health card gone, push toggle preserves the secret, mask as designed |
-| **The test bundle is not in the shipped app** | `find BeNeM.app -name "*.xctest"` → empty |
+| **The test bundle is not in the shipped app** | `find BeNeM.app -name "*.xctest"` → empty, re-checked inside the build 45 IPA |
+| **Build 45's IPA is signed for production push** | unpacked and read, not inferred: `aps-environment: production`, `get-task-allow false`, `beta-reports-active true`, `Apple Distribution: Thomas Stolt (8L27BJGYXP)`, `2.13.2 (45)`. **The `.xcarchive` itself read `development`** — only the distribution re-sign flips it, so the archive is not evidence for the IPA |
+| **The changed code has no build-configuration branch** | grep over all five changed Swift files for `#if`/`DEBUG`/`RELEASE`/`_isDebugAssertConfiguration`/`targetEnvironment` → **0 hits**. The save-and-probe path is `ServerConfigView.swift:316-500`, one compilation for both configurations |
 
 ### NOT VERIFIED
 
 | thing | why |
 |---|---|
-| **Store build 36 against the rotated deployment** | nobody has run the App Store build since the rotation. See (e)1 — the reasoning is sound but it is reasoning |
+| **iOS build 45 on any device — it has never run anywhere** | submitted straight to review with **no TestFlight install, Thomas's decision**. The field verification was on **build 44, a Debug build**. The changed code has no build-configuration branches (verified by grep, in (d) VERIFIED), so **the residual gap is optimisation level only**: Release compiles `-O`, build 44 is `-Onone`. That is a conclusion from a grep, not from a running app, and an optimisation-sensitive fault is exactly what a device run catches and reasoning does not. **Cheap to close — see (e)3** |
+| **Build 45's production APNs registration** | argued, not observed: `AppDelegate.swift` is byte-identical to shipped build 36 (`git diff 36a0583..HEAD` on that file is empty) and 36's four production tokens are live in `device_tokens`. That proves the path in the *store* build, not in these bytes. `AppDelegate.swift:128-132` is the app's **only** behavioural Debug/Release fork |
+| **Store build 36 against the rotated deployment** | nobody has run the App Store build since the rotation. See (e) — the reasoning is sound but it is reasoning. Moot once 45 is approved; **until then 36 is still what everyone but Thomas is running** |
 | **Steve's and Luiz's clients** | only Thomas's four were exercised. A mismatched-target client of theirs breaks by design and nobody here would see it |
 | **The inconclusive verdict branch** | no way to provoke it short of pointing at a non-BHNM host that answers |
 | **benem-admin → `/internal/cache/reload` after the rotation** | verified structurally, both containers hold the new fingerprint; never exercised, and it fails silently by design |
@@ -157,22 +167,13 @@ Nobody has yet ruled on whether that volume is wanted.
 
 ## (e) Parked items, RANKED
 
-### 1. iOS App Store release — the top item, and it is not cosmetic
+> **The release is DONE and is no longer on this list.** 2.13.2 (45) was submitted for review on
+> 2026-09-18. Until Apple approves it, **2.13.1 (36) is still the store build on every phone that
+> is not Thomas's**, and its manual add/edit of a server is still broken against the rotated
+> `PROXY_TOKEN` — QR / deep-link import is unaffected (`DeepLinkHandler.swift:127-144` saves with
+> no probe), so nobody is locked out. Nothing to do but wait for review.
 
-**The store build, 2.13.1 (36), cannot add or edit a server manually any more.** Its save probe
-sends the push secret as `X-Proxy-Token`, which authenticated only because `PROXY_TOKEN` and
-`WEBHOOK_SECRET` held the same value. Since the rotation that probe gets **401**, and because
-`saveConnection()` runs only on a 200, the edit is discarded under an alert blaming the API key
-and PIN.
-
-**QR / deep-link import is unaffected** — `DeepLinkHandler.swift:127-144` saves directly with no
-probe — so an onboarding flow still works and nobody is locked out of the app. But manual add and
-edit is broken on every phone that is not Thomas's.
-
-2.13.2 (44) fixes it and is built, installed and field-verified on the 13 Pro Max. **It has not
-been released.** This is a real reason to ship, not a nicety.
-
-### 2. Credential strength — rotate the short api_keys
+### 1. Credential strength — rotate the short api_keys
 
 `ThomasLabServer` is **15 characters**, `Luiz` is **9**. Both are simultaneously proxy tokens
 (`main.py:194`). The 2.17.0 binding reduced what a leaked key *grants* to one server; it did
@@ -186,7 +187,7 @@ give away nearly half. A key too short to display safely is a key too short to b
 Rotation touches `servers.json`, the QR codes and the phones. It is a planned change, not a quick
 fix.
 
-### 3. §8.8 coverage-visibility, decision 1 — **still the highest-priority DESIGN**
+### 2. §8.8 coverage-visibility, decision 1 — **now the single next action, see (h)**
 
 The read-only measurement of whether the BHNM API exposes action-group assignment. **Deferred
 twice this week** — it was the single next action in the 2026-09-17 handoff and never started,
@@ -195,6 +196,21 @@ because the CROSS defect outranked it and then this work did.
 It needs no lab change and no deploy, and it decides whether BeNeM can state its coverage as fact
 or must admit it cannot know. `specs/2026-09-16-coverage-visibility-design.md`, decision 1, still
 unanswered by Thomas. **Do not start the §8.8 build from it** — that design is STOP AT DESIGN.
+
+### 3. Smoke-test build 45 via TestFlight once processing finishes — OPTIONAL, minutes
+
+**Cheap and still available.** Build 45 lands in TestFlight on its own once App Store Connect
+finishes processing, because it is the same binary that went to review. Installing it does not
+disturb the submission, and review takes about a day against minutes for the check.
+
+It closes the one real gap in (d): **no device has run build 45 at Release optimisation.** Worth
+running: edit and save a server, read the versions in Diagnostics, look at the mask. Expect the
+phone to register a **new production APNs token**, so `device_tokens` likely goes to five rows and
+the webhook fan-out to six targets, one of them the stale row — that is the install, not a defect.
+
+Optional because the reasoning behind skipping it is sound, and not scheduled because the decision
+to submit without it was deliberate. If it is not done before approval, say so rather than letting
+the absence go unrecorded.
 
 ### 4. Caddy's error log stores full request headers in cleartext
 
@@ -262,7 +278,8 @@ does), **"an SE outage fires the action group"** (EXTERNAL, two explanations alr
     calls were timing out, and its middleware URL is identical to the two working clients.
 15. **"The PROXY_TOKEN rotation has a blast radius of one diagnostic button."** Wrong twice. There
     is no "Test Connection" button — the control is labelled **"Test & Save"** / **"Save"**, it runs
-    in both modes, and a 401 **discards the edit** rather than merely failing a test. See (e)1.
+    in both modes, and a 401 **discards the edit** rather than merely failing a test. Fixed in
+    2.13.2, submitted for review as build 45 — see the note at the top of (e).
 16. **"Rotating PROXY_TOKEN means touching benem:// links, QR codes and four phones."** That blast
     radius belongs to `WEBHOOK_SECRET`. `proxy_token` was removed from the QR payload on
     2026-09-15 and **no client ever read it** — `benem-admin/main.py:236-249` says so in the code,
@@ -303,24 +320,32 @@ does), **"an SE outage fires the action group"** (EXTERNAL, two explanations alr
 
 ## (h) The single next action
 
-**Decide the iOS App Store release.**
+**§8.8 coverage-visibility, decision 1 — the read-only measurement of whether the BHNM API exposes
+action-group assignment.**
 
-It is (e)1, it is the only item with a user-visible defect live on other people's phones, and the
-fix is built, installed and field-verified. **The store build cannot add or edit a server
-manually**, and the failure blames the API key and PIN, so anyone hitting it will debug the wrong
-thing.
+It is (e)2. It has now been **deferred three times**: it was the single next action in the
+2026-09-17 handoff, was displaced by the CROSS defect, then by the security-hardening work, then by
+the release. Nothing outranks it any more.
+
+It decides whether BeNeM can **state its coverage as fact or must admit it cannot know** — which
+is the doctrine question, not a feature question. A device the app shows as covered, that no action
+group actually reaches, is the device-icon defect again in its most expensive form.
 
 **What must be true before it starts:**
 
-1. **Thomas decides to release** — this is a product call, not a technical one.
-2. **Nothing is mid-deploy.** Currently true: middleware 2.18.0 and PWA 0.17.0 are live and
-   verified, tree clean, `local == remote`.
+1. **Nothing is mid-deploy.** Currently true: middleware 2.18.0 and PWA 0.17.0 live and verified,
+   tree clean, `local == remote`. The iOS submission is with Apple and needs nothing from us.
+2. **It is read-only.** No lab change, no deploy, no `servers.json` edit. If a step seems to need
+   one, that is the signal to stop and re-read the design.
 3. **The reader has read (d) NOT VERIFIED and (f)**, so no withdrawn belief is resurrected — in
-   particular **not** "the rotation's blast radius is one diagnostic button".
+   particular **not** "the rotation's blast radius is one diagnostic button", and **not** "the
+   Service Engine sends webhooks".
+4. **Counts are not evidence in the BHNM UI.** Root `CLAUDE.md`: search for the object by name.
+   The Actions Administration counter has been wrong twice.
 
-Release notes material is in `ios/CHANGELOG.md` under **2.13.2**, which is already written and
-covers every change in the build.
+Start at `specs/2026-09-16-coverage-visibility-design.md`, decision 1. **Do not start §8.8's
+build** — that design is STOP AT DESIGN until decisions 2 and 3 are ruled.
 
-**Do not start §8.8's build** from item 3 — that design is STOP AT DESIGN until decisions 2 and 3
-are ruled. **Do not rotate the short api_keys** without a plan; it touches `servers.json`, the QR
-codes and the phones.
+**Also parked, deliberately:** do not rotate the short api_keys ((e)1) without a plan; it touches
+`servers.json`, the QR codes and the phones. And (e)3, the TestFlight smoke test of build 45, stays
+optional — worth minutes if the build finishes processing before anyone picks this up.
