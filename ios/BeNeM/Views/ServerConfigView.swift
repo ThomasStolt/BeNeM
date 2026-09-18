@@ -31,6 +31,8 @@ struct ServerConfigView: View {
     @State private var alertTitle              = ""
     @State private var alertMessage            = ""
     @State private var showingAlert            = false
+    /// Set when the alert is the SUCCESS confirmation, so OK returns to Settings.
+    @State private var dismissAfterAlert       = false
     @State private var showingDeleteConfirm    = false
 
     @State private var savedConnections: [SavedConnection] = []
@@ -207,7 +209,7 @@ struct ServerConfigView: View {
             IconPickerSheet(symbol: $draftSymbol, accentColor: $draftColor)
         }
         .alert(alertTitle, isPresented: $showingAlert) {
-            Button("OK", role: .cancel) {}
+            Button("OK", role: .cancel) { if dismissAfterAlert { dismiss() } }
         } message: {
             Text(alertMessage)
         }
@@ -337,26 +339,28 @@ struct ServerConfigView: View {
             switch statusCode {
             case 200:
                 // BHNM answers 200 for everything, so the body carries the verdict.
-                // A password error is the ONE failure; every other BHNM reply means the
-                // credential was accepted, which is the thing this probe verifies.
-                let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-                let detail = (json?["detail"] as? String) ?? ""
-                if json?["result"] == nil {
-                    let preview = String(data: data.prefix(300), encoding: .utf8) ?? "<non-UTF8>"
-                    testStatus = .failure
-                    alertTitle = "Unexpected response"
-                    alertMessage = "The server answered, but not with a BHNM API response.\n\n"
-                        + "Check the BHNM URL.\n\nRaw response:\n\(preview)"
-                    showingAlert = true
-                } else if detail.localizedCaseInsensitiveContains("password") {
-                    testStatus = .failure
-                    alertTitle = "Authentication failed"
-                    alertMessage = "BHNM rejected the API key: \(detail)"
-                    showingAlert = true
-                } else {
+                switch probeVerdict(data) {
+                case .verified:
                     saveConnection(bhnmURLString: bhnmURLString)
                     testStatus = .success
-                    dismiss()
+                    alertTitle = "Connection verified"
+                    alertMessage = "BHNM is reachable through the middleware and accepted the API key."
+                    dismissAfterAlert = true
+                    showingAlert = true
+
+                case .authFailed(let detail):
+                    testStatus = .failure
+                    alertTitle = "Authentication failed"
+                    alertMessage = "BHNM rejected the API key.\n\nIt said: \(detail)"
+                    showingAlert = true
+
+                case .inconclusive(let preview):
+                    testStatus = .failure
+                    alertTitle = "Could not verify"
+                    alertMessage = "The server answered, but not in a way this app recognises, "
+                        + "so the connection is NOT verified and nothing was saved.\n\n"
+                        + "It said:\n\(preview)"
+                    showingAlert = true
                 }
             // 401 and 403 mean different things now that the api_key is the proxy
             // token. One message for both named the wrong cause for half of them.
@@ -396,6 +400,54 @@ struct ServerConfigView: View {
             testStatus = .failure; alertTitle = "Error"
             alertMessage = error.localizedDescription; showingAlert = true
         }
+    }
+
+    /// What the probe proved. THREE outcomes, never two: a reply this app does not
+    /// recognise is INCONCLUSIVE, not a pass.
+    ///
+    /// The old rule — "a password error is the one failure, anything else is a pass" —
+    /// treated an unrecognised reply as success and hung the whole verdict on BHNM's
+    /// exact wording of "Password failed.". If that string ever changed, a WRONG KEY
+    /// would have read as a good connection. The failure direction now runs the safe
+    /// way: a wording change degrades to "could not verify", never to a false pass.
+    private enum ProbeVerdict {
+        case verified
+        case authFailed(String)
+        case inconclusive(String)
+    }
+
+    /// Matching is on structure first and on the narrowest possible words second,
+    /// because BHNM's API carries no error code — only `result` and a human `detail`.
+    ///
+    ///  - `result: "completed"`  — structural. BHNM did work, so the key was accepted.
+    ///  - detail mentions a credential — checked FIRST, so an auth error can never be
+    ///    read as anything else.
+    ///  - detail mentions the METHOD — the method is the thing we deliberately got
+    ///    wrong, and BHNM checks the credential BEFORE the method, so any complaint
+    ///    about the method necessarily happened after the key was accepted. Matching
+    ///    the word rather than the sentence covers "Method not supported.",
+    ///    "Missing method in your request." and "Missing required information for
+    ///    this method." — all three observed 2026-09-18.
+    ///  - anything else, including a body with no `result` key — inconclusive.
+    private func probeVerdict(_ data: Data) -> ProbeVerdict {
+        let preview = String(data: data.prefix(300), encoding: .utf8) ?? "<non-UTF8 response>"
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let result = json["result"] as? String else {
+            return .inconclusive(preview)
+        }
+        let detail = (json["detail"] as? String) ?? ""
+
+        if detail.localizedCaseInsensitiveContains("password")
+            || detail.localizedCaseInsensitiveContains("credential") {
+            return .authFailed(detail)
+        }
+        if result.caseInsensitiveCompare("completed") == .orderedSame {
+            return .verified
+        }
+        if detail.localizedCaseInsensitiveContains("method") {
+            return .verified
+        }
+        return .inconclusive(preview)
     }
 
     private func saveConnection(bhnmURLString: String) {

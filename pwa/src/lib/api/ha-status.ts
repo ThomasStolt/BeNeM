@@ -42,8 +42,18 @@ export function formatHaStatus(role: string, status: string): string | null {
   return map[status] ?? status;
 }
 
+/**
+ * What the probe proved. THREE outcomes, never two: a reply we do not recognise is
+ * INCONCLUSIVE, not a pass.
+ *
+ * The rule this replaces — "a password error is the one failure, anything else is a
+ * pass" — treated an unrecognised reply as success and hung the verdict on BHNM's
+ * exact wording of "Password failed.". Had that string changed, a WRONG KEY would
+ * have read as a good connection. The failure direction now runs the safe way: a
+ * wording change degrades to "could not verify", never to a false pass.
+ */
 export interface ConnectionCheckResult {
-  /** BHNM's own reply, e.g. "Method not supported." — proof it answered as BHNM. */
+  /** BHNM's own words, e.g. "Method not supported." */
   detail: string;
 }
 
@@ -60,11 +70,14 @@ export interface ConnectionCheckResult {
  * getincidents answers the same question in ~209 bytes per incident, about 204 KB
  * at n=1000, and neither `limit` nor `count` bounds it.
  *
- * A parse error is a FAILURE and is no longer swallowed. The previous version
- * returned `{role:'unknown'}` for any non-JSON 200 on the grounds that "a parse
- * error on a reachable server still means the connection works" — but BHNM returns
- * those before it ever looks at the credential, so that reported a verified
- * connection it had not verified. See the root CLAUDE.md doctrine.
+ * Matching is on structure first and the narrowest possible words second, because
+ * BHNM's API carries no error code — only `result` and a human `detail`:
+ *  - `result: "completed"` is structural: BHNM did work, so the key was accepted.
+ *  - a credential word is checked FIRST, so an auth error cannot read as anything else.
+ *  - a METHOD word means BHNM got past the credential to complain about the thing we
+ *    deliberately got wrong. Covers "Method not supported.", "Missing method in your
+ *    request." and "Missing required information for this method.", all observed.
+ *  - anything else, a non-JSON body included, is inconclusive.
  */
 export async function testConnection(config: BhnmConfig): Promise<ConnectionCheckResult> {
   const params: Record<string, string> = {
@@ -74,15 +87,23 @@ export async function testConnection(config: BhnmConfig): Promise<ConnectionChec
   if (config.pin) params.pin = config.pin;
 
   const raw = await postForm(config.baseUrl, '/api/incident_api.php', params, config.apiKey);
-  if (!raw || typeof raw !== 'object' || !('result' in (raw as Record<string, unknown>))) {
-    throw new ApiException({
-      kind: 'parse',
-      message: 'The server answered, but not with a BHNM API response. Check the BHNM URL.',
-    });
+  const preview = typeof raw === 'string' ? raw.slice(0, 300) : JSON.stringify(raw).slice(0, 300);
+  const record = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const result = typeof record.result === 'string' ? record.result : '';
+  const detail = typeof record.detail === 'string' ? record.detail : '';
+  const has = (s: string, word: string) => s.toLowerCase().includes(word);
+
+  if (!result) {
+    throw new ApiException({ kind: 'parse', message: `Not a BHNM API response: ${preview}` });
   }
-  const detail = String((raw as Record<string, unknown>).detail ?? '');
-  if (detail.toLowerCase().includes('password')) {
-    throw new ApiException({ kind: 'auth', message: `BHNM rejected the API key: ${detail}` });
+  if (has(detail, 'password') || has(detail, 'credential')) {
+    throw new ApiException({ kind: 'auth', message: `BHNM rejected the API key. It said: ${detail}` });
   }
-  return { detail };
+  if (result.toLowerCase() === 'completed' || has(detail, 'method')) {
+    return { detail };
+  }
+  throw new ApiException({
+    kind: 'parse',
+    message: `BHNM answered, but not in a way this app recognises: ${preview}`,
+  });
 }

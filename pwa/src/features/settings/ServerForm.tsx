@@ -296,15 +296,22 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
             <span className="text-emerald-400 text-sm font-semibold">Connected</span>
           </div>
           <div className="text-xs text-slate-400 mt-1">
-            BHNM accepted the API key for this server.
+            BHNM is reachable through the middleware and accepted the API key.
           </div>
         </div>
       )}
 
       {testState === 'failed' && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-          <span className="text-red-400 text-sm font-semibold">Connection Failed</span>
+          <span className="text-red-400 text-sm font-semibold">Not verified</span>
           <p className="text-xs text-slate-400 mt-1">{testError}</p>
+          {/* The PWA saves regardless of the probe (see handleSubmit), unlike iOS
+              which gates the save on it. The panel must therefore say so: a server
+              sitting in the list unverified is exactly the state the doctrine says
+              must not be drawn the same as a verified one. */}
+          <p className="text-xs text-slate-500 mt-2">
+            The server was saved anyway, but this connection is not verified.
+          </p>
         </div>
       )}
 

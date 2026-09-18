@@ -78,6 +78,28 @@ describe('testConnection', () => {
     await expect(testConnection(CONFIG)).rejects.toMatchObject({ error: { kind: 'auth' } });
   });
 
+  it('treats an unrecognised BHNM reply as inconclusive, not a pass', async () => {
+    // THE REGRESSION TEST for the too-generous rule. Under "a password error is the
+    // one failure", this would have been reported as a verified connection.
+    vi.mocked(postForm).mockResolvedValue({ result: 'error', detail: 'Something new and unknown.' });
+    await expect(testConnection(CONFIG)).rejects.toMatchObject({ error: { kind: 'parse' } });
+  });
+
+  it('survives BHNM rewording its password error', async () => {
+    // If "Password failed." ever becomes something else, the verdict must degrade to
+    // inconclusive — never to a false pass.
+    vi.mocked(postForm).mockResolvedValue({ result: 'error', detail: 'Invalid credential supplied.' });
+    await expect(testConnection(CONFIG)).rejects.toMatchObject({ error: { kind: 'auth' } });
+  });
+
+  it('accepts the other two method complaints BHNM can give', async () => {
+    for (const detail of ['Missing method in your request.',
+                          'Missing required information for this method.']) {
+      vi.mocked(postForm).mockResolvedValue({ result: 'error', detail });
+      await expect(testConnection(CONFIG)).resolves.toEqual({ detail });
+    }
+  });
+
   it('rejects a 200 that is not a BHNM API response', async () => {
     // What ha_status_api.php actually returns on a TLS-terminated deployment:
     // PHP-serialized text, HTTP 200. This used to be reported as success.
