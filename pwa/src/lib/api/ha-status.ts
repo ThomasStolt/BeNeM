@@ -97,7 +97,16 @@ export async function testConnection(config: BhnmConfig): Promise<ConnectionChec
     throw new ApiException({ kind: 'parse', message: `Not a BHNM API response: ${preview}` });
   }
   if (has(detail, 'password') || has(detail, 'credential')) {
-    throw new ApiException({ kind: 'auth', message: `BHNM rejected the API key. It said: ${detail}` });
+    // BHNM never says WHICH credential it rejected, so we must not either. The form
+    // knows whether a PIN was entered, so it can point at the right field instead of
+    // making the user work out whether they are on SaaS.
+    const next = config.pin
+      ? 'Check the API key and the PIN.'
+      : 'Check the API key. SaaS servers also require a PIN.';
+    throw new ApiException({
+      kind: 'auth',
+      message: `BHNM rejected these credentials: "${detail}" ${next}`,
+    });
   }
   if (result.toLowerCase() === 'completed' || has(detail, 'method')) {
     return { detail };

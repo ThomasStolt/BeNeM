@@ -85,6 +85,25 @@ describe('testConnection', () => {
     await expect(testConnection(CONFIG)).rejects.toMatchObject({ error: { kind: 'parse' } });
   });
 
+  it('names the PIN only when one was entered', async () => {
+    // BHNM never says which credential it rejected, so neither may we — but the form
+    // knows whether a PIN exists, so the guidance can still be precise.
+    vi.mocked(postForm).mockResolvedValue({ result: 'error', detail: 'Password failed.' });
+    await expect(testConnection({ ...CONFIG, pin: '1234' })).rejects.toMatchObject({
+      error: { message: expect.stringContaining('Check the API key and the PIN.') },
+    });
+    await expect(testConnection({ ...CONFIG, pin: undefined })).rejects.toMatchObject({
+      error: { message: expect.stringContaining('SaaS servers also require a PIN.') },
+    });
+  });
+
+  it('quotes BHNM rather than naming a credential itself', async () => {
+    vi.mocked(postForm).mockResolvedValue({ result: 'error', detail: 'Password failed.' });
+    await expect(testConnection(CONFIG)).rejects.toMatchObject({
+      error: { message: expect.stringContaining('"Password failed."') },
+    });
+  });
+
   it('survives BHNM rewording its password error', async () => {
     // If "Password failed." ever becomes something else, the verdict must degrade to
     // inconclusive — never to a false pass.

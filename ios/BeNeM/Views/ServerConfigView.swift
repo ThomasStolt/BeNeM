@@ -344,14 +344,22 @@ struct ServerConfigView: View {
                     saveConnection(bhnmURLString: bhnmURLString)
                     testStatus = .success
                     alertTitle = "Connection verified"
-                    alertMessage = "BHNM is reachable through the middleware and accepted the API key."
+                    alertMessage = "BHNM is reachable through the middleware and accepted the API key.\n\n"
+                        + "Not covered by this test: push notifications and the PIN on SaaS servers."
                     dismissAfterAlert = true
                     showingAlert = true
 
                 case .authFailed(let detail):
+                    // BHNM never says WHICH credential it rejected, so the app must not
+                    // either. The form knows whether a PIN was entered, so it can point
+                    // at the right field instead of making the user work out whether
+                    // they are on SaaS.
                     testStatus = .failure
                     alertTitle = "Authentication failed"
-                    alertMessage = "BHNM rejected the API key.\n\nIt said: \(detail)"
+                    alertMessage = "BHNM rejected these credentials: \"\(detail)\"\n\n"
+                        + (draftPin.isEmpty
+                           ? "Check the API key. SaaS servers also require a PIN."
+                           : "Check the API key and the PIN.")
                     showingAlert = true
 
                 case .inconclusive(let preview):

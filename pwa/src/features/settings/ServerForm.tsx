@@ -298,6 +298,9 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
           <div className="text-xs text-slate-400 mt-1">
             BHNM is reachable through the middleware and accepted the API key.
           </div>
+          <div className="text-xs text-slate-500 mt-1">
+            Not covered by this test: push notifications and the PIN on SaaS servers.
+          </div>
         </div>
       )}
 
