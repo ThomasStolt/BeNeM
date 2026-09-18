@@ -45,20 +45,19 @@ struct ServerConfigView: View {
 
     private var isAddMode: Bool { existingConnection == nil }
 
-    // Save button disabled only when a required field is empty, or a probe is in
-    // flight. Deliberately NOT disabled when nothing has changed: Save is also the
-    // only way to re-run the connection probe, so "nothing changed" does not mean
-    // "nothing to do". Editing a bad value back to the original used to leave the
-    // screen showing "Connection failed" with the only control that could clear it
-    // greyed out.
+    /// Delegated to `ServerDraft.saveDisabled` so the rule is testable — see
+    /// BeNeMTests/ServerDraftTests.swift. Deliberately NOT disabled when nothing has
+    /// changed: Save is also the only way to re-run the connection probe.
     private var saveDisabled: Bool {
-        isTesting
-        || draftName.isEmpty
-        || draftBhnmURL.isEmpty
-        || draftMiddlewareURL.isEmpty
-        || draftApiKey.isEmpty
-        || draftAckUser.isEmpty
-        || (draftNotificationsEnabled && draftPushSecret.isEmpty)
+        currentDraft.saveDisabled(isAddMode: isAddMode, isTesting: isTesting)
+    }
+
+    private var currentDraft: ServerDraft {
+        ServerDraft(name: draftName, middlewareURL: draftMiddlewareURL, bhnmURL: draftBhnmURL,
+                    apiKey: draftApiKey, pin: draftPin, ackUser: draftAckUser,
+                    pushSecret: draftPushSecret,
+                    notificationsEnabled: draftNotificationsEnabled,
+                    symbol: draftSymbol, accentColor: draftColor)
     }
 
     var body: some View {
@@ -127,6 +126,15 @@ struct ServerConfigView: View {
                         .disabled(!draftNotificationsEnabled)
                 }
                 .opacity(draftNotificationsEnabled ? 1 : 0.4)
+                if draftNotificationsEnabled {
+                    if draftPushSecret.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("Push is on but no webhook secret is stored, so this server "
+                             + "cannot deliver notifications until one is entered.")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                            .listRowSeparator(.hidden)
+                    }
+                }
             }
 
             // Status row
@@ -461,25 +469,8 @@ struct ServerConfigView: View {
     }
 
     private func saveConnection(bhnmURLString: String) {
-        let trimmedName = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let middlewareURL = draftMiddlewareURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        let webhookSecret = draftNotificationsEnabled
-            ? draftPushSecret.trimmingCharacters(in: .whitespacesAndNewlines)
-            : ""
-
-        let now = SavedConnection(
-            id: existingConnection?.id ?? UUID(),
-            name: trimmedName.isEmpty ? "Unnamed" : trimmedName,
-            middlewareURL: middlewareURL,
-            bhnmURL: bhnmURLString,
-            notificationsEnabled: draftNotificationsEnabled,
-            apiKey: draftApiKey,
-            pin: draftPin,
-            ackUser: draftAckUser,
-            webhookSecret: webhookSecret,
-            symbol: draftSymbol,
-            accentColor: draftColor
-        )
+        let now = currentDraft.connection(id: existingConnection?.id ?? UUID(),
+                                          bhnmURLString: bhnmURLString)
 
         if let idx = savedConnections.firstIndex(where: { $0.id == now.id }) {
             savedConnections[idx] = now
