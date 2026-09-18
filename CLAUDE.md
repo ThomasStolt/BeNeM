@@ -83,6 +83,22 @@ screen; and when a check is in flight, say so instead of showing the previous an
 current. Design detail for the push case is in
 `docs/superpowers/specs/2026-09-15-webhook-secret-header-auth-design.md` Part 11.
 
+## Every deploy bumps the version of what it deploys
+
+**And the pre-deploy check reads the running version BEFORE tagging the rollback image.**
+
+Written down on 2026-09-18, after a PWA deploy shipped a new bundle with `package.json` reading
+`0.16.3` before it and `0.16.3` after. The Settings screen said the same thing either side, so
+**the deploy could not state what it had deployed** — the same defect as the `/health` payload
+that same release was fixing, wearing a different label.
+
+- **Bump every time, even for "only" strings or a payload change.** A changed bundle hash is
+  evidence for someone with shell access on the VPS. The version string is evidence for everyone
+  else, including the operator holding the phone.
+- **Name the rollback tag after the version you observed running, not the one you expect to
+  ship.** That same deploy produced `pre-0.16.4`, a tag naming a version that never existed,
+  because it was written from expectation. A rollback tag is a claim about an image's contents.
+
 ## A client-decoded payload may only ever GAIN fields
 
 **The middleware is deployed in minutes. The iOS client is deployed in days, through App
