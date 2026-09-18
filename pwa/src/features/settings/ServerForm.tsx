@@ -1,8 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import type { ServerConfig, NewServerInput } from '../../lib/serverStorage';
 import { testConnection } from '../../lib/api/ha-status';
-import type { HaStatusResult } from '../../lib/api/ha-status';
-import { formatHaRole, formatHaStatus } from '../../lib/api/ha-status';
+import type { ConnectionCheckResult } from '../../lib/api/ha-status';
 
 interface Props {
   server?: Partial<ServerConfig>;
@@ -58,7 +57,7 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
   const [showSecret, setShowSecret] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(server?.pushEnabled ?? false);
   const [testState, setTestState] = useState<TestState>('idle');
-  const [testResult, setTestResult] = useState<HaStatusResult | null>(null);
+  const [testResult, setTestResult] = useState<ConnectionCheckResult | null>(null);
   const [testError, setTestError] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -297,10 +296,7 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
             <span className="text-emerald-400 text-sm font-semibold">Connected</span>
           </div>
           <div className="text-xs text-slate-400 mt-1">
-            {formatHaRole(testResult.role)}
-            {formatHaStatus(testResult.role, testResult.status) && (
-              <> — {formatHaStatus(testResult.role, testResult.status)}</>
-            )}
+            BHNM accepted the API key for this server.
           </div>
         </div>
       )}

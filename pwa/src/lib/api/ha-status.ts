@@ -42,20 +42,47 @@ export function formatHaStatus(role: string, status: string): string | null {
   return map[status] ?? status;
 }
 
-export async function testConnection(config: BhnmConfig): Promise<HaStatusResult> {
+export interface ConnectionCheckResult {
+  /** BHNM's own reply, e.g. "Method not supported." — proof it answered as BHNM. */
+  detail: string;
+}
+
+/**
+ * Verify a connection: reachable, proxy token accepted, target allowed for that
+ * token, and the BHNM credential good — in one call against the endpoint the app
+ * actually uses.
+ *
+ * The method is deliberately unsupported. BHNM checks the credential BEFORE the
+ * method, so this answers "is the key good" in a CONSTANT 51 bytes whatever the
+ * size of the estate — measured 2026-09-18:
+ *   wrong key -> {"result":"error","detail":"Password failed."}        46 B
+ *   good key  -> {"result":"error","detail":"Method not supported."}   51 B
+ * getincidents answers the same question in ~209 bytes per incident, about 204 KB
+ * at n=1000, and neither `limit` nor `count` bounds it.
+ *
+ * A parse error is a FAILURE and is no longer swallowed. The previous version
+ * returned `{role:'unknown'}` for any non-JSON 200 on the grounds that "a parse
+ * error on a reachable server still means the connection works" — but BHNM returns
+ * those before it ever looks at the credential, so that reported a verified
+ * connection it had not verified. See the root CLAUDE.md doctrine.
+ */
+export async function testConnection(config: BhnmConfig): Promise<ConnectionCheckResult> {
   const params: Record<string, string> = {
-    password: config.apiKey,
+    pwd: config.apiKey,
+    method: 'benem_connection_check',
   };
   if (config.pin) params.pin = config.pin;
-  try {
-    const raw = await postForm(config.baseUrl, '/api/proxy/ha-status', params, config.apiKey);
-    return parseHaStatusResponse(raw);
-  } catch (err) {
-    // Some BHNM servers (SaaS) return PHP serialized data instead of JSON.
-    // A parse error on a reachable server still means the connection works.
-    if (err instanceof ApiException && err.error.kind === 'parse') {
-      return { role: 'unknown', status: '' };
-    }
-    throw err;
+
+  const raw = await postForm(config.baseUrl, '/api/incident_api.php', params, config.apiKey);
+  if (!raw || typeof raw !== 'object' || !('result' in (raw as Record<string, unknown>))) {
+    throw new ApiException({
+      kind: 'parse',
+      message: 'The server answered, but not with a BHNM API response. Check the BHNM URL.',
+    });
   }
+  const detail = String((raw as Record<string, unknown>).detail ?? '');
+  if (detail.toLowerCase().includes('password')) {
+    throw new ApiException({ kind: 'auth', message: `BHNM rejected the API key: ${detail}` });
+  }
+  return { detail };
 }

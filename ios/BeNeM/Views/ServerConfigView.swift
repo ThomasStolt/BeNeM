@@ -284,7 +284,7 @@ struct ServerConfigView: View {
             return
         }
 
-        guard let testURL = URL(string: "\(testBase)/api/ha_status_api.php") else {
+        guard let testURL = URL(string: "\(testBase)/api/incident_api.php") else {
             testStatus = .failure
             alertTitle = "Invalid URL"
             alertMessage = "Could not construct test endpoint."
@@ -308,7 +308,15 @@ struct ServerConfigView: View {
         }
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
-        var bodyItems = [URLQueryItem(name: "password", value: draftApiKey)]
+        // A deliberately unsupported method. BHNM checks the credential BEFORE the
+        // method, so this answers "is the key good" in a CONSTANT 51 bytes, whatever
+        // the size of the estate — measured 2026-09-18:
+        //   wrong key   -> {"result":"error","detail":"Password failed."}        46 B
+        //   good key    -> {"result":"error","detail":"Method not supported."}   51 B
+        // getincidents would answer the same question in ~209 bytes per incident,
+        // about 204 KB at n=1000, and neither `limit` nor `count` bounds it.
+        var bodyItems = [URLQueryItem(name: "pwd", value: draftApiKey),
+                         URLQueryItem(name: "method", value: "benem_connection_check")]
         if !draftPin.isEmpty { bodyItems.append(URLQueryItem(name: "pin", value: draftPin)) }
         var comps = URLComponents()
         comps.queryItems = bodyItems
@@ -328,32 +336,27 @@ struct ServerConfigView: View {
 
             switch statusCode {
             case 200:
-                if let raw = try? JSONSerialization.jsonObject(with: data) {
-                    // ha_status response: [{"role":"master","status":"1"}] or {"role":"standalone","status":"1"}
-                    let obj: [String: Any]?
-                    if let dict = raw as? [String: Any] {
-                        obj = dict
-                    } else if let arr = raw as? [[String: Any]] {
-                        obj = arr.first
-                    } else {
-                        obj = nil
-                    }
-                    if let json = obj, let role = json["role"] as? String {
-                        saveConnection(bhnmURLString: bhnmURLString)
-                        testStatus = .success
-                        dismiss()
-                    } else {
-                        let preview = String(data: data.prefix(300), encoding: .utf8) ?? "<non-UTF8>"
-                        testStatus = .failure
-                        alertTitle = "Unexpected response"
-                        alertMessage = "Server responded but did not return HA status.\n\nRaw response:\n\(preview)"
-                        showingAlert = true
-                    }
-                } else {
+                // BHNM answers 200 for everything, so the body carries the verdict.
+                // A password error is the ONE failure; every other BHNM reply means the
+                // credential was accepted, which is the thing this probe verifies.
+                let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+                let detail = (json?["detail"] as? String) ?? ""
+                if json?["result"] == nil {
+                    let preview = String(data: data.prefix(300), encoding: .utf8) ?? "<non-UTF8>"
                     testStatus = .failure
-                    alertTitle = "Parse error"
-                    alertMessage = "Could not parse server response as JSON."
+                    alertTitle = "Unexpected response"
+                    alertMessage = "The server answered, but not with a BHNM API response.\n\n"
+                        + "Check the BHNM URL.\n\nRaw response:\n\(preview)"
                     showingAlert = true
+                } else if detail.localizedCaseInsensitiveContains("password") {
+                    testStatus = .failure
+                    alertTitle = "Authentication failed"
+                    alertMessage = "BHNM rejected the API key: \(detail)"
+                    showingAlert = true
+                } else {
+                    saveConnection(bhnmURLString: bhnmURLString)
+                    testStatus = .success
+                    dismiss()
                 }
             // 401 and 403 mean different things now that the api_key is the proxy
             // token. One message for both named the wrong cause for half of them.
@@ -364,7 +367,7 @@ struct ServerConfigView: View {
             case 403:
                 testStatus = .failure; alertTitle = "Server not allowed"
                 alertMessage = "HTTP 403: The middleware refused this BHNM URL for this API key.\n\n"
-                    + "Check the BHNM URL — it must be a server the middleware is configured for, "
+                    + "Check the BHNM URL — it must be a server the middleware is configured for "
                     + "and the one this API key belongs to."
                 showingAlert = true
             case 404:
