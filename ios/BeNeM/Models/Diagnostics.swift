@@ -9,7 +9,6 @@ struct Diagnostics: Decodable {
 
     struct Middleware: Decodable {
         let version: String?
-        let registered_devices: Int?
         let server_time: Int?
     }
 
@@ -29,6 +28,11 @@ struct Diagnostics: Decodable {
         let last_error: String?
         let last_error_age_seconds: Int?
         let consecutive_failures: Int?
+        /// The BHNM build, e.g. "26.3-01.17.el8.noarch". **nil = unknown**, which is
+        /// the normal case on-prem: /cloudversion is session-gated there and no
+        /// api_key-readable alternative exists (measured 2026-09-18). Never render
+        /// nil as a version or as blank.
+        let version: String?
     }
 
     struct Feed: Decodable {

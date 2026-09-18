@@ -179,6 +179,70 @@ async def active_probe(target_base: str, api_key: str, pin: str | None,
 _monitor_tasks: dict[str, asyncio.Task] = {}
 
 
+# BHNM version, per server: {server_id: (fetched_ts, version_or_None)}.
+# None means "asked and could not tell", which is a DIFFERENT thing from "not asked
+# yet" (absent from the dict) — and the clients must not draw either of them the way
+# they draw a known version.
+_bhnm_version: dict[str, tuple[float, str | None]] = {}
+
+# A BHNM build does not change between deploys of the monitored appliance, so this
+# is refreshed rarely rather than per probe. A failed read is retried sooner, because
+# "unknown" is a state we want to leave as soon as the server can answer.
+VERSION_TTL_OK = 6 * 3600.0
+VERSION_TTL_UNKNOWN = 600.0
+
+_VERSION_RE = re.compile(r"^Package Version:\s*(\S+)", re.MULTILINE)
+
+
+async def bhnm_version(server: dict, verify: bool) -> str | None:
+    """The BHNM build, or None when this server cannot tell us.
+
+    **SaaS only, and that is a BHNM limitation rather than a shortcut here.**
+    `GET <base>/cloudversion` returns plain text on a SaaS environment:
+
+        Build Date: 2026-08-15
+        Build Time: 01:11:52 UTC
+        Package Name: omnicenter
+        Package Version: 26.3-01.17.el8.noarch
+
+    On-prem the same path answers `302 -> /fw/index.php?r=site/login`, i.e. it is
+    session-gated — and so does `/qwertyuiop`, so the redirect does not even prove
+    the route exists there. No api_key-authenticated alternative was found:
+    `/version`, `/api/version` and `restful/system/{version,info,status}` all fail,
+    and no response header carries it. Measured 2026-09-18; an enhancement request
+    is open with BHNM. See docs/evidence/2026-09-18-health-endpoint-audit.md and the
+    BHNM report beside it.
+
+    Returns None rather than raising. None means UNKNOWN and must never be rendered
+    as a known version.
+    """
+    server_id = server.get("id", "")
+    base = (server.get("url") or "").rstrip("/")
+    if not server_id or not base:
+        return None
+
+    cached = _bhnm_version.get(server_id)
+    if cached:
+        ts, value = cached
+        ttl = VERSION_TTL_OK if value else VERSION_TTL_UNKNOWN
+        if time.time() - ts < ttl:
+            return value
+
+    value = None
+    try:
+        async with httpx.AsyncClient(verify=verify, timeout=PROBE_TIMEOUT,
+                                     follow_redirects=False) as client:
+            resp = await client.get(f"{base}/cloudversion")
+        if resp.status_code == 200:
+            m = _VERSION_RE.search(resp.text)
+            if m:
+                value = m.group(1)
+    except Exception:
+        pass  # unknown is a legitimate answer here, not an error to surface
+    _bhnm_version[server_id] = (time.time(), value)
+    return value
+
+
 async def _monitor_loop(server: dict, verify: bool) -> None:
     server_id = server["id"]
     print(f"[Monitor:{server_id}] BHNM probe loop started (every {DIAG_PROBE_INTERVAL}s)")

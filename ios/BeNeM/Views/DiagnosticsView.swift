@@ -18,7 +18,6 @@ struct DiagnosticsView: View {
                     feedsSection
                     errorsSection
                     callLogSection
-                    healthSection
                 }
                 .padding()
             }
@@ -46,16 +45,18 @@ struct DiagnosticsView: View {
         VStack(alignment: .leading, spacing: 6) {
             sectionLabel("Connection path")
             HStack(alignment: .top, spacing: 0) {
-                hopNode("iphone", "App", up: true, detail: "running")
+                hopNode("iphone", "App", up: true, detail: "running", version: appVersion)
                 hopLink(up: reachedMiddleware,
                         label: result?.appToMiddlewareMs.map { "\($0) ms" } ?? "—")
                 hopNode("server.rack", "Middleware", up: reachedMiddleware,
-                        detail: reachedMiddleware ? "up" : "unreachable")
+                        detail: reachedMiddleware ? "up" : "unreachable",
+                        version: result?.diagnostics?.middleware.version)
                 hopLink(up: bhnm?.reachable == true, label: bhnmLatencyLabel)
                 hopNode("externaldrive.fill", "BHNM",
                         up: bhnm?.reachable == true,
                         detail: bhnm?.reachable == nil ? "checking"
-                              : (bhnm?.reachable == true ? "reachable" : "down"))
+                              : (bhnm?.reachable == true ? "reachable" : "down"),
+                        version: bhnm?.version)
             }
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity)
@@ -72,7 +73,20 @@ struct DiagnosticsView: View {
         return "\(ms) ms"
     }
 
-    private func hopNode(_ symbol: String, _ name: String, up: Bool, detail: String) -> some View {
+    /// This app's own version, e.g. "2.13.2 (43)".
+    private var appVersion: String? {
+        let info = Bundle.main.infoDictionary
+        guard let short = info?["CFBundleShortVersionString"] as? String else { return nil }
+        let build = info?["CFBundleVersion"] as? String
+        return build.map { "\(short) (\($0))" } ?? short
+    }
+
+    /// `version == nil` is UNKNOWN and is drawn as "version unknown" in the muted
+    /// colour, NEVER blank and never styled like a known version. On-prem BHNM
+    /// exposes no readable version at all, so this is the normal case there, not an
+    /// error — but a reader must be able to tell it apart from a version we have.
+    private func hopNode(_ symbol: String, _ name: String, up: Bool, detail: String,
+                         version: String?) -> some View {
         VStack(spacing: 4) {
             Image(systemName: symbol)
                 .font(.system(size: 20))
@@ -82,6 +96,13 @@ struct DiagnosticsView: View {
                 .foregroundColor(up ? .primary : .red)
             Text(name).font(.caption2).fontWeight(.semibold)
             Text(detail).font(.system(size: 9)).foregroundColor(up ? .green : .red)
+            Text(version ?? "version unknown")
+                .font(.system(size: 9))
+                .foregroundColor(.secondary)
+                .italic(version == nil)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
         }
         .frame(width: 74)
     }
@@ -200,22 +221,6 @@ struct DiagnosticsView: View {
     }
 
     // MARK: Health
-
-    private var healthSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            sectionLabel("Middleware · /health")
-            card {
-                let m = result?.diagnostics?.middleware
-                row("Middleware version", m?.version ?? "—")
-                Divider()
-                row("Registered devices", m?.registered_devices.map(String.init) ?? "—")
-                Divider()
-                row("Server", result?.diagnostics?.server.host ?? "—")
-                Divider()
-                row("BHNM source", bhnm?.source ?? "—")
-            }
-        }
-    }
 
     // MARK: Helpers
 

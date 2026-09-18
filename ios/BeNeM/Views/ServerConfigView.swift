@@ -105,6 +105,7 @@ struct ServerConfigView: View {
                     SecureField("", text: $draftApiKey)
                         .focused($focusedField, equals: .apiKey)
                 }
+                secretHint(draftApiKey)
                 LabeledField("PIN / License ID", placeholder: "SaaS only") {
                     SecureField("", text: $draftPin)
                         .focused($focusedField, equals: .pin)
@@ -127,6 +128,7 @@ struct ServerConfigView: View {
                 }
                 .opacity(draftNotificationsEnabled ? 1 : 0.4)
                 if draftNotificationsEnabled {
+                    secretHint(draftPushSecret)
                     if draftPushSecret.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Text("Push is on but no webhook secret is stored, so this server "
                              + "cannot deliver notifications until one is entered.")
@@ -229,6 +231,23 @@ struct ServerConfigView: View {
         }
         .onAppear { populateDrafts() }
     }
+
+    /// The stored value's tail, so a stored secret can be told apart from another
+    /// during troubleshooting without ever displaying it. `SecureField` shows dots
+    /// while typing and nothing at all afterwards, which is why this exists.
+    @ViewBuilder
+    private func secretHint(_ value: String) -> some View {
+        HStack {
+            Text("Stored:")
+            Text(ServerDraft.maskedSecret(value)).fontDesign(.monospaced)
+            Spacer()
+        }
+        .font(.caption2)
+        .foregroundColor(.secondary)
+        .listRowSeparator(.hidden)
+    }
+
+    // MARK: - Secret display
 
     // MARK: - Helpers
 

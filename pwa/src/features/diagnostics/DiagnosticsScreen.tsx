@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useConfig } from '../../lib/config';
 import { fetchDiagnostics, type DiagnosticsBhnm } from '../../lib/api/diagnostics';
+import { version as APP_VERSION } from '../../../package.json';
 
 /**
  * Connection diagnostics — the 📱 App → 🖥 Middleware → 🗄 BHNM pipeline.
@@ -51,7 +52,7 @@ export function DiagnosticsScreen() {
       <div className="p-4 space-y-4">
         <Section label="Connection path">
           <div className="flex items-start px-2 py-3">
-            <HopNode icon="📱" name="App" state="up" detail="running" />
+            <HopNode icon="📱" name="App" state="up" detail="running" version={APP_VERSION} />
             <HopLink
               state={reachedMiddleware ? 'up' : 'down'}
               label={reachedMiddleware ? `${data.appToMiddlewareMs} ms` : 'down'}
@@ -61,6 +62,7 @@ export function DiagnosticsScreen() {
               name="Middleware"
               state={reachedMiddleware ? 'up' : 'down'}
               detail={reachedMiddleware ? 'up' : 'unreachable'}
+              version={data?.diagnostics.middleware.version ?? null}
             />
             <HopLink state={reachedMiddleware ? bhnmState : 'down'} label={bhnmLatencyLabel(bhnm)} />
             <HopNode
@@ -73,6 +75,7 @@ export function DiagnosticsScreen() {
                 : bhnmState === 'down' ? 'down'
                 : 'checking'
               }
+              version={bhnm?.version ?? null}
             />
           </div>
         </Section>
@@ -133,17 +136,6 @@ export function DiagnosticsScreen() {
           </Section>
         )}
 
-        <Section label="Middleware · /health">
-          <div className="p-3 space-y-1.5">
-            <Row k="Middleware version" v={data?.diagnostics.middleware.version ?? '—'} />
-            <Row
-              k="Registered devices"
-              v={data?.diagnostics.middleware.registered_devices?.toString() ?? '—'}
-            />
-            <Row k="Server" v={data?.diagnostics.server.host || '—'} />
-            <Row k="BHNM source" v={bhnm?.source ?? '—'} />
-          </div>
-        </Section>
       </div>
     </div>
   );
@@ -159,7 +151,15 @@ function bhnmLatencyLabel(b: DiagnosticsBhnm | undefined): string {
   return age !== null ? `${b.latency_ms} ms · ${agoText(age)}` : `${b.latency_ms} ms`;
 }
 
-function HopNode({ icon, name, state, detail }: { icon: string; name: string; state: HopState; detail: string }) {
+/**
+ * `version === null` is UNKNOWN and is drawn as an italic "version unknown" in the
+ * muted colour — NEVER blank and never styled like a known version. On-prem BHNM
+ * exposes no readable version at all, so unknown is the normal case there rather
+ * than an error, but a reader must be able to tell it from a version we have.
+ */
+function HopNode({ icon, name, state, detail, version }: {
+  icon: string; name: string; state: HopState; detail: string; version: string | null;
+}) {
   const color = STATE_COLORS[state];
   return (
     <div className="flex flex-col items-center w-[74px] shrink-0">
@@ -171,6 +171,9 @@ function HopNode({ icon, name, state, detail }: { icon: string; name: string; st
       </div>
       <span className="text-[11px] font-semibold mt-1">{name}</span>
       <span className="text-[9px]" style={{ color }}>{detail}</span>
+      <span className={`text-[9px] text-slate-500 text-center break-all leading-tight ${version ? '' : 'italic'}`}>
+        {version ?? 'version unknown'}
+      </span>
     </div>
   );
 }

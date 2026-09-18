@@ -274,3 +274,81 @@ def test_isolation_returns_payload_on_internal_error(client, servers):
     assert r.status_code == 200                     # degraded, not a 500
     assert r.json()["server"]["bhnm"]["reachable"] is False
     assert r.json()["server"]["bhnm"]["source"] == "error"
+
+
+# ── BHNM version (2.18.0) ─────────────────────────────────────────────────────
+# UNKNOWN is a first-class answer here, not a failure: on-prem BHNM exposes no
+# api_key-readable version at all (/cloudversion is session-gated, measured
+# 2026-09-18), so the one thing these tests must guarantee is that "could not tell"
+# never comes back looking like a version.
+
+import asyncio
+
+
+class _Resp:
+    def __init__(self, status_code, text):
+        self.status_code, self.text = status_code, text
+
+
+def _fake_client(resp):
+    class _C:
+        calls = 0
+        def __init__(self, *a, **kw): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def get(self, url):
+            _C.calls += 1
+            if isinstance(resp, Exception):
+                raise resp
+            return resp
+    return _C
+
+
+CLOUDVERSION = ("Build Date: 2026-08-15\n"
+                "Build Time: 01:11:52 UTC\n"
+                "Package Name: omnicenter\n"
+                "Package Version: 26.3-01.17.el8.noarch\n")
+
+
+def test_bhnm_version_parses_the_saas_cloudversion_body(monkeypatch):
+    diagnostics._bhnm_version.clear()
+    monkeypatch.setattr(diagnostics.httpx, "AsyncClient", _fake_client(_Resp(200, CLOUDVERSION)))
+    v = asyncio.run(diagnostics.bhnm_version({"id": "s", "url": "https://saas.example.com"}, True))
+    assert v == "26.3-01.17.el8.noarch"
+
+
+def test_on_prem_redirect_is_unknown_not_a_version(monkeypatch):
+    """On-prem answers 302 -> the login page. That is UNKNOWN, and must stay None."""
+    diagnostics._bhnm_version.clear()
+    monkeypatch.setattr(diagnostics.httpx, "AsyncClient", _fake_client(_Resp(302, "")))
+    assert asyncio.run(diagnostics.bhnm_version({"id": "s", "url": "https://onprem.example.com"}, True)) is None
+
+
+def test_unreachable_server_is_unknown_and_never_raises(monkeypatch):
+    diagnostics._bhnm_version.clear()
+    monkeypatch.setattr(diagnostics.httpx, "AsyncClient", _fake_client(RuntimeError("boom")))
+    assert asyncio.run(diagnostics.bhnm_version({"id": "s", "url": "https://dead.example.com"}, True)) is None
+
+
+def test_a_200_without_the_field_is_unknown(monkeypatch):
+    """A reachable server that answers something else must not yield a fake version."""
+    diagnostics._bhnm_version.clear()
+    monkeypatch.setattr(diagnostics.httpx, "AsyncClient", _fake_client(_Resp(200, "<html>login</html>")))
+    assert asyncio.run(diagnostics.bhnm_version({"id": "s", "url": "https://x.example.com"}, True)) is None
+
+
+def test_a_known_version_is_cached_rather_than_refetched(monkeypatch):
+    diagnostics._bhnm_version.clear()
+    cls = _fake_client(_Resp(200, CLOUDVERSION))
+    cls.calls = 0
+    monkeypatch.setattr(diagnostics.httpx, "AsyncClient", cls)
+    srv = {"id": "s", "url": "https://saas.example.com"}
+    asyncio.run(diagnostics.bhnm_version(srv, True))
+    asyncio.run(diagnostics.bhnm_version(srv, True))
+    assert cls.calls == 1, "the version was refetched inside its TTL"
+
+
+def test_unknown_is_retried_sooner_than_a_known_version(monkeypatch):
+    """Unknown is a state to leave as soon as the server can answer, so its TTL is
+    the short one. Guards the two constants against being set the same by accident."""
+    assert diagnostics.VERSION_TTL_UNKNOWN < diagnostics.VERSION_TTL_OK

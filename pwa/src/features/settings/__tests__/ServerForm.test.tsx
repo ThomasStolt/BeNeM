@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ServerForm } from '../ServerForm';
+import { ServerForm, maskSecret } from '../ServerForm';
 
 vi.mock('../../../lib/api/ha-status', () => ({
   testConnection: vi.fn().mockResolvedValue({ role: 'standalone', status: '1' }),
@@ -45,7 +45,11 @@ describe('ServerForm', () => {
     expect(getField('server-ack-user')).toHaveValue('thomas');
   });
 
-  it('makes fields read-only when QR-provisioned', () => {
+  it('leaves QR-provisioned fields EDITABLE, and keeps the provenance note', () => {
+    // Inverted 2026-09-18. The lock protected nothing — the user holds the
+    // credentials either way — and it trapped anyone whose QR-imported middleware
+    // URL had gone stale: the only way out was delete and re-add. iOS never locked
+    // these fields, so the asymmetry was the bug.
     const server = {
       id: 'abc',
       name: 'QR Server',
@@ -59,15 +63,91 @@ describe('ServerForm', () => {
       isQrProvisioned: true,
     };
     render(<ServerForm server={server} onSave={vi.fn()} onCancel={vi.fn()} />);
-    // Name should still be editable
-    expect(getField('server-name')).not.toBeDisabled();
-    // QR fields should not be editable inputs — check that text is displayed instead
-    expect(screen.getByText('https://bhnm.example.com')).toBeInTheDocument();
-    expect(screen.getByText('https://middleware.example.com')).toBeInTheDocument();
-    // API key should be masked
-    expect(screen.getByText('••••••••')).toBeInTheDocument();
-    // Footer should indicate QR provisioning
+    for (const id of ['server-name', 'server-bhnm-url', 'server-middleware-url',
+                      'server-api-key', 'server-ack-user']) {
+      expect(getField(id)).not.toBeDisabled();
+    }
+    expect(getField('server-bhnm-url')).toHaveValue('https://bhnm.example.com');
+    expect(getField('server-middleware-url')).toHaveValue('https://middleware.example.com');
+    // The provenance stays as information; the instruction that is no longer true is gone.
     expect(screen.getByText(/configured via qr code/i)).toBeInTheDocument();
+    expect(screen.queryByText(/scan again to update/i)).not.toBeInTheDocument();
+  });
+
+  it('never reveals more than a quarter of a secret', () => {
+    // 10 characters: below the 16-character threshold, so dots only. The last 4 of
+    // a short key leaves too little to guess — see the rule in ServerForm.tsx.
+    expect(maskSecret('short-key0')).toBe('••••••••');
+    expect(maskSecret('')).toBe('not set');
+    // 16+ characters: the last 4, never more, and never the whole value.
+    // Non-hex fixtures on purpose: tests/test_no_credentials_in_repo.py flags long
+    // hex runs in tracked files, and it is right to — a digest and a leaked key are
+    // the same shape to a scanner. Fix the fixture, never the guard.
+    expect(maskSecret('not-a-real-secret')).toBe('••••••••cret');
+    expect(maskSecret('not-a-real-secret-wxyz')).toBe('••••••••wxyz');
+    expect(maskSecret('not-a-real-secret')).not.toContain('not-a');
+  });
+
+  it('shows the stored secret tail so one key can be told from another', () => {
+    const server = {
+      id: 'abc', name: 'S', baseUrl: '/bhnm', apiKey: 'not-a-real-secret',
+      ackUser: 'a', isQrProvisioned: false,
+    };
+    render(<ServerForm server={server} onSave={vi.fn()} onCancel={vi.fn()} />);
+    expect(screen.getByText(/Stored: ••••••••cret/)).toBeInTheDocument();
+    // and the input itself never exposes it
+    expect(getField('server-api-key')).toHaveAttribute('type', 'password');
+  });
+
+  it('leaves every secret untouched when an unrelated field is edited', async () => {
+    // THE DATA-LOSS TEST. Unlocking the QR fields made the secrets editable and the
+    // mask shows them as dots, which together are the classic way to destroy a
+    // stored credential: pre-fill with dots instead of the value, and the first save
+    // writes the dots. This asserts the inputs carry the REAL stored values, so a
+    // save that touches nothing else round-trips them unchanged.
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    const server = {
+      id: 'abc',
+      name: 'Original',
+      baseUrl: '/bhnm',
+      bhnmUrl: 'https://bhnm.example.com',
+      pushMiddlewareUrl: 'https://mw.example.com',
+      apiKey: 'not-a-real-secret',
+      pin: 'pin-1234',
+      ackUser: 'thomas',
+      pushEnabled: true,
+      pushWebhookSecret: 'not-a-real-webhook-secret',
+      isActive: true,
+      isQrProvisioned: true,
+    };
+    render(<ServerForm server={server} onSave={onSave} onCancel={vi.fn()} />);
+
+    await user.type(getField('server-name'), '-renamed');
+    await user.click(screen.getByRole('button', { name: /save/i }));
+    await vi.waitFor(() => expect(onSave).toHaveBeenCalled());
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Original-renamed',
+        apiKey: 'not-a-real-secret',
+        pin: 'pin-1234',
+        pushWebhookSecret: 'not-a-real-webhook-secret',
+        pushEnabled: true,
+      }),
+    );
+  });
+
+  it('does not lock the user out of an existing connection that has push on and no secret', () => {
+    // A new validation rule must never trap data that already exists. This state is
+    // reachable today — a QR payload with notifications on and no push_secret — and
+    // if Save is disabled the user cannot even fix the middleware URL.
+    const server = {
+      id: 'abc', name: 'S', baseUrl: '/bhnm', apiKey: 'k', ackUser: 'a',
+      pushEnabled: true, pushWebhookSecret: undefined, isQrProvisioned: true,
+    };
+    render(<ServerForm server={server} onSave={vi.fn()} onCancel={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /save/i })).not.toBeDisabled();
   });
 
   it('shows delete button only in edit mode', () => {

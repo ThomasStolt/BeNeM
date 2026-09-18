@@ -12,32 +12,36 @@ interface Props {
 
 type TestState = 'idle' | 'testing' | 'success' | 'failed';
 
-function maskSecret(value: string): string {
-  if (!value) return '';
-  return '••••••••';
+/**
+ * **Never reveal more than a quarter of a secret.**
+ *
+ * That sentence is the rule, not the number. The last 4 characters are shown only
+ * at 16 characters or more, because a quarter of 16 is 4; below that the value is
+ * dots alone. Do NOT lower the threshold so that a short key displays nicely — the
+ * last 4 of a 9-character key leaves 5 characters to guess, which is not a display
+ * decision, it is a giveaway.
+ *
+ * A secret short enough to trigger suppression is a secret too short to be safe.
+ * servers.json holds a 9-character api_key today; that is parked item (e)1,
+ * credential strength, and this display must not paper over it.
+ *
+ * There is deliberately no full reveal anywhere in the app.
+ */
+const SECRET_REVEAL_MINIMUM_LENGTH = 16;
+
+export function maskSecret(value: string): string {
+  if (!value) return 'not set';
+  if (value.length < SECRET_REVEAL_MINIMUM_LENGTH) return '••••••••';
+  return `••••••••${value.slice(-4)}`;
 }
 
-function ReadOnlyField({ label, value, masked }: { label: string; value: string; masked?: boolean }) {
-  const [revealed, setRevealed] = useState(false);
+/** The stored value's tail, so one secret can be told from another while
+ *  troubleshooting without ever displaying it. */
+function SecretHint({ value }: { value: string }) {
   return (
-    <div className="p-3">
-      <div className="block text-xs text-slate-400 mb-1.5">{label}</div>
-      <div className="flex items-center gap-2">
-        <div className="text-sm text-slate-500 font-mono flex-1">
-          {masked && !revealed ? maskSecret(value) : value}
-        </div>
-        {masked && (
-          <button
-            type="button"
-            onClick={() => setRevealed(!revealed)}
-            className="px-2 py-1 rounded border border-slate-700 text-slate-400 hover:text-white text-xs"
-            aria-label={revealed ? 'Hide' : 'Show'}
-          >
-            {revealed ? 'Hide' : 'Show'}
-          </button>
-        )}
-      </div>
-    </div>
+    <p className="text-[11px] text-slate-500 mt-1.5 font-mono break-all">
+      Stored: {maskSecret(value)}
+    </p>
   );
 }
 
@@ -52,9 +56,7 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
   const [apiKey, setApiKey] = useState(server?.apiKey ?? '');
   const [pin, setPin] = useState(server?.pin ?? '');
   const [ackUser, setAckUser] = useState(server?.ackUser ?? '');
-  const [showKey, setShowKey] = useState(false);
   const [webhookSecret, setWebhookSecret] = useState(server?.pushWebhookSecret ?? '');
-  const [showSecret, setShowSecret] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(server?.pushEnabled ?? false);
   const [testState, setTestState] = useState<TestState>('idle');
   const [testResult, setTestResult] = useState<ConnectionCheckResult | null>(null);
@@ -105,7 +107,13 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
   const saveDisabled =
     testState === 'testing' ||
     apiKey.trim().length === 0 ||
-    (!isQr && pushEnabled && !webhookSecret.trim());
+    // Only on ADD. A new validation rule must never trap data that already exists:
+    // an existing connection with push on and no stored secret is reachable (a QR
+    // payload without push_secret), and disabling Save there would stop the user
+    // fixing anything else about it — including a stale middleware URL. The state is
+    // surfaced as a warning below instead, which is the doctrine's answer: show the
+    // broken thing, do not block the exit.
+    (!isEditing && pushEnabled && !webhookSecret.trim());
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -130,10 +138,7 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
         </div>
 
         {/* BHNM URL */}
-        {isQr ? (
-          <ReadOnlyField label="BHNM URL" value={bhnmUrl} />
-        ) : (
-          <div className="p-3">
+                  <div className="p-3">
             <label htmlFor="server-bhnm-url" className="block text-xs text-slate-400 mb-1.5">
               BHNM URL
             </label>
@@ -146,13 +151,9 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
               className="w-full rounded bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>
-        )}
 
         {/* Middleware URL */}
-        {isQr ? (
-          middlewareUrl ? <ReadOnlyField label="Middleware URL" value={middlewareUrl} /> : null
-        ) : (
-          <div className="p-3">
+                  <div className="p-3">
             <label htmlFor="server-middleware-url" className="block text-xs text-slate-400 mb-1.5">
               Middleware URL
             </label>
@@ -165,43 +166,26 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
               className="w-full rounded bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>
-        )}
 
         {/* API Token */}
-        {isQr ? (
-          <ReadOnlyField label="API Token" value={apiKey} masked />
-        ) : (
-          <div className="p-3">
+                  <div className="p-3">
             <label htmlFor="server-api-key" className="block text-xs text-slate-400 mb-1.5">
               API Token
             </label>
-            <div className="flex items-center gap-2">
-              <input
-                id="server-api-key"
-                type={showKey ? 'text' : 'password'}
-                autoComplete="off"
-                spellCheck={false}
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                className="flex-1 rounded bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
-              />
-              <button
-                type="button"
-                onClick={() => setShowKey(!showKey)}
-                className="px-2 py-2 rounded border border-slate-700 text-slate-400 hover:text-white text-xs"
-                aria-label={showKey ? 'Hide key' : 'Show key'}
-              >
-                {showKey ? 'Hide' : 'Show'}
-              </button>
-            </div>
+            <input
+              id="server-api-key"
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              className="w-full rounded bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
+            />
+            <SecretHint value={apiKey} />
           </div>
-        )}
 
         {/* PIN / License ID */}
-        {isQr ? (
-          pin ? <ReadOnlyField label="PIN / License ID" value={pin} masked /> : null
-        ) : (
-          <div className="p-3">
+                  <div className="p-3">
             <label htmlFor="server-pin" className="block text-xs text-slate-400 mb-1.5">
               PIN / License ID <span className="text-slate-600">(SaaS only)</span>
             </label>
@@ -216,13 +200,9 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
               className="w-full rounded bg-slate-950 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>
-        )}
 
         {/* User Name */}
-        {isQr ? (
-          ackUser ? <ReadOnlyField label="User Name" value={ackUser} /> : null
-        ) : (
-          <div className="p-3">
+                  <div className="p-3">
             <label htmlFor="server-ack-user" className="block text-xs text-slate-400 mb-1.5">
               User Name <span className="text-slate-600">(for incident ACK/UnACK)</span>
             </label>
@@ -235,7 +215,6 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
               className="w-full rounded bg-slate-950 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>
-        )}
 
         {/* Push Toggle */}
         <div className="p-3 flex items-center justify-between">
@@ -258,35 +237,28 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
         </div>
 
         {/* Webhook Secret */}
-        {isQr ? (
-          webhookSecret ? <ReadOnlyField label="Webhook Secret" value={webhookSecret} masked /> : null
-        ) : (
-          <div className="p-3">
+                  <div className="p-3">
             <label htmlFor="server-webhook-secret" className="block text-xs text-slate-400 mb-1.5">
               Webhook Secret <span className="text-slate-600">(for push notifications)</span>
             </label>
-            <div className="flex items-center gap-2">
-              <input
-                id="server-webhook-secret"
-                type={showSecret ? 'text' : 'password'}
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="Same secret as in BHNM webhook URL"
-                value={webhookSecret}
-                onChange={(e) => setWebhookSecret(e.target.value)}
-                className="flex-1 rounded bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
-              />
-              <button
-                type="button"
-                onClick={() => setShowSecret(!showSecret)}
-                className="px-2 py-2 rounded border border-slate-700 text-slate-400 hover:text-white text-xs"
-                aria-label={showSecret ? 'Hide secret' : 'Show secret'}
-              >
-                {showSecret ? 'Hide' : 'Show'}
-              </button>
-            </div>
+            <input
+              id="server-webhook-secret"
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="Same secret as in BHNM webhook URL"
+              value={webhookSecret}
+              onChange={(e) => setWebhookSecret(e.target.value)}
+              className="w-full rounded bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
+            />
+            <SecretHint value={webhookSecret} />
+            {pushEnabled && !webhookSecret.trim() && (
+              <p className="text-[11px] text-amber-400 mt-1.5">
+                Push is on but no webhook secret is stored, so this server cannot deliver
+                notifications until one is entered.
+              </p>
+            )}
           </div>
-        )}
       </div>
 
       {/* Test result feedback */}
@@ -365,7 +337,7 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
       </button>
 
       <p className="text-xs text-slate-500 px-1 text-center">
-        {isQr ? 'Configured via QR code. Scan again to update.' : 'Stored in your browser only.'}
+        {isQr ? 'Configured via QR code. Stored in your browser only.' : 'Stored in your browser only.'}
       </p>
     </form>
   );

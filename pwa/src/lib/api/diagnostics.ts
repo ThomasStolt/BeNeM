@@ -16,6 +16,9 @@ export interface DiagnosticsBhnm {
   last_error: string | null;
   last_error_age_seconds: number | null;
   consecutive_failures: number;
+  /** BHNM build, e.g. "26.3-01.17.el8.noarch". null = UNKNOWN — the normal case
+   *  on-prem, where /cloudversion is session-gated and nothing else exposes it. */
+  version: string | null;
 }
 
 export interface DiagnosticsFeed {
@@ -29,7 +32,6 @@ export interface DiagnosticsFeed {
 export interface Diagnostics {
   middleware: {
     version: string | null;
-    registered_devices: number | null;
     server_time: number | null;
   };
   server: {
@@ -79,7 +81,6 @@ export function parseDiagnostics(raw: unknown): Diagnostics {
   return {
     middleware: {
       version: str(mw.version),
-      registered_devices: num(mw.registered_devices),
       server_time: num(mw.server_time),
     },
     server: {
@@ -94,6 +95,7 @@ export function parseDiagnostics(raw: unknown): Diagnostics {
         last_error: str(bhnm.last_error),
         last_error_age_seconds: num(bhnm.last_error_age_seconds),
         consecutive_failures: num(bhnm.consecutive_failures) ?? 0,
+        version: typeof bhnm.version === 'string' && bhnm.version ? bhnm.version : null,
       },
       feeds,
     },

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { parseDiagnostics } from './diagnostics';
 
 const FULL_PAYLOAD = {
-  middleware: { version: '2.7.0', registered_devices: 5, server_time: 1788285788 },
+  middleware: { version: '2.7.0', server_time: 1788285788 },
   server: {
     name: "Thomas' Lab Server",
     host: 'bhnm-b.tstolt.com',
@@ -28,7 +28,6 @@ describe('parseDiagnostics', () => {
   it('parses a full healthy payload', () => {
     const d = parseDiagnostics(FULL_PAYLOAD);
     expect(d.middleware.version).toBe('2.7.0');
-    expect(d.middleware.registered_devices).toBe(5);
     expect(d.server.host).toBe('bhnm-b.tstolt.com');
     expect(d.server.bhnm.reachable).toBe(true);
     expect(d.server.bhnm.source).toBe('monitor');

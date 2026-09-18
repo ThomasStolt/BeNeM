@@ -226,3 +226,48 @@ def test_webpush_rejects_empty_endpoint():
                        json={"endpoint": "", "p256dh": "key", "auth": "auth"},
                        headers={"X-Webhook-Token": "secret"})
     assert resp.status_code == 422
+
+
+# ── /health is unauthenticated, so it carries nothing but liveness (2.18.0) ────
+
+def test_health_returns_only_status_and_version():
+    """THE REGRESSION TEST for the disclosure audited on 2026-09-18.
+
+    /health has no auth check, and it used to return a fleet-wide device count plus
+    `cache` / `tactical_cache` keyed by server_id — the server_id of every
+    cache-enabled customer and their live open-incident count, to anyone who could
+    reach the URL. Anything added here in future is added to an ANONYMOUS payload.
+    """
+    from fastapi.testclient import TestClient
+    import main as main_mod
+    with TestClient(main_mod.app) as client:
+        resp = client.get("/health")          # deliberately no X-Proxy-Token
+    assert resp.status_code == 200
+    body = resp.json()
+    assert set(body) == {"status", "version"}, f"/health leaked extra fields: {sorted(body)}"
+    assert body["status"] == "running"
+    assert body["version"], "the version is load-bearing for deploy verification"
+
+
+def test_health_names_no_server():
+    """A server_id must never appear in an unauthenticated response, whatever the
+    field is called."""
+    from fastapi.testclient import TestClient
+    import json as _json
+    import main as main_mod
+    import os
+    servers = [{"id": "TenantA", "name": "A", "url": "https://a.example.com", "api_key": "k1"},
+               {"id": "TenantB", "name": "B", "url": "https://b.example.com", "api_key": "k2"}]
+    path = "/tmp/test_health_servers.json"
+    with open(path, "w") as f:
+        _json.dump(servers, f)
+    original = main_mod.SERVERS_JSON_PATH
+    main_mod.SERVERS_JSON_PATH = path
+    try:
+        with TestClient(main_mod.app) as client:
+            raw = client.get("/health").text
+    finally:
+        main_mod.SERVERS_JSON_PATH = original
+        os.remove(path)
+    for server in servers:
+        assert server["id"] not in raw, f"/health names {server['id']}"

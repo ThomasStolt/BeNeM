@@ -83,6 +83,34 @@ screen; and when a check is in flight, say so instead of showing the previous an
 current. Design detail for the push case is in
 `docs/superpowers/specs/2026-09-15-webhook-secret-header-auth-design.md` Part 11.
 
+## A client-decoded payload may only ever GAIN fields
+
+**The middleware is deployed in minutes. The iOS client is deployed in days, through App
+Store review, onto phones that are not ours.** So the two ends of a payload are never in
+step, and the ordering that follows is not obvious:
+
+**Add a field, deploy the middleware, ship the client, and only then remove anything.** A
+field that a released client requires cannot be removed until the client that tolerates its
+absence is in the field — and "in the field" means on other people's phones, not on the one
+on the desk.
+
+Removing a field a released client requires is a **breaking change whatever the field is
+worth.** The question is never "does anyone need this data", it is "does any shipped decoder
+refuse to parse without it".
+
+**Check the shipped code, not HEAD.** `git show <release-commit>:path` — HEAD is what the
+next release will tolerate, which is precisely not the question. On 2026-09-18, before
+removing `registered_devices`, `cache` and `tactical_cache`, the check was
+`git show 36a0583:ios/BeNeM/Models/Diagnostics.swift`, which showed `registered_devices: Int?`
+— **optional**, so the removal was safe. Had it been non-optional, the middleware change would
+have had to wait for the client release, and the Diagnostics screen would otherwise have
+broken for every device still on the store build.
+
+Swift's synthesised `Decodable` treats an `Optional` property as decode-if-present and a
+non-optional one as **required**: a missing key throws `keyNotFound` and the whole decode
+fails, not just that field. The PWA is looser — its decoder maps missing values to `null` —
+but a browser holding a cached bundle is the same problem in a different costume.
+
 ## The test suite runs before every COMMIT, not before every push
 
 **Twice in one session a commit went into history red.** `c0aafc9` added two md5 digests to an

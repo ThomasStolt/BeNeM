@@ -800,31 +800,25 @@ async def receive_webhook(request: Request):
 
 @app.get("/health")
 def health():
-    tokens = get_all_tokens()
-    cache_status = {}
-    for sid, cached in incident_cache._cache.items():
-        cache_status[sid] = {
-            "active": len(cached.active_incidents),
-            "closed": len(cached.closed_incidents),
-            "age_seconds": round(time.time() - cached.last_updated) if cached.last_updated else None,
-        }
-    tactical_status = {}
-    for sid, cached in tactical_cache._cache.items():
-        tactical_status[sid] = {
-            gt: {
-                "groups": len(cached.data.get(gt, {})),
-                "age_seconds": round(time.time() - cached.last_updated.get(gt, 0)) if cached.last_updated.get(gt) else None,
-            }
-            for gt in tactical_cache.GROUPING_TYPES
-        }
-    return {
-        "status": "running",
-        "version": VERSION,
-        "registered_devices": len(tokens),
-        "apns_environment": "per-device",
-        "cache": cache_status,
-        "tactical_cache": tactical_status,
-    }
+    """Liveness and version. UNAUTHENTICATED, so it carries nothing else.
+
+    It used to also return `registered_devices` (a FLEET-WIDE count across every
+    tenant), `apns_environment`, and `cache` / `tactical_cache` keyed by server_id
+    with per-server open-incident counts, cache ages and estate topology sizes. To
+    an anonymous caller that is the server_id of every cache-enabled customer plus
+    their live incident count rising and falling in real time — operational
+    intelligence about somebody else's network, one GET away, with no credential.
+    Audited field by field in docs/evidence/2026-09-18-health-endpoint-audit.md.
+
+    **The version stays and is load-bearing**: every deploy record this week read
+    the deployed version from here, and a deploy that cannot state what it deployed
+    is the failure mode the root CLAUDE.md doctrine is about.
+
+    Everything operational lives behind `_verify_proxy_token` on
+    `/api/v1/diagnostics`, where 2.17.0's key-target binding already scopes
+    per-server state to the caller's own server.
+    """
+    return {"status": "running", "version": VERSION}
 
 
 # ── Cached Incidents Endpoint ────────────────────────────────────────────────
@@ -1112,9 +1106,11 @@ async def diagnostics_endpoint(request: Request):
     latency and scrubbed, truncated error strings — no secrets, host only
     (never the full URL)."""
     _verify_proxy_token(request)  # api_key (or PROXY_TOKEN) as X-Proxy-Token
+    # No `registered_devices`: it is a fleet-wide count across every tenant, so it
+    # is not the caller's business on any client-facing endpoint. The admin portal
+    # keeps it, read from its own database (benem-admin push_db.get_registered_devices).
     middleware_block = {
         "version": VERSION,
-        "registered_devices": len(get_all_tokens()),
         "server_time": int(time.time()),
     }
     try:
@@ -1159,6 +1155,12 @@ async def diagnostics_endpoint(request: Request):
         # probe here: Traefik waits ~3 s for a dead backend, so an in-request
         # probe blocks the response and a client cancel loses the result.
         bhnm = diagnostics.bhnm_monitor(server_id)
+        # The BHNM build, for the topology header. Cached for hours inside
+        # diagnostics, so this route stays fast; None means UNKNOWN — on-prem BHNM
+        # exposes no api_key-readable version at all — and the clients must draw
+        # unknown differently from known, never blank.
+        bhnm["version"] = await diagnostics.bhnm_version(server_cfg, BHNM_TLS_VERIFY) \
+            if server_cfg else None
 
         return {
             "middleware": middleware_block,
