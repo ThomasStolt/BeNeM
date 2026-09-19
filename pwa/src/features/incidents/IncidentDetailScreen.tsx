@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIncidents } from './useIncidents';
 import { useIncidentDetail } from './useIncidentDetail';
+import { useSingleIncident, isGone } from './useSingleIncident';
 import { useConfig } from '../../lib/config';
 import { acknowledgeIncident, unacknowledgeIncident } from '../../lib/api/incidents';
 import { StatusBadge } from './StatusBadge';
@@ -12,6 +13,21 @@ import { Toast, type ToastMessage } from '../../components/Toast';
 import type { IncidentAlarm, IncidentLogEntry } from '../../lib/api/types';
 
 const EMPTY_COUNTS = { red: 0, orange: 0, yellow: 0, green: 0, blue: 0 };
+
+/** An alert type the middleware could not confirm.
+ *
+ * Doctrine (root CLAUDE.md): verified good, verified bad, and UNVERIFIED — and
+ * the third gets its own appearance, never the healthy one. `host` is the one
+ * type known to page, so a failed lookup rendered as `host` is the strongest
+ * possible coverage claim made on no evidence at all. Empty and missing are the
+ * same state as an explicit UNKNOWN and are drawn the same way.
+ */
+const UNVERIFIED_TYPE = '__unverified__';
+
+export function isUnverifiedType(alertType: string | null | undefined): boolean {
+  const t = (alertType ?? '').trim().toLowerCase();
+  return t === '' || t === 'unknown';
+}
 
 function formatTimestamp(d: Date): string {
   return (
@@ -68,6 +84,17 @@ function LogRow({ entry }: { entry: IncidentLogEntry }) {
   );
 }
 
+function IncidentMessage({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="p-6">
+      <Link to="/incidents" className="text-sm text-slate-400 hover:text-slate-200">
+        ← Back
+      </Link>
+      <div className="mt-4 text-sm">{children}</div>
+    </div>
+  );
+}
+
 export function IncidentDetailScreen() {
   const { id } = useParams();
   const { data: incidents, isLoading, isFetching } = useIncidents();
@@ -83,27 +110,58 @@ export function IncidentDetailScreen() {
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const dismissToast = useCallback(() => setToast(null), []);
 
-  const incident = incidents?.find((i) => i.incidentId === id);
+  const listIncident = incidents?.find((i) => i.incidentId === id);
 
-  if ((isLoading || isFetching) && !incident) {
+  // Not in the loaded list? Ask the middleware directly. The list can be cold,
+  // stale, filtered or simply older than the notification that brought us here.
+  const listSettled = !isLoading && !isFetching;
+  const missingFromList = listSettled && !listIncident;
+  const {
+    data: fetchedIncident,
+    isLoading: isFetchingSingle,
+    error: singleError,
+  } = useSingleIncident(id ?? '', { enabled: missingFromList });
+
+  const incident = listIncident ?? fetchedIncident;
+
+  if (!incident && !listSettled) {
     return (
-      <div className="p-6">
-        <Link to="/incidents" className="text-sm text-slate-400 hover:text-slate-200">
-          ← Back
-        </Link>
-        <p className="mt-4 text-slate-400">Loading...</p>
-      </div>
+      <IncidentMessage>
+        <p className="text-slate-400">Loading…</p>
+      </IncidentMessage>
     );
   }
 
+  // THE THREE STATES. `Incident not found.` was banned on 2026-09-15 and was
+  // still rendered here until 2026-09-19, because one string was standing in for
+  // three different facts: still looking, genuinely gone, and could not ask.
   if (!incident) {
+    if (isFetchingSingle || !singleError) {
+      return (
+        <IncidentMessage>
+          <p className="text-slate-300">Fetching incident data…</p>
+          <p className="mt-1 text-xs text-slate-500">Incident {id}</p>
+        </IncidentMessage>
+      );
+    }
+    if (isGone(singleError)) {
+      return (
+        <IncidentMessage>
+          <p className="text-slate-300">Incident {id} no longer exists.</p>
+          <p className="mt-1 text-xs text-slate-500">
+            It was closed and removed from BHNM.
+          </p>
+        </IncidentMessage>
+      );
+    }
     return (
-      <div className="p-6">
-        <Link to="/incidents" className="text-sm text-slate-400 hover:text-slate-200">
-          ← Back
-        </Link>
-        <p className="mt-4 text-slate-400">Incident not found.</p>
-      </div>
+      <IncidentMessage>
+        <p className="text-slate-300">Could not load this incident.</p>
+        <p className="mt-1 text-xs text-slate-500">
+          The server didn't respond. It may still exist — this is not a statement
+          that it is gone.
+        </p>
+      </IncidentMessage>
     );
   }
 
@@ -137,7 +195,9 @@ export function IncidentDetailScreen() {
       ['Title', detail.title],
       ['Device', detail.deviceName],
       ...(detail.deviceIp ? [['IP', detail.deviceIp]] : []),
-      ...(detail.alertType ? [['Alert Type', detail.alertType]] : []),
+      // Always present, never omitted: a missing row reads as "nothing to say
+      // here", and the whole point is that there IS something to say.
+      ['Alert Type', isUnverifiedType(detail.alertType) ? UNVERIFIED_TYPE : detail.alertType!],
       ...(detail.openTime ? [
         ['Created', formatTimestamp(detail.openTime)],
         ['Duration', formatDuration(detail.openTime)],
@@ -230,7 +290,16 @@ export function IncidentDetailScreen() {
                 className="flex justify-between items-baseline gap-2 py-1.5 border-b border-slate-800/40 last:border-0 text-sm"
               >
                 <span className="text-slate-500 flex-shrink-0">{label}</span>
-                <span className="text-slate-200 text-right text-xs">{value}</span>
+                {value === UNVERIFIED_TYPE ? (
+                  <span
+                    className="text-right text-xs text-amber-400/90 italic"
+                    title="BeNeM could not read this incident's type from BHNM."
+                  >
+                    Unverified
+                  </span>
+                ) : (
+                  <span className="text-slate-200 text-right text-xs">{value}</span>
+                )}
               </div>
             ))}
           </div>

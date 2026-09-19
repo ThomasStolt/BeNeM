@@ -177,8 +177,17 @@ describe('IncidentDetailScreen', () => {
     expect(screen.getAllByText('Looking into it').length).toBeGreaterThan(0);
   });
 
-  it('shows not-found message for unknown incident', () => {
+  it('NEVER says "Incident not found" — banned 2026-09-15', () => {
+    // One string was standing in for three different facts: still looking,
+    // genuinely gone, and could not ask. The first and third are not a
+    // statement that the incident does not exist, and this screen said it
+    // anyway to anyone whose network was simply down.
     renderDetail('99999');
-    expect(screen.getByText(/not found/i)).toBeInTheDocument();
+    expect(screen.queryByText(/not found/i)).not.toBeInTheDocument();
+  });
+
+  it('says it is FETCHING while the single-incident lookup is in flight', () => {
+    renderDetail('99999');
+    expect(screen.getByText(/fetching incident data/i)).toBeInTheDocument();
   });
 });

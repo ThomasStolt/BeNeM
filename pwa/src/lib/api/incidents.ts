@@ -269,6 +269,37 @@ export async function getIncidentDetail(
   return parseIncidentDetailResponse(raw);
 }
 
+/** One incident from the middleware's single-incident route.
+ *
+ * The route keeps 404 and 502 DISTINCT, and so must every caller: "this incident
+ * is gone" is a terminal fact, "we could not reach the server" is ask-again-later.
+ * Collapsing them is what produced `Incident not found.` shown to somebody whose
+ * network was simply down — banned 2026-09-15, still rendered until today.
+ *
+ * Throws ApiException {kind:'server', status:404} when BHNM says it is gone, and
+ * {kind:'network'} / {kind:'server', status:5xx} when the server did not answer.
+ */
+export async function getSingleIncident(
+  config: BhnmConfig,
+  incidentId: string,
+): Promise<Incident> {
+  if (!incidentId) {
+    throw new ApiException({ kind: 'parse', message: 'incidentId is required' });
+  }
+  const headers: Record<string, string> = {};
+  if (config.apiKey) headers['X-Proxy-Token'] = config.apiKey;
+  if (config.bhnmUrl) headers['X-BHNM-Target'] = config.bhnmUrl;
+  const raw = await fetchJson(
+    config.baseUrl,
+    `/api/v1/incidents/${encodeURIComponent(incidentId)}`,
+    headers,
+  );
+  if (!raw || typeof raw !== 'object') {
+    throw new ApiException({ kind: 'parse', message: 'Invalid single-incident response' });
+  }
+  return parseRow(raw as Record<string, unknown>, 0);
+}
+
 export async function getCachedIncidents(config: BhnmConfig): Promise<Incident[]> {
   const headers: Record<string, string> = {};
   if (config.apiKey) headers['X-Proxy-Token'] = config.apiKey;
