@@ -98,6 +98,9 @@ that same release was fixing, wearing a different label.
 - **Name the rollback tag after the version you observed running, not the one you expect to
   ship.** That same deploy produced `pre-0.16.4`, a tag naming a version that never existed,
   because it was written from expectation. A rollback tag is a claim about an image's contents.
+- **`pre-<version being deployed>` holds the version that was running before it** — so tagging
+  before shipping 0.17.1 gives `pre-0.17.1`, containing 0.17.0. Ruled 2026-09-19 as canonical
+  because the middleware already worked this way and the PWA did not; do not re-decide it.
 
 ## A client-decoded payload may only ever GAIN fields
 
