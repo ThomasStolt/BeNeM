@@ -122,7 +122,36 @@ it is back to `OPEN`, `acknowledged = 0`, `ack_user = ''`.
 
 | thing | why, and what would verify it |
 |---|---|
-| **The 2.18.1 cleanup branch — DEPLOYED, NEVER FIRED** | zero `400 BadDeviceToken` since the 09:40Z deploy, so nothing has been cleaned. The branch existing is not the branch working. **What would verify it:** a TestFlight or App Store build replacing the Debug build on the 13 Pro Max. That registers a **new production token**, leaves `...10882c55` (now `sandbox`) stale, and the next incident should log `[APNs] Token bad (400 BadDeviceToken) ...10882c55 — removing` and drop `device_tokens` from 6 rows to 5 |
+| **The 2.18.1 cleanup branch — DEPLOYED, NEVER FIRED** | zero `400 BadDeviceToken` since the 09:40Z deploy, so nothing has been cleaned. The branch existing is not the branch working. ~~**What would verify it:** a TestFlight or App Store build replacing the Debug build on the 13 Pro Max…~~ **WITHDRAWN 2026-09-19 — see below. That is not what happens.** |
+
+#### WITHDRAWN 2026-09-19: "a Release build on the 13 Pro Max will strand the sandbox token"
+
+**It does not, and the reason was already written in this file.** A Release build was installed on
+the 13 Pro Max at 19:14Z (iOS 2.13.5 build 49) and launched. **[MEASURED]** `device_tokens` stayed
+at **5 rows**, and the existing row simply flipped column:
+
+```
+2026-09-19 18:08:02,688Z [Register] Token saved: ...10882c55 for iPhone (APNs: sandbox)
+2026-09-19 19:20:08,492Z [Register] Token saved: ...10882c55 for iPhone (APNs: production)
+```
+
+**Same token, byte-identical — only `apns_environment` changed.** APNs issues one device token per
+device and app; Debug and Release do not get different token *strings*, they get different
+*environments that will accept the same string*. §(d) VERIFIED already recorded exactly this
+mechanism for build 44 — *"`device_tokens` stayed at 5 rows, which proves the token string is
+byte-identical (`INSERT OR REPLACE` keyed on token)"* — and the prediction above was written
+anyway, from the shape of the story rather than from the row.
+
+**Consequences, stated so nobody re-plans around the old version:**
+
+- **No token is stranded by a Debug → Release swap on the same device.** There is nothing for the
+  cleanup branch to remove, and `device_tokens` will not drop to 4.
+- **The 2.18.1 cleanup branch is still DEPLOYED AND NEVER FIRED.** Zero `400 BadDeviceToken` on
+  2026-09-19. The event that exercises it is a token that is genuinely dead — an app deleted and
+  reinstalled, a device wiped, a restore onto different hardware — not a build-configuration
+  change.
+- **This is the third time a tidy explanation for a token/environment observation has been offered
+  before the row was read.** The row was one `select` away, both times.
 | **iOS build 45 has never run on any device** | submitted straight to review with no TestFlight install, by decision. The changed code has no build-configuration branches, so the residual gap is **optimisation level only** — Release `-O` against the field-tested Debug `-Onone`. That is a conclusion from a grep, not from a running app |
 | **iOS build 48 is not installed** | built Release only. Nothing on a device has exercised the removed "Connection successful" card or the restored ack user on iOS |
 | **The `"BHNM Mobile"` fallback in the field** | reachable but never observed firing. See (e)3d — it needs a QR generated with an empty Username |
