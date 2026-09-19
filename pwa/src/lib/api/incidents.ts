@@ -141,6 +141,22 @@ function parseRow(row: Record<string, unknown>, index: number, forcedStatus?: In
   };
 }
 
+/** "Active" means NOT CLOSED.
+ *
+ * An acknowledged incident is still open and still the user's problem — somebody
+ * said "I am on it", not "it is fine" — and BHNM's own UI keeps it in the list.
+ *
+ * `status === 'active'` silently EXCLUDES `'acknowledged'`, because they are
+ * separate values of the same union. Observed on a phone 2026-09-19 (iOS, where
+ * the Home tile also filtered the list): acking made the row vanish. On the PWA
+ * the tile links to an unfiltered list, so the row stayed — but the COUNT
+ * dropped the moment the user acted, which is the same defect with a quieter
+ * symptom.
+ */
+export function isActiveIncident(incident: Pick<Incident, 'status'>): boolean {
+  return incident.status !== 'resolved' && incident.status !== 'closed';
+}
+
 export function parseIncidentsResponse(raw: unknown): Incident[] {
   // BHNM may wrap the response in a single-element array. See project memory.
   const root: unknown = Array.isArray(raw) ? raw[0] : raw;

@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIncidents } from '../incidents/useIncidents';
+import { isActiveIncident } from '../../lib/api/incidents';
 import { useTacticalSummary } from './useTacticalSummary';
 import { AppHeader } from '../../components/AppHeader';
 import { SummaryCards } from './SummaryCards';
@@ -21,10 +22,10 @@ export function DashboardScreen() {
     queryClient.invalidateQueries();
   }, [queryClient]);
 
-  // status === 'active', matching iOS's activeIncidentsCount. This counted
-  // severity critical|major until 0.17.1, so the two platforms showed different
-  // numbers under the same label and neither matched what "active" means.
-  const activeIncidents = incidents?.filter((i) => i.status === 'active').length ?? 0;
+  // "Active" means NOT CLOSED — see isActiveIncident. This counted severity
+  // critical|major until 0.17.1, then status === 'active' until 0.18.1, which
+  // dropped an incident from the count the moment somebody acknowledged it.
+  const activeIncidents = incidents?.filter(isActiveIncident).length ?? 0;
 
   const totalDevices = summary
     ? summary.hosts.ok + summary.hosts.ack + summary.hosts.warn + summary.hosts.un + summary.hosts.crit

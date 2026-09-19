@@ -42,6 +42,7 @@
 		EE000B000000000000000001 /* AckAttributionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000B000000000000000002 /* AckAttributionTests.swift */; };
 		EE000C000000000000000001 /* UnverifiedAlertTypeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000C000000000000000002 /* UnverifiedAlertTypeTests.swift */; };
 		EE000D000000000000000001 /* DeepLinkMatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000D000000000000000002 /* DeepLinkMatchTests.swift */; };
+		EE000E000000000000000001 /* ActiveMeansNotClosedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000E000000000000000002 /* ActiveMeansNotClosedTests.swift */; };
 		EE0009000000000000000003 /* ServerDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0009000000000000000004 /* ServerDraftTests.swift */; };
 		F1F10DD12CE00002 /* FloppyDiskIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00001 /* FloppyDiskIcon.swift */; };
 		F1F10DD12CE00004 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00003 /* QRScannerView.swift */; };
@@ -95,6 +96,7 @@
 		EE000B000000000000000002 /* AckAttributionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AckAttributionTests.swift; sourceTree = "<group>"; };
 		EE000C000000000000000002 /* UnverifiedAlertTypeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnverifiedAlertTypeTests.swift; sourceTree = "<group>"; };
 		EE000D000000000000000002 /* DeepLinkMatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkMatchTests.swift; sourceTree = "<group>"; };
+		EE000E000000000000000002 /* ActiveMeansNotClosedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveMeansNotClosedTests.swift; sourceTree = "<group>"; };
 		EE0009000000000000000004 /* ServerDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerDraftTests.swift; sourceTree = "<group>"; };
 		EE0009000000000000000005 /* BeNeMTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BeNeMTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1F10DD12CE00001 /* FloppyDiskIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloppyDiskIcon.swift; sourceTree = "<group>"; };
@@ -140,6 +142,7 @@
 				EE000B000000000000000002 /* AckAttributionTests.swift */,
 				EE000C000000000000000002 /* UnverifiedAlertTypeTests.swift */,
 				EE000D000000000000000002 /* DeepLinkMatchTests.swift */,
+				EE000E000000000000000002 /* ActiveMeansNotClosedTests.swift */,
 			);
 			path = BeNeMTests;
 			sourceTree = "<group>";
@@ -450,6 +453,7 @@
 				EE000B000000000000000001 /* AckAttributionTests.swift in Sources */,
 				EE000C000000000000000001 /* UnverifiedAlertTypeTests.swift in Sources */,
 				EE000D000000000000000001 /* DeepLinkMatchTests.swift in Sources */,
+				EE000E000000000000000001 /* ActiveMeansNotClosedTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -582,7 +586,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BeNeM/BeNeM.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				DEVELOPMENT_ASSET_PATHS = "\"BeNeM/Preview Content\"";
 				DEVELOPMENT_TEAM = 8L27BJGYXP;
 				ENABLE_PREVIEWS = YES;
@@ -610,7 +614,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BeNeM/BeNeM.release.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				DEVELOPMENT_ASSET_PATHS = "\"BeNeM/Preview Content\"";
 				DEVELOPMENT_TEAM = 8L27BJGYXP;
 				ENABLE_PREVIEWS = YES;
@@ -636,7 +640,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
@@ -653,7 +657,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;

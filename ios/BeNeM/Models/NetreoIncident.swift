@@ -71,6 +71,22 @@ struct NetreoIncident: Codable, Identifiable, Hashable {
         case resolved = "resolved"
         case closed = "closed"
     }
+
+    /// **"Active" means NOT CLOSED.** An acknowledged incident is still open and
+    /// still the user's problem — somebody has said "I am on it", not "it is
+    /// fine" — and BHNM's own UI keeps it in the list.
+    ///
+    /// This exists because `.active` and `.acknowledged` are separate cases of
+    /// `IncidentStatus`, so `status == .active` silently EXCLUDES every incident
+    /// the user has acted on. Observed on a phone 2026-09-19: acking from the
+    /// app made the row vanish, because the Home tile had filtered the list to
+    /// `status == .active` and the ack moved it out of that set.
+    ///
+    /// **The tile count and the list filter must both use this**, or the number
+    /// on the tile and the rows on the screen disagree again.
+    var isActive: Bool {
+        status != .resolved && status != .closed
+    }
     
     enum CodingKeys: String, CodingKey {
         case incidentID = "incident_id"

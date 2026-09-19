@@ -87,7 +87,15 @@ class IncidentListViewModel: ObservableObject {
                 filtered = filtered.filter { $0.severity == severity }
             }
             if let status = selectedStatus {
-                filtered = filtered.filter { $0.status == status }
+                if status == .active {
+                    // The Home tile's filter. It must select the SAME set that
+                    // activeIncidentsCount counted, or the tile's number and the
+                    // rows disagree — and it must not drop an incident the
+                    // moment the user acknowledges it.
+                    filtered = filtered.filter(\.isActive)
+                } else {
+                    filtered = filtered.filter { $0.status == status }
+                }
             }
         }
 
@@ -115,7 +123,10 @@ class IncidentListViewModel: ObservableObject {
     }
 
     var activeIncidentsCount: Int {
-        incidents.filter { $0.status == .active }.count
+        // NOT `status == .active` — that excludes every acknowledged incident,
+        // so the number dropped the moment a user acted on one. See
+        // NetreoIncident.isActive.
+        incidents.filter(\.isActive).count
     }
 
     var criticalIncidentsCount: Int {
