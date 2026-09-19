@@ -83,10 +83,18 @@ describe('SettingsScreen', () => {
     await user.type(document.getElementById('server-api-key')!, 'new-key');
     await user.click(screen.getByRole('button', { name: /save/i }));
 
-    // Back to list — should show new server (name may appear in header subtitle too)
-    expect(screen.getAllByText('New Server').length).toBeGreaterThanOrEqual(2);
+    // The save persists immediately, as on iOS...
     expect(loadServers()).toHaveLength(1);
     expect(loadServers()[0].apiKey).toBe('new-key');
+
+    // ...but the form stays up with the verdict until the user acknowledges it.
+    // It used to navigate in the same tick, which made both result panels dead
+    // code — a successful save confirmed nothing and "saved anyway, not verified"
+    // was never seen.
+    await user.click(screen.getByRole('button', { name: /^ok$/i }));
+
+    // Back to list — should show new server (name may appear in header subtitle too)
+    expect(screen.getAllByText('New Server').length).toBeGreaterThanOrEqual(2);
   });
 
   it('renders Settings title', () => {

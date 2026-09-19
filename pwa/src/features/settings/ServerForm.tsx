@@ -5,7 +5,10 @@ import type { ConnectionCheckResult } from '../../lib/api/ha-status';
 
 interface Props {
   server?: Partial<ServerConfig>;
+  /** Persists the server. Must NOT navigate — see `onDone`. */
   onSave: (input: NewServerInput) => void;
+  /** Leaves the form, after the user acknowledges the result. */
+  onDone: () => void;
   onCancel: () => void;
   onDelete?: () => void;
 }
@@ -45,7 +48,7 @@ function SecretHint({ value }: { value: string }) {
   );
 }
 
-export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
+export function ServerForm({ server, onSave, onDone, onCancel, onDelete }: Props) {
   const isEditing = !!server?.id;
   const isQr = server?.isQrProvisioned ?? false;
 
@@ -100,7 +103,12 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
       setTestState('failed');
     }
 
-    // Save regardless of test result
+    // Save regardless of the probe result — but do NOT leave the form here.
+    // `onSave` used to navigate straight back to the list, which unmounted this
+    // component in the same tick and made BOTH result panels below dead code: a
+    // successful save gave no confirmation at all, and the "saved anyway, not
+    // verified" warning was never once seen by anyone. The user now acknowledges
+    // the outcome with OK, matching iOS, and `onDone` is what leaves.
     onSave(serverInput);
   };
 
@@ -265,11 +273,21 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
       {testState === 'success' && testResult && (
         <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3">
           <div className="flex items-center gap-2">
-            <span className="text-emerald-400 text-sm font-semibold">Connected</span>
+            <span className="text-emerald-400 text-sm font-semibold">Connection verified</span>
           </div>
+          {/* Same words as the iOS alert, deliberately. The PIN is not listed as
+              uncovered: it is sent when one is entered, and BHNM checks credentials
+              before the method, so a wrong PIN fails this probe as a wrong key does. */}
           <div className="text-xs text-slate-400 mt-1">
             BHNM is reachable through the middleware and accepted the credentials.
           </div>
+          <button
+            type="button"
+            onClick={onDone}
+            className="mt-3 w-full px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold"
+          >
+            OK
+          </button>
         </div>
       )}
 
@@ -284,6 +302,13 @@ export function ServerForm({ server, onSave, onCancel, onDelete }: Props) {
           <p className="text-xs text-slate-500 mt-2">
             The server was saved anyway, but this connection is not verified.
           </p>
+          <button
+            type="button"
+            onClick={onDone}
+            className="mt-3 w-full px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-semibold"
+          >
+            OK
+          </button>
         </div>
       )}
 

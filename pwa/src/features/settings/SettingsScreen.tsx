@@ -38,11 +38,13 @@ export function SettingsScreen() {
     setServers(loadServers());
   }, []);
 
+  // Persist only. Leaving the form is `handleFormDone`, driven by the user
+  // pressing OK on the result panel — these used to navigate, which unmounted
+  // ServerForm before either result panel could render.
   const handleAddServer = (input: NewServerInput) => {
     addServer(input);
     notifyConfigChanged();
     refreshServers();
-    setView('list');
     queryClient.invalidateQueries();
   };
 
@@ -51,9 +53,12 @@ export function SettingsScreen() {
     updateServer(editingServer.id, input);
     notifyConfigChanged();
     refreshServers();
+    queryClient.invalidateQueries();
+  };
+
+  const handleFormDone = () => {
     setView('list');
     setEditingServer(null);
-    queryClient.invalidateQueries();
   };
 
   const handleEditClick = (server: ServerConfig) => {
@@ -267,6 +272,7 @@ export function SettingsScreen() {
         {view === 'add' && (
           <ServerForm
             onSave={handleAddServer}
+            onDone={handleFormDone}
             onCancel={() => setView('list')}
           />
         )}
@@ -275,6 +281,7 @@ export function SettingsScreen() {
           <ServerForm
             server={editingServer}
             onSave={handleEditServer}
+            onDone={handleFormDone}
             onCancel={() => { setView('list'); setEditingServer(null); }}
             onDelete={handleDeleteServer}
           />

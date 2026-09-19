@@ -14,6 +14,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [0.17.2] - 2026-09-19
+
+### Fixed
+
+- **A successful save now confirms itself, and a failed one is visible at all.** `onSave` navigated
+  back to the list in the same tick that set the verdict, so `ServerForm` unmounted before either
+  result panel could render — **both were dead code**. A successful save returned silently, and the
+  "saved anyway, but this connection is not verified" warning, written precisely so an unverified
+  server is never drawn like a verified one, **had never been seen by anyone**. The form now shows
+  the verdict with an **OK** button and leaves only when it is pressed, matching iOS. The server is
+  still persisted immediately, before the acknowledgement, exactly as iOS does it.
+- **The success wording matches iOS** — "Connection verified", then "BHNM is reachable through the
+  middleware and accepted the credentials."
+
+### Changed
+
+- **The ack user is the constant "BHNM Mobile", always — not a fallback.** The per-connection
+  `ackUser` was sent, so a phone name ("Thomas iPhone 13 ProMax") reached BHNM's incident history.
+  That was never an identity: BHNM has one API token per server, not per user, so nothing about an
+  acknowledgement has ever identified a person. A constant says truthfully what it is, and iOS
+  sends the same string.
+
+---
+
 ## [0.17.1] - 2026-09-19
 
 ### Fixed

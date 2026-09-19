@@ -14,8 +14,27 @@ function getField(id: string) {
 }
 
 describe('ServerForm', () => {
+  // The form must not leave on its own. Both result panels were unreachable until
+  // 0.17.2 because onSave navigated in the same tick that set the verdict.
+  it('shows "Connection verified" and stays until OK is pressed', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    const onDone = vi.fn();
+    render(<ServerForm onDone={onDone} onSave={onSave} onCancel={vi.fn()} />);
+
+    await user.type(getField('server-api-key'), 'k');
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+    expect(await screen.findByText(/connection verified/i)).toBeInTheDocument();
+    expect(onSave).toHaveBeenCalledTimes(1);   // persisted immediately, as on iOS
+    expect(onDone).not.toHaveBeenCalled();     // but has NOT navigated away
+
+    await user.click(screen.getByRole('button', { name: /^ok$/i }));
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
   it('renders empty form for new server', () => {
-    render(<ServerForm onSave={vi.fn()} onCancel={vi.fn()} />);
+    render(<ServerForm onDone={vi.fn()} onSave={vi.fn()} onCancel={vi.fn()} />);
     expect(getField('server-name')).toHaveValue('');
     expect(getField('server-bhnm-url')).toHaveValue('');
     expect(getField('server-middleware-url')).toHaveValue('');
@@ -37,7 +56,7 @@ describe('ServerForm', () => {
       isActive: true,
       isQrProvisioned: false,
     };
-    render(<ServerForm server={server} onSave={vi.fn()} onCancel={vi.fn()} />);
+    render(<ServerForm server={server} onDone={vi.fn()} onSave={vi.fn()} onCancel={vi.fn()} />);
     expect(getField('server-name')).toHaveValue('Test');
     expect(getField('server-bhnm-url')).toHaveValue('https://bhnm.test.com');
     expect(getField('server-middleware-url')).toHaveValue('https://middleware.test.com');
@@ -62,7 +81,7 @@ describe('ServerForm', () => {
       isActive: true,
       isQrProvisioned: true,
     };
-    render(<ServerForm server={server} onSave={vi.fn()} onCancel={vi.fn()} />);
+    render(<ServerForm server={server} onDone={vi.fn()} onSave={vi.fn()} onCancel={vi.fn()} />);
     for (const id of ['server-name', 'server-bhnm-url', 'server-middleware-url',
                       'server-api-key', 'server-ack-user']) {
       expect(getField(id)).not.toBeDisabled();
@@ -93,7 +112,7 @@ describe('ServerForm', () => {
       id: 'abc', name: 'S', baseUrl: '/bhnm', apiKey: 'not-a-real-secret',
       ackUser: 'a', isQrProvisioned: false,
     };
-    render(<ServerForm server={server} onSave={vi.fn()} onCancel={vi.fn()} />);
+    render(<ServerForm server={server} onDone={vi.fn()} onSave={vi.fn()} onCancel={vi.fn()} />);
     expect(screen.getByText(/Stored: ••••••••cret/)).toBeInTheDocument();
     // and the input itself never exposes it
     expect(getField('server-api-key')).toHaveAttribute('type', 'password');
@@ -121,7 +140,7 @@ describe('ServerForm', () => {
       isActive: true,
       isQrProvisioned: true,
     };
-    render(<ServerForm server={server} onSave={onSave} onCancel={vi.fn()} />);
+    render(<ServerForm server={server} onDone={vi.fn()} onSave={onSave} onCancel={vi.fn()} />);
 
     await user.type(getField('server-name'), '-renamed');
     await user.click(screen.getByRole('button', { name: /save/i }));
@@ -146,16 +165,16 @@ describe('ServerForm', () => {
       id: 'abc', name: 'S', baseUrl: '/bhnm', apiKey: 'k', ackUser: 'a',
       pushEnabled: true, pushWebhookSecret: undefined, isQrProvisioned: true,
     };
-    render(<ServerForm server={server} onSave={vi.fn()} onCancel={vi.fn()} />);
+    render(<ServerForm server={server} onDone={vi.fn()} onSave={vi.fn()} onCancel={vi.fn()} />);
     expect(screen.getByRole('button', { name: /save/i })).not.toBeDisabled();
   });
 
   it('shows delete button only in edit mode', () => {
-    render(<ServerForm onSave={vi.fn()} onCancel={vi.fn()} />);
+    render(<ServerForm onDone={vi.fn()} onSave={vi.fn()} onCancel={vi.fn()} />);
     expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument();
 
     const server = { id: 'abc', name: 'Test', baseUrl: '/test', apiKey: 'k', isQrProvisioned: false };
-    const { unmount } = render(<ServerForm server={server} onSave={vi.fn()} onCancel={vi.fn()} onDelete={vi.fn()} />);
+    const { unmount } = render(<ServerForm server={server} onDone={vi.fn()} onSave={vi.fn()} onCancel={vi.fn()} onDelete={vi.fn()} />);
     expect(screen.getByRole('button', { name: /delete/i })).toBeInTheDocument();
     unmount();
   });
@@ -163,7 +182,7 @@ describe('ServerForm', () => {
   it('calls onSave with all fields including new ones', async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
-    render(<ServerForm onSave={onSave} onCancel={vi.fn()} />);
+    render(<ServerForm onDone={vi.fn()} onSave={onSave} onCancel={vi.fn()} />);
 
     await user.type(getField('server-name'), 'My Server');
     await user.type(getField('server-bhnm-url'), 'https://bhnm.test');
@@ -188,7 +207,7 @@ describe('ServerForm', () => {
   it('calls onCancel when cancel clicked', async () => {
     const user = userEvent.setup();
     const onCancel = vi.fn();
-    render(<ServerForm onSave={vi.fn()} onCancel={onCancel} />);
+    render(<ServerForm onDone={vi.fn()} onSave={vi.fn()} onCancel={onCancel} />);
     await user.click(screen.getByRole('button', { name: /cancel/i }));
     expect(onCancel).toHaveBeenCalled();
   });
