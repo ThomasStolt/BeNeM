@@ -97,3 +97,6 @@ vapid_private_key*
 # Local secrets — never commit
 .secrets
 .secrets.*
+
+# Claude Code session output — not project material
+Claude outputs/
