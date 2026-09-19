@@ -5,6 +5,94 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.18.1] - 2026-09-19
+
+### Fixed
+
+- **A token that APNs rejects as `BadDeviceToken` is now removed, not retried forever.**
+  `send_to_all()` collected only **410 Gone**, so a permanently dead token answering **400** stayed
+  in `device_tokens` and was re-sent on every incident for the life of the row. The concrete case:
+  a phone whose Debug build registered an APNs **sandbox** token, then replaced by a TestFlight or
+  App Store build — the sandbox token answers `400 BadDeviceToken` at the production host and
+  nothing ever cleaned it up.
+
+  **Only that one reason.** A 400 is not a statement about the token: `BadTopic`, `MissingTopic`
+  and `PayloadEmpty` are our own bug and come back for *every* token, so removing on any 400 would
+  empty the fleet on a bad deploy and the next incident would page nobody. `_send_one()` now
+  returns APNs' machine-readable `reason` alongside the status so the caller can tell the two
+  apart, instead of the reason being printed and discarded.
+
+### Corrected
+
+- **The `[1.0.0]` entry claimed this cleanup already existed.** It read "automatic token cleanup on
+  410 Gone / 400 BadDeviceToken" and the 400 half was never implemented. Corrected in place rather
+  than deleted, because a changelog asserting a branch that does not exist is why nobody went
+  looking for it. Same failure as a green affordance on an unverified fact, in a file rather than
+  on a screen.
+
+---
+
+## [2.18.0] - 2026-09-18
+
+> Backfilled 2026-09-19 from `docs/evidence/2026-09-18-middleware-2.18.0-pwa-0.17.0-deploy-record.md`.
+> 2.16.0, 2.17.0 and 2.18.0 shipped without entries, so this file could not state what three
+> deployed releases changed — the same defect as a `/health` payload that cannot state what is
+> running, which is what 2.18.0 was fixing.
+
+### Changed
+
+- **`/health` reduced to liveness and version.** It previously carried `registered_devices`,
+  `apns_environment` and a per-server `cache` / `tactical_cache` block on an **unauthenticated**
+  endpoint, which named every configured server id to anyone who asked. It is now exactly
+  `{"status", "version"}`, verified against `servers.json` rather than by eye.
+- **`registered_devices` dropped from `/api/v1/diagnostics`.** It is a fleet-wide count across
+  every tenant, so it is not the caller's business on a client-facing endpoint. The admin portal
+  keeps it, read from its own database.
+- **`server.bhnm.version` added to the diagnostics payload.** `None` on on-prem BHNM, which
+  exposes no api_key-readable version and renders as "version unknown" by design; SaaS returns a
+  real string.
+- **Secret masking and QR unlock** in the admin portal.
+
+Safe to remove those fields because the shipped iOS decoder declared them optional —
+`git show 36a0583:ios/BeNeM/Models/Diagnostics.swift`. That check is now a rule in the root
+`CLAUDE.md`: a client-decoded payload may only ever gain fields.
+
+---
+
+## [2.17.0] - 2026-09-17
+
+> Backfilled 2026-09-19 from `docs/evidence/2026-09-17-2.17.0-deploy-record.md` and
+> `docs/evidence/2026-09-17-cross-server-key-reachability-defect.md`.
+
+### Fixed
+
+- **A server's `api_key` could reach the OTHER configured servers.** Filed HIGH. 2.16.0 stopped an
+  api_key being a relay to the whole internet but did **not** stop key A reaching server B: the
+  cold-cache fall-throughs sent the *caller's own* credential to a header-supplied host. A request
+  authenticated with a server's api_key may now target **only that server** — mismatch is 403 in
+  ~59 ms. One guard in `_validate_proxy_target`, because all six call sites route through it.
+- **Duplicate api_keys now refuse at load with 503**, named by fingerprint rather than by value.
+
+The trigger in the field was a wrong `X-BHNM-Target`, not an attacker. A real client is on the
+refusal line: `BeNeM/38 CFNetwork/3860.700.2 Darwin/25.6.0`.
+
+---
+
+## [2.16.0] - 2026-09-17
+
+> Backfilled 2026-09-19 from `docs/superpowers/specs/2026-09-17-proxy-target-allowlist-design.md`
+> and the 2026-09-17 handoff. No deploy record was written for this release — the two above are
+> reconstructed from records, this one from the design and the handoff summary, and it is the
+> thinnest of the three.
+
+### Changed
+
+- **`servers.json` became the proxy allowlist.** A proxy target that is not a configured server is
+  refused with **403 in ~39 ms** instead of hanging for 60 s against an arbitrary host. Before
+  this, an `X-BHNM-Target` naming any host on the internet was attempted.
+
+---
+
 ## [2.15.2] - 2026-09-16
 
 ### Fixed
@@ -600,7 +688,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 - Initial release: FastAPI middleware bridging BHNM webhooks to Apple Push Notifications (APNs).
-- APNs HTTP/2 delivery via `httpx` with automatic token cleanup on 410 Gone / 400 BadDeviceToken.
+- APNs HTTP/2 delivery via `httpx` with automatic token cleanup on 410 Gone.
+  <!-- Corrected 2026-09-19: this line originally also claimed "/ 400 BadDeviceToken".
+       It was never true — `apns.py` removed on 410 alone until 2.18.1. The claim is
+       left corrected rather than deleted because it is why nobody looked for the
+       missing branch for six months. -->
+
 - Incident deep-link support: `incident_id` embedded in APNs payload for direct navigation in BeNeM.
 - Docker + Caddy deployment: automatic TLS via Let's Encrypt, single `docker compose up -d` setup.
 - SQLite persistence via Docker volume (`/data/bhnm_apns.db`).

@@ -352,7 +352,7 @@ def test_send_to_all_sends_to_every_token_not_just_the_first():
 
     async def fake_send_one(_client, token, _title, _body, _iid, env):
         seen.append(token)
-        return token, True, 200
+        return token, True, 200, ""
 
     tokens = [(f"tok-{i}", "production") for i in range(5)]
     with patch.object(apns_mod, "_send_one", fake_send_one), \
@@ -365,7 +365,7 @@ def test_send_to_all_sends_to_every_token_not_just_the_first():
 
 def test_send_to_all_collects_410s_and_keeps_going():
     async def fake_send_one(_client, token, _title, _body, _iid, env):
-        return token, False, 410 if token == "tok-dead" else 200
+        return token, False, (410 if token == "tok-dead" else 200), ""
 
     tokens = [("tok-a", "production"), ("tok-dead", "production"), ("tok-b", "production")]
     with patch.object(apns_mod, "_send_one", fake_send_one), \
@@ -375,12 +375,42 @@ def test_send_to_all_collects_410s_and_keeps_going():
     assert stale == ["tok-dead"]
 
 
+def test_send_to_all_removes_a_400_bad_device_token():
+    """A sandbox token reaching the production host answers 400 BadDeviceToken.
+    Before 2.18.1 only 410 was cleaned, so that row was retried forever."""
+    async def fake_send_one(_client, token, _title, _body, _iid, env):
+        if token == "tok-sandbox":
+            return token, False, 400, "BadDeviceToken"
+        return token, True, 200, ""
+
+    tokens = [("tok-a", "production"), ("tok-sandbox", "production")]
+    with patch.object(apns_mod, "_send_one", fake_send_one), \
+         patch.object(apns_mod, "_get_client", lambda: object()):
+        stale = asyncio.run(apns_mod.send_to_all(tokens, "t", "b", "1"))
+
+    assert stale == ["tok-sandbox"]
+
+
+def test_send_to_all_keeps_tokens_on_a_400_that_is_not_about_the_token():
+    """BadTopic/PayloadEmpty arrive for EVERY token — removing on any 400 would
+    empty the fleet on a bad deploy and the next incident would page nobody."""
+    async def fake_send_one(_client, token, _title, _body, _iid, env):
+        return token, False, 400, "BadTopic"
+
+    tokens = [("tok-a", "production"), ("tok-b", "production")]
+    with patch.object(apns_mod, "_send_one", fake_send_one), \
+         patch.object(apns_mod, "_get_client", lambda: object()):
+        stale = asyncio.run(apns_mod.send_to_all(tokens, "t", "b", "1"))
+
+    assert stale == [], "a 400 that is not BadDeviceToken must never remove a token"
+
+
 def test_one_failing_token_does_not_stop_the_others():
     seen = []
 
     async def fake_send_one(_client, token, _title, _body, _iid, env):
         seen.append(token)
-        return token, False, 0        # _send_one swallows its own exceptions
+        return token, False, 0, ""   # _send_one swallows its own exceptions
 
     tokens = [("tok-a", "production"), ("tok-b", "production")]
     with patch.object(apns_mod, "_send_one", fake_send_one), \
