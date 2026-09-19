@@ -5,6 +5,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.19.1] - 2026-09-19
+
+### Fixed
+
+- **An acknowledged incident's alarm counts now render BLUE, matching BHNM.** Found on a phone:
+  an ack made in the BHNM UI showed **ACKD** on the row within seconds while the alarm inside
+  **stayed red**.
+
+  `alarm_counts` was built only from the per-alarm entries (`primary_alarm_log`,
+  `relatedalarms`), whose `state` is the alarm's own condition. **[MEASURED 2026-09-19 — incident
+  27516, acknowledged and un-acknowledged under control, state verified restored]** acking flips
+  `incident.acknowledged` `0 → 1` and `incident.primary_alarm_state` `OPEN → ACKNOWLEDGED`, while
+  `primary_alarm_log[].state` stays `CRITICAL`. Surveyed across every active incident in the lab,
+  the complete set of per-alarm state values is **`CRITICAL`, `UP`, `WARNING`**.
+
+  So the old `state == "ACKNOWLEDGED" → blue` branch mapped a value those entries **never carry**:
+  it had never once executed, and blue had never once been displayed on either platform. It is
+  **deleted**, not left, so nobody reads it as evidence that alarms can be acknowledged
+  individually. Colour is now driven by `is_acknowledged()` reading the **incident-level** flag,
+  and applied by `apply_ack_colour()`.
+
+  **Ruled 2026-09-19 (Thomas): match BHNM.** BeNeM is a BHNM companion and its users already read
+  blue as "someone has this" — a second visual language for the same fact would be the invention,
+  not the alignment. All alarms in an acknowledged incident go blue; the total is preserved, so a
+  caller summing the counts gets the same answer either side of an ack.
+
+  **Un-acknowledging restores severity for free**, because the colour is *computed* from the ack
+  flag on every enrichment and never stored as an overwrite.
+
+  **Middleware only** — both apps render what the cache sends.
+
+### Known, unchanged
+
+- **The counts still lag the row by up to one cache cycle.** A webhook patches `incident_state`
+  immediately, so the row reads ACKD at once, but the counts are re-derived only on the next
+  enrichment. That is the C2 gap (build order step 8) and this release does not close it. The
+  override path was deliberately **not** made to recolour in place: blueing stored counts would
+  destroy the severity they were derived from, and un-acking could then not restore it without a
+  re-fetch — which is precisely what C2 does properly.
+
+---
+
 ## [2.19.0] - 2026-09-19
 
 Wave 1 steps 1–3 of the webhook-first incident freshness design

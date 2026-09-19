@@ -130,11 +130,15 @@ async def _fetch_incident_detail(client: httpx.AsyncClient, server: dict, incide
             counts["yellow"] += 1
         elif state in ("OK", "RESOLVED", "CLOSED", "UP", "NORMAL", "RECOVERY", "CLEARED", "ALARMS CLEARED"):
             counts["green"] += 1
-        elif state == "ACKNOWLEDGED":
-            counts["blue"] += 1
         else:
             counts["red"] += 1
+    # The `state == "ACKNOWLEDGED" -> blue` branch that used to sit here is
+    # DELETED, not left. Measured 2026-09-19: across every active incident in
+    # the lab the complete set of per-alarm state values is CRITICAL, UP and
+    # WARNING. Alarms never carry ACKNOWLEDGED, so that branch had never once
+    # executed and blue had never once been displayed.
 
+    counts = apply_ack_colour(counts, is_acknowledged(incident))
     return {"alarm_counts": counts, "alert_type": alert_type, "confirmed": True}
 
 
@@ -180,6 +184,48 @@ def remember_type(server_id: str, incident_id: str, alert_type: str) -> None:
         database.save_incident_type(server_id, str(incident_id), alert_type)
     except Exception as e:
         print(f"[Cache:{server_id}] Type map write failed for incident {incident_id}: {e}")
+
+
+def is_acknowledged(incident: dict) -> bool:
+    """Is this incident acknowledged, per BHNM?
+
+    **BHNM records acknowledgement at the INCIDENT level and never on the
+    alarms.** [MEASURED 2026-09-19, incident 27516 acked and un-acked under
+    control] Acking flips `incident.acknowledged` 0 -> 1 and
+    `incident.primary_alarm_state` OPEN -> ACKNOWLEDGED, while every entry in
+    `primary_alarm_log` keeps its own condition (`CRITICAL` stayed `CRITICAL`).
+    So the only place to read this is here.
+
+    Both fields are checked because either alone is one BHNM quirk away from
+    being wrong, and they agreed in the measurement.
+    """
+    ack = incident.get("acknowledged")
+    if ack in (1, True) or str(ack).strip().lower() in ("1", "true", "yes"):
+        return True
+    return str(incident.get("primary_alarm_state") or "").strip().upper() == "ACKNOWLEDGED"
+
+
+def apply_ack_colour(counts: dict | None, acknowledged: bool) -> dict | None:
+    """An acknowledged incident's alarms render BLUE. Match BHNM.
+
+    RULED 2026-09-19 (Thomas): BeNeM is a BHNM companion and its users already
+    read blue as "someone has this". Do not invent a second visual language for
+    a fact BHNM already has a colour for.
+
+    The total is preserved — every alarm moves to blue, none is lost — so a
+    caller summing the counts still gets the alarm count. Un-acknowledging
+    restores severity by simple re-derivation on the next enrichment, which is
+    why this is computed and never stored as a mutation.
+
+    ponytail: all alarms, not just the primary. If BHNM turns out to colour only
+    the primary alarm, this is the one function to change.
+    """
+    if not acknowledged or not counts:
+        return counts
+    total = sum(counts.values())
+    if not total:
+        return counts
+    return {"red": 0, "orange": 0, "yellow": 0, "green": 0, "blue": total}
 
 
 def _enrich_incident(incident: dict, detail: dict, list_at: float,
