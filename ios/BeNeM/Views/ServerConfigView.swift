@@ -139,18 +139,18 @@ struct ServerConfigView: View {
                 }
             }
 
-            // Status row
-            if testStatus != .untested {
+            // Status row — FAILURE ONLY, deliberately.
+            // The success half was the old Test Connection indicator and was never
+            // removed when the save alert arrived, so one successful save produced
+            // two success signals: this card and "Connection verified". The failure
+            // row stays because it outlives its alert — it is what keeps a bad URL
+            // visible on screen after the alert is dismissed.
+            if testStatus == .failure {
                 Section {
                     HStack {
                         Spacer()
-                        if testStatus == .success {
-                            Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
-                            Text("Connection successful").foregroundColor(.green)
-                        } else {
-                            Image(systemName: "xmark.circle.fill").foregroundColor(.red)
-                            Text("Connection failed").foregroundColor(.red)
-                        }
+                        Image(systemName: "xmark.circle.fill").foregroundColor(.red)
+                        Text("Connection failed").foregroundColor(.red)
                         Spacer()
                     }
                     .font(.subheadline)

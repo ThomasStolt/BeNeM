@@ -10,6 +10,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [2.13.4] — 2026-09-19
+
+> Built, not released. Waiting for the next batch.
+
+### Fixed
+
+- **One save, one success signal.** A narrow "Connection successful" card appeared beside the
+  "Connection verified" alert after every successful save — the old Test Connection indicator,
+  never removed when the alert arrived. The card is gone and the alert stays. **The failure row
+  stays too**: unlike the alert it outlives being dismissed, which is what keeps a bad URL visible
+  on screen.
+
+### Changed
+
+- **The ack user is the constant "BHNM Mobile", always — not a fallback.** The configured ack user
+  was sent, so a phone name ("Thomas iPhone 13 ProMax") reached BHNM's incident history. That was
+  never an identity: BHNM has one API token per server, not per user, so nothing about an
+  acknowledgement has ever identified a person. The PWA sends the same string.
+
 ## [2.13.3] — 2026-09-19
 
 ### Removed
