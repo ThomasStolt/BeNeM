@@ -41,8 +41,8 @@ class NetreoAPIService: ObservableObject {
         self.jsonDecoder.dateDecodingStrategy = .iso8601
     }
     
-    convenience init(baseURL: String, apiKey: String, pin: String? = nil, version: NetreoAPIConfiguration.APIVersion = .legacy) {
-        let config = NetreoAPIConfiguration(baseURL: baseURL, apiKey: apiKey, pin: pin, version: version)
+    convenience init(baseURL: String, apiKey: String, pin: String? = nil) {
+        let config = NetreoAPIConfiguration(baseURL: baseURL, apiKey: apiKey, pin: pin)
         self.init(configuration: config)
     }
     
@@ -757,6 +757,11 @@ class NetreoAPIService: ObservableObject {
         return result.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
+    /// Attribution for an ack when no ack user is configured. Identical on the PWA
+    /// (`lib/api/incidents.ts`) so an ack from either client reads the same in
+    /// BHNM's incident history — it was "mobile" here and "BeNeM PWA" there.
+    static let defaultAckUser = "BHNM Mobile"
+
     func acknowledgeIncident(incidentID: String, user: String, comment: String = "Acked from Mobile App") async throws -> Bool {
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/incident/acknowledge") else { return false }
         var request = URLRequest(url: url)
@@ -779,7 +784,7 @@ class NetreoAPIService: ObservableObject {
         return (response as? HTTPURLResponse)?.statusCode ?? 0 < 400
     }
 
-    func unacknowledgeIncident(incidentID: String, user: String = "mobile", comment: String = "De-Acked from Mobile App") async throws -> Bool {
+    func unacknowledgeIncident(incidentID: String, user: String = NetreoAPIService.defaultAckUser, comment: String = "De-Acked from Mobile App") async throws -> Bool {
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/incident/unacknowledge") else { return false }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -1055,7 +1060,7 @@ class NetreoAPIService: ObservableObject {
         var parameters = baseParameters()
         parameters["method"] = "getincidents"
         
-        let urlString = configuration.endpoint(for: endpoint.path(for: configuration.version))
+        let urlString = configuration.endpoint(for: endpoint.legacyPath)
         #if DEBUG
         print("Fetching incidents from URL: \(urlString)")
         print("Parameters: \(parameters)")
@@ -1065,7 +1070,7 @@ class NetreoAPIService: ObservableObject {
             throw APIError.configurationError("Invalid server URL: \(urlString)")
         }
         var request = URLRequest(url: url)
-        request.httpMethod = endpoint.httpMethod(for: configuration.version).rawValue
+        request.httpMethod = endpoint.legacyHTTPMethod.rawValue
         addProxyToken(&request)
 
         var comps = URLComponents()

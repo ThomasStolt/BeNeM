@@ -4,9 +4,6 @@ struct ContentView: View {
     @AppStorage("netreo_base_url") private var baseURL = ""
     @AppStorage("netreo_api_key") private var apiKey = ""
     @AppStorage("netreo_pin") private var pin = ""
-    @AppStorage("netreo_api_version") private var apiVersionString = "legacy"
-    @AppStorage("netreo_timeout") private var timeout: Double = 30.0
-    @AppStorage("netreo_retry_count") private var retryCount: Double = 3.0
     @AppStorage("netreo_active_connection_id") private var activeConnectionID = ""
     @AppStorage("netreo_webhook_secret") private var webhookSecret = ""
     @AppStorage("netreo_bhnm_url") private var bhnmURL = ""
@@ -71,9 +68,6 @@ struct ContentView: View {
             .onChange(of: bhnmURL) { _, _ in updateAPIService() }
             .onChange(of: apiKey) { _, _ in updateAPIService() }
             .onChange(of: pin) { _, _ in updateAPIService() }
-            .onChange(of: apiVersionString) { _, _ in updateAPIService() }
-            .onChange(of: timeout) { _, _ in updateAPIService() }
-            .onChange(of: retryCount) { _, _ in updateAPIService() }
             .onChange(of: webhookSecret) { _, _ in updateAPIService() }
             .onChange(of: activeConnectionID) { oldID, newID in
                 handleConnectionChange(from: oldID, to: newID)
@@ -184,7 +178,6 @@ struct ContentView: View {
             ConnectionMonitor.shared.configure(nil)
             return
         }
-        let apiVersion = NetreoAPIConfiguration.APIVersion(rawValue: apiVersionString) ?? .legacy
         let configuration = NetreoAPIConfiguration(
             baseURL: baseURL,
             bhnmURL: bhnmURL,
@@ -195,10 +188,7 @@ struct ContentView: View {
             // previously only worked because it happened to equal the webhook
             // secret. Push registration still uses the webhook secret via
             // X-Webhook-Token (AppDelegate), unaffected by this.
-            proxyToken: apiKey,
-            version: apiVersion,
-            timeout: timeout,
-            retryCount: Int(retryCount)
+            proxyToken: apiKey
         )
         let service = NetreoAPIService(configuration: configuration)
         apiService = service

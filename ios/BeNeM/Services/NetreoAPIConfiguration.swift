@@ -1,38 +1,22 @@
 import Foundation
 
 struct NetreoAPIConfiguration {
-    let baseURL: String       // = middlewareURL when proxy is active; = bhnmURL for direct connections
-    let bhnmURL: String       // direct BHNM URL — sent as X-BHNM-Target; "" for direct connections
+    /// Always the middleware URL. There is no direct-to-BHNM mode: `ContentView`
+    /// is the only place that builds this and always passes the middleware, the
+    /// add/edit form refuses to save without one (`ServerDraft.saveDisabled`), and
+    /// every request carries `X-Proxy-Token`. A comment here used to claim
+    /// "= bhnmURL for direct connections"; no code ever did that.
+    let baseURL: String
+    let bhnmURL: String       // the BHNM target, sent as X-BHNM-Target
     let apiKey: String
     let pin: String?
     let proxyToken: String
-    let version: APIVersion
+    /// Governs `URLSessionConfiguration` only. Two call sites set their own and
+    /// ignore this: the diagnostics read (10 s) and the save probe (15 s).
     let timeout: TimeInterval
-    let retryCount: Int
-    
-    enum APIVersion: String, CaseIterable {
-        case legacy = "legacy"
-        case v1 = "v1"
-        case v2 = "v2"
-        case openapi = "openapi"
-        
-        var endpointPrefix: String {
-            switch self {
-            case .legacy:
-                return ""
-            case .v1:
-                return "/api/v1"
-            case .v2:
-                return "/api/v2"
-            case .openapi:
-                return "/api"
-            }
-        }
-    }
-    
+
     init(baseURL: String, bhnmURL: String = "", apiKey: String, pin: String? = nil,
-         proxyToken: String = "", version: APIVersion = .legacy,
-         timeout: TimeInterval = 30, retryCount: Int = 3) {
+         proxyToken: String = "", timeout: TimeInterval = 30) {
         let normalizedURL = baseURL.trimmingSuffix("/")
 
         // Ensure URL has protocol
@@ -46,13 +30,11 @@ struct NetreoAPIConfiguration {
         self.apiKey     = apiKey
         self.pin        = pin
         self.proxyToken = proxyToken
-        self.version    = version
         self.timeout    = timeout
-        self.retryCount = retryCount
     }
     
     func endpoint(for path: String) -> String {
-        return "\(baseURL)\(version.endpointPrefix)\(path.hasPrefix("/") ? path : "/\(path)")"
+        return "\(baseURL)\(path.hasPrefix("/") ? path : "/\(path)")"
     }
 }
 
@@ -70,46 +52,34 @@ enum NetreoEndpoint {
     case sites
     case custom(String)
     
-    func path(for version: NetreoAPIConfiguration.APIVersion) -> String {
+    /// Legacy (PHP) paths, unconditionally. The v1/v2/openapi variants were
+    /// selectable from Settings until 2.13.3 and never worked: the middleware
+    /// proxies BHNM's own endpoints, so `/api/v1/incidents` had nothing serving
+    /// it, and only this one call site ever consulted the setting — the other
+    /// fifteen hardcode `/fw/index.php?r=restful/...`. Picking anything but
+    /// legacy silently broke device-detail incidents and nothing else.
+    var legacyPath: String {
         switch self {
-        case .deviceList:
-            return version == .legacy ? "/devices/list" : "/devices"
-        case .deviceAdd:
-            return version == .legacy ? "/new_device_api.php" : "/devices"
-        case .deviceDelete(let identifier):
-            return version == .legacy ? "/device_delete_api.php" : "/devices/\(identifier)"
-        case .deviceInfo(let identifier):
-            return version == .legacy ? "/device_info_api.php" : "/devices/\(identifier)"
-        case .deviceRename(let identifier, _):
-            return version == .legacy ? "/device_rename_api.php" : "/devices/\(identifier)/rename"
-        case .devicePerformance(let identifier):
-            return version == .legacy ? "/devices/performance-category" : "/devices/\(identifier)/performance"
-        case .deviceServices(let identifier):
-            return version == .legacy ? "/devices/services" : "/devices/\(identifier)/services"
-        case .incidents:
-            return version == .legacy ? "/api/incident_api.php" : "/incidents"
-        case .acknowledgment:
-            return version == .legacy ? "/incident_ack.php" : "/incidents/acknowledge"
-        case .categories:
-            return version == .legacy ? "/categories" : "/categories"
-        case .sites:
-            return version == .legacy ? "/sites" : "/sites"
-        case .custom(let path):
-            return path
+        case .deviceList:                 return "/devices/list"
+        case .deviceAdd:                  return "/new_device_api.php"
+        case .deviceDelete:               return "/device_delete_api.php"
+        case .deviceInfo:                 return "/device_info_api.php"
+        case .deviceRename:               return "/device_rename_api.php"
+        case .devicePerformance:          return "/devices/performance-category"
+        case .deviceServices:             return "/devices/services"
+        case .incidents:                  return "/api/incident_api.php"
+        case .acknowledgment:             return "/incident_ack.php"
+        case .categories:                 return "/categories"
+        case .sites:                      return "/sites"
+        case .custom(let path):           return path
         }
     }
-    
-    func httpMethod(for version: NetreoAPIConfiguration.APIVersion) -> HTTPMethod {
+
+    var legacyHTTPMethod: HTTPMethod {
         switch self {
-        case .deviceList, .deviceInfo, .devicePerformance, .deviceServices, .incidents, .categories, .sites:
-            return version == .legacy ? .POST : .GET
-        case .deviceAdd:
-            return .POST
-        case .deviceDelete:
-            return version == .legacy ? .POST : .DELETE
-        case .deviceRename:
-            return version == .legacy ? .POST : .PATCH
-        case .acknowledgment:
+        case .deviceList, .deviceInfo, .devicePerformance, .deviceServices,
+             .incidents, .categories, .sites, .deviceAdd, .deviceDelete,
+             .deviceRename, .acknowledgment:
             return .POST
         case .custom:
             return .GET

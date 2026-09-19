@@ -16,6 +16,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        // Before anything reads UserDefaults: a phone left on API Version "v1"
+        // has a broken incidents path and no UI left to fix it (2.13.3).
+        LegacySettingsMigration.runIfNeeded()
+
         let center = UNUserNotificationCenter.current()
         center.delegate = self
         AppDelegate.shared = self

@@ -3,9 +3,6 @@ import SwiftUI
 struct SettingsView: View {
     var navResetID: UUID = UUID()
 
-    @AppStorage("netreo_api_version")   private var apiVersionString = "legacy"
-    @AppStorage("netreo_timeout")       private var timeout: Double = 30.0
-    @AppStorage("netreo_retry_count")   private var retryCount: Double = 3.0
     @AppStorage("refresh_interval")     private var refreshInterval: Double = 120.0
     @AppStorage("maxDevicesCount")      private var maxDevicesCount: Int = 20
     @AppStorage("netreo_active_connection_id") private var activeSavedConnectionID = ""
@@ -90,27 +87,12 @@ struct SettingsView: View {
                             .foregroundColor(.secondary)
                     }
 
-                    // MARK: API Configuration
-                    Section(header: Text("API Configuration")) {
-                        Picker("API Version", selection: Binding(
-                            get: { NetreoAPIConfiguration.APIVersion(rawValue: apiVersionString) ?? .legacy },
-                            set: { apiVersionString = $0.rawValue }
-                        )) {
-                            ForEach(NetreoAPIConfiguration.APIVersion.allCases, id: \.self) { v in
-                                Text(v.displayName).tag(v)
-                            }
-                        }
-                        .pickerStyle(MenuPickerStyle())
-
-                        VStack(alignment: .leading) {
-                            Text("Timeout: \(Int(timeout))s")
-                            Slider(value: $timeout, in: 10...120, step: 5)
-                        }
-                        VStack(alignment: .leading) {
-                            Text("Retry Count: \(Int(retryCount))")
-                            Slider(value: $retryCount, in: 1...10, step: 1)
-                        }
-                    }
+                    // The "API Configuration" card was removed in 2.13.3. It offered an
+                    // API Version picker that broke device-detail incidents on any value
+                    // but "legacy", a Retry Count slider wired to nothing, and a Timeout
+                    // slider two of the app's three timeouts ignored anyway. See
+                    // LegacySettingsMigration for why the stored keys are deleted rather
+                    // than just hidden.
 
                     // MARK: About
                     Section(header: Text("About")) {
@@ -400,33 +382,5 @@ private struct SwitchServerPopup: View {
 
     private func hostname(_ urlString: String) -> String {
         URL(string: urlString)?.host ?? urlString
-    }
-}
-
-extension NetreoAPIConfiguration.APIVersion {
-    var displayName: String {
-        switch self {
-        case .legacy:
-            return "Legacy (PHP APIs)"
-        case .v1:
-            return "API v1"
-        case .v2:
-            return "API v2"
-        case .openapi:
-            return "OpenAPI 3.0"
-        }
-    }
-
-    var description: String {
-        switch self {
-        case .legacy:
-            return "Original PHP-based APIs using form-encoded requests"
-        case .v1:
-            return "First generation REST API with JSON"
-        case .v2:
-            return "Second generation REST API with enhanced features"
-        case .openapi:
-            return "Modern OpenAPI 3.0 compliant endpoints"
-        }
     }
 }
