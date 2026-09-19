@@ -32,7 +32,12 @@ final class AckAttributionTests: XCTestCase {
                           "a constant must never displace a real username")
     }
 
-    func testAnEmptyUsernameBlocksSave_soTheFallbackIsNotReachableFromTheForm() {
+    /// The form is closed; the QR path is not. `DeepLinkHandler` uses
+    /// `(json["user"] as? String) ?? "enter user name"`, and an empty string IS a
+    /// String — so a link carrying `"user": ""` yields an empty ackUser, bypassing
+    /// `saveDisabled` entirely. The admin portal permits that: `user: str = Form("")`,
+    /// required in JavaScript only. The fallback therefore fires on real input.
+    func testAnEmptyUsernameBlocksSave_butOnlyThroughTheForm() {
         XCTAssertTrue(draft(ackUser: "").saveDisabled(isAddMode: true),
                       "the form requires a username, so an empty ackUser cannot be saved this way")
         XCTAssertTrue(draft(ackUser: "").saveDisabled(isAddMode: false),

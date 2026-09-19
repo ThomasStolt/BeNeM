@@ -249,6 +249,33 @@ policy, chosen independently and never compared. The 10 s is also the value in t
 signature (`status: -1` at 10,015 ms, §(f) 14). **Review all three numbers together and rule them
 as one set** rather than editing whichever one next annoys somebody.
 
+### 3d. The admin portal's Username field does not say what it is for — and is not really required
+
+**Filed 2026-09-19. Two halves, same field, both cheap.**
+
+**The hint.** `generate.html:329-333` labels it `Username *` with placeholder `e.g. Thomas` and an
+error reading "Username is required to generate a link". Nothing says where the value goes. Thomas
+typed a phone name into it because nothing told him it would appear in BHNM as the user who
+acknowledged the incident — and that misreading is what produced (f)19, a released regression and a
+morning of archaeology. **One line under the field — "shown in BHNM as the user who acknowledged"
+— would have prevented the whole thing.**
+
+**The enforcement, found while answering whether the `"BHNM Mobile"` fallback can fire.** The
+field is required in **JavaScript only**. `benem-admin/main.py` declares `user: str = Form("")`,
+so a POST to `/admin/generate` without JS — curl, a scripted re-submit — produces a QR carrying
+`"user": ""`. Both clients then fall back:
+
+- **iOS** — `DeepLinkHandler.swift:215` is `(json["user"] as? String) ?? "enter user name"`, and an
+  empty string **is** a String, so the cast succeeds and the default never applies: `ackUser = ""`.
+- **PWA** — `qr-parser.ts:61` is `data.user || data.ackUser || undefined`, and `''` is falsy, so it
+  becomes `undefined`, then `''` at `serverStorage.ts:181`.
+
+**QR import bypasses the form on both platforms**, so `ServerDraft.saveDisabled` and `ServerForm`
+do not close this. Fix shape: make `user` a required, non-empty-validated form parameter in
+`main.py` rather than trusting the browser. Do not "fix" it by removing the client fallback — with
+an empty username BHNM records the ack as nobody, which is worse than recording it as
+`BHNM Mobile`.
+
 ### 4. Caddy's error log stores full request headers in cleartext
 
 `benem-proxy`'s `http.log.error` entries contain the complete request header block, **including
@@ -328,6 +355,32 @@ does), **"an SE outage fires the action group"** (EXTERNAL, two explanations alr
 18. **"A changed bundle hash proves what was deployed."** It proves it to someone with shell
     access on the VPS. PWA 0.16.3 shipped twice with the same version string, so the Settings
     screen said the same thing either side. See (g).
+
+19. **"The ack user reads as the device name, so the device-name path is winning over the QR
+    username."** **Wrong, and it was never true.** `Thomas iPhone 13 ProMax` and
+    `Thomas Android PWA` are the **QR Usernames Thomas typed into the admin portal** — its own
+    link log records them, `/app/log/admin.jsonl`, issued 2026-09-15T10:48:24 and
+    2026-09-02T13:53:03. Both clients had been sending the per-connection `ackUser` correctly and
+    continuously: iOS since before the monorepo move (`57a8e6e`, 2026-04-05), the PWA since
+    `4ec53db` (2026-04-08).
+
+    **There is no commit where the track was lost, because it was never lost.** The archaeology was
+    asked for and returned nothing: `git log -S'UIDevice.current.name' -- ios/` finds only the
+    monorepo move, and that string's one use is the `device_name` field of the **push
+    registration** payload (`AppDelegate.swift:143`), which has never touched an ack.
+
+    **Confirmed in production, not by reasoning:** incident 29546 was already sitting acknowledged
+    with `ack_user = 'Thomas iPhone 13 ProMax'` from a real ack made before any of this, and a
+    fresh end-to-end ack of incident 24951 through the PWA's own middleware endpoint recorded
+    `ack_user = 'Thomas Android PWA'` in BHNM (then unacknowledged, state restored).
+
+    **The failure is on the reviewer's side of the loop, which is why it sits here beside the
+    Service Engine ruling.** An assertion was offered in review as though it were a measurement,
+    it was accepted without a check, a constant was ruled on it, **0.17.2 shipped the break** and
+    **0.17.3 shipped the repair** — a released build lost per-person ack attribution in between.
+    The producer's record that settled it was one `docker exec` away the whole time. Rule added to
+    `middleware/CLAUDE.md`: *an assertion must first be shown to have been checked*, beside *an
+    empty result must first be shown capable of returning a non-empty one*.
 
 ---
 

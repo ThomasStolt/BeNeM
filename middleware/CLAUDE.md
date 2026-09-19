@@ -108,6 +108,19 @@ Two rules follow:
   absence is allowed to mean anything, show timestamped lines from inside the window being asked
   about. This is "search for the object, never trust the count" applied to time, and it is the only
   reason the orphan above was caught rather than believed.
+- **An empty result must first be shown capable of returning a non-empty one.** The generalisation
+  of the rule above, to every probe and not just log greps. Twice on 2026-09-19 an absence was
+  reported as a finding when the absence was in the query: a webhook watch whose filter matched a
+  startup banner instead of a delivery, and an incident probe that read `d["incidents"]` when the
+  payload's key is `active_incidents` — it returned "no incidents to acknowledge" while the log
+  beside it said `Cache updated: 6 active`. Run the probe against a case you know is non-empty, or
+  say "did not find" rather than "is not there".
+- **And the same rule for assertions: one must first be shown to have been checked.** On the same
+  day, "the ack user reads as the device name" was stated in review, accepted without a check, and
+  a constant was ruled on it. The producer's own record — `benem-admin`'s `/app/log/admin.jsonl` —
+  said those strings were usernames someone typed, and a released build broke attribution before
+  anybody read it. An unverified assertion in a review is the same defect as an unverified green
+  affordance in a UI: a claim presented as a measurement.
 
 Then: `./upgrade.sh`, confirm `/health` reports the expected version, and keep the
 previous image tagged for rollback (`docker tag bhnm-apns-bhnm-apns:latest bhnm-apns-bhnm-apns:<sha>`).

@@ -53,9 +53,12 @@ describe('ack attribution', () => {
   });
 
   it('falls back only when the username is genuinely empty', async () => {
-    // Not reachable through the UI — ServerForm requires the field and the admin
-    // portal requires it before a link can be generated. Kept as a guard so an ack
-    // is never sent with an empty user, which BHNM would record as nobody.
+    // REACHABLE, and not only as a guard. `ServerForm` requires the field, but QR
+    // import bypasses the form entirely, and the admin portal's Username is
+    // required in JavaScript ONLY — `main.py` declares `user: str = Form("")`. A
+    // link generated without JS carries `"user": ""`, which qr-parser turns into
+    // undefined (`'' || undefined`) and storage into ''. So this path fires on a
+    // real QR, and without it BHNM would record the ack as nobody.
     await acknowledgeIncident(config(''), '42');
     expect(sentUser()).toBe('BHNM Mobile');
   });
