@@ -130,7 +130,13 @@ struct DashboardView: View {
 
     private var statusCards: some View {
         HStack(spacing: 12) {
-            Button { selectedTab = 1 } label: {
+            Button {
+                // Land on the same set the tile counted. activeIncidentsCount is
+                // status == .active, so the list must be filtered to match or the
+                // number on the tile and the rows on the screen disagree.
+                incidentViewModel.filterByStatus(.active)
+                selectedTab = 1
+            } label: {
                 StatusCard(
                     title: "Active Incidents",
                     count: incidentViewModel.activeIncidentsCount,
@@ -139,13 +145,20 @@ struct DashboardView: View {
                 )
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Active incidents, \(incidentViewModel.activeIncidentsCount). Opens the incident list.")
 
-            StatusCard(
-                title: "Total Devices",
-                count: totalDeviceCount,
-                color: .blue,
-                icon: "network"
-            )
+            // Switches tabs rather than pushing a Devices view onto Home's stack —
+            // a pushed copy would be a second Devices screen with its own back button.
+            Button { selectedTab = 2 } label: {
+                StatusCard(
+                    title: "Total Devices",
+                    count: totalDeviceCount,
+                    color: .blue,
+                    icon: "network"
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Total devices, \(totalDeviceCount). Opens the device list.")
         }
     }
 
@@ -373,12 +386,20 @@ struct StatusCard: View {
                     .foregroundColor(color)
                     .frame(maxWidth: .infinity)
             }
-            Text(title)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .frame(maxWidth: .infinity, alignment: .center)
+            HStack(spacing: 4) {
+                Text(title)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                // The affordance: without it the card looks like a readout, and
+                // a tappable thing that does not look tappable is not discovered.
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
         }
         .padding()
+        .contentShape(Rectangle())   // the whole card is the tap target, not just the text
         .frame(maxWidth: .infinity)
         .background(Color(.systemBackground))
         .cornerRadius(14)

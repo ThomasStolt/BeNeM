@@ -24,7 +24,7 @@ function Card({
 }) {
   const content = (
     <div
-      className="flex-1 px-4 py-3 rounded-[14px] bg-slate-950 text-center"
+      className="h-full px-4 py-3 rounded-[14px] bg-slate-950 text-center"
       style={{
         border: `1.5px solid ${borderColor}`,
         boxShadow: `0 3px 6px ${shadowColor}`,
@@ -34,14 +34,28 @@ function Card({
         <span className="text-xl">{icon}</span>
         <span className="text-2xl font-bold" style={{ color }}>{count}</span>
       </div>
-      <div className="text-xs text-slate-400 mt-1">{label}</div>
+      <div className="text-xs text-slate-400 mt-1 flex items-center justify-center gap-1">
+        {label}
+        {/* The affordance: a card that navigates has to look like it does. */}
+        {to && <span aria-hidden="true">›</span>}
+      </div>
     </div>
   );
 
   if (to) {
-    return <Link to={to} className="flex-1">{content}</Link>;
+    // Link, not an onClick div — the whole card is the target, it keeps
+    // middle-click and open-in-new-tab, and it is reachable by keyboard.
+    return (
+      <Link
+        to={to}
+        aria-label={`${label}, ${count}`}
+        className="flex-1 block rounded-[14px] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+      >
+        {content}
+      </Link>
+    );
   }
-  return content;
+  return <div className="flex-1">{content}</div>;
 }
 
 export function SummaryCards({ activeIncidents, totalDevices }: Props) {
@@ -67,6 +81,7 @@ export function SummaryCards({ activeIncidents, totalDevices }: Props) {
         color="#60a5fa"
         borderColor="rgba(59,130,246,0.25)"
         shadowColor="rgba(59,130,246,0.12)"
+        to="/devices"
       />
     </div>
   );

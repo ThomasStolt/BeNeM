@@ -21,9 +21,10 @@ export function DashboardScreen() {
     queryClient.invalidateQueries();
   }, [queryClient]);
 
-  const activeIncidents = incidents?.filter(
-    (i) => i.severity === 'critical' || i.severity === 'major',
-  ).length ?? 0;
+  // status === 'active', matching iOS's activeIncidentsCount. This counted
+  // severity critical|major until 0.17.1, so the two platforms showed different
+  // numbers under the same label and neither matched what "active" means.
+  const activeIncidents = incidents?.filter((i) => i.status === 'active').length ?? 0;
 
   const totalDevices = summary
     ? summary.hosts.ok + summary.hosts.ack + summary.hosts.warn + summary.hosts.un + summary.hosts.crit
