@@ -124,7 +124,12 @@ Both `lastUpdateTime` values advancing, so the engine is alive. `host_down` empt
 **The Bandwidth anomaly still pages: 102 anomaly webhooks today**, last delivery 21:45:58Z to all
 four APNs tokens plus WebPush. The BeNeM Action Group remains attached to `U6-Pro-EG` /
 `UAP-AC-LR` / `UAP-AC-Pro-DB` / `UAP_AC_M` — **a change Thomas made, not new BHNM behaviour.**
-Nobody has yet ruled on whether that volume is wanted.
+
+**RULED 2026-09-19 (Thomas): SETTLED, and it is not a product question.** The volume is a
+**deliberately over-sensitive lab setting**, wanted as it is. Nothing to change in BeNeM, the
+action group or the thresholds. Do not re-open it as a tuning task, do not design rate limiting
+around it, and do not read the count as a defect signal — a future reader finding 100+ anomaly
+pages in a day is looking at the lab working as configured.
 
 `servers.json` holds four servers, four distinct keys, only `ThomasLabServer` cached.
 
@@ -211,6 +216,28 @@ the webhook fan-out to six targets, one of them the stale row — that is the in
 Optional because the reasoning behind skipping it is sound, and not scheduled because the decision
 to submit without it was deliberate. If it is not done before approval, say so rather than letting
 the absence go unrecorded.
+
+### 3c. PARITY — the PWA incident list has no filter at all
+
+`IncidentListScreen.tsx` renders every incident sorted by id; there is no status control. So the
+"Active Incidents" tile, now counting `status === 'active'` to match iOS (0.17.1), **lands on the
+full list** — the number and the rows can still disagree there, where on iOS they no longer can.
+**If that list includes closed incidents, the change belongs to the list, not to the tile.**
+Unruled: whether the PWA list should gain a filter, default to active, or stay as it is.
+
+### 3b. The two hardcoded iOS timeouts are now the only timeouts — review them as a set
+
+**Follow-up from the 2.13.3 removal of the API Configuration card, deliberately not done then.**
+The Timeout slider governed `URLSessionConfiguration` and is gone, replaced by a fixed 30 s
+default. Two call sites always set their own and never consulted it:
+
+- `NetreoAPIService.swift:182` — the diagnostics read, **10 s**
+- `ServerConfigView.swift:324, 356` — the save probe, **15 s**
+
+They were incidental while a user-facing slider existed. They are now the app's whole timeout
+policy, chosen independently and never compared. The 10 s is also the value in the iPhone 15 stall
+signature (`status: -1` at 10,015 ms, §(f) 14). **Review all three numbers together and rule them
+as one set** rather than editing whichever one next annoys somebody.
 
 ### 4. Caddy's error log stores full request headers in cleartext
 

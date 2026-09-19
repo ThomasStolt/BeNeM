@@ -10,6 +10,39 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [2.13.3] — 2026-09-19
+
+### Removed
+
+- **Settings → API Configuration is gone, and so are the three values it stored.** The **API
+  Version** picker was read by exactly one call path out of about sixteen; every other request
+  hardcodes `/fw/index.php?r=restful/...`. Choosing anything but "legacy" rewrote that one URL to
+  `<middleware>/api/v1/incidents` and flipped POST to GET, which the middleware does not serve —
+  so device-detail incidents broke silently while the rest of the app carried on. **Retry Count**
+  was stored, passed into the configuration and read by nothing at all; there is no retry anywhere
+  in the app. **Timeout** was real but ignored by two of the app's three timeouts, and is now a
+  fixed 30 s.
+
+  **The stored values are deleted, not merely hidden.** `netreo_api_version` survives an app
+  update, so a phone left on `v1` would otherwise have kept the broken incidents path with no UI
+  left to change it back. A one-time migration removes all three keys on first launch.
+
+### Changed
+
+- **The Home status cards navigate, and look like they do.** "Active Incidents" was already
+  tappable but gave no sign of it; "Total Devices" was not tappable at all. Both are now buttons
+  with a chevron, and the whole card is the target (`contentShape(Rectangle())`) rather than just
+  the text inside it. A card that navigates without an affordance is not discovered.
+- **"Active Incidents" lands on the incidents it counted.** The tile counts `status == .active`,
+  so tapping it now applies that filter before switching tabs. Previously it opened the unfiltered
+  list, where the number on the tile and the rows on the screen could disagree with no explanation.
+- **Both cards switch tabs rather than pushing.** `selectedTab` changes to the existing Incidents
+  or Devices tab, so there is no second copy of a screen sitting on Home's navigation stack with
+  its own back button.
+- **An acknowledgement with no ack user configured now attributes to "BHNM Mobile".** It was
+  "mobile" here and "BeNeM PWA" on the web app, so the same person acknowledging the same incident
+  appeared two different ways in BHNM's incident history. Both clients now send the same string.
+
 ## [2.13.2] — 2026-09-18
 
 ### Fixed
