@@ -310,6 +310,51 @@ def _apply_state_overrides(server_id: str, incidents: list[dict]) -> None:
                   f"sighting: incident {iid} -> {pending[0]}")
 
 
+# -- Single-incident merge ------------------------------------------------------
+
+def normalise_incident_id(incident_id: str) -> str:
+    """Strip a leading `<prefix>-` and return the bare numeric id.
+
+    Three identifiers are in play and they are not reliably the same string: the
+    push payload carries `29570`, the cache may carry `NetreoCloudDemo-24090`,
+    and BHNM's getincidentdetail wants `24090`. Tolerant in, strict out — and
+    normalised at EXACTLY ONE PLACE, which is here. Rejecting the prefixed form
+    would break shipped clients for no gain.
+    (2026-09-15 design, "The ID question", decision 4.)
+    """
+    text = str(incident_id).strip()
+    if "-" in text:
+        tail = text.rsplit("-", 1)[1]
+        if tail.isdigit():
+            return tail
+    return text
+
+
+def merge_incident(server_id: str, enriched: dict) -> bool:
+    """Insert or replace one incident in the cache, in the bucket its state says.
+
+    Returns True if a cache existed to merge into. **Moving between buckets is
+    part of this, not a separate step**: BHNM moves a recovered incident out of
+    the active set, so leaving a CLOSED row in the active bucket would leave the
+    active COUNT counting something that is not active — a number asserting a
+    state nothing has confirmed.
+    """
+    entry = _cache.get(server_id)
+    if entry is None:
+        return False
+    iid = normalise_incident_id(enriched.get("incident_id", ""))
+    closed = str(enriched.get("incident_state", "")).upper() == "CLOSED"
+    target = entry.closed_incidents if closed else entry.active_incidents
+    other = entry.active_incidents if closed else entry.closed_incidents
+    for bucket in (target, other):
+        for i, inc in enumerate(list(bucket)):
+            if normalise_incident_id(inc.get("incident_id", "")) == iid:
+                del bucket[i]
+                break
+    target.append(enriched)
+    return True
+
+
 # -- Cache loop ----------------------------------------------------------------
 
 async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:

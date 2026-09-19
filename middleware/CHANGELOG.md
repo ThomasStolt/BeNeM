@@ -5,6 +5,64 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.19.0] - 2026-09-19
+
+Wave 1 steps 1–3 of the webhook-first incident freshness design
+(`docs/superpowers/specs/2026-09-19-incident-freshness-webhook-first-design.md`).
+**All three are additive — fields gained, nothing removed, no behaviour taken away.**
+
+### Added
+
+- **C9 — every incident states its age, and the cache reports its STALEST member.**
+  Each incident now carries `state_confirmed_at` (when the `getincidents` call landed) and
+  `counts_confirmed_at` (when its detail call **succeeded** — `null` when it failed or never ran).
+  `/api/v1/diagnostics` reports the incidents feed's `age_seconds` as the age of the **oldest**
+  enrichment rather than the last cycle stamp, and gains `list_age_seconds` and
+  `unconfirmed_counts`.
+
+  The single `last_updated` was stamped once at the end of the cycle and reported as the age of the
+  whole feed — accurate for the last incident enriched, wrong for every other one. Measured
+  2026-09-16 at **110.5 s of understatement** in a 9-incident lab; projected at 69 minutes at
+  n = 1000. An incident that has never been enriched is **counted**, not folded in as a very large
+  age: "not yet confirmed" is a third state.
+
+- **C10 — `alert_type` is learned once and kept across restarts.** New `incident_types` table,
+  keyed `(server_id, incident_id)`, swept at 90 days. The working copy is in memory; a load failure
+  starts cold rather than raising. Used immediately: when a detail call **fails**, a type learned
+  earlier from a confirmed call is used instead of re-guessing `host`.
+
+  [THOMAS] A host incident is always a host incident; service and threshold do not convert. It
+  cannot be derived from the title either — incident 25076 is `Application Service Wordpress` with
+  type `service`.
+
+- **`GET /api/v1/incidents/{incident_id}`** — one incident, fetched live, with **404 and 502 kept
+  distinct**: `{"error": "incident_not_found"}` is a terminal fact, `{"error":
+  "upstream_unavailable"}` means ask again later. Designed 2026-09-15, unbuilt until now.
+  Collapsing the two is what produces "Incident not found" shown to someone whose network was
+  simply down. Accepts the bare or prefixed id form, normalised at exactly one place, and merges
+  its result into the cache so a tap benefits the list.
+
+  [MEASURED 2026-09-19] BHNM answers a missing incident with **HTTP 200 and no `incident` key**
+  (`{"result":"completed","detail":"No active incident."}`), so the 404 signal is structural rather
+  than a status code. BHNM is not known to distinguish "never existed" from "closed and purged";
+  both are 404 here, because both mean the same thing to a client holding a notification.
+
+### Fixed
+
+- **`database.DB_PATH` is resolved per connection, not captured at module import.** Its value used
+  to depend on which module imported `database` first. Invisible in production, where one path is
+  set before anything runs. `benem-admin/push_db.py:16` already did it this way.
+
+### Known, deliberately unfixed
+
+- **A failed `alert_type` lookup with nothing remembered still writes `"host"`** — the one type
+  known to page, which is the strongest possible coverage claim made on no evidence. It is **C11,
+  build order step 6**, and it may not ship before the clients that render `UNKNOWN` are in the
+  field (root `CLAUDE.md`: a new *value* in an existing field is a change the shipped client must
+  tolerate). A test asserts today's behaviour so step 6 is a visible edit, not a silent drift.
+
+---
+
 ## [2.18.1] - 2026-09-19
 
 ### Fixed

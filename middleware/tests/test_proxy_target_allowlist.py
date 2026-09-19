@@ -218,7 +218,7 @@ def test_server_with_unusable_url_is_excluded_and_therefore_refused(tmp_path, no
 
 
 def test_every_validate_call_site_passes_the_request():
-    """All six call sites must pass `request`, or the refusal cannot name the client.
+    """All seven call sites must pass `request`, or the refusal cannot name the client.
 
     A new call site added with one argument would still refuse correctly but would log
     `user-agent='(none)'`, quietly degrading the enumeration that replaces the packet
@@ -228,7 +228,10 @@ def test_every_validate_call_site_passes_the_request():
     src = pathlib.Path(main_mod.__file__).read_text()
     calls = [n for n in ast.walk(ast.parse(src))
              if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "_validate_proxy_target"]
-    assert len(calls) == 6, f"expected 6 call sites, found {len(calls)}"
+    # The count is a tripwire so a NEW call site has to be looked at; the guard
+    # itself is the loop below, which runs over every site whatever the count.
+    # 7 since the single-incident route (/api/v1/incidents/{id}, 2026-09-19).
+    assert len(calls) == 7, f"expected 7 call sites, found {len(calls)}"
     for c in calls:
         assert len(c.args) == 2, f"call at line {c.lineno} does not pass request"
 

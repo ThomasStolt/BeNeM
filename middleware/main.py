@@ -17,7 +17,7 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import Response
+from fastapi.responses import Response, JSONResponse
 from pydantic import BaseModel, field_validator
 
 from config import MIDDLEWARE_PORT, VAPID_PUBLIC_KEY, BHNM_TLS_VERIFY, SERVERS_JSON_PATH, PROXY_TIMEOUT, PROXY_TOKEN, BENEM_SECRET_KEY, server_cache_enabled, server_accepted_secrets
@@ -881,6 +881,102 @@ async def cached_incidents(request: Request):
     return Response(content=resp.content, status_code=resp.status_code,
                     headers={k: v for k, v in resp.headers.items()
                              if k.lower() not in HOP_BY_HOP_RESPONSE})
+
+
+@app.get("/api/v1/incidents/{incident_id}")
+async def single_incident(incident_id: str, request: Request):
+    """One incident, fetched live from BHNM, with 404 and 502 kept DISTINCT.
+
+    The list route above cannot answer this. A tap can beat the cache cycle, the
+    cache can be cold after a restart, caching can be off for the server, or the
+    notification can be hours old and name an incident that has since closed and
+    gone. Collapsing "it does not exist" into "we could not reach BHNM" is what
+    produces the lie the clients then render: `Incident not found.` said to
+    someone whose network was simply down.
+
+    404 {"error": "incident_not_found"} — a TERMINAL fact.
+    502 {"error": "upstream_unavailable"} — ask again later.
+
+    [MEASURED 2026-09-19 against the lab] BHNM answers a missing incident with
+    HTTP 200 and a body carrying `result: completed` and NO `incident` key
+    ({"result":"completed","detail":"No active incident."}). So the 404 signal is
+    structural, not a status code. Note the wording is "No active incident": BHNM
+    is not known to distinguish "never existed" from "closed and purged", and
+    this route does not pretend to either — both are 404, because both mean the
+    same thing to a client holding a notification, and the client copy says "no
+    longer exists" rather than "not found".
+    """
+    _verify_proxy_token(request)
+
+    numeric_id = incident_cache.normalise_incident_id(incident_id)
+    if not numeric_id.isdigit():
+        raise HTTPException(status_code=400, detail="incident_id must be numeric")
+
+    server_cfg = _resolve_server_config(request)
+    target_base = request.headers.get("X-BHNM-Target", "").strip().rstrip("/")
+    if not target_base:
+        target_base = (server_cfg or {}).get("url", "").rstrip("/") if server_cfg else ""
+    if not target_base:
+        target_base = _single_server_url()
+    if not target_base:
+        raise HTTPException(status_code=502, detail="Bad Gateway: BHNM target server not configured")
+    _validate_proxy_target(target_base, request)
+
+    api_key = request.headers.get("X-Proxy-Token", "").strip()
+    server = {
+        "id": (server_cfg or {}).get("id", ""),
+        "url": target_base,
+        "api_key": server_cfg["api_key"] if server_cfg else api_key,
+        "pin": (server_cfg or {}).get("pin") if server_cfg else None,
+    }
+
+    form = {"pwd": server["api_key"], "method": "getincidentdetail", "incident_id": numeric_id}
+    if server.get("pin"):
+        form["pin"] = server["pin"]
+
+    try:
+        async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=PROXY_TIMEOUT) as client:
+            resp = await client.post(f"{target_base}/api/incident_api.php", data=form)
+            if resp.status_code >= 400:
+                raise httpx.RequestError(f"HTTP {resp.status_code}")
+            data = resp.json()
+            if isinstance(data, list):
+                data = data[0] if data else {}
+            raw = data.get("incident") if isinstance(data, dict) else None
+            if not raw:
+                print(f"[Incident] {numeric_id} not found on {server['id'] or target_base}")
+                return JSONResponse(status_code=404, content={"error": "incident_not_found"})
+            detail = await incident_cache._fetch_incident_detail(client, server, numeric_id)
+    except (httpx.RequestError, ValueError, KeyError) as e:
+        # Deliberately NOT collapsed into 404. The client renders these two
+        # differently and must: one is terminal, the other is "ask again later".
+        print(f"[Incident] {numeric_id} upstream unavailable: {type(e).__name__}: {e}")
+        return JSONResponse(status_code=502, content={"error": "upstream_unavailable"})
+
+    # List-shaped row from the detail response, which carries every list field
+    # plus the ack block. open_time is the one rename: the list calls it
+    # open_time, the detail calls it incident_open_time. [MEASURED 2026-09-19]
+    row = {k: raw.get(k) for k in ("incident_id", "incident_state", "title", "name",
+                                   "device_category", "device_site", "device_note")}
+    row["open_time"] = raw.get("incident_open_time") or raw.get("open_time")
+    for k in ("acknowledged", "ack_time", "ack_user", "ack_comment"):
+        row[k] = raw.get(k)
+
+    if detail.get("confirmed") and detail.get("alert_type"):
+        incident_cache.remember_type(server["id"], numeric_id, detail["alert_type"])
+    enriched = incident_cache._enrich_incident(
+        row, detail, time.time(),
+        remembered=incident_cache.known_type(server["id"], numeric_id))
+
+    # Merge, so the tap benefits the list too. A cold cache has nothing to merge
+    # into and that is not an error — the caller still gets its answer.
+    if server["id"]:
+        merged = incident_cache.merge_incident(server["id"], enriched)
+        if not merged:
+            print(f"[Incident] {numeric_id} fetched but not merged — "
+                  f"no cache for {server['id']} yet")
+
+    return enriched
 
 
 @app.post("/internal/cache/reload")
