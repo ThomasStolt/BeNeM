@@ -1,7 +1,8 @@
 # Design: incident freshness, webhook-first — the webhook is the truth, the poll is the repair
 
-**Status:** DESIGN ONLY. **STOP AT DESIGN** — nothing built, nothing deployed, no config touched,
-no lab change. The rulings below are settled; the build is not ordered.
+**Status:** **APPROVED 2026-09-19 (Thomas).** Build order accepted at 13 steps, cut line after
+step 5. **WAVE 1 = steps 1–4, then STOP** — step 5 is the App Store release and it is Thomas's go,
+not the builder's. Steps 6–13 are approved but not started.
 **Date:** 2026-09-19
 **Ruled by:** Thomas, Phase 2 decision sitting, 2026-09-19.
 **Supersedes:** `docs/superpowers/specs/2026-09-16-incident-cache-cost-model-design.md` (marked
@@ -95,9 +96,10 @@ When BHNM sends a webhook, that is the truth, **immediately**.
 
 **Obliges:** the `main.py:732-733` comment is not merely out of date, it is the opposite of the
 design — it must be rewritten, not deleted, so the next reader learns the ordering rather than
-guessing it. The 300-second `STATE_OVERRIDE_TTL` becomes questionable in its current form: an
-override that expires back to a poll that may not run for 24 hours is a regression. See open
-decision 3.
+guessing it. **The 300-second `STATE_OVERRIDE_TTL` is replaced: RULED 2026-09-19 — an override is
+cleared by C2's SUCCESSFUL fetch, never by a clock; a failed fetch leaves it in place and retries;
+a 10-minute cap exists only so nothing leaks forever, and if it ever fires in normal operation that
+is a defect to log loudly.** See open decision 2.
 
 **[INFERENCE]** "Authoritative" has a limit worth stating so nobody over-reads it: a webhook is
 authoritative about **the state change it reports**, at the moment it reports it. It is not
@@ -202,7 +204,14 @@ unreachable. A phone that has the push has the state change, whatever the server
 
 ### C4 — Reconcile on startup, always **[THOMAS]**
 
-Every middleware start does a **full list-and-detail load before serving**. **No exceptions.**
+Every middleware start does a **full load before serving**. **No exceptions.**
+
+**RULED 2026-09-19 (Thomas), refining what "before serving" means: serve immediately, with
+enrichment honestly marked absent. Blocking is an outage.** The **list** load happens before
+serving and carries every incident's **state**, which is the thing a deploy can lose — it is one
+request whatever the estate size, so it costs seconds. **Type and counts trail behind it and say
+so**, through C9's per-incident timestamps: a row with no `counts_confirmed_at` has not been
+enriched yet and the client must not draw a count for it. See open decision 1.
 
 **Why, stated as Thomas ruled it:** a deploy loses the webhooks that arrived during it. **[THOMAS]**
 BHNM retries three times at roughly 30-second intervals and then stops. **[INFERENCE]** A container
@@ -210,12 +219,10 @@ recreate is comfortably inside that window for a single webhook and comfortably 
 that arrived at the start of a slow image pull — so "the retries will cover it" is not a guarantee
 anyone can hold, and the startup load is what makes the guarantee unnecessary.
 
-**[INFERENCE] "Before serving" is the load-bearing phrase, and it costs something.** It means the
-middleware answers `/api/v1/incidents` with *nothing yet* rather than with a half-built list during
-the load — which is the doctrine position (an unverified cache must not be drawn as a verified one)
-and is a behaviour change from today, where the API serves whatever the cache holds. The clients'
-09-15 Part 3 states already have the vocabulary for it. See open decision 2 for how long this takes
-and whether it needs a bound.
+**[INFERENCE]** The doctrine position is satisfied by C9 rather than by waiting: a half-built list
+is honest as long as every row says which of its facts are confirmed and when. Waiting would have
+traded one unverified state for a self-inflicted outage — and an outage after a deploy is the
+failure this project is least able to tell apart from a broken deploy.
 
 ### C5 — Webhook mode: reconcile every 24 hours, and **count the corrections** **[THOMAS]**
 
@@ -600,60 +607,82 @@ C2 and C11:
 
 ---
 
-## 3. Open decisions that remain
+## 3. Open decisions — ALL RULED. **THE DESIGN IS APPROVED 2026-09-19 (Thomas).**
 
-**Two of the original five were ruled on 2026-09-19 and are recorded where they belong:**
+**Approved 2026-09-19.** Build order accepted at 13 steps, with the cut line after step 5.
+**WAVE 1 = steps 1–4, then STOP.** Step 5 (the store release) is Thomas's go, not the builder's.
 
-- ~~**1. `cache_refresh_seconds` is shared by three caches.**~~ **RULED — do not redefine it. Two
-  new per-server settings, `incident_polling` (bool, default `false`) and
-  `incident_polling_seconds` (120–3600, default 300); `cache_refresh_seconds` stays as-is for the
-  tactical and threshold caches; rename nothing.** See C6. Follow-up noted, not now: whether those
-  two caches should slow down when no client is active.
-- ~~**5. Can C11's middleware half ship before the iOS client half?**~~ **RULED — no: client
-  first.** The root `CLAUDE.md` payload rule is extended to cover a new *value* in an existing
-  field. The check was run: **build 36 and the PWA tolerate both the unknown value and the field
-  absent**, so the ordering is cheap rather than costly, but it is still clients → store release →
-  middleware. See C11.
+All five original decisions are ruled; nothing in this design is open.
 
-**Three remain.**
+- ~~**1. `cache_refresh_seconds` is shared by three caches.**~~ **RULED — do not redefine it.**
+  Two new per-server settings, `incident_polling` (bool, default `false`) and
+  `incident_polling_seconds` (120–3600, default 300). `cache_refresh_seconds` stays as-is for the
+  tactical and threshold caches. Rename nothing. Follow-up noted, not now: whether those two
+  caches should slow down when no client is active. See C6.
+- ~~**5. Can C11's middleware half ship before the client half?**~~ **RULED — no, client first**,
+  and the root `CLAUDE.md` payload rule is extended to cover a new *value* in an existing field.
+  **[THOMAS] Keep it client-first even though the check came back cheap** — build 36 and the PWA
+  tolerate both the unknown value and the absent field — **because this is the first case decided
+  under the extended rule, and the rule is worth more than the shortcut.** See C11.
 
-### 1. How long may C4's startup reconciliation block, and may it serve a partial list?
+### 1. C4's startup reconciliation — RULED: serve immediately
 
-C4 says every middleware start does a full list-and-detail load **before serving**. At the lab's
-7 incidents that is seconds. **[PROJECTED from the 09-16 note §2]** at n = 1000 on SaaS latency it
-is tens of minutes on the *first* run — though **C10's persisted type map removes most of it
-afterwards**, because only incidents whose type has never been seen need a detail call.
+**[THOMAS] Serve immediately, with enrichment honestly marked absent. Blocking is an outage.**
 
-**Recommendation: serve immediately, with enrichment honestly marked absent.** C9 and C11 already
-give the vocabulary — a row can say its counts are not yet confirmed, and its type can read
-`UNKNOWN` — so a partial list is *describable* rather than a lie, which is the condition the
-doctrine actually sets. Blocking for tens of minutes after a deploy is its own outage, and it is
-the kind that looks like the middleware being down.
+*The list call gives every incident's **state** in seconds; **type and counts trail, and say so**.*
 
-### 2. Does `STATE_OVERRIDE_TTL = 300` survive C1?
+**[INFERENCE]** This is the ruling that makes C4 cheap, and it works because the two halves of an
+incident have very different costs: `getincidents` is **one** request whatever the estate size
+(09-16 note §7 — 1930 bytes at n = 9, ~204 KB projected at n = 1000), while enrichment is one
+request **per incident**. So the state of the whole estate is available almost at once and the
+counts are not. C9 is what lets the second half arrive late without lying about it: a row whose
+`counts_confirmed_at` is absent has not been enriched yet, and the client says so rather than
+drawing an unconfirmed count.
 
-Today a webhook's state patch expires after 300 s and falls back to the poll
-(`incident_cache.py:141`). Under C1 the poll may not run for 24 hours, so an expiring override is a
-regression: the row would revert to a day-old state.
+**This changes the wording of C4, not its intent.** "Full list-and-detail load **before serving**"
+becomes **"full list load before serving, detail load behind it, and never a count the app has not
+confirmed."** The guarantee C4 exists for — a deploy does not silently lose the webhooks that
+arrived during it — is delivered by the **list** load, which is the part that carries state.
 
-**Recommendation: keep the mechanism, shorten the TTL, and make C2's fetch the thing that retires
-each override.** Under C2 the per-incident fetch lands within seconds and writes the real value, so
-the override's only remaining job is covering the gap before that fetch returns — which argues for
-a TTL of tens of seconds, not 300, and for the override being **cleared by a successful fetch**
-rather than by a clock. An override that outlives its fetch is a second source of truth.
+### 2. `STATE_OVERRIDE_TTL` — RULED: cleared by a successful fetch, not by a clock
 
-### 3. What happens to the `cache_enabled` toggle?
+**[THOMAS]**
 
-**[MEASURED]** It is a per-server switch labelled **Incident Cache** in the portal
-(`_server_form.html:32`) and it gates four crawlers. Under C4 the incident cache is not optional —
-a webhook needs somewhere to write, and the startup reconciliation writes it unconditionally.
+- **A successful C2 fetch clears the override.** That is the normal path and the only one that
+  should ever run.
+- **A failed fetch leaves the override in place and retries.** The override is the only thing
+  holding the truth until the fetch succeeds; dropping it on failure would revert the row to a
+  state that may be a day old.
+- **A 10-minute safety cap exists only so nothing leaks forever.**
+- **If the cap ever fires in normal operation, that is a defect — log it loudly.** It is not a
+  path to rely on and not a fallback to design against.
 
-**Recommendation: keep the key, narrow its meaning to "BeNeM monitors this server at all", and
-relabel it.** Retiring it entirely would remove the only way to add a server to `servers.json`
-without BeNeM crawling it — which is a real use for a server that exists only to be proxied. But
-it can no longer mean "incidents are not cached", because under webhook-first that state cannot
-exist. **Relabelling is the cheap half and it should not wait:** the current label promises a
-choice the design removes.
+**[INFERENCE]** The cap's log line is the whole point of the cap, and it must name what it is
+admitting: *an override survived 10 minutes without a successful fetch*, with the incident id and
+the number of fetch attempts. A cap that expires silently would be the 300-second TTL again — a
+clock quietly overwriting the truth — which is exactly what this ruling removes. The cap is
+instrumentation with a safety function, not a timeout with a log line.
+
+### 3. `cache_enabled` — RULED: keep the key, narrow the meaning, relabel
+
+**[THOMAS] Keep the key. It now means "BeNeM monitors this server at all". Relabel it. Do the
+relabel in the same wave as C6.**
+
+**Proposed label and help text, for approval when C6 is built:**
+
+> **Monitor this server**
+> *Off: BeNeM still proxies app requests to this server, but fetches nothing in the background —
+> incidents, Home tiles, thresholds and maintenance stay empty for it. Push notifications are
+> unaffected.*
+
+**[MEASURED]** The help text is accurate to what the flag actually gates: `server_cache_enabled()`
+is read by the incident, tactical, threshold and maintenance crawlers. **Push is genuinely
+unaffected** — the webhook fan-out selects devices by accepted secret and the `device_tokens`
+table, and never consults `cache_enabled`. **[INFERENCE]** Saying so in the help text matters more
+than it looks: the current label, **Incident Cache**, reads like a performance option, and an
+administrator turning off a performance option to reduce load on their BHNM has no reason to
+suspect they might stop being paged. They would not — but the label does not tell them that
+either way.
 
 ---
 
