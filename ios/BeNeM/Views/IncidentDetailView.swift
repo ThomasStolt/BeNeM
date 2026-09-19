@@ -12,7 +12,6 @@ struct IncidentDetailView: View {
     @State private var errorMessage: String?
     @State private var currentStatus: NetreoIncident.IncidentStatus
     @State private var isAcking = false
-    @AppStorage("netreo_ack_user") private var ackUser = ""
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
 
     init(incident: NetreoIncident, apiService: NetreoAPIService, preloadedAlarmCounts: [AlarmColor: Int]?) {
@@ -205,7 +204,7 @@ struct IncidentDetailView: View {
 
     private func toggleAck() async {
         isAcking = true
-        let user = ackUser.isEmpty ? NetreoAPIService.defaultAckUser : ackUser
+        let user = NetreoAPIService.ackUser
         if currentStatus == .acknowledged {
             let ok = try? await apiService.unacknowledgeIncident(incidentID: incident.incidentID, user: user)
             if ok == true {

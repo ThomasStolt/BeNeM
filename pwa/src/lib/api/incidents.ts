@@ -304,6 +304,14 @@ export function parseAckResponse(raw: unknown): void {
   }
 }
 
+/// Every acknowledgement from a mobile client attributes to this, always — not
+/// as a fallback for an unset field. The per-connection ackUser used to be sent,
+/// which meant a phone name ("Thomas iPhone 13 ProMax") ended up in BHNM's
+/// incident history. That is not an identity: BHNM has one API token per server,
+/// not per user, so nothing about the ack ever identified a person. A constant at
+/// least says truthfully what it is.
+const ACK_USER = 'BHNM Mobile';
+
 export async function acknowledgeIncident(
   config: BhnmConfig,
   incidentId: string,
@@ -311,7 +319,7 @@ export async function acknowledgeIncident(
   const params: Record<string, string> = {
     password: config.apiKey,
     incident_id: incidentId,
-    user: config.ackUser || 'BHNM Mobile',
+    user: ACK_USER,
   };
   if (config.pin) params.pin = config.pin;
   const raw = await postForm(config.baseUrl, '/api/proxy/incident/acknowledge', params, config.apiKey);
@@ -325,7 +333,7 @@ export async function unacknowledgeIncident(
   const params: Record<string, string> = {
     password: config.apiKey,
     incident_id: incidentId,
-    user: config.ackUser || 'BHNM Mobile',
+    user: ACK_USER,
   };
   if (config.pin) params.pin = config.pin;
   const raw = await postForm(config.baseUrl, '/api/proxy/incident/unacknowledge', params, config.apiKey);

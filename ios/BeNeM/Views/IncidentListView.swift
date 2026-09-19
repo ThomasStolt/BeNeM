@@ -6,7 +6,6 @@ struct IncidentListView: View {
     @State private var navPath = NavigationPath()
     let navResetID: UUID
     @Binding private var pendingIncidentID: String?
-    @AppStorage("netreo_ack_user") private var ackUser = ""
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
     @AppStorage("netreo_active_connection_name") private var activeServerName = ""
     private let apiService: NetreoAPIService
@@ -169,7 +168,7 @@ struct IncidentListView: View {
                             Task {
                                 let ok = try? await apiService.unacknowledgeIncident(
                                     incidentID: incident.incidentID,
-                                    user: ackUser.isEmpty ? NetreoAPIService.defaultAckUser : ackUser
+                                    user: NetreoAPIService.ackUser
                                 )
                                 if ok == true {
                                     viewModel.updateIncidentStatus(incidentID: incident.incidentID, status: .active)
@@ -184,7 +183,7 @@ struct IncidentListView: View {
                             Task {
                                 let ok = try? await apiService.acknowledgeIncident(
                                     incidentID: incident.incidentID,
-                                    user: ackUser.isEmpty ? NetreoAPIService.defaultAckUser : ackUser
+                                    user: NetreoAPIService.ackUser
                                 )
                                 if ok == true {
                                     viewModel.updateIncidentStatus(incidentID: incident.incidentID, status: .acknowledged)
