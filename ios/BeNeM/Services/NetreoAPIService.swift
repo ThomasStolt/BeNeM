@@ -991,7 +991,13 @@ class NetreoAPIService: ObservableObject {
     /// to remove, and collapsing these two cases is how it comes back.
     enum SingleIncidentFailure: Error, Equatable {
         case gone
-        case unreachable
+        /// Carries the OS's own words. The designed headline says what BeNeM
+        /// concluded; this says what the system reported. Both are shown — the
+        /// reason is useful and it does not replace the headline. A raw
+        /// URLError string on its own ("The Internet connection appears to be
+        /// offline.") tells a woken engineer nothing about what the app did or
+        /// what to do next.
+        case unreachable(reason: String)
     }
 
     /// Fetch ONE incident from the middleware, for when it is not in the list.
@@ -1006,7 +1012,7 @@ class NetreoAPIService: ObservableObject {
     /// a `gone` is an answer and retrying an answer turns it into a hang.
     func fetchSingleIncident(incidentID: String) async throws -> NetreoIncident {
         guard let url = URL(string: "\(configuration.baseURL)/api/v1/incidents/\(incidentID)") else {
-            throw SingleIncidentFailure.unreachable
+            throw SingleIncidentFailure.unreachable(reason: "The server address is not valid.")
         }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -1019,7 +1025,7 @@ class NetreoAPIService: ObservableObject {
             (data, response) = try await urlSession.data(for: request)
         } catch {
             print("[DeepLink] fetchSingleIncident \(incidentID) transport failure: \(error.localizedDescription)")
-            throw SingleIncidentFailure.unreachable
+            throw SingleIncidentFailure.unreachable(reason: error.localizedDescription)
         }
 
         let code = (response as? HTTPURLResponse)?.statusCode ?? -1
@@ -1029,12 +1035,12 @@ class NetreoAPIService: ObservableObject {
         }
         guard 200...299 ~= code else {
             print("[DeepLink] fetchSingleIncident \(incidentID): HTTP \(code) — unreachable")
-            throw SingleIncidentFailure.unreachable
+            throw SingleIncidentFailure.unreachable(reason: "The server returned HTTP \(code).")
         }
         guard let row = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let incident = try? parseIncidentsFromNetreoFormat(from: [row]).first else {
             print("[DeepLink] fetchSingleIncident \(incidentID): unparseable body — unreachable")
-            throw SingleIncidentFailure.unreachable
+            throw SingleIncidentFailure.unreachable(reason: "The server's reply could not be read.")
         }
         print("[DeepLink] fetchSingleIncident \(incidentID): found \(incident.incidentID)")
         return incident

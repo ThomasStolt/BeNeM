@@ -25,7 +25,9 @@ enum DeepLinkState: Equatable {
     case idle
     case fetching(String)
     case gone(String)
-    case unreachable(String)
+    /// id, plus the OS's own reason. Two lines, not one: the headline is what
+    /// BeNeM concluded, the reason is what the system said.
+    case unreachable(String, String)
 }
 
 struct IncidentListView: View {
@@ -147,7 +149,7 @@ struct IncidentListView: View {
     private func startDeepLinkFetch(_ id: String) {
         deepLinkState = .fetching(id)
         Task {
-            var lastFailure: NetreoAPIService.SingleIncidentFailure = .unreachable
+            var lastFailure: NetreoAPIService.SingleIncidentFailure = .unreachable(reason: "")
             // Two attempts, one fixed second apart. Somebody woken at 3am is
             // holding this phone, so the wait is bounded in wall-clock and not
             // only in attempts.
@@ -164,13 +166,18 @@ struct IncidentListView: View {
                     // `gone` is an ANSWER. Retrying an answer turns it into a hang.
                     if failure == .gone { break }
                 } catch {
-                    lastFailure = .unreachable
+                    lastFailure = .unreachable(reason: error.localizedDescription)
                 }
                 if attempt == 0 { try? await Task.sleep(nanoseconds: 1_000_000_000) }
             }
             let verdict = lastFailure
             await MainActor.run {
-                deepLinkState = (verdict == .gone) ? .gone(id) : .unreachable(id)
+                switch verdict {
+                case .gone:
+                    deepLinkState = .gone(id)
+                case .unreachable(let reason):
+                    deepLinkState = .unreachable(id, reason)
+                }
             }
         }
     }
@@ -204,17 +211,29 @@ struct IncidentListView: View {
                 Button("OK") { deepLinkState = .idle }
                     .buttonStyle(.borderedProminent)
             }
-        case .unreachable(let id):
+        case .unreachable(let id, let reason):
             deepLinkCard {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.largeTitle)
                     .foregroundColor(.orange)
+                // THE HEADLINE — what BeNeM concluded. Always first, always
+                // present. The OS reason below is useful; it does not replace
+                // this. A screen showing only "The Internet connection appears
+                // to be offline." has told the user about their network and
+                // nothing about their incident.
                 Text("Could not load this incident.")
                     .font(.headline)
                     .multilineTextAlignment(.center)
+                if !reason.isEmpty {
+                    // The system's own words, second.
+                    Text(reason)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
                 // The load-bearing sentence. A transport failure is not a verdict
                 // about the incident, and the screen must not let it read as one.
-                Text("The server didn't respond. Incident \(id) may still exist — this is not a statement that it is gone.")
+                Text("Incident \(id) may still exist — this is not a statement that it is gone.")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)

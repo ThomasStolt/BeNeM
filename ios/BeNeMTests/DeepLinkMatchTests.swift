@@ -60,6 +60,27 @@ final class DeepLinkMatchTests: XCTestCase {
         // their incident is gone when their network was down is the defect the
         // single-incident route exists to remove.
         XCTAssertNotEqual(NetreoAPIService.SingleIncidentFailure.gone,
-                          NetreoAPIService.SingleIncidentFailure.unreachable)
+                          NetreoAPIService.SingleIncidentFailure.unreachable(reason: "offline"))
+    }
+
+    /// The airplane-mode defect, 2026-09-19: the card showed the raw URLError
+    /// text and nothing else. The OS reason is useful, but it is the SECOND
+    /// line — a user told only "The Internet connection appears to be offline."
+    /// has been told about their network and nothing about their incident.
+    func testTheUnreachableFailureCarriesTheOSReasonForTheSecondLine() {
+        let failure = NetreoAPIService.SingleIncidentFailure
+            .unreachable(reason: "The Internet connection appears to be offline.")
+        guard case .unreachable(let reason) = failure else {
+            return XCTFail("expected .unreachable")
+        }
+        XCTAssertEqual(reason, "The Internet connection appears to be offline.")
+    }
+
+    func testAnEmptyReasonIsAllowedAndMeansNoSecondLine() {
+        guard case .unreachable(let reason) =
+                NetreoAPIService.SingleIncidentFailure.unreachable(reason: "") else {
+            return XCTFail("expected .unreachable")
+        }
+        XCTAssertTrue(reason.isEmpty)
     }
 }

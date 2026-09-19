@@ -241,6 +241,69 @@ row beside it disproved.
 
 ---
 
+## (d2) The ACK alarm-colour defect — FOUND 2026-09-19, NOT FIXED
+
+**Observed on a phone by Thomas.** He acknowledged an incident in the BHNM UI; the notification
+arrived and the row showed **ACKD within seconds** — but the alarm inside the incident **stayed
+red instead of going blue.**
+
+**The first half of that is C2's user-visible justification.** The row flips fast because the
+webhook patches `incident_state` (`main.py:734-736`); the *detail* is not re-fetched until the
+next poll cycle, because **C2 (build order step 8) is not built.** That reading is confirmed.
+
+**But C2 is NOT the only gap, and the second half is a separate defect.** [MEASURED]
+
+### The measurement
+
+The incident Thomas acked (29877) recovered before it could be read, so it went **green**, not
+blue, and could not answer the question. A controlled probe was run instead on **27516** (Service
+Configuration Save Check on C9200CX, open since 2026-09-01, red), acknowledged and un-acknowledged
+inside ~90 seconds, **state verified restored afterwards** (`OPEN`, `acknowledged 0`,
+`ack_user ''`).
+
+| field | before ack | **while acknowledged** |
+|---|---|---|
+| `incident.incident_state` | `OPEN` | **`ACKNOWLEDGED`** |
+| `incident.acknowledged` | `0` | **`1`** |
+| `incident.primary_alarm_state` | `OPEN` | **`ACKNOWLEDGED`** |
+| `detail.primary_alarm_log[].state` | `CRITICAL` | **`CRITICAL`** — unchanged |
+| what the middleware computes | `red: 1` | **`red: 1`** — unchanged |
+
+**The per-alarm entries do not change when an incident is acknowledged. The acknowledgement lives
+in `incident.primary_alarm_state` and `incident.acknowledged`, and the counter never reads either.**
+
+### Root cause, precisely
+
+`middleware/incident_cache.py:103-125` builds `alarm_counts` **only** from `primary_alarm_log` and
+`relatedalarms`, whose `state` is the alarm's own condition. The branch
+
+```python
+elif state == "ACKNOWLEDGED":
+    counts["blue"] += 1
+```
+
+maps a value **those entries never carry.** Surveyed across every active incident in the lab, the
+complete set of alarm `state` values is **`CRITICAL`, `UP`, `WARNING`** — `ACKNOWLEDGED` does not
+appear among them. The blue branch is dead code, and blue has therefore **never** been displayed
+for an acknowledged incident on either platform.
+
+**So the alarm would have stayed red after the poll too** — and it will stay red after C2 is built,
+because C2 re-fetches the same detail and the same computation runs on it. **Fixing C2 alone does
+not fix this.**
+
+### Not fixed — it needs a ruling first
+
+The mechanical fix is one branch: when `incident.acknowledged` is truthy (or
+`primary_alarm_state == "ACKNOWLEDGED"`), colour the counts blue. **What needs ruling is the
+product question:** does an acknowledged incident show **all** its alarms blue, only the primary
+one, or blue *in addition to* the underlying colour? An acknowledged CRITICAL is still critical —
+somebody has said "I am on it", not "it is fine" — and collapsing red into blue hides severity,
+which is its own version of drawing unverified state as healthy. **Recommendation: keep the
+severity colour and mark acknowledgement separately**, rather than overwriting one fact with the
+other. Unruled.
+
+---
+
 ## (e) Parked items, RANKED
 
 **Carried forward from the 09-18 handoff (e)** — that list is still the authority for items 1, 2
