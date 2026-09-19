@@ -1,10 +1,17 @@
 /// <reference lib="webworker" />
 declare const self: ServiceWorkerGlobalScope;
 
-import { precacheAndRoute } from 'workbox-precaching';
+import { createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching';
+import { NavigationRoute, registerRoute } from 'workbox-routing';
 
 // Workbox precache manifest — injected by vite-plugin-pwa at build time
 precacheAndRoute(self.__WB_MANIFEST);
+
+// Serve every navigation from the precached shell. Without this the precache
+// holds index.html but nothing routes navigations to it, so a reload while
+// offline replaced the app with the browser's own error page — worst exactly
+// when an on-call user taps a notification on a bad network.
+registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html')));
 
 // ── Push Notification Handler ───────────────────────────────────────────────
 
@@ -15,10 +22,10 @@ self.addEventListener('push', (event) => {
   try {
     data = event.data.json();
   } catch {
-    data = { title: 'BeNeM', body: event.data.text() };
+    data = { title: 'BHNM', body: event.data.text() };
   }
 
-  const title = data.title ?? 'BeNeM';
+  const title = data.title ?? 'BHNM';
   const body = data.body ?? '';
 
   event.waitUntil(
