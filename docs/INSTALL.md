@@ -52,6 +52,32 @@ the App Store.
 **Cost:** a small VPS (~5 €/month) + a domain. Apple Developer Program (99 USD/yr)
 **only** if you want iOS push.
 
+### iOS and Android are not the same amount of work, and the difference is large
+
+Read this before you decide to self-host. It is the single biggest asymmetry in this guide.
+
+| | **Android / desktop (PWA)** | **iOS** |
+|---|---|---|
+| what your users install | nothing — they open a URL and add it to the home screen | **your own build of the app** |
+| what you must do | generate VAPID keys (§4). That is all | join the Apple Developer Program (99 USD/yr), get an APNs `.p8` key (§3), build and sign the app in Xcode, and distribute it via TestFlight or your own App Store listing (§10) |
+| the App Store build of BeNeM | not applicable | **cannot receive push from your middleware** |
+
+**Why the App Store build cannot work with your server.** An APNs authentication key is bound to
+the **publishing team**, and the notification topic is the app's bundle id. Your middleware holds
+neither. So a phone running the public App Store build will register with your middleware, show
+itself as registered and then never ring — the push has nowhere valid to come from. This is how
+APNs works; it is not a gap in BeNeM and there is no setting that changes it.
+
+**There is no relay and there will not be one.** Routing your pushes through somebody else's
+signing key was designed and rejected — it would mean a third party seeing every notification your
+engineers receive, plus a key-distribution and rotation problem on top. The decision record is
+`docs/superpowers/specs/2026-09-16-push-relay-design.md`, kept so the question arrives already
+answered. **Publish your own build.**
+
+**What this means in practice:** if your on-call engineers are on Android, self-hosting is an
+afternoon. If they are on iPhones, budget for an Apple Developer account and an app release
+cycle — and note that app updates are then yours to ship as well.
+
 ---
 
 ## 1. Decide what you need before you start
@@ -395,8 +421,24 @@ likely to look finished while silently doing nothing — see §7.4.
 
 ### 7.1 The action
 
-In BHNM, create a webhook notification action (an "action" attached to an action group, which is in
-turn attached to your host and service checks):
+In BHNM, create a webhook notification action — an "action" attached to an action group, which is
+in turn attached to your checks.
+
+> ### Attach the action group to everything you expect to be paged about
+>
+> **Host checks, service checks and thresholds — every check you want to wake somebody up for.**
+>
+> **A check that is not attached will never page anyone, and nothing in the app will tell you.**
+> There is no error, no warning and no empty state. The incident still opens in BHNM, it still
+> appears in the BeNeM incident list, and it still looks exactly like the incident that woke three
+> people ninety seconds earlier. The only difference is that no phone rang, and no screen says so.
+>
+> **BeNeM cannot detect this for you.** The BHNM API does not expose which checks an action group is
+> attached to, so the app has no way to read your configuration and compare it against what it is
+> showing you. This is the one part of the setup that only you can verify, and you verify it here,
+> in BHNM, not in the app.
+>
+> Attach it now, and re-check it whenever you add a class of check you care about.
 
 **URL** — the same secret you put in `WEBHOOK_SECRET`:
 
@@ -495,6 +537,12 @@ encodes environment + license ID so it stays unique across a multi-server or Saa
 Configuring the action is not evidence that it delivers. Take one device down and back up and confirm
 you receive **both** a problem and a recovery notification, then acknowledge the incident and confirm
 that arrives too.
+
+**Verify each type separately.** One host-down notification proves the **transport** — that BHNM can
+reach your middleware and that your phone is registered. It proves nothing about **coverage**: a
+service check or a threshold that is not attached to the action group will stay silent while your
+host checks page perfectly. **Test one check of each kind you rely on**, and treat a type you have
+never received as a type that has never been shown to work.
 
 This matters because a partial delivery is invisible from the BHNM side: the incident opens, closes,
 and looks perfectly healthy in the UI while your engineers are alerted to breakages and never told
