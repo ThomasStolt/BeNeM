@@ -117,12 +117,13 @@ it is back to `OPEN`, `acknowledged = 0`, `ack_user = ''`.
 | **iOS 2.13.3 (46) on the 13 Pro Max** | the **device** reports `BHNM com.tstolt.benem 2.13.3 46`. Thomas field-tested: edit and save work, migration did not disturb the connection |
 | **Build 45's IPA was signed for production push** | unpacked and read: `aps-environment: production`, `get-task-allow false`, Apple Distribution. **The `.xcarchive` itself read `development`** — only the distribution re-sign flips it |
 | **The build-44 environment mismatch** | two `[Register]` lines four minutes apart for the **same** token — `production` at 09:45:31Z from the old app, `sandbox` at 09:49:04Z from 2.13.3 (46). `device_tokens` stayed at 5 rows, which proves the token string is byte-identical (`INSERT OR REPLACE` keyed on token) |
+| **2.18.1's `BadDeviceToken` cleanup — VERIFIED IN THE FIELD, first fire 2026-09-19T20:38:15Z** | deployed 09:40:18Z and never exercised until an Xcode **Release** install on the 13 Pro Max produced a token the production host refuses. Three lines, in order: `[APNs] Failed (400) via production: {"reason":"BadDeviceToken"}` → `[APNs] Token bad (400 BadDeviceToken) ...10882c55 env=production — removing` → `[Cleanup] Removed stale APNs token ...10882c55`. **`device_tokens` 5 → 4**, and the four survivors were untouched — the "only `BadDeviceToken`" narrowing did its job rather than emptying the fleet. Restored to 5 at 20:59:50Z by a Debug reinstall |
 
 ### NOT VERIFIED
 
 | thing | why, and what would verify it |
 |---|---|
-| **The 2.18.1 cleanup branch — DEPLOYED, NEVER FIRED** | zero `400 BadDeviceToken` since the 09:40Z deploy, so nothing has been cleaned. The branch existing is not the branch working. ~~**What would verify it:** a TestFlight or App Store build replacing the Debug build on the 13 Pro Max…~~ **WITHDRAWN 2026-09-19 — see below. That is not what happens.** |
+| ~~**The 2.18.1 cleanup branch — DEPLOYED, NEVER FIRED**~~ | **MOVED TO VERIFIED 2026-09-19. It fired at 20:38:15Z.** See the VERIFIED table above and the mechanism below. |
 
 #### WITHDRAWN 2026-09-19: "a Release build on the 13 Pro Max will strand the sandbox token"
 
@@ -184,9 +185,24 @@ the case where they disagree. `2026-09-18`'s record already said *"the `.xcarchi
 `development` — only the distribution re-sign flips it"*, which is the same fact seen from the
 other end.
 
-The honest fix is to read `aps-environment` out of the embedded provisioning profile at runtime
-and report *that*, so the app states what it actually holds instead of what its compiler flags
-imply. **Unruled — flagged, not built.**
+**RULED 2026-09-19 (Thomas): FIX IT. Next client wave, not now.**
+
+> Read `aps-environment` from the **embedded provisioning profile at runtime**. **No profile means
+> App Store, which means `production`.** The app states what it holds, not what its compiler flags
+> imply.
+
+**[MEASURED]** The profile is at `BeNeM.app/embedded.mobileprovision`, a CMS-signed plist —
+`security cms -D -i` decodes it, and `Entitlements.aps-environment` is the key. A store build has
+no `embedded.mobileprovision`, which is exactly why "absent ⇒ production" is the right default
+rather than a guess.
+
+Replaces `AppDelegate.swift:132-136`. The `#if DEBUG` fork is the **only** behavioural
+Debug/Release fork in the app (2026-09-18 §(d)), so this removes it entirely — after which a
+build's configuration no longer changes what the app tells the middleware about itself, and the
+Debug-vs-Release install distinction stops being a push hazard.
+
+**Not built in this wave.** Recorded here and in the build order as the first item of the next
+client wave.
 
 #### Practical consequences
 
@@ -197,6 +213,27 @@ imply. **Unruled — flagged, not built.**
   That is why 2.13.3 (46) delivered and 2.13.5/2.13.6 do not.
 - **A TestFlight or App Store build works**, because the distribution re-sign flips
   `aps-environment` to `production` and the declaration becomes true.
+
+#### Restored 2026-09-19T20:59:50Z — [MEASURED]
+
+A **Debug** build of the same 2.13.6 (50) source was installed on the 13 Pro Max and launched:
+
+```
+2026-09-19 20:59:50,710Z [Register] Token saved: ...10882c55 for iPhone (APNs: sandbox) …
+device_tokens: 5 rows   (…10882c55 sandbox, back)
+no 400 since
+```
+
+**`sandbox`, matching the `development` entitlement** — the two agree again and push delivers.
+The device still reports `BHNM com.tstolt.benem 2.13.6 50`; only the configuration differs, so
+the deep-link work is on the phone and testable. **The cost of the Debug install is
+optimisation-level coverage only** — Release compiles `-O` against Debug's `-Onone`, and the
+step 4b code has no build-configuration branch.
+
+**Note on timestamps here:** `device_tokens.registered_at` and the log are **UTC**; the laptop is
+CEST (+2). A launch at 22:59:49 local is the 20:59:50Z row. Written down because an earlier grep
+in this session filtered a UTC log with a local timestamp and returned an empty result that the
+row beside it disproved.
 | **iOS build 45 has never run on any device** | submitted straight to review with no TestFlight install, by decision. The changed code has no build-configuration branches, so the residual gap is **optimisation level only** — Release `-O` against the field-tested Debug `-Onone`. That is a conclusion from a grep, not from a running app |
 | **iOS build 48 is not installed** | built Release only. Nothing on a device has exercised the removed "Connection successful" card or the restored ack user on iOS |
 | **The `"BHNM Mobile"` fallback in the field** | reachable but never observed firing. See (e)3d — it needs a QR generated with an empty Username |

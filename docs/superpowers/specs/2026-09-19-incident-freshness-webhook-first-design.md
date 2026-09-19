@@ -708,6 +708,7 @@ it. Not a schedule; an ordering, with the reason each step precedes the next.
 | 11 | **C3 — push payload gains state fields; both clients apply them to the list without a fetch** | additive and safe under C14; `shared/push-payload-spec.md` updated first |
 | 12 | **C7 — manual Refresh endpoint with 30 s server-side single-flight; countdown removed on both clients** | needs step 3's route and step 9's reconciliation to have something to call |
 | 13 | **C8 — mode shown per server in Diagnostics and on the server row** | needs C6 to have a mode to show |
+| — | **NEXT CLIENT WAVE, first item — the APNs environment defect** | **RULED 2026-09-19 (Thomas).** `AppDelegate.swift:132-136` infers the APNs environment from the **build configuration**; it must read `aps-environment` from the embedded provisioning profile at runtime, with **no profile meaning App Store, meaning `production`**. Measured consequence of not doing it: an Xcode Release install declared `production` while holding a `development` entitlement, APNs answered `400 BadDeviceToken`, and push died on that phone. Detail and evidence in `2026-09-19-phase-1-batch-handoff.md`. Not part of Wave 1 |
 | — | **C13's lab measurement** | **scheduled separately by Thomas, not run unasked.** Its answer changes only whether the row must state count staleness — which C9 already makes possible, so it blocks nothing |
 
 **[INFERENCE] Steps 1–4 are worth doing even if everything after them were abandoned.** Each is a
