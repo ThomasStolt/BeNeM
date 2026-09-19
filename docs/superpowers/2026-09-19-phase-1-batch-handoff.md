@@ -142,16 +142,61 @@ mechanism for build 44 — *"`device_tokens` stayed at 5 rows, which proves the 
 byte-identical (`INSERT OR REPLACE` keyed on token)"* — and the prediction above was written
 anyway, from the shape of the story rather than from the row.
 
-**Consequences, stated so nobody re-plans around the old version:**
+#### AND THIS WITHDRAWAL WAS ITSELF WRONG — corrected 2026-09-19T20:38Z
 
-- **No token is stranded by a Debug → Release swap on the same device.** There is nothing for the
-  cleanup branch to remove, and `device_tokens` will not drop to 4.
-- **The 2.18.1 cleanup branch is still DEPLOYED AND NEVER FIRED.** Zero `400 BadDeviceToken` on
-  2026-09-19. The event that exercises it is a token that is genuinely dead — an app deleted and
-  reinstalled, a device wiped, a restore onto different hardware — not a build-configuration
-  change.
-- **This is the third time a tidy explanation for a token/environment observation has been offered
-  before the row was read.** The row was one `select` away, both times.
+**I withdrew the correct conclusion along with the wrong mechanism.** Written above at ~19:30Z:
+*"No token is stranded… `device_tokens` will not drop to 4… the 2.18.1 cleanup branch is still
+DEPLOYED AND NEVER FIRED."* **All three are false.** 78 minutes later:
+
+```
+2026-09-19 20:38:15,640Z [APNs] Failed (400) via production: {"reason":"BadDeviceToken"}
+2026-09-19 20:38:15,641Z [APNs] Token bad (400 BadDeviceToken) ...10882c55 env=production — removing
+2026-09-19 20:38:15,643Z [Cleanup] Removed stale APNs token ...10882c55
+device_tokens: 4 rows
+```
+
+**2.18.1 fired, for the first time, and it did the right thing.** The original prediction was
+wrong about the *mechanism* (no new token string, no extra row) and **right about the outcome**
+(a 400, the cleanup, four rows). Discarding the outcome because the mechanism was wrong is the
+error, and it is the second unforced one on this single token in one session — both times from
+reasoning about the mechanism instead of waiting for the row.
+
+#### The real mechanism — [MEASURED 2026-09-19, not inferred]
+
+**An Xcode-installed Release build declares `production` while holding a `development`
+entitlement, so its token is a sandbox token sent to the production host.**
+
+| fact | evidence |
+|---|---|
+| the installed binary's entitlement is **development** | `codesign -d --entitlements -` on the installed `BeNeM.app`: `aps-environment` = `development`; the embedded profile agrees |
+| the app declares **production** | `AppDelegate.swift:132-136` — `#if DEBUG` → `"sandbox"`, `#else` → `"production"`. A local Release build takes the `#else` branch |
+| APNs refuses it at the production host | `400 BadDeviceToken`, above |
+
+The token string really is the same across Debug and Release — that part of the withdrawal holds.
+**What is environment-specific is not the string, it is which host will accept it**, and that is
+decided by the *entitlement*, not by the build configuration.
+
+#### The latent defect this exposes — NOT FIXED, reported
+
+**`AppDelegate` infers the APNs environment from the BUILD CONFIGURATION rather than from its own
+entitlement.** Those are different things, and `-configuration Release` from Xcode is precisely
+the case where they disagree. `2026-09-18`'s record already said *"the `.xcarchive` itself read
+`development` — only the distribution re-sign flips it"*, which is the same fact seen from the
+other end.
+
+The honest fix is to read `aps-environment` out of the embedded provisioning profile at runtime
+and report *that*, so the app states what it actually holds instead of what its compiler flags
+imply. **Unruled — flagged, not built.**
+
+#### Practical consequences
+
+- **Any Xcode Release install kills push on that phone** until the row is re-registered, and the
+  re-registration re-creates the same broken row: launch → register as `production` → next
+  incident 400s → removed → launch → … It flaps rather than settling.
+- **A Debug install works** — it declares `sandbox`, which matches the `development` entitlement.
+  That is why 2.13.3 (46) delivered and 2.13.5/2.13.6 do not.
+- **A TestFlight or App Store build works**, because the distribution re-sign flips
+  `aps-environment` to `production` and the declaration becomes true.
 | **iOS build 45 has never run on any device** | submitted straight to review with no TestFlight install, by decision. The changed code has no build-configuration branches, so the residual gap is **optimisation level only** — Release `-O` against the field-tested Debug `-Onone`. That is a conclusion from a grep, not from a running app |
 | **iOS build 48 is not installed** | built Release only. Nothing on a device has exercised the removed "Connection successful" card or the restored ack user on iOS |
 | **The `"BHNM Mobile"` fallback in the field** | reachable but never observed firing. See (e)3d — it needs a QR generated with an empty Username |
