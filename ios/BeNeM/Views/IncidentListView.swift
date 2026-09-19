@@ -1,10 +1,39 @@
 import SwiftUI
 
+/// Find an incident in the loaded list by the id a notification carried.
+///
+/// Returns nil when nothing matches **and when more than one thing does.**
+/// Ruled 2026-09-15: *if suffix matching yields more than one candidate, treat
+/// it as no match and go to the fetch route — never guess between two.* Two
+/// servers can both hold an incident `24090`, so the old
+/// `first(where: hasSuffix)` could silently open the wrong incident. That
+/// defect cannot appear until a customer has a second server, which is exactly
+/// how it survives review.
+///
+/// Not `private`: BeNeMTests asserts it.
+func matchIncident(id: String, in incidents: [NetreoIncident]) -> NetreoIncident? {
+    if let exact = incidents.first(where: { $0.incidentID == id }) { return exact }
+    let candidates = incidents.filter { $0.incidentID.hasSuffix("-\(id)") }
+    return candidates.count == 1 ? candidates[0] : nil
+}
+
+/// What the app is doing about a tapped notification whose incident is not in
+/// the list. Before 2.13.6 there was no such state: it printed a console line
+/// and the user was left on the list with no explanation at all — the PWA's
+/// banned "Incident not found" wearing silence instead of a wrong sentence.
+enum DeepLinkState: Equatable {
+    case idle
+    case fetching(String)
+    case gone(String)
+    case unreachable(String)
+}
+
 struct IncidentListView: View {
     @ObservedObject private var viewModel: IncidentListViewModel
     @ObservedObject private var connection = ConnectionMonitor.shared
     @AppStorage("netreo_ack_user") private var ackUser = ""   // the QR Username — see NetreoAPIService.ackUserFallback
     @State private var navPath = NavigationPath()
+    @State private var deepLinkState: DeepLinkState = .idle
     let navResetID: UUID
     @Binding private var pendingIncidentID: String?
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
@@ -28,6 +57,7 @@ struct IncidentListView: View {
                     incidentsList
                 }
             }
+            .overlay { deepLinkOverlay }
             .navigationBarTitleDisplayMode(.inline)
             .connectionBanner()
             .toolbar {
@@ -94,18 +124,118 @@ struct IncidentListView: View {
     
     private func navigateToPendingIncident() {
         guard let id = pendingIncidentID else { return }
-        print("[DeepLink] navigateToPendingIncident — looking for: \(id)")
-        print("[DeepLink] Available IDs: \(viewModel.incidents.map { $0.incidentID })")
-        // Match by exact ID or by suffix (BHNM webhook sends numeric ID like "24090",
-        // but the incident list may use prefixed IDs like "NetreoCloudDemo-24090")
-        let incident = viewModel.incidents.first(where: { $0.incidentID == id })
-            ?? viewModel.incidents.first(where: { $0.incidentID.hasSuffix("-\(id)") })
         pendingIncidentID = nil
-        if let incident {
-            print("[DeepLink] Found incident: \(incident.incidentID) — navigating")
+        print("[DeepLink] navigateToPendingIncident — looking for: \(id)")
+
+        // Exact first, then an UNAMBIGUOUS suffix match. More than one candidate
+        // is treated as no match — see matchIncident().
+        if let incident = matchIncident(id: id, in: viewModel.incidents) {
+            print("[DeepLink] Found in list: \(incident.incidentID) — navigating")
             navPath.append(incident)
-        } else {
-            print("[DeepLink] No matching incident found for id: \(id)")
+            return
+        }
+
+        // Not in the list. This used to be a print and nothing else. The list
+        // cannot answer here: the cache can be cold, caching can be off for the
+        // server, the tap can beat the cycle, or the notification can be hours
+        // old. Ask the middleware.
+        print("[DeepLink] Not in list (\(viewModel.incidents.count) loaded) — fetching \(id)")
+        startDeepLinkFetch(id)
+    }
+
+    /// Fetch, bounded, then a verdict. Never silence, and never "not found".
+    private func startDeepLinkFetch(_ id: String) {
+        deepLinkState = .fetching(id)
+        Task {
+            var lastFailure: NetreoAPIService.SingleIncidentFailure = .unreachable
+            // Two attempts, one fixed second apart. Somebody woken at 3am is
+            // holding this phone, so the wait is bounded in wall-clock and not
+            // only in attempts.
+            for attempt in 0..<2 {
+                do {
+                    let incident = try await apiService.fetchSingleIncident(incidentID: id)
+                    await MainActor.run {
+                        deepLinkState = .idle
+                        navPath.append(incident)
+                    }
+                    return
+                } catch let failure as NetreoAPIService.SingleIncidentFailure {
+                    lastFailure = failure
+                    // `gone` is an ANSWER. Retrying an answer turns it into a hang.
+                    if failure == .gone { break }
+                } catch {
+                    lastFailure = .unreachable
+                }
+                if attempt == 0 { try? await Task.sleep(nanoseconds: 1_000_000_000) }
+            }
+            let verdict = lastFailure
+            await MainActor.run {
+                deepLinkState = (verdict == .gone) ? .gone(id) : .unreachable(id)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var deepLinkOverlay: some View {
+        switch deepLinkState {
+        case .idle:
+            EmptyView()
+        case .fetching(let id):
+            deepLinkCard {
+                ProgressView()
+                Text("Fetching incident data…")
+                    .font(.headline)
+                Text("Incident \(id)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        case .gone(let id):
+            deepLinkCard {
+                Image(systemName: "checkmark.circle")
+                    .font(.largeTitle)
+                    .foregroundColor(.secondary)
+                Text("Incident \(id) no longer exists.")
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+                Text("It was closed and removed from BHNM.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                Button("OK") { deepLinkState = .idle }
+                    .buttonStyle(.borderedProminent)
+            }
+        case .unreachable(let id):
+            deepLinkCard {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.largeTitle)
+                    .foregroundColor(.orange)
+                Text("Could not load this incident.")
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+                // The load-bearing sentence. A transport failure is not a verdict
+                // about the incident, and the screen must not let it read as one.
+                Text("The server didn't respond. Incident \(id) may still exist — this is not a statement that it is gone.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                HStack(spacing: 12) {
+                    Button("Dismiss") { deepLinkState = .idle }
+                        .buttonStyle(.bordered)
+                    Button("Try again") { startDeepLinkFetch(id) }
+                        .buttonStyle(.borderedProminent)
+                }
+            }
+        }
+    }
+
+    private func deepLinkCard<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        ZStack {
+            Color.black.opacity(0.35).ignoresSafeArea()
+            VStack(spacing: 12) { content() }
+                .padding(24)
+                .frame(maxWidth: 320)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+                .shadow(radius: 12)
         }
     }
 

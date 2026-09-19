@@ -983,6 +983,63 @@ class NetreoAPIService: ObservableObject {
 
     /// Fetches enriched incidents from the middleware cache endpoint.
     /// Returns (incidents, alarmCounts) — alarm_counts may be nil per incident if cache is cold.
+    /// Which of the two failures happened — and they are NOT the same fact.
+    ///
+    /// `gone` is terminal: BHNM says the incident does not exist. `unreachable`
+    /// means we could not ask. Telling a woken engineer their incident is gone
+    /// when their network was simply down is the defect this whole route exists
+    /// to remove, and collapsing these two cases is how it comes back.
+    enum SingleIncidentFailure: Error, Equatable {
+        case gone
+        case unreachable
+    }
+
+    /// Fetch ONE incident from the middleware, for when it is not in the list.
+    ///
+    /// A tap can beat the cache cycle, the cache can be cold after a middleware
+    /// restart, caching can be off for the server, or the notification can be
+    /// hours old and name an incident that has since closed and gone. In every
+    /// one of those the list lookup fails, and before 2.13.6 the app printed a
+    /// line to the console and did nothing at all.
+    ///
+    /// Bounded: `timeoutInterval` 10 s, and one retry on `unreachable` only —
+    /// a `gone` is an answer and retrying an answer turns it into a hang.
+    func fetchSingleIncident(incidentID: String) async throws -> NetreoIncident {
+        guard let url = URL(string: "\(configuration.baseURL)/api/v1/incidents/\(incidentID)") else {
+            throw SingleIncidentFailure.unreachable
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 10
+        addProxyToken(&request)
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await urlSession.data(for: request)
+        } catch {
+            print("[DeepLink] fetchSingleIncident \(incidentID) transport failure: \(error.localizedDescription)")
+            throw SingleIncidentFailure.unreachable
+        }
+
+        let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+        if code == 404 {
+            print("[DeepLink] fetchSingleIncident \(incidentID): 404 — gone")
+            throw SingleIncidentFailure.gone
+        }
+        guard 200...299 ~= code else {
+            print("[DeepLink] fetchSingleIncident \(incidentID): HTTP \(code) — unreachable")
+            throw SingleIncidentFailure.unreachable
+        }
+        guard let row = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let incident = try? parseIncidentsFromNetreoFormat(from: [row]).first else {
+            print("[DeepLink] fetchSingleIncident \(incidentID): unparseable body — unreachable")
+            throw SingleIncidentFailure.unreachable
+        }
+        print("[DeepLink] fetchSingleIncident \(incidentID): found \(incident.incidentID)")
+        return incident
+    }
+
     func fetchCachedIncidents() async throws -> ([NetreoIncident], [String: [AlarmColor: Int]]) {
         let urlString = "\(configuration.baseURL)/api/v1/incidents"
         #if DEBUG

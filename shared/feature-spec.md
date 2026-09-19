@@ -203,11 +203,27 @@ features defined here. Platform-specific behaviour is noted per feature.
   when the incident is absent from the list; `isGone()` keeps the 404 (terminal) apart from the
   502 (retryable)
 
-#### Not yet at parity — iOS
-- **The iOS deep-link dead end is NOT fixed.** `IncidentListView.swift` prints to the console and
-  does nothing when a tapped notification names an incident absent from the list — the same defect
-  as the PWA's banned string, wearing silence instead of a wrong sentence. The single-incident
-  route exists (middleware 2.19.0) but iOS does not call it. **Unruled, reported 2026-09-19.**
+#### Notification deep link (both platforms, 2026-09-19)
+A tapped notification names an incident by its **bare numeric id**; the list may carry it
+prefixed. Both platforms resolve it the same way:
+
+1. **Exact id match** in the loaded list.
+2. Otherwise an **unambiguous suffix match** — `-<id>`. **More than one candidate is treated as
+   NO match**, because two servers can both hold an incident `24090` and silently picking the
+   first opens the wrong one. Ruled 2026-09-15; a defect that cannot appear until a customer has
+   a second server, which is how it survives review.
+3. Otherwise **fetch** `GET /api/v1/incidents/{id}` and use the three states above.
+
+**Never silence and never "not found."** iOS 2.13.6 and PWA 0.18.0.
+
+- **iOS:** `matchIncident(id:in:)` + `NetreoAPIService.fetchSingleIncident`. Two attempts one
+  second apart, 10 s per attempt; a 404 is never retried. The overlay carries a Try again button
+  on the unreachable state. Works on cold launch: `AppDelegate.pendingIncidentID` →
+  `ContentView.onAppear` → `IncidentListView`.
+- **PWA:** the list lookup is **exact-only and deliberately does not suffix-match** — it therefore
+  cannot guess, and a prefixed list simply falls through to the fetch. Both the app-open path
+  (`sw.ts` postMessage → `App.tsx` navigate) and the app-closed path (`sw.ts` openWindow →
+  `NavigationRoute`) land on `/incidents/:id`.
 
 ---
 

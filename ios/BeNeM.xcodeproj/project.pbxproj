@@ -41,6 +41,7 @@
 		EE000A000000000000000003 /* LegacySettingsMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000A000000000000000004 /* LegacySettingsMigrationTests.swift */; };
 		EE000B000000000000000001 /* AckAttributionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000B000000000000000002 /* AckAttributionTests.swift */; };
 		EE000C000000000000000001 /* UnverifiedAlertTypeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000C000000000000000002 /* UnverifiedAlertTypeTests.swift */; };
+		EE000D000000000000000001 /* DeepLinkMatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000D000000000000000002 /* DeepLinkMatchTests.swift */; };
 		EE0009000000000000000003 /* ServerDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0009000000000000000004 /* ServerDraftTests.swift */; };
 		F1F10DD12CE00002 /* FloppyDiskIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00001 /* FloppyDiskIcon.swift */; };
 		F1F10DD12CE00004 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00003 /* QRScannerView.swift */; };
@@ -93,6 +94,7 @@
 		EE000A000000000000000004 /* LegacySettingsMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacySettingsMigrationTests.swift; sourceTree = "<group>"; };
 		EE000B000000000000000002 /* AckAttributionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AckAttributionTests.swift; sourceTree = "<group>"; };
 		EE000C000000000000000002 /* UnverifiedAlertTypeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnverifiedAlertTypeTests.swift; sourceTree = "<group>"; };
+		EE000D000000000000000002 /* DeepLinkMatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkMatchTests.swift; sourceTree = "<group>"; };
 		EE0009000000000000000004 /* ServerDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerDraftTests.swift; sourceTree = "<group>"; };
 		EE0009000000000000000005 /* BeNeMTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BeNeMTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1F10DD12CE00001 /* FloppyDiskIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloppyDiskIcon.swift; sourceTree = "<group>"; };
@@ -137,6 +139,7 @@
 				EE000A000000000000000004 /* LegacySettingsMigrationTests.swift */,
 				EE000B000000000000000002 /* AckAttributionTests.swift */,
 				EE000C000000000000000002 /* UnverifiedAlertTypeTests.swift */,
+				EE000D000000000000000002 /* DeepLinkMatchTests.swift */,
 			);
 			path = BeNeMTests;
 			sourceTree = "<group>";
@@ -446,6 +449,7 @@
 				EE000A000000000000000003 /* LegacySettingsMigrationTests.swift in Sources */,
 				EE000B000000000000000001 /* AckAttributionTests.swift in Sources */,
 				EE000C000000000000000001 /* UnverifiedAlertTypeTests.swift in Sources */,
+				EE000D000000000000000001 /* DeepLinkMatchTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -578,7 +582,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BeNeM/BeNeM.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 49;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_ASSET_PATHS = "\"BeNeM/Preview Content\"";
 				DEVELOPMENT_TEAM = 8L27BJGYXP;
 				ENABLE_PREVIEWS = YES;
@@ -590,7 +594,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.13.5;
+				MARKETING_VERSION = 2.13.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tstolt.benem;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -606,7 +610,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BeNeM/BeNeM.release.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 49;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_ASSET_PATHS = "\"BeNeM/Preview Content\"";
 				DEVELOPMENT_TEAM = 8L27BJGYXP;
 				ENABLE_PREVIEWS = YES;
@@ -618,7 +622,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.13.5;
+				MARKETING_VERSION = 2.13.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tstolt.benem;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
