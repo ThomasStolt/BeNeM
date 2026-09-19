@@ -1130,11 +1130,21 @@ async def diagnostics_endpoint(request: Request):
         tc = tactical_cache.get_cached(server_id, "category") if server_id else None
         th = threshold_cache.get_cached(server_id) if server_id else None
         mm = maintenance_cache.get_cached(server_id) if server_id else None
+        # C9 — the incidents feed reports the age of its STALEST member, not the
+        # age of the last cycle stamp. The old single stamp was accurate only for
+        # the last incident enriched and was reported as though it described all
+        # of them. list_age_seconds is the separate, always-current fact: the list
+        # call is unconditional, so state is young even when enrichment is old.
+        ic_oldest, ic_unconfirmed = incident_cache.freshness(ic) if ic else (None, 0)
         feeds = {
-            "incidents": diagnostics.feed_block(
-                server_id, "incidents", cached=cache_enabled and ic is not None,
-                age_seconds=_age(ic.last_updated) if ic else None,
-                count=len(ic.active_incidents) if ic else None),
+            "incidents": {
+                **diagnostics.feed_block(
+                    server_id, "incidents", cached=cache_enabled and ic is not None,
+                    age_seconds=_age(ic_oldest) if ic else None,
+                    count=len(ic.active_incidents) if ic else None),
+                "list_age_seconds": _age(ic.list_updated) if ic else None,
+                "unconfirmed_counts": ic_unconfirmed if ic else None,
+            },
             "tactical": diagnostics.feed_block(
                 server_id, "tactical", cached=cache_enabled and tc is not None,
                 age_seconds=_age(tc[1]) if tc else None,

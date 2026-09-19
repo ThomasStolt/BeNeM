@@ -23,6 +23,14 @@ class CachedIncidents:
     active_incidents: list[dict] = field(default_factory=list)
     closed_incidents: list[dict] = field(default_factory=list)
     last_updated: float = 0.0
+    # C9 — the list call and the enrichment are DIFFERENT FACTS with different
+    # costs, and merging them into one stamp is what let diagnostics report
+    # "age 0" for data a whole cycle old (2026-09-16 measurement: 110.5 s of
+    # understatement in a 9-incident lab). getincidents is one request whatever
+    # the estate size; enrichment is one request per incident. So this is the
+    # time of the last successful LIST call, and every incident carries its own
+    # counts_confirmed_at beside it.
+    list_updated: float = 0.0
 
 _cache: dict[str, CachedIncidents] = {}
 _tasks: dict[str, asyncio.Task] = {}
@@ -94,7 +102,11 @@ async def _fetch_incident_detail(client: httpx.AsyncClient, server: dict, incide
             data = data[0] if data else {}
     except Exception as e:
         print(f"[Cache] Failed to fetch detail for incident {incident_id}: {e}")
-        return {"alarm_counts": None, "alert_type": "host"}
+        # confirmed=False is what C9 reads. The "host" default is a KNOWN DEFECT
+        # (C11) and is deliberately left in place until the clients that render
+        # UNKNOWN are in the field — build order step 6, after the store release.
+        # Until then the row lies about its type and tells the truth about its age.
+        return {"alarm_counts": None, "alert_type": "host", "confirmed": False}
 
     incident = data.get("incident", {})
     detail = incident.get("detail", {})
@@ -122,14 +134,41 @@ async def _fetch_incident_detail(client: httpx.AsyncClient, server: dict, incide
         else:
             counts["red"] += 1
 
-    return {"alarm_counts": counts, "alert_type": alert_type}
+    return {"alarm_counts": counts, "alert_type": alert_type, "confirmed": True}
 
 
-def _enrich_incident(incident: dict, detail: dict) -> dict:
+def _enrich_incident(incident: dict, detail: dict, list_at: float) -> dict:
     enriched = dict(incident)
     enriched["alarm_counts"] = detail.get("alarm_counts")
     enriched["alert_type"] = detail.get("alert_type", "host")
+    # C9 — two facts, two stamps. State came from the list call at list_at.
+    # Counts came from the detail call, which may have failed or may not have
+    # run at all, in which case there is NO time at which they were confirmed
+    # and null says exactly that. Never substitute list_at here: that would be
+    # the whole defect back again, a confirmed stamp on an unconfirmed value.
+    enriched["state_confirmed_at"] = list_at
+    enriched["counts_confirmed_at"] = time.time() if detail.get("confirmed") else None
     return enriched
+
+
+def freshness(entry: CachedIncidents) -> tuple[float | None, int]:
+    """(oldest counts_confirmed_at, how many incidents have none).
+
+    A cache is as fresh as its STALEST member, so this is what diagnostics
+    reports — never the newest. An incident that has never been enriched has no
+    age at all: it is counted separately rather than folded in, because "not yet
+    confirmed" is a third state and must not be rendered as a large-but-finite
+    age. Root CLAUDE.md doctrine, applied to a number instead of an icon.
+    """
+    oldest = None
+    unconfirmed = 0
+    for inc in (*entry.active_incidents, *entry.closed_incidents):
+        ts = inc.get("counts_confirmed_at")
+        if ts is None:
+            unconfirmed += 1
+        elif oldest is None or ts < oldest:
+            oldest = ts
+    return oldest, unconfirmed
 
 
 # -- Ack state overrides --------------------------------------------------------
@@ -230,6 +269,10 @@ async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:
         print(f"[Cache:{server_id}] Failed to fetch incidents: {e}")
         raise  # propagate so the loop records a telemetry failure (not a false success)
 
+    # C9 — stamp the LIST result the moment it lands, not at the end of the
+    # cycle. Every incident's state is confirmed as of this instant.
+    list_at = time.time()
+
     active_raw = data.get("active_incidents", [])
     closed_raw = data.get("closed_incidents", [])
     all_incidents = [(inc, "active") for inc in active_raw] + [(inc, "closed") for inc in closed_raw]
@@ -249,8 +292,8 @@ async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:
             detail = await _fetch_incident_detail(client, server, inc_id)
         except Exception as e:
             print(f"[Cache:{server_id}] Error fetching detail for incident {inc_id}: {e}")
-            detail = {"alarm_counts": None, "alert_type": "host"}
-        enriched = _enrich_incident(incident, detail)
+            detail = {"alarm_counts": None, "alert_type": "host", "confirmed": False}
+        enriched = _enrich_incident(incident, detail, list_at)
         if bucket == "active":
             active_enriched.append(enriched)
         else:
@@ -266,8 +309,13 @@ async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:
         active_incidents=active_enriched,
         closed_incidents=closed_enriched,
         last_updated=time.time(),
+        list_updated=list_at,
     )
-    print(f"[Cache:{server_id}] Cache updated: {len(active_enriched)} active, {len(closed_enriched)} closed")
+    oldest, unconfirmed = freshness(_cache[server_id])
+    age = f"{round(time.time() - oldest)}s" if oldest is not None else "n/a"
+    print(f"[Cache:{server_id}] Cache updated: {len(active_enriched)} active, "
+          f"{len(closed_enriched)} closed, oldest enrichment {age}, "
+          f"{unconfirmed} unconfirmed")
 
 
 async def _cache_loop(server: dict) -> None:
