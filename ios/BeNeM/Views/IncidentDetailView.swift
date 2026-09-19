@@ -129,7 +129,14 @@ struct IncidentDetailView: View {
                 if let ip, !ip.isEmpty {
                     InfoRow(label: "IP",         value: ip)
                 }
-                InfoRow(label: "Alert Type",     value: d.alertType ?? "—")
+                // Always shown, never omitted, and an unverified type never
+                // borrows the appearance of a verified one. Root CLAUDE.md
+                // doctrine: verified good, verified bad, and UNVERIFIED — three
+                // states. "host" is the one type known to page, so a type the
+                // app could not confirm must not be drawn as any type at all.
+                InfoRow(label: "Alert Type",
+                        value: isUnverifiedAlertType(d.alertType) ? "Unverified" : d.alertType!,
+                        isUnverified: isUnverifiedAlertType(d.alertType))
                 if let openTime = d.openTime {
                     InfoRow(label: "Created",    value: formatDate(openTime))
                     InfoRow(label: "Duration",   value: durationString(from: openTime))
@@ -300,9 +307,20 @@ private struct AlarmRow: View {
     }
 }
 
+/// An alert type the app could not confirm — UNKNOWN, empty, or missing are
+/// all the same state and are drawn the same way.
+///
+/// Not `private`: BeNeMTests asserts it, because the whole point is that this
+/// predicate decides whether a coverage claim is made.
+func isUnverifiedAlertType(_ alertType: String?) -> Bool {
+    let t = (alertType ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+    return t.isEmpty || t == "unknown"
+}
+
 private struct InfoRow: View {
     let label: String
     let value: String
+    var isUnverified: Bool = false
 
     var body: some View {
         HStack {
@@ -313,7 +331,12 @@ private struct InfoRow: View {
             Spacer()
             Text(value)
                 .font(.subheadline)
+                .italic(isUnverified)
+                .foregroundColor(isUnverified ? .orange : .primary)
                 .multilineTextAlignment(.trailing)
+                .accessibilityLabel(isUnverified
+                    ? "Alert type unverified. BeNeM could not read this incident's type from BHNM."
+                    : value)
         }
         .padding(.vertical, 2)
     }

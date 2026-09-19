@@ -929,9 +929,11 @@ class NetreoAPIService: ObservableObject {
     }
 
     /// Fetches incident detail and returns both the alert_type and alarm color counts.
-    /// alert_type values from BHNM: "Host", "Service", "Threshold" (case-insensitive).
+    /// alert_type values from BHNM: "Host", "Service", "Threshold", "Anomaly"
+    /// (case-insensitive). An EMPTY string means the app could not confirm the
+    /// type — never substitute a real type for it.
     private func fetchIncidentAlarmData(incidentID: String) async -> (alertType: String, counts: [AlarmColor: Int]) {
-        guard let url = URL(string: "\(configuration.baseURL)/api/incident_api.php") else { return ("host", [:]) }
+        guard let url = URL(string: "\(configuration.baseURL)/api/incident_api.php") else { return ("", [:]) }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         addProxyToken(&request)
@@ -946,9 +948,14 @@ class NetreoAPIService: ObservableObject {
         guard let (data, _) = try? await urlSession.data(for: request),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let incident = json["incident"] as? [String: Any],
-              let detail = incident["detail"] as? [String: Any] else { return ("host", [:]) }
+              let detail = incident["detail"] as? [String: Any] else { return ("", [:]) }
 
-        let alertType = (incident["alert_type"] as? String ?? "host").lowercased()
+        // Was `?? "host"`. DEAD CODE that was never read — the only caller,
+        // fetchIncidentAlarmCounts(), returns `.counts` and discards the type —
+        // but "host" is the one type known to page, so leaving it here was a
+        // false-healthy default waiting for somebody to wire it up. Empty means
+        // unverified; isUnverifiedAlertType() is what renders it.
+        let alertType = (incident["alert_type"] as? String ?? "").lowercased()
 
         var alarmEntries: [[String: Any]] = []
         if let primary = detail["primary_alarm_log"] as? [[String: Any]] {
