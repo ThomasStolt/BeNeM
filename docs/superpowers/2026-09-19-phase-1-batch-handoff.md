@@ -291,7 +291,45 @@ for an acknowledged incident on either platform.
 because C2 re-fetches the same detail and the same computation runs on it. **Fixing C2 alone does
 not fix this.**
 
-### Not fixed — it needs a ruling first
+### FIXED and VERIFIED IN THE LAB — middleware 2.19.1, 2026-09-19
+
+**RULED (Thomas): match BHNM.** Its users already read blue as "someone has this"; a second
+visual language for the same fact would be the invention, not the alignment. All alarms in an
+acknowledged incident go blue, driven by the incident-level flag. The dead per-alarm branch is
+**deleted**, not left.
+
+**Verified by observation on a real ack**, not by the unit tests — 27516, through the deployed
+2.19.1, with the lab restored afterwards:
+
+| | cached `incident_state` | cached `alarm_counts` |
+|---|---|---|
+| baseline | `OPEN` | `red: 1` |
+| ack + one enrichment cycle (~100 s) | `OPEN` ← *see below* | **`blue: 1`** |
+| ack + a second full cycle | `ACKNOWLEDGED` | `blue: 1` |
+| un-ack + one cycle (~150 s) | `OPEN` | **`red: 1`** |
+| BHNM afterwards | `OPEN`, `acknowledged 0`, `ack_user ''` | restored |
+
+### Two things the verification turned up, both worth keeping
+
+**1. A row can carry pre-ack STATE and post-ack COUNTS at the same time.** At the first reading
+above the row said `OPEN` with `blue: 1`. Not a defect in 2.19.1 — an artefact of the current
+cycle shape. `getincidents` runs **once** at the start of a cycle, then the detail calls are paced
+over ~110 s. An ack that lands between the two is invisible to the list snapshot and visible to
+the later detail call, so the two halves of one row describe different moments.
+
+**This is a fresh, concrete argument for C2 (step 8)** — which fetches the list entry **and** the
+detail for one incident **together, on the event** — and it is a better one than the original
+"the counts lag", because a lag is at least consistent with itself and this is not.
+
+**2. No `ACKNOWLEDGEMENT` webhook arrived for 27516 at all.** Thomas's UI ack of **29877**
+(`raspi-050`, a **host** incident) produced one at 21:16:35Z. Two acks of **27516** — a **service
+check** — produced none. **That is §8.8's coverage finding happening live**: only host events have
+ever produced a webhook on this deployment, because only host checks are attached to the action
+group. Not a defect, and exactly what the never-paged marker is being built to say.
+
+---
+
+### The ruling this needed, now given
 
 The mechanical fix is one branch: when `incident.acknowledged` is truthy (or
 `primary_alarm_state == "ACKNOWLEDGED"`), colour the counts blue. **What needs ruling is the
