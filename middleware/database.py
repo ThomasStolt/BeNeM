@@ -52,9 +52,39 @@ def init_db():
         except Exception:
             pass  # Column already exists — safe to ignore
 
+        # C10 — an incident's alert_type never changes (Thomas, 2026-09-19: a host
+        # incident is always a host incident; service and threshold are different
+        # things that do not convert). It cannot be derived from the title either
+        # — incident 25076 is titled "Application Service Wordpress" and its type
+        # is `service`, so title parsing gets it wrong. So it is learned once from
+        # a CONFIRMED detail call and kept, and keeping it across restarts is what
+        # stops a restart being a cold start.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS incident_types (
+                server_id   TEXT NOT NULL,
+                incident_id TEXT NOT NULL,
+                alert_type  TEXT NOT NULL,
+                last_seen   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (server_id, incident_id)
+            )
+        """)
+        # Bounded by construction. Incident ids are not reused, so without this the
+        # table only ever grows. 90 days is far longer than any incident this
+        # project has seen stay open (the oldest in the lab opened 2026-05-20).
+        try:
+            conn.execute("DELETE FROM incident_types "
+                         "WHERE last_seen < datetime('now', '-90 days')")
+        except Exception:
+            pass
+
 @contextmanager
 def get_conn():
-    conn = sqlite3.connect(DB_PATH)
+    # Resolved per connection, not captured at import. DB_PATH used to bind at
+    # module import, so the value depended on which module imported `database`
+    # first — invisible in production (one path, set before anything runs) and a
+    # collection error in tests the moment a new import edge appeared.
+    # benem-admin/push_db.py:16 already does it this way; this is the same fix.
+    conn = sqlite3.connect(os.environ.get("DB_PATH", DB_PATH))
     try:
         yield conn
         conn.commit()
@@ -146,3 +176,27 @@ def delete_web_push_subscription(endpoint: str):
     """Remove a Web Push subscription (called when push service returns 410 Gone)."""
     with get_conn() as conn:
         conn.execute("DELETE FROM web_push_subscriptions WHERE endpoint = ?", (endpoint,))
+
+
+# -- C10: incident type map ----------------------------------------------------
+
+def load_incident_types() -> dict[tuple[str, str], str]:
+    """Every remembered (server_id, incident_id) -> alert_type. Read once at
+    startup; the working copy lives in memory in incident_cache."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT server_id, incident_id, alert_type FROM incident_types").fetchall()
+    return {(r[0], str(r[1])): r[2] for r in rows}
+
+
+def save_incident_type(server_id: str, incident_id: str, alert_type: str) -> None:
+    """Remember a type learned from a CONFIRMED detail call. Never call this with
+    a guessed or defaulted value — a persisted guess is a guess that outlives the
+    process that made it."""
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO incident_types (server_id, incident_id, alert_type, last_seen) "
+            "VALUES (?, ?, ?, CURRENT_TIMESTAMP) "
+            "ON CONFLICT(server_id, incident_id) DO UPDATE SET "
+            "alert_type = excluded.alert_type, last_seen = CURRENT_TIMESTAMP",
+            (server_id, str(incident_id), alert_type))

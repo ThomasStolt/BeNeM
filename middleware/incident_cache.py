@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass, field
 
 import httpx
+import database
 import diagnostics
 
 from config import SERVERS_JSON_PATH, BHNM_TLS_VERIFY, PROXY_TIMEOUT, server_cache_enabled
@@ -137,10 +138,62 @@ async def _fetch_incident_detail(client: httpx.AsyncClient, server: dict, incide
     return {"alarm_counts": counts, "alert_type": alert_type, "confirmed": True}
 
 
-def _enrich_incident(incident: dict, detail: dict, list_at: float) -> dict:
+# -- C10: the incident type map -------------------------------------------------
+# alert_type is immutable per incident [THOMAS 2026-09-19] and cannot be derived
+# from the title, so it is learned once from a confirmed detail call and kept.
+# The working copy is in memory; sqlite is what survives a restart.
+#
+# ponytail: a plain dict, loaded once. Known ceiling: it is per-process, so two
+# middleware replicas would each learn independently — which is harmless, they
+# would converge on the same values. Revisit only if this ever runs replicated.
+
+_types: dict[tuple[str, str], str] = {}
+_types_loaded = False
+
+
+def load_types() -> None:
+    """Read the persisted map into memory. Called once at startup; a failure is
+    logged and degrades to an empty map, never to a crash — a cold type map costs
+    detail calls, a dead cache costs the product."""
+    global _types, _types_loaded
+    try:
+        _types = database.load_incident_types()
+        print(f"[Cache] Type map loaded: {len(_types)} incidents")
+    except Exception as e:
+        print(f"[Cache] Type map load FAILED, starting cold: {e}")
+        _types = {}
+    _types_loaded = True
+
+
+def known_type(server_id: str, incident_id: str) -> str | None:
+    return _types.get((server_id, str(incident_id)))
+
+
+def remember_type(server_id: str, incident_id: str, alert_type: str) -> None:
+    """Only ever called with a type from a CONFIRMED detail call. A persisted
+    guess is a guess that outlives the process that made it."""
+    key = (server_id, str(incident_id))
+    if _types.get(key) == alert_type:
+        return  # no write, no churn — the common case by far
+    _types[key] = alert_type
+    try:
+        database.save_incident_type(server_id, str(incident_id), alert_type)
+    except Exception as e:
+        print(f"[Cache:{server_id}] Type map write failed for incident {incident_id}: {e}")
+
+
+def _enrich_incident(incident: dict, detail: dict, list_at: float,
+                     remembered: str | None = None) -> dict:
     enriched = dict(incident)
     enriched["alarm_counts"] = detail.get("alarm_counts")
-    enriched["alert_type"] = detail.get("alert_type", "host")
+    if detail.get("confirmed"):
+        enriched["alert_type"] = detail.get("alert_type", "host")
+    else:
+        # C10 — a type learned earlier from a confirmed call is a FACT, and using
+        # it beats re-guessing "host". If nothing was ever learned, today's "host"
+        # default stands: it is a known defect (C11) and it may not become UNKNOWN
+        # until the clients that render UNKNOWN are in the field (step 6).
+        enriched["alert_type"] = remembered or detail.get("alert_type", "host")
     # C9 — two facts, two stamps. State came from the list call at list_at.
     # Counts came from the detail call, which may have failed or may not have
     # run at all, in which case there is NO time at which they were confirmed
@@ -293,7 +346,10 @@ async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:
         except Exception as e:
             print(f"[Cache:{server_id}] Error fetching detail for incident {inc_id}: {e}")
             detail = {"alarm_counts": None, "alert_type": "host", "confirmed": False}
-        enriched = _enrich_incident(incident, detail, list_at)
+        if detail.get("confirmed") and detail.get("alert_type"):
+            remember_type(server_id, inc_id, detail["alert_type"])
+        enriched = _enrich_incident(incident, detail, list_at,
+                                    remembered=known_type(server_id, inc_id))
         if bucket == "active":
             active_enriched.append(enriched)
         else:
@@ -339,6 +395,8 @@ async def _cache_loop(server: dict) -> None:
 # -- Lifecycle -----------------------------------------------------------------
 
 def start_all() -> None:
+    if not _types_loaded:
+        load_types()
     for server in _load_enabled_servers():
         _start_server(server)
 
