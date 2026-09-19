@@ -1,7 +1,17 @@
 # BHNM — App Store Metadata (English)
 
+## Listing URL
+
+<https://apps.apple.com/app/id6761024731>
+
+Recorded 2026-09-19 because it was nowhere in the repo or its git history, which
+left `pwa/.../IOSRedirectBanner.tsx` pointing every iOS visitor at `href="#"`.
+
 ## App Name
 BHNM
+
+**The listing is titled BHNM, not BeNeM.** Anything user-facing that sends someone
+to the store must say BHNM, or they will not recognise the page they land on.
 
 ## Subtitle (max 30 chars)
 Network Monitoring & Alerts
