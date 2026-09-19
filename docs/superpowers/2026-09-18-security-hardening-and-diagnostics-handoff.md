@@ -131,6 +131,16 @@ action group or the thresholds. Do not re-open it as a tuning task, do not desig
 around it, and do not read the count as a defect signal — a future reader finding 100+ anomaly
 pages in a day is looking at the lab working as configured.
 
+**And the setting is switched on and off by hand, so the rate is not a health signal in either
+direction.** Corrected 2026-09-19: the **11-hour silence between 2026-09-18 22:45Z and 2026-09-19
+~10:00Z was not an overnight baseline and not an outage** — Thomas had turned the
+super-sensitive setting **OFF**. It went back **ON at 2026-09-19 12:00:00 local (CEST) = 10:00:00Z**
+— stated in both because every other timestamp in this file is UTC and the log is UTC, so an
+unzoned "12:00" here would read as a two-hour error — and webhooks resume from then. A reader comparing anomaly counts across days is comparing a knob position, not the
+network. **Ask before drawing any conclusion from a quiet period**; "no webhooks" and "the setting
+is off" look identical from the middleware, and there is no signal in the log that distinguishes
+them.
+
 `servers.json` holds four servers, four distinct keys, only `ThomasLabServer` cached.
 
 ---
