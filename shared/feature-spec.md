@@ -203,6 +203,21 @@ features defined here. Platform-specific behaviour is noted per feature.
   when the incident is absent from the list; `isGone()` keeps the 404 (terminal) apart from the
   502 (retryable)
 
+#### "Active" means NOT CLOSED (both platforms, 2026-09-19)
+
+**An acknowledged incident stays in the list, showing ACKD with blue counts.** Somebody has said
+"I am on it", not "it is fine", and BHNM's own UI keeps it. `active` and `acknowledged` are
+separate status values, so **any filter or count written as `status == active` silently excludes
+every incident the user has acted on** — which made an in-app ack hide the row on iOS and drop the
+Home tile's number on both platforms.
+
+**The tile's count and the list's rows use the SAME predicate**, so they agree by construction:
+`status != resolved && status != closed`. iOS `NetreoIncident.isActive`, PWA `isActiveIncident()`.
+`ALARMS CLEARED` keeps its previous treatment. The explicit **ACK badge** filter is unaffected —
+choosing to see only acknowledged incidents is a different thing from the tile.
+
+iOS 2.13.6 (52), PWA 0.18.1.
+
 #### Notification deep link (both platforms, 2026-09-19)
 A tapped notification names an incident by its **bare numeric id**; the list may carry it
 prefixed. Both platforms resolve it the same way:
