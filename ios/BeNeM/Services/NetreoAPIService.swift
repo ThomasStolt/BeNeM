@@ -757,13 +757,16 @@ class NetreoAPIService: ObservableObject {
         return result.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    /// Every acknowledgement from a mobile client attributes to this, always — not
-    /// as a fallback for an unset field. The per-connection ackUser used to be sent,
-    /// which put a phone name ("Thomas iPhone 13 ProMax") into BHNM's incident
-    /// history. That is not an identity: BHNM has one API token per server, not per
-    /// user, so nothing about an ack ever identified a person. A constant at least
-    /// says truthfully what it is. Identical string on the PWA (`lib/api/incidents.ts`).
-    static let ackUser = "BHNM Mobile"
+    /// Last resort only. The acknowledging user is the connection's `ackUser` — the
+    /// **Username** typed into the admin portal's QR generator, where the field is
+    /// REQUIRED for exactly this reason, carried in the QR payload as `user` and
+    /// stored in `netreo_ack_user`. That is the source of truth for ack attribution.
+    ///
+    /// Do not replace it with a constant. 2.13.4 did, on the reasoning that values
+    /// like "Thomas iPhone 13 ProMax" looked like device names; the admin link log
+    /// shows they are the usernames someone typed (`admin.jsonl`, 2026-09-15). A
+    /// constant throws away the only per-person attribution the system has.
+    static let ackUserFallback = "BHNM Mobile"
 
     func acknowledgeIncident(incidentID: String, user: String, comment: String = "Acked from Mobile App") async throws -> Bool {
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/incident/acknowledge") else { return false }
@@ -787,7 +790,7 @@ class NetreoAPIService: ObservableObject {
         return (response as? HTTPURLResponse)?.statusCode ?? 0 < 400
     }
 
-    func unacknowledgeIncident(incidentID: String, user: String = NetreoAPIService.ackUser, comment: String = "De-Acked from Mobile App") async throws -> Bool {
+    func unacknowledgeIncident(incidentID: String, user: String = NetreoAPIService.ackUserFallback, comment: String = "De-Acked from Mobile App") async throws -> Bool {
         guard let url = URL(string: "\(configuration.baseURL)/fw/index.php?r=restful/incident/unacknowledge") else { return false }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"

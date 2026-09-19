@@ -304,13 +304,16 @@ export function parseAckResponse(raw: unknown): void {
   }
 }
 
-/// Every acknowledgement from a mobile client attributes to this, always — not
-/// as a fallback for an unset field. The per-connection ackUser used to be sent,
-/// which meant a phone name ("Thomas iPhone 13 ProMax") ended up in BHNM's
-/// incident history. That is not an identity: BHNM has one API token per server,
-/// not per user, so nothing about the ack ever identified a person. A constant at
-/// least says truthfully what it is.
-const ACK_USER = 'BHNM Mobile';
+/// Last resort only. The acknowledging user is `config.ackUser` — the **Username**
+/// typed into the admin portal's QR generator, where the field is REQUIRED for
+/// exactly this reason, carried in the QR payload as `user`. That is the source of
+/// truth for ack attribution and it must reach BHNM.
+///
+/// Do not replace it with a constant. 0.17.2 did, on the reasoning that values like
+/// "Thomas Android PWA" looked like device names; the admin link log shows they are
+/// the usernames someone typed (`admin.jsonl`, 2026-09-02T13:53:03). A constant
+/// throws away the only per-person attribution the system has.
+const ACK_USER_FALLBACK = 'BHNM Mobile';
 
 export async function acknowledgeIncident(
   config: BhnmConfig,
@@ -319,7 +322,7 @@ export async function acknowledgeIncident(
   const params: Record<string, string> = {
     password: config.apiKey,
     incident_id: incidentId,
-    user: ACK_USER,
+    user: config.ackUser || ACK_USER_FALLBACK,
   };
   if (config.pin) params.pin = config.pin;
   const raw = await postForm(config.baseUrl, '/api/proxy/incident/acknowledge', params, config.apiKey);
@@ -333,7 +336,7 @@ export async function unacknowledgeIncident(
   const params: Record<string, string> = {
     password: config.apiKey,
     incident_id: incidentId,
-    user: ACK_USER,
+    user: config.ackUser || ACK_USER_FALLBACK,
   };
   if (config.pin) params.pin = config.pin;
   const raw = await postForm(config.baseUrl, '/api/proxy/incident/unacknowledge', params, config.apiKey);

@@ -14,6 +14,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [0.17.3] - 2026-09-19
+
+### Fixed
+
+- **The acknowledging user is the QR Username again.** 0.17.2 replaced it with the constant
+  "BHNM Mobile" on the reasoning that values like "Thomas Android PWA" were device names leaking
+  into the payload. They were not — `benem-admin`'s link log records them as the usernames someone
+  typed into the QR generator, where the field is **required** for exactly this purpose. The
+  constant threw away the only per-person attribution BeNeM has. `config.ackUser` is sent again for
+  every acknowledge and unacknowledge; the constant survives only as a fallback for an empty field,
+  which `ServerForm` already prevents. Four tests now assert the username reaches BHNM.
+
+---
+
 ## [0.17.2] - 2026-09-19
 
 ### Fixed

@@ -24,10 +24,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
-- **The ack user is the constant "BHNM Mobile", always — not a fallback.** The configured ack user
-  was sent, so a phone name ("Thomas iPhone 13 ProMax") reached BHNM's incident history. That was
-  never an identity: BHNM has one API token per server, not per user, so nothing about an
-  acknowledgement has ever identified a person. The PWA sends the same string.
+- **The acknowledging user is the QR Username, and stays that way.** Briefly during development
+  this build sent the constant "BHNM Mobile" instead, on the reasoning that values like "Thomas
+  iPhone 13 ProMax" were device names leaking in. They were not — the admin portal's link log
+  records them as the usernames someone typed into the QR generator, where the field is
+  **required** for exactly this purpose. The connection's `ackUser` is sent for every acknowledge
+  and unacknowledge; "BHNM Mobile" remains only as a fallback for an empty field, which the form
+  already prevents. Three tests now assert it.
 
 ## [2.13.3] — 2026-09-19
 

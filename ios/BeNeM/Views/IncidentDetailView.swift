@@ -7,6 +7,7 @@ struct IncidentDetailView: View {
     let apiService: NetreoAPIService
     let preloadedAlarmCounts: [AlarmColor: Int]?
 
+    @AppStorage("netreo_ack_user") private var ackUser = ""   // the QR Username — see NetreoAPIService.ackUserFallback
     @State private var detail: IncidentDetail?
     @State private var isLoading = true
     @State private var errorMessage: String?
@@ -204,7 +205,7 @@ struct IncidentDetailView: View {
 
     private func toggleAck() async {
         isAcking = true
-        let user = NetreoAPIService.ackUser
+        let user = ackUser.isEmpty ? NetreoAPIService.ackUserFallback : ackUser
         if currentStatus == .acknowledged {
             let ok = try? await apiService.unacknowledgeIncident(incidentID: incident.incidentID, user: user)
             if ok == true {

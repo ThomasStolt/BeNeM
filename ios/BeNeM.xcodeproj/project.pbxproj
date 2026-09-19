@@ -39,6 +39,7 @@
 		EE0009000000000000000001 /* ServerDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0009000000000000000002 /* ServerDraft.swift */; };
 		EE000A000000000000000001 /* LegacySettingsMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000A000000000000000002 /* LegacySettingsMigration.swift */; };
 		EE000A000000000000000003 /* LegacySettingsMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000A000000000000000004 /* LegacySettingsMigrationTests.swift */; };
+		EE000B000000000000000001 /* AckAttributionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000B000000000000000002 /* AckAttributionTests.swift */; };
 		EE0009000000000000000003 /* ServerDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0009000000000000000004 /* ServerDraftTests.swift */; };
 		F1F10DD12CE00002 /* FloppyDiskIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00001 /* FloppyDiskIcon.swift */; };
 		F1F10DD12CE00004 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00003 /* QRScannerView.swift */; };
@@ -89,6 +90,7 @@
 		EE0009000000000000000002 /* ServerDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerDraft.swift; sourceTree = "<group>"; };
 		EE000A000000000000000002 /* LegacySettingsMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacySettingsMigration.swift; sourceTree = "<group>"; };
 		EE000A000000000000000004 /* LegacySettingsMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacySettingsMigrationTests.swift; sourceTree = "<group>"; };
+		EE000B000000000000000002 /* AckAttributionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AckAttributionTests.swift; sourceTree = "<group>"; };
 		EE0009000000000000000004 /* ServerDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerDraftTests.swift; sourceTree = "<group>"; };
 		EE0009000000000000000005 /* BeNeMTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BeNeMTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1F10DD12CE00001 /* FloppyDiskIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloppyDiskIcon.swift; sourceTree = "<group>"; };
@@ -131,6 +133,7 @@
 			children = (
 				EE0009000000000000000004 /* ServerDraftTests.swift */,
 				EE000A000000000000000004 /* LegacySettingsMigrationTests.swift */,
+				EE000B000000000000000002 /* AckAttributionTests.swift */,
 			);
 			path = BeNeMTests;
 			sourceTree = "<group>";
@@ -438,6 +441,7 @@
 			files = (
 				EE0009000000000000000003 /* ServerDraftTests.swift in Sources */,
 				EE000A000000000000000003 /* LegacySettingsMigrationTests.swift in Sources */,
+				EE000B000000000000000001 /* AckAttributionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -570,7 +574,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BeNeM/BeNeM.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 47;
+				CURRENT_PROJECT_VERSION = 48;
 				DEVELOPMENT_ASSET_PATHS = "\"BeNeM/Preview Content\"";
 				DEVELOPMENT_TEAM = 8L27BJGYXP;
 				ENABLE_PREVIEWS = YES;
@@ -598,7 +602,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BeNeM/BeNeM.release.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 47;
+				CURRENT_PROJECT_VERSION = 48;
 				DEVELOPMENT_ASSET_PATHS = "\"BeNeM/Preview Content\"";
 				DEVELOPMENT_TEAM = 8L27BJGYXP;
 				ENABLE_PREVIEWS = YES;

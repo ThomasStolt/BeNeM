@@ -102,6 +102,27 @@ that same release was fixing, wearing a different label.
   before shipping 0.17.1 gives `pre-0.17.1`, containing 0.17.0. Ruled 2026-09-19 as canonical
   because the middleware already worked this way and the PWA did not; do not re-decide it.
 
+## The ack user is the QR Username, and it is not decorative
+
+**`ackUser` carries the **Username** field from the admin portal's QR generator
+(`benem-admin/templates/generate.html:329`, marked required, refused before a link can be
+generated), through the QR payload as `user`, into the per-connection `ackUser` on both clients,
+and out as the `user` parameter of every acknowledge and unacknowledge call. It is the source of
+truth for who acknowledged an incident, and the only per-person attribution the system has.**
+
+**Do not replace it with a constant.** On 2026-09-19 it was replaced with `"BHNM Mobile"` on both
+platforms, on the reasoning that observed values like `Thomas iPhone 13 ProMax` and
+`Thomas Android PWA` looked like device names leaking in. They were not: `benem-admin`'s link log
+shows them as the usernames someone typed (`/app/log/admin.jsonl` — `Thomas iPhone 13 ProMax`
+issued 2026-09-15T10:48:24, `Thomas Android PWA` 2026-09-02T13:53:03). **A value that looks
+machine-generated is not evidence that it is** — the producer's own record settles it, and it was
+one `docker exec` away the whole time.
+
+`"BHNM Mobile"` survives only as a last-resort fallback for an empty field, which
+`ServerDraft.saveDisabled` and the PWA's `ServerForm` both already prevent. Tests on both
+platforms assert the username reaches BHNM: `ios/BeNeMTests/AckAttributionTests.swift` and
+`pwa/src/lib/api/__tests__/ack-user.test.ts`.
+
 ## A client-decoded payload may only ever GAIN fields
 
 **The middleware is deployed in minutes. The iOS client is deployed in days, through App

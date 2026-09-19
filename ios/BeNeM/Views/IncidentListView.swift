@@ -3,6 +3,7 @@ import SwiftUI
 struct IncidentListView: View {
     @ObservedObject private var viewModel: IncidentListViewModel
     @ObservedObject private var connection = ConnectionMonitor.shared
+    @AppStorage("netreo_ack_user") private var ackUser = ""   // the QR Username — see NetreoAPIService.ackUserFallback
     @State private var navPath = NavigationPath()
     let navResetID: UUID
     @Binding private var pendingIncidentID: String?
@@ -168,7 +169,7 @@ struct IncidentListView: View {
                             Task {
                                 let ok = try? await apiService.unacknowledgeIncident(
                                     incidentID: incident.incidentID,
-                                    user: NetreoAPIService.ackUser
+                                    user: ackUser.isEmpty ? NetreoAPIService.ackUserFallback : ackUser
                                 )
                                 if ok == true {
                                     viewModel.updateIncidentStatus(incidentID: incident.incidentID, status: .active)
@@ -183,7 +184,7 @@ struct IncidentListView: View {
                             Task {
                                 let ok = try? await apiService.acknowledgeIncident(
                                     incidentID: incident.incidentID,
-                                    user: NetreoAPIService.ackUser
+                                    user: ackUser.isEmpty ? NetreoAPIService.ackUserFallback : ackUser
                                 )
                                 if ok == true {
                                     viewModel.updateIncidentStatus(incidentID: incident.incidentID, status: .acknowledged)
