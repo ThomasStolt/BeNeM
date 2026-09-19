@@ -1,9 +1,61 @@
 # Design: what BeNeM can know about its own coverage, and what to say when it cannot
 
-**Status:** DESIGN ONLY. Nothing built, nothing deployed, no lab change.
-**Date:** 2026-09-16
+**Status:** **SETTLED 2026-09-19 — all three decisions ruled by Thomas. STOP AT DESIGN still
+applies: nothing is built from this note until a build is ordered.**
+**Date:** 2026-09-16. **Ruled 2026-09-19.**
 **Evidence:** `docs/evidence/2026-09-14-bhnm-recovery-close-call-measurement.md` §8.8
 **Queue:** item 11, highest priority in the project.
+
+---
+
+## RULED 2026-09-19 (Thomas) — read this before the body
+
+The body below was written while decision 1 was open. **It is no longer open, and the branch it
+decides is settled.** Where the body hedges between "if the API exposes coverage" and "if it does
+not", **the second branch is the live one.** Nothing in the body is deleted, so the reasoning that
+produced these rulings stays readable — but the "if option 2 succeeds" passages are now
+counterfactual and must not be built from.
+
+**Decision 1 — STRUCK. The BHNM API does NOT expose action-group assignment. [THOMAS]**
+Confirmed by Thomas from the product. **The probe is cancelled — do not run it, do not re-propose
+it, do not re-derive it from the API reference.** This had been the single next action in three
+consecutive handoffs (2026-09-17, 2026-09-18, 2026-09-19); it is now closed by the product owner's
+knowledge of the product rather than by measurement, and that is a legitimate close. The design
+takes the **"cannot know"** branch, permanently.
+
+**Decision 2 — APPROVED as product copy.** The onboarding sentence ships as written:
+
+> *"BeNeM pages you for devices your BHNM administrator has wired to the BeNeM action. It cannot
+> tell you which — ask them."*
+
+**Decision 3 — RULED: incident-list per-row marker FIRST, Diagnostics second.** Surface 2 before
+surface 3, not instead of it. The marker states **observed history only** — *"no incident of this
+type has ever paged this app"* — and **never a prediction**. The prohibitions in *"What not to
+do"* below stand unchanged: no coverage percentage, and never a claim that a type *will not* page.
+
+**`INSTALL.md` §7 — APPROVED and independent.** It does not wait for the client work and does not
+depend on it. Written **in the imperative**: *attach the action group to everything you expect to
+be paged about; an unattached check will never page anyone, and nothing in the app will say so.*
+
+**The S1b "host" fallback defect is fixed as part of this work, not filed separately.** A failed
+`alert_type` lookup yields **`UNKNOWN`, with its own rendering** — never `"host"`, never any other
+type. This is the same requirement as C11 of
+`2026-09-19-incident-freshness-webhook-first-design.md`; the two must not drift apart.
+
+### New consequence, from the webhook-first ruling
+
+`2026-09-19-incident-freshness-webhook-first-design.md` makes webhooks authoritative and reduces
+scheduled reconciliation to **once every 24 hours** in the default mode. So **an incident whose
+alarm class is not attached to the action group produces no webhook, and can therefore be stale
+for up to 24 hours** — its state in the app is whatever the last reconciliation saw.
+
+**That row is exactly the row the never-paged marker marks.** The marker therefore does double
+duty: it is a coverage statement *and* a staleness warning, and the two are the same fact seen from
+two ends. A type that has never paged this app is a type whose incidents this app learns about only
+on the daily sweep. **Say this in the copy's supporting text** — the row-level glyph stays short,
+but the incident-detail line and the Diagnostics text must make the staleness consequence explicit,
+because "we might not page you for this" and "what you are reading here may be a day old" are
+different alarms to an engineer and both are true.
 
 ---
 
@@ -308,12 +360,22 @@ the phone, which is why it is a stop-gap and why this item is not closed by writ
    produced, and it is the one surface that needs no BHNM API and no new data source beyond what
    the middleware already logs.
 
-## Decisions needed
+## Decisions needed — ALL RULED 2026-09-19
 
-1. Approve the option-2 measurement (read-only, BHNM API only, no lab change)? **Its value rose on
-   2026-09-16 — see §1c. Coverage is per-object configuration, so this probe decides whether the
-   honest version of this feature can exist at all, rather than whether to refine a heuristic.**
-2. If coverage proves unknowable, is the onboarding sentence acceptable product copy, given it
-   tells a new user the app cannot fully answer a question they had not thought to ask?
-3. Does the device list get the third state (surface 2), or is Diagnostics (surface 3) enough
-   for now?
+1. ~~Approve the option-2 measurement (read-only, BHNM API only, no lab change)?~~
+   **STRUCK 2026-09-19 (Thomas). The BHNM API does not expose action-group assignment [THOMAS].**
+   No probe. The "cannot know" branch is the design.
+2. ~~Is the onboarding sentence acceptable product copy?~~ **APPROVED 2026-09-19 (Thomas)**, as
+   written in surface 1.
+3. ~~Surface 2 or surface 3 first?~~ **RULED 2026-09-19 (Thomas): surface 2 — the incident-list
+   per-row marker — FIRST, Diagnostics second.** Observed history only, never a prediction.
+
+**Also ruled:** `INSTALL.md` §7 is approved and independent (imperative, failure named), and the
+S1b `"host"` fallback becomes `UNKNOWN` with its own rendering as part of this work.
+
+**Sequencing above is superseded by these rulings:** step 1 (the probe) is struck; step 2
+(`INSTALL.md` §7) stands and is independent; step 3 (the "if option 2 succeeds" branch) is
+counterfactual and must not be built; step 4 is the live plan, with **surface 2 first** as decision
+3 rules.
+
+**STOP AT DESIGN.** The decisions are closed; the build is not ordered.

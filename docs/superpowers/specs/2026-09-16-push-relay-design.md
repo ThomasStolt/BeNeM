@@ -1,9 +1,30 @@
 # Design: a push relay for self-hosted BeNeM middleware
 
-**Status:** DESIGN ONLY. STOP AT DESIGN — nothing built, no build to be started from this document.
-**Date:** 2026-09-16
-**Queue:** item 6.
+**Status:** **PARKED PERMANENTLY — RULED 2026-09-19 (Thomas). The relay is not a product.**
+**Date:** 2026-09-16. **Ruled 2026-09-19.**
+**Queue:** item 6 — **closed, not deferred.**
 **Target variant:** encrypted payload. The plaintext relay is documented only to be rejected.
+
+---
+
+## RULED 2026-09-19 (Thomas): "publish your own build", always
+
+**The answer for iOS self-hosters is that they publish their own build.** Always. The relay is
+**not a product** — not free, not paid, not later. Decisions 2, 3 and 4 below are moot and are not
+re-opened by answering decision 1; decision 1 is answered and it closes the other three with it.
+
+**This document is kept, deliberately.** It is the record of *why* — that an APNs auth key is bound
+to the publishing team and the topic is the bundle id, that sharing the `.p8` is rejected outright,
+and that the relay's real cost is operating it rather than building it. A future reader proposing a
+relay should read this note first and find their proposal already costed. **Keeping the document is
+not keeping the option open.**
+
+**What this obliges instead: state the iOS/Android asymmetry plainly in the self-hosting docs.**
+A self-hoster's Android/PWA users work with no extra step — Web Push has no equivalent of the
+team-bound key — while their iOS users require the self-hoster to build, sign and distribute the
+app themselves. That asymmetry is currently discoverable only by reading `§3`, `§10` and `§12.5` of
+`docs/INSTALL.md` and joining them up. It must be said once, plainly, where a reader deciding
+whether to self-host will see it. **Approved, not yet written** — see the handoff's parked items.
 
 ---
 
@@ -168,10 +189,13 @@ The code is the small part. What an operated relay actually requires:
 3. Settle per-device vs per-server keying **and its rotation**, together.
 4. Only then, protocol and build.
 
-## Decisions for Thomas
+## Decisions for Thomas — ALL CLOSED 2026-09-19
 
-1. **Is the relay a product at all, or is "publish your own build" the answer for iOS
-   self-hosters?** The second is free, honest, and already works. The relay is a business.
-2. **Paid or free?** Decide before building, per the Nabu Casa precedent.
-3. **Per-device or per-server encryption key**, with the rotation story attached.
-4. Approve the NSE measurement as the first and only next step?
+1. ~~Is the relay a product at all, or is "publish your own build" the answer for iOS
+   self-hosters?~~ **RULED 2026-09-19 (Thomas): "publish your own build" is the answer. The relay
+   is not a product.**
+2. ~~Paid or free?~~ **Moot.**
+3. ~~Per-device or per-server encryption key?~~ **Moot.**
+4. ~~Approve the NSE measurement as the first and only next step?~~ **Moot — do not run it.**
+
+**PARKED PERMANENTLY.** Nothing is built from this document, and nothing is measured for it.

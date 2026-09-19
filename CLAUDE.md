@@ -151,6 +151,27 @@ non-optional one as **required**: a missing key throws `keyNotFound` and the who
 fails, not just that field. The PWA is looser — its decoder maps missing values to `null` —
 but a browser holding a cached bundle is the same problem in a different costume.
 
+### And a new VALUE in an existing field is the same kind of change as a new field
+
+**Ruled 2026-09-19.** The GAIN rule above is about keys, and keys are not the only thing a shipped
+decoder has opinions about. **A field that starts carrying a value the shipped client has never
+seen is a change that client must be shown to tolerate, before the middleware emits it.** Check it
+the same way — `git show <release-commit>:path` — and check **two** cases, not one: **the unknown
+value, and the field absent.** They take different branches and they fail differently.
+
+The case that prompted this: the incident cache is to stop writing `alert_type: "host"` on a failed
+lookup and write `UNKNOWN` instead. `UNKNOWN` is not a new key, so the GAIN rule said nothing about
+it — and a client that switched on the value and defaulted to `host` would have rendered the exact
+defect the change removes, on every phone still on the store build. **Both shipped clients turned
+out to tolerate it** (`NetreoIncident` never reads the field; the detail model is `String?` and
+renders it verbatim), so this one is cheap — **but that was established by reading the shipped
+code, which is the whole point.** The ordering stands regardless of how the check comes out:
+**clients render the new value with its own appearance → store release → only then does the
+middleware emit it.**
+
+A value is a contract. Widening a field's range without asking the decoder is the same bet as
+removing a key, and it loses the same way.
+
 ## The test suite runs before every COMMIT, not before every push
 
 **Twice in one session a commit went into history red.** `c0aafc9` added two md5 digests to an

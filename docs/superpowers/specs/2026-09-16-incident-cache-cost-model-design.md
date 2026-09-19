@@ -1,9 +1,51 @@
 # Design: incident cache cost model — enrich on change, not on cycle
 
-**Status:** DESIGN ONLY. STOP AT DESIGN — nothing built, nothing deployed, no config touched.
-**Date:** 2026-09-16
+**Status:** **SUPERSEDED 2026-09-19 by
+`docs/superpowers/specs/2026-09-19-incident-freshness-webhook-first-design.md`.**
+Nothing is built from this document. Read the successor instead.
+**Date:** 2026-09-16. **Superseded 2026-09-19.**
 **Subject:** `middleware/incident_cache.py`. Related: queue item 13 (staleness), §8.8 (coverage
 visibility) — this design does not depend on either and neither depends on it.
+
+---
+
+## SUPERSEDED 2026-09-19 (Thomas) — the premise was wrong
+
+**This note treated the poll as the source of truth and webhooks as an overlay on it. Thomas rules
+the opposite: webhooks are authoritative for incident state, and the poll is a repair mechanism.**
+Every mechanism below was designed to make *polling* affordable at scale. The successor makes
+polling the exception — off by default — so most of the machinery here is solving a problem that
+the new model does not have.
+
+**What survives, and only this:** **change-driven enrichment** (§5.2 — re-fetch detail only for
+incidents the list shows as changed). It survives as a **requirement of polling mode**, which is
+where it belongs, and it is what makes a 120 s poll interval achievable against SaaS latency.
+
+**What is struck** — named individually so none of it is resurrected by someone reading the body
+below and finding it persuasive:
+
+| struck | where | why |
+|---|---|---|
+| the rolling sweep | §5.3 | it exists to converge a poll-driven cache; webhooks converge on the event |
+| the load budget dial `B` | §5.3, §6 | a dial for a sweep that no longer exists |
+| adaptive cadence | §5.3, §6 | same |
+| decision 8 *(concurrency)* | §8, §10 | no sweep, no backfill pressure, nothing to parallelise |
+| decision 12 | §10 numbering | struck with the model it belonged to |
+| decision 13 | §10 numbering | struck with the model it belonged to |
+| all concurrency discussion | §8 entire | moot; the one ruling that stands is still *no concurrency* |
+
+**What is carried forward unchanged into the successor:** §5.4 (per-incident freshness, report the
+**oldest**) becomes **C9**, required and not separable. §5.5 (a failed enrichment is never cached;
+`UNKNOWN`, never `"host"`) becomes **C11**, unchanged and still a hard requirement. §5.1
+(`alert_type` learned once and persisted across restarts) becomes **C10**, now on Thomas's
+confirmation rather than on inference.
+
+**The measurements in §2, §3 and §7 remain valid and are still the only numbers this project has**
+— detail latency, the `getincidents` field set, the payload sizes, and the finding that
+`alarm_counts` is absent from the list. The successor cites them rather than repeating them. The
+§3 finding that `alert_type` cannot be derived from the title (incident 25076,
+`Application Service Wordpress`, type `service`) is what makes C10's persisted type map necessary
+rather than convenient.
 
 ---
 
@@ -545,4 +587,7 @@ because none exists.
 6. **Is the §7 gap worth closing** — is there any deployment with a large incident count that can
    be timed once?
 
-**STOP AT DESIGN.** Nothing here is built until 1–4 are ruled on.
+**SUPERSEDED 2026-09-19.** Decisions 1–6 are not ruled and will not be — the model they belong to
+is replaced. Decisions 2, 3 and 4 are carried into the successor as **C9**, **C11** and **C10**
+respectively, where they are ruled. Decisions 1, 5 and 6 are struck with the sweep.
+Read `docs/superpowers/specs/2026-09-19-incident-freshness-webhook-first-design.md`.

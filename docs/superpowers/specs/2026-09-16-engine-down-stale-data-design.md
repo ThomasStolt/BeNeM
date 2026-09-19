@@ -1,8 +1,35 @@
 # Design: what BeNeM shows when the engine behind the data is down
 
-**Status:** DESIGN ONLY. STOP AT DESIGN — nothing built.
-**Date:** 2026-09-16
+**Status:** **DEFERRED TO MEASUREMENT — RULED 2026-09-19 (Thomas). Decisions 2 and 4 wait for two
+lab experiments.** STOP AT DESIGN — nothing built.
+**Date:** 2026-09-16. **Ruled 2026-09-19.**
 **Queue:** item 13. **Ranked against item 11 below — it does not displace it.**
+
+---
+
+## RULED 2026-09-19 (Thomas): deferred to measurement, not deferred by priority
+
+**Thomas will run two lab experiments with Claude Code before this is designed further:**
+
+1. **A standalone Service Engine shutdown, with full timing.** What the estate looks like from the
+   API while the engine is down, and how long each symptom takes to appear.
+2. **An SE Group failover.** **Thomas sets the group up first** — there is no SE group in the lab
+   today, so this experiment does not exist until he builds it.
+
+**Decisions 2 and 4 are held open until those results are in.** Decision 2 (can the Service Engine
+be identified programmatically) and decision 4 (per-row staleness plus one banner, or a
+modal-level interruption) are both answers that a guess would make worse — the first is a question
+about what the API actually returns during an outage, and the second depends on what the outage
+looks like on screen, which nobody has seen.
+
+**Nothing is to be done here now, and no probe is to be run unasked.** The experiments will be
+scheduled by a separate prompt from Thomas. **Do not start them, do not design against an
+imagined result, and do not fold this note into the webhook-first work** — the two are
+independent, and `2026-09-19-incident-freshness-webhook-first-design.md` deliberately does not
+depend on any answer from here.
+
+**Decision 3** (approve the `lastUpdateTime` read-only measurement) is **absorbed into experiment
+1** — it is the same observation, and running it separately would waste the one controlled outage.
 
 ---
 
@@ -223,9 +250,16 @@ contradiction.
 
 1. ~~Confirm the premise~~ — **DONE, confirmed by measurement 2026-09-16 (§8.13).** Devices retain
    their last state; the premise is no longer an assumption.
-2. **Can the Service Engine be identified programmatically** — a category, a template, an
-   endpoint — or should BeNeM simply ask the user which device it is?
-3. Approve the `lastUpdateTime` measurement (read-only) as the first step: does it stop advancing
-   during an engine outage, or is it rewritten on every fetch?
-4. Is per-row staleness plus a single "nothing has been checked since HH:MM" banner the right
-   shape, or should a frozen estate be a modal-level interruption?
+2. **HELD 2026-09-19 — waits for experiment 1.** Can the Service Engine be identified
+   programmatically — a category, a template, an endpoint — or should BeNeM simply ask the user
+   which device it is?
+3. ~~Approve the `lastUpdateTime` measurement (read-only) as the first step?~~ **APPROVED and
+   ABSORBED into experiment 1** — the standalone SE shutdown is the only controlled outage
+   available, and this observation is taken during it rather than separately.
+4. **HELD 2026-09-19 — waits for experiments 1 and 2.** Is per-row staleness plus a single
+   "nothing has been checked since HH:MM" banner the right shape, or should a frozen estate be a
+   modal-level interruption?
+
+**The two experiments, as ruled:** (1) a standalone SE shutdown with full timing; (2) an SE Group
+failover, **after Thomas sets the group up**. Both are scheduled by a separate prompt. Do not run
+either unasked.
