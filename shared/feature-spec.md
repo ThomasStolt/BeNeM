@@ -167,6 +167,24 @@ features defined here. Platform-specific behaviour is noted per feature.
 - Fetches full incident detail on open: primary alarms, related alarms, incident state log
 - Status section: ACK/UnACK action + status badge + alarm color counts
 - Incident Info: ID, title, device, IP, alert type, created timestamp, duration, ACK details when acknowledged
+- **Alert type is ALWAYS shown and never omitted.** A type the app could not confirm —
+  `UNKNOWN`, empty or missing, which are one state — renders as **"Unverified"** in its own
+  appearance (italic/amber), never as a real type. `host` is the one type known to page, so a
+  failed lookup drawn as `host` is a coverage claim made on no evidence. Root `CLAUDE.md`
+  doctrine. iOS 2.13.5, PWA 0.18.0
+- **An incident that is not in the loaded list gets three states, never one message.** A tap can
+  beat the cache cycle, the cache can be cold, caching can be off for the server, or a
+  notification can be hours old:
+  - *still looking* — "Fetching incident data…"
+  - *genuinely gone* (middleware 404) — "Incident N no longer exists." / "It was closed and
+    removed from BHNM."
+  - *could not ask* (middleware 502 / timeout) — "Could not load this incident." / "The server
+    didn't respond. It may still exist — this is not a statement that it is gone."
+
+  **"Incident not found" is BANNED** — it was one string standing in for all three, and two of
+  the three are not a statement that the incident does not exist. Banned 2026-09-15, removed
+  2026-09-19. The wait is bounded in wall-clock: a 404 is never retried, everything else gets two
+  fixed 1 s retries. PWA 0.18.0
 - Primary Alarms: state badge, type, name, output (HTML-stripped), timestamp — hidden when empty
 - Related Alarms: same structure, hidden when empty
 - Incident State Log: state badge, timestamp, username, comment — hidden when empty
@@ -181,6 +199,15 @@ features defined here. Platform-specific behaviour is noted per feature.
 - `useIncidentDetail` hook (stale time 60s, keyed by `['incidentDetail', id]`)
 - `StateBadge` component for alarm/log state strings (distinct from `StatusBadge` which handles OPEN/ACKD/CLRD on list rows)
 - ACK/UnACK invalidates both `['incidents']` and `['incidentDetail', id]` queries
+- v0.18.0: `getSingleIncident` + `useSingleIncident` call middleware `GET /api/v1/incidents/{id}`
+  when the incident is absent from the list; `isGone()` keeps the 404 (terminal) apart from the
+  502 (retryable)
+
+#### Not yet at parity — iOS
+- **The iOS deep-link dead end is NOT fixed.** `IncidentListView.swift` prints to the console and
+  does nothing when a tapped notification names an incident absent from the list — the same defect
+  as the PWA's banned string, wearing silence instead of a wrong sentence. The single-incident
+  route exists (middleware 2.19.0) but iOS does not call it. **Unruled, reported 2026-09-19.**
 
 ---
 
