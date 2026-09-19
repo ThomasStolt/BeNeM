@@ -26,11 +26,11 @@ export async function parseQRUrl(urlString: string): Promise<ParsedServerConfig>
   try {
     url = new URL(urlString);
   } catch {
-    throw new Error('Not a BeNeM configuration URL');
+    throw new Error('Not a BHNM configuration URL');
   }
 
   if (url.protocol !== 'benem:' || url.hostname !== 'configure') {
-    throw new Error('Not a BeNeM configuration URL');
+    throw new Error('Not a BHNM configuration URL');
   }
 
   const params = url.searchParams;

@@ -169,7 +169,7 @@ struct IncidentListView: View {
                             Task {
                                 let ok = try? await apiService.unacknowledgeIncident(
                                     incidentID: incident.incidentID,
-                                    user: ackUser.isEmpty ? "mobile" : ackUser
+                                    user: ackUser.isEmpty ? NetreoAPIService.defaultAckUser : ackUser
                                 )
                                 if ok == true {
                                     viewModel.updateIncidentStatus(incidentID: incident.incidentID, status: .active)
@@ -184,7 +184,7 @@ struct IncidentListView: View {
                             Task {
                                 let ok = try? await apiService.acknowledgeIncident(
                                     incidentID: incident.incidentID,
-                                    user: ackUser.isEmpty ? "mobile" : ackUser
+                                    user: ackUser.isEmpty ? NetreoAPIService.defaultAckUser : ackUser
                                 )
                                 if ok == true {
                                     viewModel.updateIncidentStatus(incidentID: incident.incidentID, status: .acknowledged)

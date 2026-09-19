@@ -72,7 +72,7 @@ export function QRScannerOverlay({ onScanned, onCancel, onError }: QRScannerOver
       <div className="relative w-full max-w-sm">
         <div id={containerRef.current} className="w-full" />
         <p className="text-center text-sm text-slate-300 mt-4">
-          Point at a BeNeM QR code
+          Point at a BHNM QR code
         </p>
       </div>
       <button

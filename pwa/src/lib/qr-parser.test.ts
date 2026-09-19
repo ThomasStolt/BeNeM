@@ -21,11 +21,11 @@ describe('parseQRUrl', () => {
   });
 
   it('rejects non-benem URLs', async () => {
-    await expect(parseQRUrl('https://example.com')).rejects.toThrow('Not a BeNeM configuration URL');
+    await expect(parseQRUrl('https://example.com')).rejects.toThrow('Not a BHNM configuration URL');
   });
 
   it('rejects benem URLs without configure host', async () => {
-    await expect(parseQRUrl('benem://other')).rejects.toThrow('Not a BeNeM configuration URL');
+    await expect(parseQRUrl('benem://other')).rejects.toThrow('Not a BHNM configuration URL');
   });
 
   it('parses compact format with snake_case field names (middleware format)', async () => {

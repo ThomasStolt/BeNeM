@@ -205,7 +205,7 @@ struct IncidentDetailView: View {
 
     private func toggleAck() async {
         isAcking = true
-        let user = ackUser.isEmpty ? "mobile" : ackUser
+        let user = ackUser.isEmpty ? NetreoAPIService.defaultAckUser : ackUser
         if currentStatus == .acknowledged {
             let ok = try? await apiService.unacknowledgeIncident(incidentID: incident.incidentID, user: user)
             if ok == true {
