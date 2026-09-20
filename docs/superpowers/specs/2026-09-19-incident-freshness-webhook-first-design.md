@@ -578,6 +578,41 @@ C2 and C11:
   absent. **Checked: build 36 and the PWA tolerate both** (see C11). **Ordering ruled regardless:
   clients first, store release, then the middleware emits it.**
 
+### C15 — The cache holds TWENTY-FOUR HOURS of incident data, and no more **[THOMAS]**
+
+**RULED 2026-09-20.** A consequence of the incident-list retention ruling made the same day:
+**"Cleared" shows the last 24 hours, like everything else in the app.**
+
+> **The middleware holds only 24 hours of any incident data. A closed incident older than that is
+> dropped from the cache.**
+
+**This is a design constraint on this note, not a feature of the filter.** It lands here because
+three of the constraints above quietly assumed the cache keeps what it has seen:
+
+- **C5** reconciles every 24 hours and **counts the corrections**. The reconcile window and the
+  retention window are now the same number, which is a coincidence worth stating rather than
+  relying on: a correction can only be counted against a row the cache still holds. **An incident
+  that closed and aged out cannot be reconciled, and its absence must not be counted as a
+  correction.**
+- **C9** stamps `state_confirmed_at` and `counts_confirmed_at` per incident. **Nothing can be
+  confirmed older than the retention window**, so the oldest enrichment the diagnostics can ever
+  report is bounded by it. A reader seeing a healthy `oldest enrichment` is reading a bounded
+  number, not an unbounded one.
+- **C10** persists a learned `alert_type` in `incident_types`. **That table is not incident data
+  and is NOT subject to this ruling** — it is a small id→type map whose whole purpose is to
+  survive the incident it was learned from. 63 rows on 2026-09-20. It is stated here because
+  "drop incident data after 24 hours" would otherwise read as covering it, and dropping it would
+  re-open C11's `UNKNOWN` on every aged incident.
+
+**[INFERENCE] What it costs, said plainly:** the "Cleared" tab can show an incident that closed 23
+hours ago and not one that closed 25 hours ago, and there is **no way for a client to tell those
+two apart from an incident that never existed.** That is the doctrine's own trap — absence
+rendered as fact — and the mitigation is that the tab states its window in words rather than
+implying completeness. **Not built. The wording is part of the filter work, not of this note.**
+
+**[INFERENCE] What it buys:** a bounded cache. Retention was previously unstated, which meant it
+was unbounded by default, on a service whose incident table grows with every close.
+
 ---
 
 ## 2. What this design does NOT do

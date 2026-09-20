@@ -218,6 +218,38 @@ choosing to see only acknowledged incidents is a different thing from the tile.
 
 iOS 2.13.6 (52), PWA 0.18.1.
 
+#### Incident list filter — Total / Open / Ackd / Cleared (RULED 2026-09-20, **NOT BUILT**)
+
+**Thomas's ruling, recorded before any build.** It answers the two questions the 09-20 handoff
+(e)3 left open, and the third thing it said to settle with them.
+
+| tab | contents |
+|---|---|
+| **Total** | everything the app holds |
+| **Open** | **NOT CLOSED** — un-acknowledged **and** acknowledged |
+| **Ackd** | the **acknowledged subset of Open**, not a peer of it |
+| **Cleared** | closed |
+
+**"Open" is the same predicate the Home tile already ships as "Active"** — `status != resolved &&
+status != closed`, iOS `NetreoIncident.isActive`, PWA `isActiveIncident()` — so the two screens
+cannot drift apart. **The Home tile's count is the Open count and the tile lands on the Open tab.**
+That is the mapping question answered: the tile's set is exactly one tab, now that the tab exists.
+
+**Retention: Cleared shows the last 24 hours**, like everything else in the app. The middleware
+holds only 24 hours of incident data as a consequence — recorded as **C15** in
+`docs/superpowers/specs/2026-09-19-incident-freshness-webhook-first-design.md`. **The tab must say
+its window in words.** An incident that closed 25 hours ago is absent, and absence that reads as
+"never happened" is the doctrine failure this repository keeps re-shipping.
+
+**Mockup approved. Rows unchanged.** The filter is a control above the existing list; no row
+redesign is in scope.
+
+**One detail the ruling does not name, and it is not a re-decision.** `ALARMS CLEARED` is a real
+`incident_state` that BHNM returns in the **active** list — observed 2026-09-20 on incidents 29882
+and 29883. It is neither un-acknowledged-open nor acknowledged, and it is **not closed**, so by the
+ruling it falls in **Open**. Confirm the wording with Thomas when the tab is built; do not quietly
+route it elsewhere.
+
 #### Notification deep link (both platforms, 2026-09-19)
 A tapped notification names an incident by its **bare numeric id**; the list may carry it
 prefixed. Both platforms resolve it the same way:

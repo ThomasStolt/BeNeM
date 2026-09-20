@@ -1,7 +1,8 @@
 # Design: what BeNeM shows when the engine behind the data is down
 
 **Status:** **DEFERRED TO MEASUREMENT — RULED 2026-09-19 (Thomas). Decisions 2 and 4 wait for two
-lab experiments.** STOP AT DESIGN — nothing built.
+lab experiments. Both SCHEDULED 2026-09-20 — runbooks written, awaiting Thomas's go.**
+STOP AT DESIGN — nothing built.
 **Date:** 2026-09-16. **Ruled 2026-09-19.**
 **Queue:** item 13. **Ranked against item 11 below — it does not displace it.**
 
@@ -22,11 +23,32 @@ modal-level interruption) are both answers that a guess would make worse — the
 about what the API actually returns during an outage, and the second depends on what the outage
 looks like on screen, which nobody has seen.
 
-**Nothing is to be done here now, and no probe is to be run unasked.** The experiments will be
-scheduled by a separate prompt from Thomas. **Do not start them, do not design against an
-imagined result, and do not fold this note into the webhook-first work** — the two are
-independent, and `2026-09-19-incident-freshness-webhook-first-design.md` deliberately does not
-depend on any answer from here.
+### SCHEDULED 2026-09-20 (Thomas): both experiments run NOW, before any further build
+
+**Everything else waits behind them.** Runbooks written 2026-09-20 and ready to paste:
+
+- `docs/runbooks/2026-09-20-experiment-1-standalone-se-shutdown.md`
+- `docs/runbooks/2026-09-20-experiment-2-se-group-failover.md`
+- `docs/runbooks/se-outage-sampler.py` — one instrument, used unchanged by both
+
+**Experiment 2 is still blocked on Thomas building the group**; experiment 1 needs only his go, the
+SE name and the managed device set. **Run 1 before 2** — 1 supplies the freeze-detection floor and
+2 supplies the handover gap, and the threshold is bounded by both.
+
+**Three read-only observations taken 2026-09-20 while writing the runbooks are folded into them and
+change what the runs must look at:** `currentStateDuration` advances on every read and is useless
+as freshness (only `lastUpdateTime` is); BHNM's timestamps are **local CEST** against the
+middleware's UTC; and **neither device name nor description reliably identifies a Service Engine**
+— `BHNM-A-SE01`/`SE02` are named SE and not described as one, while `Helix-Network-Core` and
+`BHNM-A-M` are described as one and not named so. Decision 2 leans harder on its unglamorous
+branch than this note assumed. The OPEN FORK device has also **moved** its frozen timestamp since
+2026-09-16, which makes branch B more likely, not less — detail in experiment 1's Part 0.
+
+**No probe is to be run unasked beyond those runbooks, and nothing in them starts without Thomas's
+go on the day.** **Do not design against an imagined result, and do not fold this note into the
+webhook-first work** — the two are independent, and
+`2026-09-19-incident-freshness-webhook-first-design.md` deliberately does not depend on any answer
+from here.
 
 **Decision 3** (approve the `lastUpdateTime` read-only measurement) is **absorbed into experiment
 1** — it is the same observation, and running it separately would waste the one controlled outage.
@@ -177,10 +199,12 @@ lost anything — a false alarm on a system working as designed. A check that wa
 `lastUpdateTime` stays quiet exactly when failover works and fires exactly when it does not. **The
 cheap check is not merely cheaper; with groups in the picture it is the more correct one.**
 
-### PLANNED MEASUREMENT — grouped SE failover (not scheduled)
+### PLANNED MEASUREMENT — grouped SE failover — **SCHEDULED 2026-09-20**
 
-Thomas has said "at some point soon". **Filed with its method written so it needs no composing on
-the day. Do not schedule it; do not ask for it.**
+**The method below is unchanged and stands.** It is now made runnable as
+`docs/runbooks/2026-09-20-experiment-2-se-group-failover.md`; read that to run it, and this for the
+reasoning behind it. **Still blocked on Thomas building the group** — step 1 below is the
+prerequisite and it has not moved.
 
 **Question:** during a single-SE failure inside a healthy group, does `lastUpdateTime` keep
 advancing on the devices that were handed over, and how long does the handover take?
@@ -261,5 +285,6 @@ contradiction.
    modal-level interruption?
 
 **The two experiments, as ruled:** (1) a standalone SE shutdown with full timing; (2) an SE Group
-failover, **after Thomas sets the group up**. Both are scheduled by a separate prompt. Do not run
-either unasked.
+failover, **after Thomas sets the group up**. **Both SCHEDULED 2026-09-20 and runbooked** — see the
+SCHEDULED block at the top of this file. **Run 1 before 2.** Neither starts without Thomas's go on
+the day.

@@ -244,3 +244,115 @@ than the shortcut.
 
 **Do not** run C13 or the SE experiments unasked. **Do not** start item 3's build — it has two
 unruled questions in it. **Do not** touch App Store Connect.
+
+---
+
+## (i) 2026-09-20 second sitting — three rulings, and the state re-verified at 09:20Z
+
+**Three rulings from Thomas, recorded before anything else. All three are written into the files
+that own them, not only here.**
+
+### Ruling 1 — the incident list filter. **Answers (e)3's two open questions and its third thing.**
+
+| tab | contents |
+|---|---|
+| **Total** | everything |
+| **Open** | **NOT CLOSED** — un-acknowledged **and** acknowledged |
+| **Ackd** | the acknowledged **subset of Open**, not a peer of it |
+| **Cleared** | closed, **last 24 hours** |
+
+**The Home tile's "Active" count is the Open count and the tile lands on the Open tab** — so the
+tile's set is exactly one tab, which is what (e)3's third question asked. **Mockup approved, rows
+unchanged. NOT BUILT.** Recorded in `shared/feature-spec.md` under *Incident list filter —
+Total / Open / Ackd / Cleared*, with one detail flagged there that the ruling does not name:
+`ALARMS CLEARED` is a real state BHNM returns in the **active** list (seen today on 29882 and
+29883) and by the ruling it falls in **Open** — confirm the wording when it is built.
+
+### Ruling 2 — retention, and the constraint it puts on the middleware
+
+**Cleared shows the last 24 hours, like everything else in the app. Consequently the middleware
+holds only 24 hours of any incident data; closed incidents older than that are dropped.**
+
+Recorded as **C15** in `specs/2026-09-19-incident-freshness-webhook-first-design.md`, where it
+touches C5 (reconcile window and retention window are now the same number, and an aged-out
+incident must not be counted as a correction), C9 (nothing can be confirmed older than the window)
+and C10 (**`incident_types` is NOT incident data and is exempt** — dropping it would re-open C11's
+`UNKNOWN` on every aged incident).
+
+### Ruling 3 — the two SE experiments run NOW, before any further build
+
+**Everything else waits behind them** — including (h)'s `AppDelegate` fix and build order step 6.
+Runbooks written today and ready to paste:
+
+- `docs/runbooks/2026-09-20-experiment-1-standalone-se-shutdown.md`
+- `docs/runbooks/2026-09-20-experiment-2-se-group-failover.md`
+- `docs/runbooks/se-outage-sampler.py` — **one instrument, used unchanged by both**
+
+`specs/2026-09-16-engine-down-stale-data-design.md` updated: status, the SCHEDULED block, and the
+grouped-failover section that previously read *"do not schedule it; do not ask for it."*
+**Experiment 2 is still blocked on Thomas building the group.** Run 1 before 2.
+
+---
+
+### State re-verified independently at 2026-09-20T09:20Z — **two differences, both expected**
+
+Everything in (b) and (c) was re-run from scratch, not read back from this file.
+
+**MATCHES (b):** `/health` `2.19.1`; PWA bundle `index-BrqNwJ7v.js` / `0.18.1`; all four container
+`StartedAt` and `Restarts=0` identical; `device_tokens` **5 rows, same five suffixes and
+environments** (`10882c55` still `sandbox`); today **0 tracebacks, 0 APNs 400s** — the last 400 in
+the whole log is still `2026-09-19T20:38:15Z`; `servers.json` 4 servers, 4 distinct keys, same
+fingerprints. Tree clean, `local == remote` at `7062707`.
+
+**DIFFERENCE 1 — `raspi-050` is back UP, and it is Thomas's reconnection, as he said.**
+`UP`, `lastUpdateTime 2026-09-20 11:22:02` (**CEST**), duration `8m 11s` at `09:23:26Z` → up since
+roughly **09:15Z**. `host_down` is now **0**; at 09:03Z it was 1. Incident **29883** has moved
+`OPEN` → **`ALARMS CLEARED`** in BHNM and is still in the active list. **Nothing to chase.**
+
+**DIFFERENCE 2 — the incident count moved, and the anomaly knob is the reason.** 8 active at
+09:03Z, **11–13** across the 09:20–09:25Z reads: five new `Anomaly Bandwidth` / `Path Insight`
+incidents opened `11:10:16–11:10:18` CEST, and **29882 (C800) aged out of the list.** Webhook
+deliveries today **64 → 68**. `incident_types` **58 → 63**. Per the standing rule, **the rate is a
+knob position, not a health signal.**
+
+### Four things measured while writing the runbooks, each of which changes something
+
+1. **`currentStateDuration` advances on every single read** — computed at query time, so it can
+   never distinguish fresh data from frozen. **Only `lastUpdateTime` can.** Re-confirms 2026-09-16
+   on a second occasion, and it is why the sampler runs at 30 s against BHNM's ~60 s tick.
+2. **BHNM's timestamps are LOCAL (CEST). The middleware log is UTC.** BHNM said
+   `2026-09-20 11:15:22` at `09:15:22Z`. **This is (f)21 exactly**, and it is now written into the
+   sampler's docstring and both runbooks rather than left to be rediscovered.
+3. **There is no `/api/v1/devices` route.** The clients' device list is `restful/devices/list`
+   (**configuration only — no status, no freshness**) overlaid with `host_down` from
+   `/api/v1/maintenance-map`, which serves the DOWN set and nothing else.
+   `maintenance_cache.py:144-163` fetches rows that **do** carry `lastUpdateTime` and reads only
+   `status` and `inMaintenance`. **A client today has no freshness data of any kind** — which is
+   why experiment 1's prediction is that no screen can look anything but green.
+4. **Neither the name nor the description identifies a Service Engine.** Category `BHNM` holds 9
+   hosts; exactly three are described `"... Service Engine 26.3-01.18"` —
+   `Helix-Network-Core`, `BHNM-A-M`, `BHNM-B-SE01` — while **`BHNM-A-SE01` and `BHNM-A-SE02` are
+   not**, despite their names. `template` is `0` and `poll_intvl` is `5` for **all 41 devices**, so
+   neither discriminates. **Decision 2 leans harder on "ask the user" than the note assumed.**
+
+   And the OPEN FORK device `bhnm-apns.hurrikap.org` has **moved** — frozen at
+   `2026-09-09 18:26:13` on 09-16, now `2026-09-16 15:40:22`, which is **exactly** its
+   `currentStateDuration` ago. On that device `lastUpdateTime` marks the last state **change**;
+   on `BHNM-A-M` it is a per-poll refresh against a 38-day duration. **One field, two meanings, one
+   estate** — branch **B** with sharper teeth than the note anticipated. Experiment 1 Part 5.6
+   settles it.
+
+### One instrument defect found and fixed before it could cost an experiment
+
+The sampler's first run returned **`rows_found: 0` for every device** — Cloudflare in front of the
+lab answers **403 to the default `Python-urllib/3.x` User-Agent** and 200 to any other. The
+middleware never hits it because httpx sends its own. **An empty result that was never capable of
+being non-empty**, caught only because the smoke test was run at all. Fixed, and the reason is a
+comment in the file. **Both runbooks require the non-empty check before the stop.**
+
+### Also noted, not chased
+
+`restful/incident/list` (the RESTful incident endpoint) returned **"No Incidents found."** at
+09:20Z while the legacy `getincidents` returned 11–13 active on the same server, seconds apart.
+**Use the legacy path for incident state** — it is what the middleware itself uses. Not
+investigated; recorded so the next reader does not take its silence for an empty lab.
