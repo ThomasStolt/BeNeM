@@ -329,33 +329,41 @@ knob position, not a health signal.**
    `maintenance_cache.py:144-163` fetches rows that **do** carry `lastUpdateTime` and reads only
    `status` and `inMaintenance`. **A client today has no freshness data of any kind** — which is
    why experiment 1's prediction is that no screen can look anything but green.
-4. **A Service Engine is identified by `device_type`, and decision 2 is ANSWERED.**
-   **[THOMAS]** an SE is always of type `"Helix Network Service Engine"`. **[MEASURED]**
-   `restful/devices/list` carries `device_type` on every row and exactly **one** of the 41 devices
-   holds that value — `BHNM-B-SE01`; the appliance has its own value, `Helix Network Core`
-   (`Helix-Network-Core`, `BHNM-A-M`). **BeNeM does not have to ask the user.**
+4. **A Service Engine is identified by `device_type` — and the first version of this item was
+   WRONG. Both are recorded.**
 
-   **Name, description and category all lie, in both directions**, which is why the rule matters:
-   `Helix-Network-Core` and `BHNM-A-M` are *described* "Service Engine" and typed
-   `Helix Network Core`; `BHNM-A-SE01`/`SE02` are *named* SE, described "Core", typed
-   `Linux/Net-SNMP`; `category 36` also holds the Arbitrator, the Replica, the OV box and an
-   unrelated Ubuntu VPS; `template` is `0` and `poll_intvl` is `5` for **all 41 devices**.
+   **[THOMAS]** an SE is always of type `"Helix Network Service Engine"`. **[MEASURED 2026-09-20,
+   per instance]** `restful/devices/list` carries `device_type` on every row, and **a BHNM
+   instance types its OWN Service Engines with that value** — `BHNM-B-SE01` on BHNM-B (41
+   devices), `BHNM-A-SE01` and `BHNM-A-SE02` on BHNM-A (32 devices). **BeNeM does not have to ask
+   the user which device is the engine.**
+
+   **A Service Engine GROUP is also a first-class object**, unknown to this project until today:
+   `BHNM-A-SE-GROUP`, `device_type: "Helix Network Service Engine Group"`, synthetic `ip`
+   `seg:1`. **Membership is still NOT readable** — `groupFilterBy=strategicGroup|category|site`
+   against the group name all 400; `groups/list`, `strategic-groups/list`, `serviceengines/list`
+   all 404. Group membership and the managed device set still come from the operator.
 
    **Mechanics [MEASURED]:** only `devices/list` carries `device_type` — `devices/find` and
    `get-host-and-service-status` host rows both omit it, so it is a **join on `name`**; there is
-   **no server-side type filter** (`device_type`, `deviceType`, `type`, `filter` all ignored,
-   full estate returned); and zero matches must mean **"cannot identify"**, never "no engines".
+   **no server-side type filter** (`device_type`, `deviceType`, `type`, `filter` all ignored);
+   zero matches must mean **"cannot identify"**, never "no engines". **`category` is a
+   per-instance id** — 19 on BHNM-A, 36 on BHNM-B — so never key on it.
 
-   **ONE QUESTION BACK TO THOMAS: are `BHNM-A-SE01` and `BHNM-A-SE02` Service Engines?** If not,
-   the rule holds cleanly. If they are, `device_type` misses two of three engines in this estate
-   and the rule is falsified before any code exists. **n = 1 either way.**
+   #### WITHDRAWN the same day: "name and description lie in both directions"
 
-   And the OPEN FORK device `bhnm-apns.hurrikap.org` has **moved** — frozen at
-   `2026-09-09 18:26:13` on 09-16, now `2026-09-16 15:40:22`, which is **exactly** its
-   `currentStateDuration` ago. On that device `lastUpdateTime` marks the last state **change**;
-   on `BHNM-A-M` it is a per-poll refresh against a 38-day duration. **One field, two meanings, one
-   estate** — branch **B** with sharper teeth than the note anticipated. Experiment 1 Part 5.6
-   settles it.
+   The morning reading was taken **entirely from BHNM-B** and presented as if it described the
+   estate. `BHNM-A-SE01`/`SE02` read `Linux/Net-SNMP` there because that is **B's row about a
+   foreign host it monitors over SNMP and does not manage** — correct, not stale. The derived
+   warning that `device_type` "misses two of three engines" was an artefact, the "one question
+   back to Thomas" it generated was a non-question, and the afternoon claim that rebuilding the
+   VMs "settled it" is withdrawn too: the rebuild changed the VMs, not the fact.
+
+   **The rule that replaces it:** a measurement records **which server produced it**, and no
+   cross-server comparison enters a document without both sides named. Same family as
+   `middleware/CLAUDE.md`'s *an assertion must first be shown to have been checked* — this one
+   was checked, against the wrong thing, and the wrongness was invisible because the source was
+   never written down.
 
 ### One instrument defect found and fixed before it could cost an experiment
 

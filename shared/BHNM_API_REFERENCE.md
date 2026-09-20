@@ -111,12 +111,29 @@ exists only on `get-host-and-service-status` host rows (see below).
   means fetching the list and joining on `name`. There is no server-side type filter:
   `device_type`, `deviceType`, `type` and `filter` are all **ignored** by `devices/list`,
   which returns the full estate regardless.
-- **A Service Engine is `device_type: "Helix Network Service Engine"`** [THOMAS, 2026-09-20].
-  The lab's other identity fields do **not** agree with each other and must not be used:
-  `description` reads *"... Service Engine 26.3-01.18"* on two devices typed
-  `Helix Network Core`, and `category` (`36` = `BHNM`) also contains the Arbitrator, the
-  Replica, the OV box and an unrelated Ubuntu VPS. `template` is `0` and `poll_intvl` is `5`
-  for **every** device in the estate, so neither discriminates anything.
+- **A Service Engine is `device_type: "Helix Network Service Engine"`** [THOMAS, 2026-09-20],
+  **and a BHNM instance applies that type to ITS OWN engines.** [MEASURED 2026-09-20, each
+  instance queried separately] BHNM-B types `BHNM-B-SE01` that way; BHNM-A types
+  `BHNM-A-SE01` and `BHNM-A-SE02` that way. **An instance that merely MONITORS another
+  stack's engine over SNMP types it as an ordinary host (`Linux/Net-SNMP`) — correctly.**
+  So `device_type` answers "is this MY engine", which is the question that matters, but it is
+  only meaningful against the instance that manages the device. **Always record which server a
+  device row came from.**
+- **A Service Engine GROUP is also a device**, `device_type:
+  "Helix Network Service Engine Group"`, with a synthetic `ip` of `seg:<n>` encoding the group
+  id (observed `seg:1`). **Its membership is NOT readable:** `groupFilterBy=strategicGroup`,
+  `category` and `site` against the group name all return **400**, and
+  `restful/groups/list`, `restful/strategic-groups/list` and `restful/serviceengines/list`
+  are all **404**. The group can be found; it cannot be expanded.
+- **Do not key on `category`, `template` or `poll_intvl`.** `category` is a **per-instance
+  id** — the Helix category is `19` on BHNM-A and `36` on BHNM-B — and it also holds the
+  Arbitrator, the Replica, the OV box and unrelated hosts. `template` is `0` and `poll_intvl`
+  is `5` for **every** device on **both** instances.
+- **`message` on a host row is a free-text status string worth reading.** [MEASURED
+  2026-09-20] `BHNM-B-SE01` reads `"Updates received."` on BHNM-B while `BHNM-A-SE01` and
+  `BHNM-A-SE02` read `"No updates received."` on BHNM-A — with `status` still `UP` and
+  `lastUpdateTime` still advancing on all three. The middleware fetches this field and
+  discards it (`maintenance_cache.py`).
 
 ---
 

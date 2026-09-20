@@ -62,19 +62,28 @@ a problem during the outage, that is the surprise and it must be chased.**
 
 ### Identifying the Service Engine programmatically — **ANSWERED 2026-09-20, by `device_type`**
 
-**[THOMAS, 2026-09-20] A Service Engine is always of type `"Helix Network Service Engine"`.**
+**[THOMAS] A Service Engine is always of type `"Helix Network Service Engine"`.**
 
-**[MEASURED 2026-09-20] The API carries it, and in this estate it is unambiguous.**
-`restful/devices/list` returns `device_type` on every row. Across all **41** devices, exactly
-**one** carries that value — `BHNM-B-SE01` — and the type vocabulary distinguishes it from the
-appliance, which has its own value:
+**[MEASURED 2026-09-20 — against each instance separately, and the server is named because an
+earlier version of this section got that wrong]** `restful/devices/list` returns `device_type` on
+every row, and **a BHNM instance types its OWN Service Engines with that value**:
+
+| instance queried | its own engines | `device_type` | estate |
+|---|---|---|---|
+| **BHNM-B** `bhnm-b.tstolt.com` | `BHNM-B-SE01` | `Helix Network Service Engine` | 41 devices |
+| **BHNM-A** `bhnm-a-m.local` | `BHNM-A-SE01`, `BHNM-A-SE02` | `Helix Network Service Engine` | 32 devices |
+
+BHNM-A's type distribution, whole estate:
 
 ```
- 24  Linux/Net-SNMP                          2  Helix Network Core
-  6  Other Devices(interface polling only)   1  Helix Network Service Engine   <- BHNM-B-SE01
-  2  Ping Only                               1  Remote Agent
-  1  Ubiquiti UDM-Pro / DrayTek Vigor / Cisco IOS Router / Cisco IOS Switch / Windows Server - Detailed
+ 14  Linux/Net-SNMP                          2  Helix Network Service Engine
+ 12  Other Devices(interface polling only)   1  Helix Network Service Engine Group
+  2  Cisco IOS Router                        1  Helix Network Core
 ```
+
+**A Service Engine GROUP is a first-class object too**, which nothing in this project knew before
+today: `BHNM-A-SE-GROUP`, `device_type: "Helix Network Service Engine Group"`, with a synthetic
+`ip` of **`seg:1`** encoding the group id, `UID 190`, `dev_index 151`.
 
 **Three mechanical caveats, all measured, all cheap:**
 
@@ -82,87 +91,33 @@ appliance, which has its own value:
    `get-host-and-service-status` host rows. **Identification is a join on `name`** between the
    list and the status feed. The clients already fetch `devices/list`, so this costs nothing new.
 2. **There is no server-side type filter.** `device_type`, `deviceType`, `type` and `filter` are
-   all ignored by `devices/list`, which returns the whole estate (41 rows, one page). Filter
-   client-side.
+   all ignored by `devices/list`, which returns the whole estate in one page. Filter client-side.
 3. **Match the exact string.** It is BHNM's own label and nothing here establishes that it is
    stable across versions or locales. **Treat an estate with zero matches as "cannot identify",
    never as "no engines"** — the doctrine's third state, applied to this lookup.
 
-### THE OPEN QUESTION FOR THOMAS, and it decides whether the rule holds
+**`category` is unusable and it is worth saying why:** the id is **per-instance** — the Helix
+category is `19` on BHNM-A and `36` on BHNM-B. `template` is `0` and `poll_intvl` is `5` for every
+device on **both** instances, so neither discriminates anything.
 
-**Are `BHNM-A-SE01` and `BHNM-A-SE02` Service Engines?**
+### What is STILL not readable, and still comes from the operator
 
-```
-BHNM-A-SE01   device_type=Linux/Net-SNMP   description="BMC Helix Network Management Core 26.3-01.18"
-BHNM-A-SE02   device_type=Linux/Net-SNMP   description="BMC Helix Network Management Core 26.3-01.18"
-```
+**Group membership, and the managed device set.** Against BHNM-A:
+`groupFilterBy=strategicGroup|category|site` with the group name all return **400**; and
+`restful/groups/list`, `restful/strategic-groups/list`, `restful/serviceengines/list` are all
+**404**. The group object exists and can be *found*; it cannot be *expanded*.
 
-- **If they are not** — they are Core nodes that happen to be named SE — **the rule holds
-  cleanly** and `device_type` is the identifier. The lab's naming is simply misleading, which is
-  the point.
-- **If they are** — then `device_type` misses two of three engines in this very estate, and the
-  rule is **already falsified** before any code is written.
+### WITHDRAWN 2026-09-20 — "neither name nor description identifies a Service Engine"
 
-**This is one answer from Thomas and it cannot be settled from here.** The same answer also tells
-Experiment 2 whether the A stack is a candidate for the SE group.
+**That claim came from querying ONE server about ANOTHER server's machines, and did not say so.**
+The reading behind it — `BHNM-A-SE01`/`SE02` typed `Linux/Net-SNMP`, `Helix-Network-Core` and
+`BHNM-A-M` described "Service Engine" but typed `Helix Network Core` — was taken **entirely from
+BHNM-B**. Those are **B's rows about hosts it monitors over SNMP but does not manage.** That is
+correct behaviour, not a lying field. The follow-on warning that `device_type` "misses two of
+three engines in this very estate" was an artefact of the same error and is withdrawn with it.
 
-### Why name, description and category are all unusable — kept, because it is the reason the above matters
-
-**Both name and description lie, in both directions.**
-
-| device | name says | description says | `device_type` says |
-|---|---|---|---|
-| `BHNM-B-SE01` | SE | Service Engine | **Helix Network Service Engine** |
-| `Helix-Network-Core` | Core | **Service Engine** | Helix Network Core |
-| `BHNM-A-M` | — | **Service Engine** | Helix Network Core |
-| `BHNM-A-SE01` / `SE02` | **SE** | Core | Linux/Net-SNMP |
-
-`category` is `36` (`BHNM`) for all nine of those **plus** the Arbitrator, the Replica, the OV box
-and `bhnm-apns.hurrikap.org`, an unrelated Ubuntu VPS. `template` is `0` and `poll_intvl` is `5`
-for **all 41 devices**. **`device_type` is the only field that separates these coherently**, which
-is what makes Thomas's rule worth having.
-
-### Superseded — what this section said before the device_type answer
-
-Read-only, today. Category `BHNM` holds **9** host rows:
-
-```
-Helix-Network-Core  BHNM-A-M  BHNM-A-A  BHNM-A-R  BHNM-A-SE01
-BHNM-A-SE02  BHNM-OV  BHNM-B-SE01  bhnm-apns.hurrikap.org
-```
-
-Of those, exactly **three** carry `description: "BMC Helix Network Management Service Engine
-26.3-01.18"` — `Helix-Network-Core`, `BHNM-A-M`, `BHNM-B-SE01`. **`BHNM-A-SE01` and `BHNM-A-SE02`
-do not**, despite their names.
-
-**So the name says SE where the description does not, and the description says SE where the name
-does not.** Neither is an identifier. `category` is `36` for the three described ones — but
-`category: 36` is the shared `BHNM` category, which also contains the VPS. `template` is `0` and
-`poll_intvl` is `5` for **all 41 devices in the estate**, so neither discriminates anything.
-
-**~~This is evidence for decision 2's unglamorous branch — ask the user which device is the
-engine.~~ SUPERSEDED the same day by `device_type`, above.** Kept because the reasoning is sound
-and because it is the fallback if the `BHNM-A-SE01/02` question comes back the wrong way.
-
-### The estate polls in one batch, and SE01 does not
-
-At `09:24Z` eight of the nine `BHNM`-category rows read `lastUpdateTime 11:22:02` **to the second**
-while `BHNM-B-SE01` read `11:24:03`. **Devices refreshed by the same poller share a timestamp.**
-That is the signature the handover gap in Experiment 2 will be read from, and it is worth knowing
-before the first run rather than discovering it in the data.
-
-### The OPEN FORK device has moved, and the fork is not a clean binary
-
-`bhnm-apns.hurrikap.org` read `lastUpdateTime 2026-09-16 15:40:22` with
-`currentStateDuration 3d 19h 44m 44s` — and those are **the same instant**. On 2026-09-16 the note
-recorded it frozen at `2026-09-09 18:26:13`. **So the field does advance on that device, just not
-per-poll: it marks the last state CHANGE.** On `BHNM-A-M` the same field reads 11:22:02 against a
-38-day duration, so there it is a per-poll refresh.
-
-**`lastUpdateTime` therefore means two different things on two devices in one estate.** That is
-branch **B** with sharper teeth than the note anticipated, and it is a false-positive class a
-naive staleness marker would light up permanently. **Do not treat the fork as closed. Part 5 of
-this run distinguishes them.**
+**Rule taken from it, and applied throughout this file:** a measurement records **which server
+produced it**, and no cross-server comparison appears in a document without both sides named.
 
 ---
 
