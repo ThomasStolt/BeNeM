@@ -60,7 +60,69 @@ So the prediction the run is testing is not "will the app look wrong" — it is 
 look anything but green, because nothing it receives can say otherwise."* **If a screen does show
 a problem during the outage, that is the surprise and it must be chased.**
 
-### Identifying the Service Engine programmatically — decision 2 is already half-answered, badly
+### Identifying the Service Engine programmatically — **ANSWERED 2026-09-20, by `device_type`**
+
+**[THOMAS, 2026-09-20] A Service Engine is always of type `"Helix Network Service Engine"`.**
+
+**[MEASURED 2026-09-20] The API carries it, and in this estate it is unambiguous.**
+`restful/devices/list` returns `device_type` on every row. Across all **41** devices, exactly
+**one** carries that value — `BHNM-B-SE01` — and the type vocabulary distinguishes it from the
+appliance, which has its own value:
+
+```
+ 24  Linux/Net-SNMP                          2  Helix Network Core
+  6  Other Devices(interface polling only)   1  Helix Network Service Engine   <- BHNM-B-SE01
+  2  Ping Only                               1  Remote Agent
+  1  Ubiquiti UDM-Pro / DrayTek Vigor / Cisco IOS Router / Cisco IOS Switch / Windows Server - Detailed
+```
+
+**Three mechanical caveats, all measured, all cheap:**
+
+1. **Only `devices/list` carries `device_type`.** `devices/find` omits it, and so do
+   `get-host-and-service-status` host rows. **Identification is a join on `name`** between the
+   list and the status feed. The clients already fetch `devices/list`, so this costs nothing new.
+2. **There is no server-side type filter.** `device_type`, `deviceType`, `type` and `filter` are
+   all ignored by `devices/list`, which returns the whole estate (41 rows, one page). Filter
+   client-side.
+3. **Match the exact string.** It is BHNM's own label and nothing here establishes that it is
+   stable across versions or locales. **Treat an estate with zero matches as "cannot identify",
+   never as "no engines"** — the doctrine's third state, applied to this lookup.
+
+### THE OPEN QUESTION FOR THOMAS, and it decides whether the rule holds
+
+**Are `BHNM-A-SE01` and `BHNM-A-SE02` Service Engines?**
+
+```
+BHNM-A-SE01   device_type=Linux/Net-SNMP   description="BMC Helix Network Management Core 26.3-01.18"
+BHNM-A-SE02   device_type=Linux/Net-SNMP   description="BMC Helix Network Management Core 26.3-01.18"
+```
+
+- **If they are not** — they are Core nodes that happen to be named SE — **the rule holds
+  cleanly** and `device_type` is the identifier. The lab's naming is simply misleading, which is
+  the point.
+- **If they are** — then `device_type` misses two of three engines in this very estate, and the
+  rule is **already falsified** before any code is written.
+
+**This is one answer from Thomas and it cannot be settled from here.** The same answer also tells
+Experiment 2 whether the A stack is a candidate for the SE group.
+
+### Why name, description and category are all unusable — kept, because it is the reason the above matters
+
+**Both name and description lie, in both directions.**
+
+| device | name says | description says | `device_type` says |
+|---|---|---|---|
+| `BHNM-B-SE01` | SE | Service Engine | **Helix Network Service Engine** |
+| `Helix-Network-Core` | Core | **Service Engine** | Helix Network Core |
+| `BHNM-A-M` | — | **Service Engine** | Helix Network Core |
+| `BHNM-A-SE01` / `SE02` | **SE** | Core | Linux/Net-SNMP |
+
+`category` is `36` (`BHNM`) for all nine of those **plus** the Arbitrator, the Replica, the OV box
+and `bhnm-apns.hurrikap.org`, an unrelated Ubuntu VPS. `template` is `0` and `poll_intvl` is `5`
+for **all 41 devices**. **`device_type` is the only field that separates these coherently**, which
+is what makes Thomas's rule worth having.
+
+### Superseded — what this section said before the device_type answer
 
 Read-only, today. Category `BHNM` holds **9** host rows:
 
@@ -78,8 +140,9 @@ does not.** Neither is an identifier. `category` is `36` for the three described
 `category: 36` is the shared `BHNM` category, which also contains the VPS. `template` is `0` and
 `poll_intvl` is `5` for **all 41 devices in the estate**, so neither discriminates anything.
 
-**This is evidence for decision 2's unglamorous branch — ask the user which device is the engine —
-and the run should confirm or overturn it, not assume it.**
+**~~This is evidence for decision 2's unglamorous branch — ask the user which device is the
+engine.~~ SUPERSEDED the same day by `device_type`, above.** Kept because the reasoning is sound
+and because it is the fallback if the `BHNM-A-SE01/02` question comes back the wrong way.
 
 ### The estate polls in one batch, and SE01 does not
 

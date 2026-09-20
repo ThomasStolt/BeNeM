@@ -329,11 +329,26 @@ knob position, not a health signal.**
    `maintenance_cache.py:144-163` fetches rows that **do** carry `lastUpdateTime` and reads only
    `status` and `inMaintenance`. **A client today has no freshness data of any kind** — which is
    why experiment 1's prediction is that no screen can look anything but green.
-4. **Neither the name nor the description identifies a Service Engine.** Category `BHNM` holds 9
-   hosts; exactly three are described `"... Service Engine 26.3-01.18"` —
-   `Helix-Network-Core`, `BHNM-A-M`, `BHNM-B-SE01` — while **`BHNM-A-SE01` and `BHNM-A-SE02` are
-   not**, despite their names. `template` is `0` and `poll_intvl` is `5` for **all 41 devices**, so
-   neither discriminates. **Decision 2 leans harder on "ask the user" than the note assumed.**
+4. **A Service Engine is identified by `device_type`, and decision 2 is ANSWERED.**
+   **[THOMAS]** an SE is always of type `"Helix Network Service Engine"`. **[MEASURED]**
+   `restful/devices/list` carries `device_type` on every row and exactly **one** of the 41 devices
+   holds that value — `BHNM-B-SE01`; the appliance has its own value, `Helix Network Core`
+   (`Helix-Network-Core`, `BHNM-A-M`). **BeNeM does not have to ask the user.**
+
+   **Name, description and category all lie, in both directions**, which is why the rule matters:
+   `Helix-Network-Core` and `BHNM-A-M` are *described* "Service Engine" and typed
+   `Helix Network Core`; `BHNM-A-SE01`/`SE02` are *named* SE, described "Core", typed
+   `Linux/Net-SNMP`; `category 36` also holds the Arbitrator, the Replica, the OV box and an
+   unrelated Ubuntu VPS; `template` is `0` and `poll_intvl` is `5` for **all 41 devices**.
+
+   **Mechanics [MEASURED]:** only `devices/list` carries `device_type` — `devices/find` and
+   `get-host-and-service-status` host rows both omit it, so it is a **join on `name`**; there is
+   **no server-side type filter** (`device_type`, `deviceType`, `type`, `filter` all ignored,
+   full estate returned); and zero matches must mean **"cannot identify"**, never "no engines".
+
+   **ONE QUESTION BACK TO THOMAS: are `BHNM-A-SE01` and `BHNM-A-SE02` Service Engines?** If not,
+   the rule holds cleanly. If they are, `device_type` misses two of three engines in this estate
+   and the rule is falsified before any code exists. **n = 1 either way.**
 
    And the OPEN FORK device `bhnm-apns.hurrikap.org` has **moved** — frozen at
    `2026-09-09 18:26:13` on 09-16, now `2026-09-16 15:40:22`, which is **exactly** its

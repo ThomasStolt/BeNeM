@@ -35,14 +35,12 @@ looks like on screen, which nobody has seen.
 SE name and the managed device set. **Run 1 before 2** — 1 supplies the freeze-detection floor and
 2 supplies the handover gap, and the threshold is bounded by both.
 
-**Three read-only observations taken 2026-09-20 while writing the runbooks are folded into them and
+**Read-only observations taken 2026-09-20 while writing the runbooks are folded into them and
 change what the runs must look at:** `currentStateDuration` advances on every read and is useless
 as freshness (only `lastUpdateTime` is); BHNM's timestamps are **local CEST** against the
-middleware's UTC; and **neither device name nor description reliably identifies a Service Engine**
-— `BHNM-A-SE01`/`SE02` are named SE and not described as one, while `Helix-Network-Core` and
-`BHNM-A-M` are described as one and not named so. Decision 2 leans harder on its unglamorous
-branch than this note assumed. The OPEN FORK device has also **moved** its frozen timestamp since
-2026-09-16, which makes branch B more likely, not less — detail in experiment 1's Part 0.
+middleware's UTC; and **decision 2 is ANSWERED — `device_type`, see below.** The OPEN FORK device
+has also **moved** its frozen timestamp since 2026-09-16, which makes branch B more likely, not
+less — detail in experiment 1's Part 0.
 
 **No probe is to be run unasked beyond those runbooks, and nothing in them starts without Thomas's
 go on the day.** **Do not design against an imagined result, and do not fold this note into the
@@ -108,11 +106,12 @@ So: **the one device whose outage invalidates every other device's status is the
 reaches nobody, while the machine that would do the paging is up.** That belongs to queue item 11
 (coverage), not here — see the dedicated section below.
 
-**[INFERENCE, needs confirming]** Recognising *which* host row is the Service Engine is the open
-part. `BHNM-B-SE01` is a name, and naming conventions are not an API. Candidates, in order:
-a documented SE/poller endpoint (none found in `shared/BHNM_API_REFERENCE.md`); a device
-`category` or `template` that identifies engines; or configuration — the user tells BeNeM which
-device is the engine. **The last is unglamorous and would work.**
+**~~[INFERENCE, needs confirming]~~ ANSWERED 2026-09-20 — see decision 2.** The open part was
+recognising *which* host row is the Service Engine. It is **`device_type: "Helix Network Service
+Engine"`**, carried by `restful/devices/list` and measured unique across the 41-device estate.
+The three candidates guessed at here are all **measured dead**: no such endpoint exists,
+`category 36` holds nine unrelated boxes, and `template` is `0` for every device in the lab. **The
+fourth candidate, asking the user, is retired as the primary and kept as the fallback.**
 
 ### Does a stale device row carry a freshness marker?
 
@@ -274,9 +273,40 @@ contradiction.
 
 1. ~~Confirm the premise~~ — **DONE, confirmed by measurement 2026-09-16 (§8.13).** Devices retain
    their last state; the premise is no longer an assumption.
-2. **HELD 2026-09-19 — waits for experiment 1.** Can the Service Engine be identified
-   programmatically — a category, a template, an endpoint — or should BeNeM simply ask the user
-   which device it is?
+2. **ANSWERED 2026-09-20 — `device_type`. No longer waiting for experiment 1, but ONE question
+   goes back to Thomas.**
+
+   **[THOMAS] A Service Engine is always of type `"Helix Network Service Engine"`.**
+
+   **[MEASURED 2026-09-20]** `restful/devices/list` carries `device_type` on every row, and across
+   all **41** devices in the lab exactly **one** holds that value: `BHNM-B-SE01`. The vocabulary
+   also separates the appliance — `Helix Network Core`, held by `Helix-Network-Core` and
+   `BHNM-A-M`. **So BeNeM does not have to ask the user**, and the unglamorous branch of this
+   decision is retired unless the question below comes back badly.
+
+   **[MEASURED]** The three fields this note previously proposed are all unusable, and they
+   disagree with each other in both directions: `description` reads *"... Service Engine ..."* on
+   two devices typed `Helix Network Core`; `BHNM-A-SE01`/`SE02` are **named** SE, described
+   **Core**, and typed `Linux/Net-SNMP`; `category 36` (`BHNM`) also contains the Arbitrator, the
+   Replica, the OV box and an unrelated Ubuntu VPS; `template` is `0` and `poll_intvl` is `5` for
+   **every** device in the estate. **`device_type` is the only field that separates them
+   coherently.**
+
+   **[MEASURED] Three mechanics the implementation needs.** Only `devices/list` carries
+   `device_type` — `devices/find` and `get-host-and-service-status` host rows both omit it, so
+   identification is a **join on `name`** between the list and the status feed (the clients already
+   fetch the list, so it costs nothing new). There is **no server-side type filter**:
+   `device_type`, `deviceType`, `type` and `filter` are all ignored and the full estate comes back
+   regardless — filter client-side. And the match is an exact string owned by BHNM, with nothing
+   here establishing stability across versions or locales, so **zero matches means "cannot
+   identify", never "no engines"** — the doctrine's third state applied to this lookup.
+
+   **STILL OPEN, and it is one answer from Thomas: are `BHNM-A-SE01` and `BHNM-A-SE02` Service
+   Engines?** They are named SE, described `Core`, typed `Linux/Net-SNMP`. **If they are not, the
+   rule holds cleanly. If they are, `device_type` misses two of three engines in this very estate
+   and the rule is falsified before a line of code exists.** n = 1 either way, so this is the check
+   that makes the rule worth trusting. The same answer tells experiment 2 whether the A stack is a
+   candidate for the SE group.
 3. ~~Approve the `lastUpdateTime` measurement (read-only) as the first step?~~ **APPROVED and
    ABSORBED into experiment 1** — the standalone SE shutdown is the only controlled outage
    available, and this observation is taken during it rather than separately.

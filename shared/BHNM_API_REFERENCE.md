@@ -105,6 +105,18 @@ exists only on `get-host-and-service-status` host rows (see below).
 - `monitor` (0/1) is the switch that gates BHNM's host check: a host-status row exists
   for exactly the `monitor == 1` devices (Ping-Only devices are `poll: 0, monitor: 1`).
 - `devices/find` rows have the same integer `poll`/`monitor` and likewise no status.
+- **`device_type` is the field that identifies what a device IS, and only `devices/list`
+  carries it.** [MEASURED 2026-09-20] `devices/find` rows and
+  `get-host-and-service-status` host rows **both omit it** — so identifying a device by type
+  means fetching the list and joining on `name`. There is no server-side type filter:
+  `device_type`, `deviceType`, `type` and `filter` are all **ignored** by `devices/list`,
+  which returns the full estate regardless.
+- **A Service Engine is `device_type: "Helix Network Service Engine"`** [THOMAS, 2026-09-20].
+  The lab's other identity fields do **not** agree with each other and must not be used:
+  `description` reads *"... Service Engine 26.3-01.18"* on two devices typed
+  `Helix Network Core`, and `category` (`36` = `BHNM`) also contains the Arbitrator, the
+  Replica, the OV box and an unrelated Ubuntu VPS. `template` is `0` and `poll_intvl` is `5`
+  for **every** device in the estate, so neither discriminates anything.
 
 ---
 
