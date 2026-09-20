@@ -172,6 +172,23 @@ middleware emit it.**
 A value is a contract. Widening a field's range without asking the decoder is the same bet as
 removing a key, and it loses the same way.
 
+## App Store Connect is Thomas's alone
+
+**Ruled 2026-09-20. Do not read it, do not touch it, by any route** — not the CLI, not an API key,
+and **not his browser session**.
+
+**Processing state, review state and approval come from Thomas**, or from Apple's email that he
+forwards. They are never to be looked up and never to be inferred from elapsed time.
+
+Written down because it was crossed. On 2026-09-20, asked to report when a build finished
+processing, the Chrome session was pointed at `appstoreconnect.apple.com` to read the status. It
+returned `authResult=FAILED` and nothing was read, and no credentials were entered — **but the
+attempt was the error, not the outcome.** "Read-only" and "he asked me to report it" both felt like
+permission and neither was.
+
+The honest answer to "tell me when it has processed" is **"I cannot see that — tell me and I will
+record it."** Uploading is a CLI action and stays in scope; everything after the upload is his.
+
 ## Every iOS release is EXPORT, then VERIFY, then UPLOAD — in that order, as three steps
 
 **Ruled 2026-09-20. The entitlement check happens on the exported IPA. Never on the archive, and
