@@ -172,6 +172,75 @@ middleware emit it.**
 A value is a contract. Widening a field's range without asking the decoder is the same bet as
 removing a key, and it loses the same way.
 
+## Every iOS release is EXPORT, then VERIFY, then UPLOAD — in that order, as three steps
+
+**Ruled 2026-09-20. The entitlement check happens on the exported IPA. Never on the archive, and
+never on an artefact a combined export-and-upload has already sent.**
+
+### The evidence, from one build on one day
+
+`2.13.6 (53)`, same source, same archive, one distribution re-sign apart:
+
+```
+.xcarchive/Products/Applications/BeNeM.app    aps-environment: development
+BeNeM.ipa (exported from that archive)        aps-environment: production
+```
+
+**The archive is not evidence for the IPA.** `aps-environment` is set by the provisioning profile
+chosen at **export**, not by the build configuration — so an archive will read `development` for a
+build that ships as `production`, and reading the archive tells you nothing about what Apple
+receives.
+
+**The cost of getting this backwards was measured the day before.** An Xcode **Release** install
+declared `production` (`AppDelegate.swift:132-136`, `#if DEBUG` → sandbox, `#else` → production)
+while holding a `development` entitlement. APNs answered `400 BadDeviceToken`, the middleware's
+2.18.1 cleanup removed the token, and **push died on the 13 Pro Max** while the other phones kept
+working. Build configuration and entitlement are different things and they disagree exactly where
+nobody looks.
+
+### The three steps
+
+```bash
+# 1. ARCHIVE
+xcodebuild -project ios/BeNeM.xcodeproj -scheme BeNeM -destination 'generic/platform=iOS' \
+  -configuration Release -allowProvisioningUpdates archive -archivePath <path>.xcarchive
+
+# 2. EXPORT LOCALLY — ExportOptions with destination: export
+PATH="/usr/bin:/bin:/usr/sbin:/sbin" xcodebuild -exportArchive \
+  -archivePath <path>.xcarchive -exportOptionsPlist <export>.plist -exportPath <dir>
+
+#    VERIFY THE IPA, by reading it:
+unzip -q <dir>/BeNeM.ipa && codesign -d --entitlements - --xml Payload/BeNeM.app \
+  | plutil -convert xml1 -o - -
+#      aps-environment    MUST be production
+#      get-task-allow     MUST be false
+#      Authority          MUST be Apple Distribution
+#      CFBundleVersion    MUST be the build you meant to ship
+#      *.xctest           MUST be absent
+
+# 3. UPLOAD — the same ExportOptions but destination: upload
+```
+
+### Why three steps and not two
+
+**A combined export-and-upload leaves nothing behind to inspect.** Measured 2026-09-20: after
+`destination: upload`, `-exportPath` contains **no `.ipa` at all** — the artefact is built, sent
+and discarded. So there is no after-the-fact check available, and the local export is **the only
+copy of the shipping bytes anyone will ever be able to read.** Skipping step 2 does not make the
+check later; it makes the check impossible.
+
+The upload in step 3 re-exports from the same archive with the same options, so it reproduces what
+step 2 verified. **That reproduction is the assumption this rule rests on, and it is stated rather
+than hidden** — it is why step 2 must use *identical* export options, differing only in
+`destination`.
+
+**Credentials:** uploads on this machine authenticate through Xcode's signed-in account. There is
+no App Store Connect API key on disk and **Thomas's credentials are never entered here.** A
+consequence worth knowing: App Store Connect's review and processing state is **not readable from
+the CLI**, so "it is processing" and "it is approved" are things to ask for, never to assert.
+
+---
+
 ## The test suite runs before every COMMIT, not before every push
 
 **Twice in one session a commit went into history red.** `c0aafc9` added two md5 digests to an
