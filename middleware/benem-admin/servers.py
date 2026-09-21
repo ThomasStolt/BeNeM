@@ -19,6 +19,11 @@ class Server:
     # the QR handed out is the one handed out today. Mirrors
     # config.server_accepted_secrets() in the middleware (separate app).
     webhook_secrets: list[str] = field(default_factory=list)
+    # M3 (middleware 2.20.0): CLSD retention, per server, OFF by default. Not
+    # portal-editable — 2.20.1 flips it by hand — but it MUST round-trip, or the
+    # next portal save silently turns retention back off. Mirrors
+    # config.CLSD_RETENTION_DEFAULT in the middleware (separate app).
+    retain_closed: bool = False
 
 
 def load_servers() -> list[Server]:
@@ -48,7 +53,7 @@ def save_servers(servers: list[Server]) -> None:
         # device would stop being paged with nothing on screen to say so.
         {"id": s.id, "name": s.name, "url": s.url, "api_key": s.api_key, "pin": s.pin,
          "cache_enabled": s.cache_enabled, "cache_refresh_seconds": s.cache_refresh_seconds,
-         "webhook_secrets": list(s.webhook_secrets)}
+         "webhook_secrets": list(s.webhook_secrets), "retain_closed": s.retain_closed}
         for s in servers
     ]
     with open(path, "r+") as f:

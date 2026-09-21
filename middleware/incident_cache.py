@@ -15,7 +15,8 @@ import httpx
 import database
 import diagnostics
 
-from config import SERVERS_JSON_PATH, BHNM_TLS_VERIFY, PROXY_TIMEOUT, server_cache_enabled
+from config import (SERVERS_JSON_PATH, BHNM_TLS_VERIFY, PROXY_TIMEOUT, RETENTION_SECONDS,
+                    server_cache_enabled, server_retain_closed)
 
 # -- Cache storage -------------------------------------------------------------
 
@@ -138,8 +139,14 @@ async def _fetch_incident_detail(client: httpx.AsyncClient, server: dict, incide
     # WARNING. Alarms never carry ACKNOWLEDGED, so that branch had never once
     # executed and blue had never once been displayed.
 
-    counts = apply_ack_colour(counts, is_acknowledged(incident))
-    return {"alarm_counts": counts, "alert_type": alert_type, "confirmed": True}
+    acknowledged = is_acknowledged(incident)
+    counts = apply_ack_colour(counts, acknowledged)
+    # M1 — the flag was already being computed here and then thrown away. It is
+    # now carried out so _enrich_incident can serve it beside the state instead
+    # of the two sharing one field.
+    return {"alarm_counts": counts, "alert_type": alert_type, "confirmed": True,
+            "acknowledged": acknowledged,
+            "ack_user": (incident.get("ack_user") or None)}
 
 
 # -- C10: the incident type map -------------------------------------------------
@@ -228,6 +235,54 @@ def apply_ack_colour(counts: dict | None, acknowledged: bool) -> dict | None:
     return {"red": 0, "orange": 0, "yellow": 0, "green": 0, "blue": total}
 
 
+# -- M1: the state and the flag are two facts ------------------------------------
+# BHNM has THREE incident states — OPEN, ALARMS CLEARED, CLOSED — and
+# acknowledgement is a FLAG on an OPEN incident, not a fourth state. Today the
+# webhook writes "ACKNOWLEDGED" into incident_state, so "acknowledged" and
+# "alarms cleared" occupy the same field and cannot both be true.
+#
+# incident_state KEEPS TODAY'S BEHAVIOUR EXACTLY, ACKNOWLEDGED and all: both
+# released clients (iOS build 53, PWA 0.18.1) derive their entire notion of
+# acknowledgement from it, so removing the value is a breaking change with no
+# field removed. It goes at M1-drop, once no BeNeM/53 remains in the proxy log —
+# Thomas's word, never an inference from elapsed time.
+
+BHNM_STATES = ("OPEN", "ALARMS CLEARED", "CLOSED")
+
+
+def state_of(incident: dict) -> str:
+    """BHNM's own state for a row, with the ack flag taken back out of it.
+
+    An unrecognised value becomes OPEN rather than passing through: TOTL is
+    OPEN + CLRD + CLSD, so a state in none of the three would drop the incident
+    out of every pill on the client and vanish it from the list entirely. Loud
+    beats gone.
+    """
+    raw = str(incident.get("state") or incident.get("incident_state") or "").strip().upper()
+    if raw in BHNM_STATES:
+        return raw
+    return "OPEN"
+
+
+def _apply_override_fields(inc: dict, state: str, at: float) -> None:
+    """Turn one override string into fields — the ONLY place that mapping lives.
+
+    Both the legacy write and the M1 split happen here, so a webhook, a proxied
+    ACK and a re-applied override can never disagree about what an override means.
+    """
+    inc["incident_state"] = state          # unchanged from today, on purpose
+    if state == "ACKNOWLEDGED":
+        inc["acknowledged"] = True         # state is untouched: ACKD is a SUBSET of OPEN
+    elif state == "CLOSED":
+        inc["state"] = "CLOSED"
+        if inc.get("closed_at") is None:
+            inc["closed_at"] = at          # first close wins; a re-delivery must not move it
+    else:                                  # OPEN — an unacknowledgement
+        inc["acknowledged"] = False
+        # state deliberately NOT forced to OPEN: un-acking an ALARMS CLEARED
+        # incident clears the flag, it does not re-open the alarms.
+
+
 def _enrich_incident(incident: dict, detail: dict, list_at: float,
                      remembered: str | None = None) -> dict:
     enriched = dict(incident)
@@ -247,6 +302,22 @@ def _enrich_incident(incident: dict, detail: dict, list_at: float,
     # the whole defect back again, a confirmed stamp on an unconfirmed value.
     enriched["state_confirmed_at"] = list_at
     enriched["counts_confirmed_at"] = time.time() if detail.get("confirmed") else None
+
+    # M1 — additive. incident_state above is untouched; these are the fields the
+    # pills read. The detail call is the only place BHNM exposes the incident-level
+    # ack flag, so a FAILED detail falls back to whatever the list row carried
+    # rather than asserting False — "not confirmed acknowledged" is not "confirmed
+    # not acknowledged", and False is the healthy-looking one.
+    enriched["state"] = state_of(incident)
+    if detail.get("confirmed"):
+        enriched["acknowledged"] = bool(detail.get("acknowledged"))
+        enriched["ack_user"] = detail.get("ack_user") or None
+    else:
+        enriched["acknowledged"] = is_acknowledged(incident)
+        enriched["ack_user"] = incident.get("ack_user") or None
+    enriched["closed_at"] = incident.get("closed_at")
+    if enriched["state"] == "CLOSED" and enriched["closed_at"] is None:
+        enriched["closed_at"] = list_at
     return enriched
 
 
@@ -297,13 +368,14 @@ _pending_overrides: dict[str, tuple[str, float]] = {}  # incident_id -> (state, 
 
 
 def note_state_override(server_id: str, incident_id: str, state: str) -> None:
-    _state_overrides.setdefault(server_id, {})[str(incident_id)] = (state, time.time())
+    at = time.time()
+    _state_overrides.setdefault(server_id, {})[str(incident_id)] = (state, at)
     entry = _cache.get(server_id)
     if entry:
         for bucket in (entry.active_incidents, entry.closed_incidents):
             for inc in bucket:
                 if str(inc.get("incident_id")) == str(incident_id):
-                    inc["incident_state"] = state
+                    _apply_override_fields(inc, state, at)
 
 
 def note_state_override_any_server(incident_id: str, state: str) -> int:
@@ -341,7 +413,7 @@ def _apply_state_overrides(server_id: str, incidents: list[dict]) -> None:
         iid = str(inc.get("incident_id"))
         override = overrides.get(iid)
         if override:
-            inc["incident_state"] = override[0]
+            _apply_override_fields(inc, override[0], override[1])
             continue
         pending = _pending_overrides.get(iid)
         if pending:
@@ -349,7 +421,7 @@ def _apply_state_overrides(server_id: str, incidents: list[dict]) -> None:
             # cached. Promote it to a normal per-server override so it survives
             # subsequent cycles for the rest of the TTL, and say so — this is the
             # branch whose silence was the defect.
-            inc["incident_state"] = pending[0]
+            _apply_override_fields(inc, pending[0], pending[1])
             _state_overrides.setdefault(server_id, {})[iid] = pending
             del _pending_overrides[iid]
             print(f"[Cache:{server_id}] Pending state override applied on first "
@@ -389,7 +461,7 @@ def merge_incident(server_id: str, enriched: dict) -> bool:
     if entry is None:
         return False
     iid = normalise_incident_id(enriched.get("incident_id", ""))
-    closed = str(enriched.get("incident_state", "")).upper() == "CLOSED"
+    closed = state_of(enriched) == "CLOSED"
     target = entry.closed_incidents if closed else entry.active_incidents
     other = entry.active_incidents if closed else entry.closed_incidents
     for bucket in (target, other):
@@ -399,6 +471,57 @@ def merge_incident(server_id: str, enriched: dict) -> bool:
                 break
     target.append(enriched)
     return True
+
+
+# -- M3: CLSD retention, and C15's 24-hour ceiling -------------------------------
+
+def _retain_closed(server_id: str, active: list[dict], closed: list[dict],
+                   at: float) -> list[dict]:
+    """Rows the cache held and the list call no longer returns are CLOSED.
+
+    **Disappearance IS a close, and for some incidents it is the only signal
+    there is.** [MEASURED 2026-09-21, BHNM-B] incident 30014 produced zero
+    webhook lines in the entire log and is simply absent from getincidents now;
+    a rule that waited for a RECOVERY would let it vanish with no CLSD row at
+    all. So this must not require one.
+
+    `closed_at` for a disappearance is the middleware's OWN clock at the moment
+    it noticed — ruled 2026-09-21, open question 2. It is the only time this
+    code can honestly claim: BHNM never told it when.
+    """
+    entry = _cache.get(server_id)
+    if entry is None:
+        return closed
+    seen = {normalise_incident_id(i.get("incident_id", "")) for i in (*active, *closed)}
+    carried = []
+    for inc in (*entry.active_incidents, *entry.closed_incidents):
+        if normalise_incident_id(inc.get("incident_id", "")) in seen:
+            continue
+        row = dict(inc)
+        _apply_override_fields(row, "CLOSED", at)
+        carried.append(row)
+    if carried:
+        print(f"[Cache:{server_id}] Retained {len(carried)} incident(s) as CLOSED — "
+              f"gone from the list, no RECOVERY seen")
+    return closed + carried
+
+
+def _prune_aged(server_id: str, rows: list[dict], now: float) -> list[dict]:
+    """C15 — nothing older than the retention window is held, in any state.
+
+    Only a row carrying a `closed_at` is retained on the middleware's own
+    initiative; everything else is replaced wholesale by each list call and
+    cannot age. So one sweep over both buckets is the whole of C15.
+    `incident_types` is NOT incident data and is exempt — dropping it would
+    re-open C11's UNKNOWN on every aged incident.
+    """
+    kept = [r for r in rows
+            if r.get("closed_at") is None or now - r["closed_at"] < RETENTION_SECONDS]
+    dropped = len(rows) - len(kept)
+    if dropped:
+        print(f"[Cache:{server_id}] Dropped {dropped} incident(s) closed over "
+              f"{round(RETENTION_SECONDS / 3600)}h ago")
+    return kept
 
 
 # -- Cache loop ----------------------------------------------------------------
@@ -450,6 +573,11 @@ async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:
         if delay > 0.1:
             await asyncio.sleep(delay)
 
+    if server_retain_closed(server):
+        closed_enriched = _retain_closed(server_id, active_enriched, closed_enriched, list_at)
+        closed_enriched = _prune_aged(server_id, closed_enriched, list_at)
+        active_enriched = _prune_aged(server_id, active_enriched, list_at)
+
     _apply_state_overrides(server_id, active_enriched)
     _apply_state_overrides(server_id, closed_enriched)
     _cache[server_id] = CachedIncidents(
@@ -463,6 +591,130 @@ async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:
     print(f"[Cache:{server_id}] Cache updated: {len(active_enriched)} active, "
           f"{len(closed_enriched)} closed, oldest enrichment {age}, "
           f"{unconfirmed} unconfirmed")
+
+
+# -- M2 / C7: the refresh — ONE list call, no detail calls ----------------------
+
+REFRESH_WINDOW = 30.0  # C7: one per server per 30 s, enforced server-side only
+
+_refresh_locks: dict[str, asyncio.Lock] = {}
+_refresh_last: dict[str, tuple[float, dict]] = {}  # server_id -> (finished_at, payload)
+
+
+def ack_flag(incident: dict) -> bool | None:
+    """The ack flag if this row SAYS anything about it, else None.
+
+    **None is not False.** [MEASURED 2026-09-21, from the served-row key list in
+    the filter design §3] a `getincidents` row carries incident_id,
+    incident_state, name, title, open_time, device_category, device_site and
+    device_note — and no ack field at all. `is_acknowledged()` on such a row
+    returns False, which would un-acknowledge every incident on every refresh.
+    So a row that does not say must be allowed to say nothing.
+
+    The consequence, stated rather than hidden: **a refresh cannot learn about
+    an acknowledgement made in the BHNM UI.** That arrives by ACKNOWLEDGEMENT
+    webhook or by the next enrichment, which is the webhook-first premise doing
+    its job rather than a gap in this function.
+    """
+    if "acknowledged" in incident or "primary_alarm_state" in incident:
+        return is_acknowledged(incident)
+    return None
+
+
+def _list_only_row(raw: dict, known: dict | None, server_id: str, list_at: float) -> dict:
+    """One incident as a list call alone can know it. Counts are exactly what
+    this does not refresh, so a known row keeps its own — and an unknown one gets
+    NO counts and NO counts_confirmed_at rather than a confident zero."""
+    row = dict(known or {})
+    row.update(raw)
+    iid = normalise_incident_id(raw.get("incident_id", ""))
+    row["alarm_counts"] = (known or {}).get("alarm_counts")
+    row["alert_type"] = (known or {}).get("alert_type") or known_type(server_id, iid) or "host"
+    row["counts_confirmed_at"] = (known or {}).get("counts_confirmed_at")
+    row["state_confirmed_at"] = list_at
+    row["state"] = state_of(raw)
+    flag = ack_flag(raw)
+    row["acknowledged"] = flag if flag is not None else bool((known or {}).get("acknowledged"))
+    row["ack_user"] = raw.get("ack_user") or (known or {}).get("ack_user") or None
+    row["closed_at"] = (known or {}).get("closed_at")
+    if row["state"] == "CLOSED" and row["closed_at"] is None:
+        row["closed_at"] = list_at
+    return row
+
+
+async def _run_list_only(client: httpx.AsyncClient, server: dict) -> None:
+    server_id = server["id"]
+    data = await _fetch_incidents(client, server)
+    list_at = time.time()
+
+    prev = _cache.get(server_id)
+    known = {normalise_incident_id(i.get("incident_id", "")): i
+             for i in (*(prev.active_incidents if prev else []),
+                       *(prev.closed_incidents if prev else []))}
+
+    active, closed = [], []
+    for raw, bucket in ([(i, active) for i in data.get("active_incidents", [])]
+                        + [(i, closed) for i in data.get("closed_incidents", [])]):
+        iid = normalise_incident_id(raw.get("incident_id", ""))
+        if not iid:
+            continue
+        bucket.append(_list_only_row(raw, known.get(iid), server_id, list_at))
+
+    if server_retain_closed(server):
+        closed = _retain_closed(server_id, active, closed, list_at)
+        closed = _prune_aged(server_id, closed, list_at)
+        active = _prune_aged(server_id, active, list_at)
+
+    _apply_state_overrides(server_id, active)
+    _apply_state_overrides(server_id, closed)
+    _cache[server_id] = CachedIncidents(
+        active_incidents=active,
+        closed_incidents=closed,
+        # last_updated says the cache was updated, and it was. It is NOT a claim
+        # about the counts — that claim is per-incident, in counts_confirmed_at,
+        # which this call deliberately leaves alone. C9 exists because one number
+        # for two facts is what lied in the first place.
+        last_updated=list_at,
+        list_updated=list_at,
+    )
+    print(f"[Refresh:{server_id}] List refreshed: {len(active)} active, {len(closed)} closed, "
+          f"no detail calls")
+
+
+async def refresh_server(server: dict) -> dict:
+    """C7's refresh endpoint, in M2's list-only form.
+
+    Single-flight, at most one upstream call per server per 30 s, **independent
+    of the polling switch** — under webhook mode there is no poll to carry the
+    ALARMS CLEARED transition, and [MEASURED 2026-09-21, BHNM-B] BHNM sends no
+    webhook for it, so a list call is the only way it can ever arrive.
+
+    The lock and the window together give C7 both behaviours from one mechanism:
+    a caller arriving while a refresh is running WAITS and then finds that
+    caller's fresh result inside the window — *"a tap inside the window returns
+    the running one's result"*, a single-flight and not a 429. Two clients each
+    implementing their own coalescing is the thing this avoids.
+
+    List-only is the point. `_fetch_incidents` is ONE request; enrichment is one
+    per incident paced over ~110 s ([MEASURED] `Enriching 10 incidents (pacing:
+    10.9s between calls)`). A refresh that waits for enrichment is not a refresh.
+    """
+    server_id = server["id"]
+    lock = _refresh_locks.setdefault(server_id, asyncio.Lock())
+    async with lock:
+        prev = _refresh_last.get(server_id)
+        if prev and time.time() - prev[0] < REFRESH_WINDOW:
+            return {**prev[1], "coalesced": True}
+        async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=PROXY_TIMEOUT) as client:
+            await _run_list_only(client, server)
+        entry = _cache[server_id]
+        payload = {
+            "cache_age_seconds": round(time.time() - entry.last_updated),
+            "active_incidents": entry.active_incidents,
+            "closed_incidents": entry.closed_incidents,
+        }
+        _refresh_last[server_id] = (time.time(), payload)
+        return {**payload, "coalesced": False}
 
 
 async def _cache_loop(server: dict) -> None:
@@ -508,6 +760,9 @@ def stop_server(server_id: str) -> None:
     if task and not task.done():
         task.cancel()
     _cache.pop(server_id, None)
+    # The coalesced payload is a snapshot of a cache that no longer exists.
+    # Serving it after a reload would answer a refresh with the old server's list.
+    _refresh_last.pop(server_id, None)
 
 
 def _start_server(server: dict) -> None:

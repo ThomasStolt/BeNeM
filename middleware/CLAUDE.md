@@ -205,6 +205,7 @@ Configuration is per-server in `servers.json`:
 - `webhook_secrets` (list of strings, default empty) — the webhook secrets this server accepts. Empty means the pre-1a fallback. **`benem-admin` must write this key back on every save**; it once rebuilt entries from a fixed key list, which would have erased every accepted list and silently stopped paging every device.
 - `cache_enabled` (bool, **default true** since 2.11.0; single home `config.CACHE_ENABLED_DEFAULT`, mirrored in `benem-admin/servers.py`) — set `false` to opt a server out. Gates all four crawlers: incidents, tactical, thresholds, maintenance map.
 - `cache_refresh_seconds` (int, default 120, min 60, max 900) — full cycle interval
+- `retain_closed` (bool, **default false**; single home `config.CLSD_RETENTION_DEFAULT`, mirrored in `benem-admin/servers.py`) — M3/C15. When on, an incident that gets a `RECOVERY` or simply disappears from the list is kept as `state: "CLOSED"` with a `closed_at`, served for 24 hours and then dropped. **OFF until iOS 2.14.0 and PWA 0.19.0 are in the field**: build 53's list applies no status filter at all, so a retained closed row would appear in it with no pill to hide it. Not portal-editable, but it round-trips a portal save — omitting it from `save_servers` would silently turn retention back off.
 
 The admin portal provides a toggle switch and refresh interval input per server. On add/edit/delete, the admin POSTs to `/internal/cache/reload` to start/stop/restart the cache loop.
 
@@ -227,6 +228,7 @@ Configuration shares `cache_enabled` and `cache_refresh_seconds` with the incide
 | Endpoint | Purpose | Consumer |
 |---|---|---|
 | `GET/POST /api/v1/incidents` | Cached enriched incidents with alarm counts; falls through to live BHNM proxy if cache is cold | iOS app, PWA |
+| `POST /api/v1/incidents/refresh` | C7/M2 — ONE `getincidents` for the caller's server, single-flight, at most one per server per 30 s, no `getincidentdetail` call. Independent of the polling switch: BHNM sends no webhook for `ALARMS CLEARED`, so a list call is the only way that state arrives | iOS app, PWA |
 | `GET /api/v1/tactical-overview` | Cached tactical overview data by grouping type (`category`, `site`, `app`); falls through to live BHNM if cache is cold | iOS app, PWA |
 | `POST /internal/cache/reload` | Trigger cache restart for a server (called by admin portal on server add/edit/delete) | Admin portal |
 | `POST /register` | Register an APNs device token (with `active_secret` from `X-Webhook-Token` header) | iOS app |

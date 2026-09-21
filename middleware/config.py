@@ -57,3 +57,20 @@ def server_accepted_secrets(server: dict) -> list[str]:
     if not isinstance(raw, list):
         return []
     return [s for s in (str(x).strip() for x in raw) if s]
+
+
+# M3 (2.20.0) — CLSD retention, per server, OFF by default.
+# Behind a flag because turning it on before iOS 2.14.0 / PWA 0.19.0 are in the
+# field would put closed rows into build 53's incident list, which applies NO
+# status filter at all (IncidentListViewModel.filteredIncidents:69-102) and has
+# no pill to hide them. A purely additive payload producing a visible behaviour
+# change on a released client — see the filter design note, §4.
+# Flipped ON in 2.20.1, after Thomas confirms `BeNeM/54` in the proxy log.
+CLSD_RETENTION_DEFAULT: bool = False
+
+# C15 — the cache holds twenty-four hours of incident data and no more.
+RETENTION_SECONDS: float = 24 * 3600
+
+
+def server_retain_closed(server: dict) -> bool:
+    return bool(server.get("retain_closed", CLSD_RETENTION_DEFAULT))

@@ -122,7 +122,16 @@ def test_a_found_incident_returns_a_list_shaped_row_with_C9_stamps():
     # open_time is the one rename between the list and the detail shape.
     assert body["open_time"] == "2026-05-26T02:20:42"
     assert body["alert_type"] == "service"
-    assert body["ack_user"] == ""
+    # 2.20.0 (M1): ack_user is `string | null`, so BHNM's empty string normalises
+    # to null. A NEW VALUE in an existing field, checked against the SHIPPED code
+    # in both cases the rule asks for — the value, and the field absent:
+    #   iOS build 53 (a5acf9d) IncidentDetail.swift:114 `incident["ack_user"] as? String`
+    #     into `let ackUser: String?`, rendered at IncidentDetailView.swift:146 as
+    #     `if let u = d.ackUser, !u.isEmpty` — nil and "" hide the same row.
+    #   PWA 0.18.1 (4312561) IncidentDetailScreen.tsx:206 `detail.acknowledged &&
+    #     detail.ackUser` — null and '' are both falsy; its own fixture already
+    #     carries `ackUser: null`.
+    assert body["ack_user"] is None
     assert body["state_confirmed_at"] is not None
     assert body["counts_confirmed_at"] is not None
 

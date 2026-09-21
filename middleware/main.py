@@ -907,6 +907,48 @@ async def cached_incidents(request: Request):
                              if k.lower() not in HOP_BY_HOP_RESPONSE})
 
 
+@app.post("/api/v1/incidents/refresh")
+async def refresh_incidents(request: Request):
+    """C7's Refresh control / M2's list-only refresh — ONE endpoint, not two.
+
+    A Refresh tap or the app coming to the foreground lands here. It performs a
+    single `getincidents` for the caller's server, rate-limited server-side to
+    one per server per 30 s, and makes **no** `getincidentdetail` call. That is
+    what makes it fast enough to be a refresh: the list is one request whatever
+    the estate size, enrichment is one request per incident.
+
+    **It is independent of the polling switch on purpose.** [MEASURED
+    2026-09-21, BHNM-B] BHNM sends no webhook for the `ALARMS CLEARED`
+    transition — incidents 30008–30011 went WARNING at 15:40Z and RECOVERY at
+    16:16Z with nothing in between while BHNM's own list showed them cleared —
+    so under webhook mode a list call is the ONLY way that state can arrive.
+
+    Returns the same shape as `GET /api/v1/incidents` plus `coalesced`, so one
+    tap is one round trip and the client parses one payload shape. `coalesced`
+    is true when the answer came from a refresh inside the 30 s window rather
+    than from a fresh upstream call — the response says which, rather than
+    letting a cached answer pass as a new measurement.
+    """
+    _verify_proxy_token(request)
+
+    server_cfg = _resolve_server_config(request)
+    if not server_cfg or not server_cfg.get("id"):
+        # No registry entry means no api_key and no id to rate-limit per server.
+        # A refresh that cannot name its server cannot be single-flighted, and
+        # an un-flighted refresh is a client-driven hammer on BHNM.
+        raise HTTPException(status_code=404, detail="no configured server for this token")
+
+    _validate_proxy_target(server_cfg.get("url", ""), request)
+
+    try:
+        return await incident_cache.refresh_server(server_cfg)
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Gateway Timeout: BHNM server did not respond in time")
+    except (httpx.RequestError, ValueError, KeyError) as e:
+        print(f"[Refresh] {server_cfg['id']} upstream unavailable: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=502, detail="Bad Gateway: request to BHNM server failed")
+
+
 @app.get("/api/v1/incidents/{incident_id}")
 async def single_incident(incident_id: str, request: Request):
     """One incident, fetched live from BHNM, with 404 and 502 kept DISTINCT.

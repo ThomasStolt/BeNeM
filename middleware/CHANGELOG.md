@@ -5,6 +5,106 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.20.0] - 2026-09-21
+
+Step 1 of the incident list filter build order
+(`docs/superpowers/specs/2026-09-21-incident-list-filter-design.md` §4). **Middleware only,
+and every client-visible change is additive.** Steps 2-3 are PWA 0.19.0 and iOS 2.14.0 (54);
+step 5 (2.20.1) flips the CLSD retention flag once Thomas confirms `BeNeM/54` in the proxy log.
+
+### Added
+
+- **M1 — the state and the acknowledgement flag are two fields, not one.** BHNM has three
+  incident states (`OPEN`, `ALARMS CLEARED`, `CLOSED`) and acknowledgement is a **flag on an
+  OPEN incident**, not a fourth state. Every served row now carries `state`, `acknowledged`,
+  `ack_user` and `closed_at` beside the existing keys.
+
+  The defect this removes: today "acknowledged" and "alarms cleared" occupy the same field, so
+  an acknowledged incident whose alarms then clear can be shown as one or the other and never
+  both. `is_acknowledged()` (2.19.1) was **already computing the flag correctly from BHNM's own
+  incident-level `acknowledged`, and then discarding it** — M1 is largely a matter of serving
+  what was already derived.
+
+  **`incident_state` is unchanged, `ACKNOWLEDGED` and all.** [MEASURED against the SHIPPED
+  code, not HEAD] iOS build 53 (`NetreoAPIService.swift:1300-1308`) and PWA 0.18.1
+  (`incidents.ts:101-104`) derive their **entire** notion of acknowledgement from that value, so
+  removing it is a breaking change **with no field removed at all** — the GAIN rule's sharpest
+  case yet: the field stays, the key stays, the type stays, and a released client silently loses
+  a feature. It goes at `M1-drop`, once no `BeNeM/53` remains in the proxy log. Thomas's word,
+  never an inference from elapsed time.
+
+- **M2 / C7 — `POST /api/v1/incidents/refresh`.** One `getincidents` for the caller's server,
+  **single-flight, at most once per 30 s per server, and NO `getincidentdetail` call.** A Refresh
+  tap or the app coming to the foreground lands here.
+
+  **It is independent of the polling switch on purpose.** [MEASURED 2026-09-21, BHNM-B] BHNM
+  sends **no webhook for the `ALARMS CLEARED` transition** — incidents 30008-30011 produced
+  `WARNING` at 15:40Z and `RECOVERY` at 16:16Z and nothing between, while BHNM's own list showed
+  them cleared — so under webhook mode a list call is the **only** way that state can ever
+  arrive.
+
+  List-only is the point: `_fetch_incidents` is **one** request whatever the estate size, while
+  enrichment is one per incident paced over ~110 s ([MEASURED] `Enriching 10 incidents (pacing:
+  10.9s between calls)`). A refresh that waits for enrichment is not a refresh. Counts are
+  exactly what this call does not refresh, and a known row keeps its own `counts_confirmed_at`
+  while a newly-seen one gets **none** rather than a confident zero.
+
+  The lock and the 30 s window give C7 both behaviours from one mechanism: a caller arriving
+  while a refresh is running **waits and receives that caller's answer**, which is a
+  single-flight and not a 429. The response carries `coalesced`, so a cached answer cannot pass
+  as a new measurement.
+
+- **M3 — CLSD retention, per server, behind `retain_closed`, DEFAULT OFF.** When on, an incident
+  that receives a `RECOVERY` **or simply disappears from the list call** is kept with
+  `state: "CLOSED"` and a `closed_at`, served for 24 hours and then dropped (C15).
+
+  **Disappearance must not require a `RECOVERY`.** [MEASURED 2026-09-21, BHNM-B] incident 30014
+  produced **zero webhook lines in the entire log** and is now simply absent from `getincidents`;
+  a rule that waited for a recovery would let it vanish with no CLSD row at all. `closed_at` for
+  such a close is the middleware's **own clock at the moment it noticed** — ruled 2026-09-21,
+  open question 2, because it is the only time this code can honestly claim.
+
+  **Why it is behind a flag.** [MEASURED] both shipped clients already merge `closed_incidents`
+  into one list, and build 53's list applies **no status filter at all**
+  (`IncidentListViewModel.filteredIncidents:69-102`). So turning retention on before the clients
+  ship would put closed rows into a released app **with no pill to hide them** — a visible
+  behaviour change on a released client produced by a purely additive payload, which is the GAIN
+  rule's blind spot. Found by reading the shipped filter rather than assuming it.
+
+### Changed
+
+- **`ack_user` on `GET /api/v1/incidents/{id}` is now `string | null`** — BHNM's empty string
+  normalises to `null`. A **new value in an existing field**, so it was checked against the
+  SHIPPED code in both cases the rule asks for, the value and the field absent: iOS build 53
+  (`IncidentDetail.swift:114` decodes `as? String` into `let ackUser: String?`, rendered at
+  `IncidentDetailView.swift:146` as `if let u = d.ackUser, !u.isEmpty`) and PWA 0.18.1
+  (`IncidentDetailScreen.tsx:206` guards on `detail.acknowledged && detail.ackUser`, and its own
+  fixture already carries `ackUser: null`). **Both render `null` and `""` identically.**
+
+- **An override string becomes fields in exactly ONE place** (`_apply_override_fields`), so a
+  webhook, a proxied ACK and a re-applied override can never disagree about what an override
+  means. Acknowledging no longer touches `state`; un-acknowledging clears the flag **without**
+  re-opening an `ALARMS CLEARED` incident's alarms; a duplicate `RECOVERY` does not move
+  `closed_at`, so a BHNM retry cannot restart the 24-hour window.
+
+- **`benem-admin` writes `retain_closed` back on every save.** The same trap as `webhook_secrets`
+  one field along: nothing in the portal edits the flag, so an omission would silently turn
+  retention off on the next unrelated save.
+
+### Notes
+
+- **A refresh cannot learn about an acknowledgement made in the BHNM UI**, and says so rather
+  than guessing. [MEASURED] a `getincidents` row carries no ack field at all, so `ack_flag()`
+  returns **`None` — "this row does not say" — and None is not False**: reading it as False
+  would un-acknowledge every incident on every refresh. That fact arrives by `ACKNOWLEDGEMENT`
+  webhook or by the next enrichment, which is the webhook-first premise working rather than a
+  gap.
+- An unrecognised `incident_state` becomes `OPEN`, not itself: `TOTL` is `OPEN + CLRD + CLSD`,
+  so a state in none of the three would drop the incident out of **every** pill and vanish it
+  from the list. Loud beats gone.
+
+---
+
 ## [2.19.1] - 2026-09-19
 
 ### Fixed

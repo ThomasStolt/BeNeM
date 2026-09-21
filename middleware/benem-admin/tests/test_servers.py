@@ -75,3 +75,24 @@ def test_a_server_without_a_list_defaults_to_empty(tmp_path, monkeypatch):
     path.write_text('[{"id":"lab","name":"Lab","url":"https://lab","api_key":"k"}]')
     monkeypatch.setenv("SERVERS_JSON_PATH", str(path))
     assert load_servers()[0].webhook_secrets == []
+
+
+def test_retain_closed_survives_a_round_trip(tmp_path, monkeypatch):
+    """Same trap as webhook_secrets, one field along: the flag is set by hand for
+    middleware 2.20.1 and nothing in the portal edits it, so an omission here
+    would turn CLSD retention back off on the next unrelated portal save — with
+    nothing on screen to say so."""
+    path = tmp_path / "servers.json"
+    path.write_text('[]')
+    monkeypatch.setenv("SERVERS_JSON_PATH", str(path))
+
+    save_servers([Server(id="lab", name="Lab", url="https://lab", api_key="k",
+                         retain_closed=True)])
+    assert load_servers()[0].retain_closed is True
+
+
+def test_retain_closed_defaults_to_OFF(tmp_path, monkeypatch):
+    path = tmp_path / "servers.json"
+    path.write_text('[{"id":"lab","name":"Lab","url":"https://lab","api_key":"k"}]')
+    monkeypatch.setenv("SERVERS_JSON_PATH", str(path))
+    assert load_servers()[0].retain_closed is False

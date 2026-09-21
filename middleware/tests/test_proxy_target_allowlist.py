@@ -230,8 +230,9 @@ def test_every_validate_call_site_passes_the_request():
              if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "_validate_proxy_target"]
     # The count is a tripwire so a NEW call site has to be looked at; the guard
     # itself is the loop below, which runs over every site whatever the count.
-    # 7 since the single-incident route (/api/v1/incidents/{id}, 2026-09-19).
-    assert len(calls) == 7, f"expected 7 call sites, found {len(calls)}"
+    # 8 since the refresh route (POST /api/v1/incidents/refresh, 2.20.0) — looked
+    # at, and it passes `request`. 7 since the single-incident route (2026-09-19).
+    assert len(calls) == 8, f"expected 8 call sites, found {len(calls)}"
     for c in calls:
         assert len(c.args) == 2, f"call at line {c.lineno} does not pass request"
 
