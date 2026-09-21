@@ -365,6 +365,17 @@ app = FastAPI(lifespan=lifespan)
 
 # ── Device Token Registration ─────────────────────────────────────────────────
 
+# The only two values APNs has, and the only two /register accepts. The iOS
+# client maps the ENTITLEMENT's vocabulary onto this one
+# (AppDelegate.apnsEnvironment(forEntitlement:)) — "development" is an
+# entitlement word, not an APNs host, and must never arrive here.
+APNS_ENVIRONMENTS = ("sandbox", "production")
+
+# A constant, so the refusal reads the same in every log and every test and
+# cannot drift into leaking what was sent.
+INVALID_APNS_ENVIRONMENT = "environment must be 'sandbox' or 'production'"
+
+
 class TokenRegistration(BaseModel):
     token: str
     device_name: str = "unknown"
@@ -382,7 +393,20 @@ def register_token(body: TokenRegistration, request: Request):
     active_secret = request.headers.get("X-Webhook-Token", "").strip()
     if not active_secret:
         raise HTTPException(status_code=400, detail="X-Webhook-Token header is required")
-    env = body.environment if body.environment in ("sandbox", "production") else "production"
+    # An environment we do not recognise is a DEFECT at the client, and
+    # defaulting it to "production" is the worst possible response: a
+    # development-entitlement token gets stored as production, APNs answers
+    # 400 BadDeviceToken, 2.18.1's cleanup removes it, and push dies on that
+    # phone. That is not hypothetical — it happened on 2026-09-21, when an iOS
+    # build read `aps-environment` correctly and sent the entitlement's own
+    # word, `development`, which this line silently turned into production.
+    # Refuse it instead, so a wrong client fails loudly at registration rather
+    # than quietly at the first incident.
+    if body.environment not in APNS_ENVIRONMENTS:
+        print(f"[Register] REFUSED ...{body.token[-8:]}: unknown environment "
+              f"{body.environment!r} — must be one of {sorted(APNS_ENVIRONMENTS)}")
+        raise HTTPException(status_code=400, detail=INVALID_APNS_ENVIRONMENT)
+    env = body.environment
     matches = _servers_for_webhook_secret(active_secret)
     server_id = str(matches[0].get("id", "")) if len(matches) == 1 else ""
     save_token(body.token, body.device_name, active_secret, env, server_id)
