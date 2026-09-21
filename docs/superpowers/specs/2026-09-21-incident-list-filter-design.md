@@ -27,15 +27,57 @@ filter row and the counts are new.
 
 | pill | contents | colour |
 |---|---|---|
-| **TOTL** | OPEN + CLRD + CLSD | neutral outline |
-| **OPEN** | state `OPEN`, acknowledged or not | red |
-| **ACKD** | the acknowledged ones **inside** OPEN | blue |
+| **TOTL** | OPEN + ACKD + CLRD — everything **except** closed | gold `#c9a227` |
+| **OPEN** | state `OPEN` and **not** acknowledged | red |
+| **ACKD** | state `OPEN` and acknowledged | blue |
 | **CLRD** | state `ALARMS CLEARED` | green |
 | **CLSD** | closed within the last 24 hours | grey |
 
-- **Default pill: OPEN.**
-- **The Home tile lands on OPEN, and its count is the OPEN count.** That is the mapping question
-  from the 09-20 handoff, answered: the tile's set is exactly one pill.
+> ### AMENDED 2026-09-21 (Thomas), during the iOS build — this table is the ruling
+>
+> The table below §1's original wording had **ACKD as a subset of OPEN** and
+> **`TOTL = OPEN + CLRD + CLSD`**, with a grey TOTL and a default of OPEN. All
+> four are superseded:
+>
+> 1. **The five pills are DISJOINT.** Every incident is in exactly one of OPEN /
+>    ACKD / CLRD / CLSD. ACKD is a peer, not a subset.
+> 2. **TOTL = OPEN + ACKD + CLRD, and EXCLUDES CLSD** — everything that is not
+>    closed. CLSD is the one tab you opt into.
+> 3. **The default pill is TOTL**, not OPEN.
+> 4. **TOTL is gold (`#c9a227`), not grey** — a grey selected pill reads as
+>    disabled, and this is the tab most often selected. Dark text on it, the
+>    same rule the yellow alarm chip already uses. The hex is shared by both
+>    platforms and is deliberately distinct from the alarm chips' yellow and
+>    orange, so the filter row cannot be mistaken for a severity.
+>
+> **(1) and (3) are load-bearing together.** Disjoint pills mean an ack MOVES a
+> row from OPEN to ACKD — which is the 2026-09-19 field symptom, by design this
+> time. The thing that keeps it from being the 2026-09-19 *defect* is that TOTL
+> is the default: the row the user just acked is still on the screen they were
+> looking at. **Moving the default away from TOTL re-opens that wound**, and
+> both platforms assert this pairing in a test.
+>
+> 5. **The Home tile is "Active Incidents", counts TOTL, and lands on the TOTL
+>    tab.** This supersedes §7's Q5 ("the tile is the OPEN count"). **TOTL is
+>    BHNM's own Active List View** — everything not closed — so the label is
+>    right, and the number does **not** drop when somebody acknowledges.
+>
+>    That last part is why it was corrected. Under (1), an OPEN-counting tile
+>    would fall the moment a user acted: the 2026-09-19 defect by another route,
+>    on the very number that defect was about. Both platforms assert the tile
+>    count equals the TOTL pill count, and that it survives an ack.
+>
+> 6. **Only the incident list loses its 120-second timer.** Home, Devices and
+>    Groups keep theirs, beside their new `Updated HH:MM` and manual refresh.
+>    The countdown is gone everywhere — it was a promise that nothing kept under
+>    webhook mode — but on those three screens something really does happen on a
+>    timer, because none of that data has a webhook. The incident list is pushed
+>    to; its refresh is the tap, the foreground resume, or pull-to-refresh.
+
+- **Default pill: TOTL.**
+- **The Home tile lands on TOTL, and its count is the TOTL count** (amended above; the original
+  ruling said OPEN). That is the mapping question from the 09-20 handoff, answered: the tile's
+  set is exactly one pill.
 - **Search matches `title`, device name, incident id and ack user, within the selected pill.**
 - **Both iOS and the PWA.**
 
@@ -45,14 +87,14 @@ filter row and the counts are new.
 > **Acknowledged is a FLAG on an OPEN incident, not a state.**
 
 ```
-OPEN  = state OPEN, acknowledged or not
-ACKD  = { i in OPEN : i.acknowledged }        a SUBSET, not a fourth bucket
+OPEN  = state OPEN and NOT acknowledged
+ACKD  = state OPEN and acknowledged
 CLRD  = state ALARMS CLEARED
 CLSD  = state CLOSED, closed_at within 24h
-TOTL  = OPEN + CLRD + CLSD                    (ACKD is inside OPEN and is NOT added again)
+TOTL  = OPEN + ACKD + CLRD                    everything EXCEPT closed
 ```
 
-**[INFERENCE] ACKD being a subset is the whole reason this note exists.** Today both clients
+**[INFERENCE] Splitting the state from the flag is the whole reason this note exists.** Today both clients
 compute acknowledgement by reading `incident_state == "ACKNOWLEDGED"` — a value BHNM never uses
 for a state — so "acknowledged" and "alarms cleared" occupy the same field and cannot both be
 true. An acknowledged incident whose alarms then clear can only be shown as one or the other.
@@ -300,11 +342,11 @@ at `:144`; the PWA at `types.ts:20` as a required `string`.
 **[THOMAS] Pill counts are computed client-side from the served list.** No count endpoint.
 
 ```
-open  = rows where state == "OPEN"
+open  = rows where state == "OPEN" && !acknowledged
 ackd  = rows where state == "OPEN" && acknowledged
 clrd  = rows where state == "ALARMS CLEARED"
 clsd  = rows where state == "CLOSED"
-totl  = open + clrd + clsd
+totl  = open + ackd + clrd            (CLSD excluded)
 ```
 
 **During the transition**, a client reads `state` when present and otherwise falls back to
@@ -434,7 +476,10 @@ goes stale to save a buzz.
    approximately true.
 
 5. ~~**Should CLSD count toward the Home tile?**~~
-   **RULED: no. The tile is the OPEN count.** A closed incident is not somebody's problem.
+   **RULED: no.** ~~The tile is the OPEN count.~~ **AMENDED 2026-09-21: the tile is the TOTL
+   count** — everything not closed, which is BHNM's own Active List View. CLSD is still
+   excluded, which is what this question asked; what changed is that ACKD and CLRD are
+   included, so the number does not drop when somebody acknowledges. See §1's amendment.
 
 ## 8. Two corrections this note carries
 

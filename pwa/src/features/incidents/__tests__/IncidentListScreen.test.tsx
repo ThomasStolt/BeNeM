@@ -72,11 +72,11 @@ const rowIds = () =>
 describe('IncidentListScreen', () => {
   it('renders a row for each incident in the selected pill', () => {
     // Carried over from the pre-0.19.0 suite, which had no filter and so
-    // asserted the whole list. OPEN is the default, and it holds two.
+    // asserted the whole list. TOTL is the default, and it holds three.
     renderScreen();
     expect(screen.getAllByText(/UAP-AC-Pro-DB/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/C9200CX/).length).toBeGreaterThan(0);
-    expect(screen.getByTestId('incident-list').querySelectorAll('li')).toHaveLength(2);
+    expect(screen.getByTestId('incident-list').querySelectorAll('li')).toHaveLength(3);
   });
 
   it('renders a status badge on every row', async () => {
@@ -94,25 +94,39 @@ describe('IncidentListScreen', () => {
     expect(tabs.map((t) => t.getAttribute('data-pill'))).toEqual(
       ['TOTL', 'OPEN', 'ACKD', 'CLRD', 'CLSD'],
     );
-    expect(pill('TOTL')).toHaveTextContent('4');
-    expect(pill('OPEN')).toHaveTextContent('2');
+    expect(pill('TOTL')).toHaveTextContent('3');
+    expect(pill('OPEN')).toHaveTextContent('1');
     expect(pill('ACKD')).toHaveTextContent('1');
     expect(pill('CLRD')).toHaveTextContent('1');
     expect(pill('CLSD')).toHaveTextContent('1');
   });
 
-  it('defaults to OPEN and shows only open incidents', () => {
+  it('defaults to TOTL, which is everything except closed', () => {
     renderScreen();
-    expect(pill('OPEN')).toHaveAttribute('aria-selected', 'true');
+    expect(pill('TOTL')).toHaveAttribute('aria-selected', 'true');
     const text = rowIds().join(' ');
     expect(text).toContain('#30005');
     expect(text).toContain('#27516');   // acknowledged, still OPEN
-    expect(text).not.toContain('#30014');
-    expect(text).not.toContain('#30007');
+    expect(text).toContain('#30014');   // alarms cleared
+    expect(text).not.toContain('#30007'); // CLOSED — opt in via CLSD
+  });
+
+  it('OPEN shows unacknowledged incidents only; the acked one is in ACKD', async () => {
+    renderScreen();
+    await userEvent.click(pill('OPEN'));
+    expect(rowIds().join(' ')).toContain('#30005');
+    expect(rowIds().join(' ')).not.toContain('#27516');
+    await userEvent.click(pill('ACKD'));
+    expect(rowIds().join(' ')).toContain('#27516');
   });
 
   it('gives the selected pill its own state colour', async () => {
     renderScreen();
+    expect(pill('TOTL').className).toContain('bg-[#c9a227]');   // gold, shared with iOS
+    expect(pill('TOTL').className).not.toContain('bg-slate');    // not grey: it is the default
+    expect(pill('TOTL').className).not.toContain('yellow-400');  // not the alarm chip's yellow
+    expect(pill('TOTL').className).not.toContain('orange-500');
+    await userEvent.click(pill('OPEN'));
     expect(pill('OPEN').className).toContain('bg-red-600');
     await userEvent.click(pill('ACKD'));
     expect(pill('ACKD').className).toContain('bg-blue-600');
@@ -121,7 +135,7 @@ describe('IncidentListScreen', () => {
     await userEvent.click(pill('CLSD'));
     expect(pill('CLSD').className).toContain('bg-slate-500');
     await userEvent.click(pill('TOTL'));
-    expect(pill('TOTL').className).toContain('bg-slate-700');
+    expect(pill('TOTL').className).toContain('bg-[#c9a227]');
   });
 
   it('honours ?pill=OPEN from the Home tile', () => {
@@ -129,9 +143,9 @@ describe('IncidentListScreen', () => {
     expect(pill('CLSD')).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('falls back to OPEN for an unrecognised pill in the URL', () => {
+  it('falls back to the default pill for an unrecognised one in the URL', () => {
     renderScreen('/incidents?pill=NONSENSE');
-    expect(pill('OPEN')).toHaveAttribute('aria-selected', 'true');
+    expect(pill('TOTL')).toHaveAttribute('aria-selected', 'true');
   });
 
   it('renders a CLOSED row under CLSD with a grey chip', async () => {
@@ -145,6 +159,7 @@ describe('IncidentListScreen', () => {
 
   it('searches within the selected pill and does not escape it', async () => {
     renderScreen();
+    await userEvent.click(pill('OPEN'));
     const box = screen.getByLabelText('Search incidents');
     await userEvent.type(box, 'raspi');
     // raspi-050 is CLOSED; OPEN is selected, so the search finds nothing.
@@ -157,6 +172,7 @@ describe('IncidentListScreen', () => {
 
   it('searches by ack user', async () => {
     renderScreen();
+    await userEvent.click(pill('ACKD'));
     await userEvent.type(screen.getByLabelText('Search incidents'), 'ProMax');
     const text = rowIds().join(' ');
     expect(text).toContain('#27516');

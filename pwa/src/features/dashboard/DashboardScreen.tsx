@@ -22,13 +22,17 @@ export function DashboardScreen() {
     queryClient.invalidateQueries();
   }, [queryClient]);
 
-  // The tile IS the OPEN pill — same function the pill row calls, so the number
-  // on Home and the number on the pill agree by construction rather than by two
-  // authors writing the same condition. That is the 2026-09-19 defect's fix
-  // generalised: severity critical|major until 0.17.1, status === 'active'
-  // until 0.18.1 (which dropped an incident the moment somebody acked it), then
-  // NOT CLOSED until now. Ruled 2026-09-21: the tile is the OPEN count.
-  const openIncidents = pillCounts(incidents ?? []).OPEN;
+  // **The tile IS the TOTL pill** — same function the pill row calls, so the
+  // number on Home and the number on the pill agree by construction rather than
+  // by two authors writing the same condition. TOTL is everything NOT CLOSED,
+  // which is BHNM's own Active List View, so the label is "Active Incidents"
+  // and the count does NOT drop when somebody acknowledges.
+  //
+  // The history this closes: severity critical|major until 0.17.1, status ===
+  // 'active' until 0.18.1 (which dropped an incident the moment somebody acked
+  // it), NOT CLOSED until 0.19.0, the OPEN pill in 0.19.0 — which with disjoint
+  // pills would have re-created the 0.18.1 defect exactly.
+  const activeIncidents = pillCounts(incidents ?? []).TOTL;
 
   const totalDevices = summary
     ? summary.hosts.ok + summary.hosts.ack + summary.hosts.warn + summary.hosts.un + summary.hosts.crit
@@ -57,7 +61,7 @@ export function DashboardScreen() {
 
       {summary && (
         <div className="p-4 space-y-4">
-          <SummaryCards openIncidents={openIncidents} totalDevices={totalDevices} />
+          <SummaryCards activeIncidents={activeIncidents} totalDevices={totalDevices} />
           <IncidentTicker incidents={incidents ?? []} />
           <div className="grid grid-cols-2 gap-2">
             <StatusCard label="Hosts" counts={summary.hosts} />

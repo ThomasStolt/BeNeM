@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCachedIncidents, parseIncidentsResponse, refreshIncidents } from '../../lib/api/incidents';
 import { useConfig, type BhnmConfig } from '../../lib/config';
 import mockData from '../../lib/mock/incidents.json';
-import { REFETCH_INTERVAL_MS } from '../../lib/constants';
 
 function useMockMode(): boolean {
   if (typeof window === 'undefined') return false;
@@ -30,10 +29,15 @@ export function useIncidents() {
       }
       return getCachedIncidents(config);
     },
-    refetchInterval: REFETCH_INTERVAL_MS,
-    // OFF, deliberately. A resume now goes through useRefreshIncidents, which
-    // POSTs the refresh endpoint; leaving this on would fire a second, plain
-    // GET beside it. One trigger, one request.
+    // **No timer on the incident list.** Ruled 2026-09-21: only this screen
+    // loses it. Under webhook mode the list is pushed to, not polled — the
+    // countdown was removed for being a promise that nothing kept, and leaving
+    // the poll behind it would keep the cost without the honesty. Home, Devices
+    // and Groups keep their 120 s refetchInterval; they have no webhook.
+    //
+    // refetchOnWindowFocus is off for a different reason: a resume goes through
+    // useRefreshIncidents, which POSTs the refresh endpoint. Leaving this on
+    // would fire a second, plain GET beside it. One trigger, one request.
     refetchOnWindowFocus: false,
   });
 }

@@ -4,24 +4,39 @@ import type { Incident } from '../../lib/api/types';
  *
  * Design: docs/superpowers/specs/2026-09-21-incident-list-filter-design.md §1.
  *
- *   OPEN  = state OPEN, acknowledged or not
- *   ACKD  = { i in OPEN : i.acknowledged }        a SUBSET, not a fourth bucket
+ *   OPEN  = state OPEN and NOT acknowledged
+ *   ACKD  = state OPEN and acknowledged
  *   CLRD  = state ALARMS CLEARED
  *   CLSD  = state CLOSED, inside the middleware's 24-hour retention window
- *   TOTL  = OPEN + CLRD + CLSD                    (ACKD is inside OPEN and is NOT added again)
+ *   TOTL  = OPEN + ACKD + CLRD                    everything EXCEPT closed
  *
- * ACKD being a subset is the whole reason this module exists. Until middleware
- * 2.20.0 both clients computed acknowledgement by reading
- * `incident_state === 'ACKNOWLEDGED'` — a value BHNM never uses for a state —
- * so "acknowledged" and "alarms cleared" shared one field and could not both
- * be true.
+ * **The five are DISJOINT, and TOTL excludes CLSD. Ruled 2026-09-21 (Thomas),
+ * changing the design note twice over.** The note had ACKD as a *subset* of
+ * OPEN and `TOTL = OPEN + CLRD + CLSD`; it is neither. Every incident is in
+ * exactly one of OPEN / ACKD / CLRD / CLSD, and TOTL is the union of the first
+ * three — which makes TOTL exactly "not closed", the predicate this product has
+ * called "active" since 0.18.1.
+ *
+ * **Acknowledging therefore MOVES a row from OPEN to ACKD.** That is the
+ * 2026-09-19 symptom by design rather than by accident, and the thing that keeps
+ * it from being the 2026-09-19 *defect* is that **TOTL is the default tab**: the
+ * row the user just acked is still on the screen they were on. Anything that
+ * changes the default away from TOTL re-opens that wound.
+ *
+ * Splitting the state from the flag is still the whole reason this module
+ * exists. Until middleware 2.20.0 both clients computed acknowledgement by
+ * reading `incident_state === 'ACKNOWLEDGED'` — a value BHNM never uses for a
+ * state — so "acknowledged" and "alarms cleared" shared one field and could not
+ * both be true.
  */
 export type Pill = 'TOTL' | 'OPEN' | 'ACKD' | 'CLRD' | 'CLSD';
 
 export const PILLS: readonly Pill[] = ['TOTL', 'OPEN', 'ACKD', 'CLRD', 'CLSD'];
 
-/** Ruled 2026-09-21. The Home tile lands here too. */
-export const DEFAULT_PILL: Pill = 'OPEN';
+/** Ruled 2026-09-21 (Thomas): the list opens on TOTL — everything that is not
+ * closed. **The Home tile still lands on OPEN and still counts OPEN** (Q5); the
+ * tile names its pill in the URL rather than relying on this. */
+export const DEFAULT_PILL: Pill = 'TOTL';
 
 export function isPill(v: string | null | undefined): v is Pill {
   return !!v && (PILLS as readonly string[]).includes(v);
@@ -29,16 +44,15 @@ export function isPill(v: string | null | undefined): v is Pill {
 
 export function inPill(incident: Incident, pill: Pill): boolean {
   switch (pill) {
-    case 'OPEN': return incident.state === 'OPEN';
+    case 'OPEN': return incident.state === 'OPEN' && !incident.acknowledged;
     case 'ACKD': return incident.state === 'OPEN' && incident.acknowledged;
     case 'CLRD': return incident.state === 'ALARMS CLEARED';
     case 'CLSD': return incident.state === 'CLOSED';
-    // Every state is one of the three, so this is the whole list — but it is
-    // written as the union of the three rather than `true`, so that TOTL and
-    // the sum of the parts cannot drift apart.
-    case 'TOTL': return incident.state === 'OPEN'
-      || incident.state === 'ALARMS CLEARED'
-      || incident.state === 'CLOSED';
+    // Written as the union of its parts rather than `state !== 'CLOSED'`, so
+    // that TOTL and the sum of the pills beside it cannot drift apart.
+    case 'TOTL': return inPill(incident, 'OPEN')
+      || inPill(incident, 'ACKD')
+      || inPill(incident, 'CLRD');
   }
 }
 

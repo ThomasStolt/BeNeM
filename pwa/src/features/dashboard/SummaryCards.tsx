@@ -1,9 +1,15 @@
 import { Link } from 'react-router-dom';
 
 interface Props {
-  /** The OPEN pill count. Ruled 2026-09-21 (Q5): the tile is the OPEN count —
-   * a closed incident is not somebody's problem, and neither is a cleared one. */
-  openIncidents: number;
+  /** The TOTL pill count — everything NOT CLOSED.
+   *
+   * Ruled 2026-09-21 (Thomas), superseding the note's Q5 "the tile is the OPEN
+   * count". **TOTL is BHNM's own Active List View**, so "Active Incidents" is
+   * the right label for it — and, decisively, the number does not drop the
+   * moment somebody acknowledges. With disjoint pills an OPEN count would have
+   * done exactly that, which is the 2026-09-19 defect by another route.
+   */
+  activeIncidents: number;
   totalDevices: number;
 }
 
@@ -60,23 +66,23 @@ function Card({
   return <div className="flex-1">{content}</div>;
 }
 
-export function SummaryCards({ openIncidents, totalDevices }: Props) {
-  const incidentColor = openIncidents > 0 ? '#f87171' : '#4ade80';
-  const incidentBorder = openIncidents > 0 ? 'rgba(239,68,68,0.25)' : 'rgba(74,222,128,0.25)';
-  const incidentShadow = openIncidents > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(74,222,128,0.12)';
+export function SummaryCards({ activeIncidents, totalDevices }: Props) {
+  const incidentColor = activeIncidents > 0 ? '#f87171' : '#4ade80';
+  const incidentBorder = activeIncidents > 0 ? 'rgba(239,68,68,0.25)' : 'rgba(74,222,128,0.25)';
+  const incidentShadow = activeIncidents > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(74,222,128,0.12)';
 
   return (
     <div className="flex gap-3">
       <Card
         icon="⚠"
-        count={openIncidents}
-        label="Open Incidents"
+        count={activeIncidents}
+        label="Active Incidents"
         color={incidentColor}
         borderColor={incidentBorder}
         shadowColor={incidentShadow}
         // The tile's set is exactly one pill, so it says which one it lands on
         // rather than relying on the list's default happening to agree.
-        to="/incidents?pill=OPEN"
+        to="/incidents?pill=TOTL"
       />
       <Card
         icon="🖥"

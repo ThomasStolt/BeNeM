@@ -225,22 +225,33 @@ iOS 2.13.6 (52), PWA 0.18.1.
 
 | pill | contents | colour |
 |---|---|---|
-| **TOTL** | OPEN + CLRD + CLSD | neutral outline |
-| **OPEN** | state `OPEN`, acknowledged or not | red |
-| **ACKD** | the acknowledged ones **inside** OPEN | blue |
+| **TOTL** | OPEN + ACKD + CLRD — everything **except** closed | gold `#c9a227` |
+| **OPEN** | state `OPEN` and **not** acknowledged | red |
+| **ACKD** | state `OPEN` and acknowledged | blue |
 | **CLRD** | state `ALARMS CLEARED` | green |
 | **CLSD** | closed within the last 24 hours | grey |
 
 ```
-OPEN  = state OPEN, acknowledged or not
-ACKD  = { i in OPEN : i.acknowledged }        a SUBSET, not a fourth bucket
+OPEN  = state OPEN and NOT acknowledged
+ACKD  = state OPEN and acknowledged
 CLRD  = state ALARMS CLEARED
 CLSD  = state CLOSED, closed_at within 24h
-TOTL  = OPEN + CLRD + CLSD                    (ACKD is inside OPEN and NOT added again)
+TOTL  = OPEN + ACKD + CLRD                    everything EXCEPT closed
 ```
 
-**Default pill OPEN. The Home tile's count IS the OPEN count and the tile lands on OPEN**
-(`/incidents?pill=OPEN`). Counts are computed client-side from the served list — no count
+**The five pills are DISJOINT** — every incident is in exactly one of OPEN / ACKD / CLRD / CLSD,
+and TOTL is the union of the first three. Amended 2026-09-21 (Thomas) from the design note's
+original subset model; the note carries the full amendment and the reason.
+
+**Acknowledging MOVES a row from OPEN to ACKD, and that is safe only because TOTL is the
+default tab** — the row the user just acked is still on the screen they were looking at.
+Moving the default away from TOTL re-opens the 2026-09-19 defect, and both platforms assert
+the pairing in a test.
+
+**Default pill TOTL. The Home tile is "Active Incidents", its count IS the TOTL count, and it
+lands on TOTL** (`/incidents?pill=TOTL`). TOTL is BHNM's own Active List View — everything not
+closed — so the label is right and **the number does not drop when somebody acknowledges**,
+which an OPEN-counting tile would have done under the disjoint ruling. Counts are computed client-side from the served list — no count
 endpoint. **Search matches title, device, incident id and ack user, WITHIN the selected pill**;
 it never widens the filter the user chose. **Rows unchanged** — the pills are a control above
 the existing list.
@@ -261,7 +272,11 @@ middleware's `ACKNOWLEDGED` write into `incident_state`, are both deleted at `M1
 that closed 25 hours ago is absent, and nothing on screen can tell that apart from one that
 never existed.
 
-**Refresh: the countdown is gone, on the PWA.** Replaced by **`Updated HH:MM`** plus a refresh
+**Only the incident list loses its 120-second timer.** Home, Devices and Groups keep theirs,
+beside their new `Updated HH:MM` and manual refresh — none of that data has a webhook, so
+something really does happen on their timer. The incident list is pushed to.
+
+**Refresh: the countdown is gone, on both platforms.** Replaced by **`Updated HH:MM`** plus a refresh
 control calling `POST /api/v1/incidents/refresh`; coming to the foreground calls the same
 endpoint, every resume, with the middleware's 30 s window as the only bound. A countdown is a
 promise that something happens at zero, and under webhook mode nothing does.

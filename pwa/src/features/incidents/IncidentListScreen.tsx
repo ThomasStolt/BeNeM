@@ -20,9 +20,9 @@ function ConfigureLink() {
 }
 
 const EMPTY_FOR_PILL: Record<Pill, { title: string; description: string }> = {
-  TOTL: { title: 'No incidents', description: 'All clear.' },
-  OPEN: { title: 'No open incidents', description: 'All clear.' },
-  ACKD: { title: 'None acknowledged', description: 'No open incident has been picked up yet.' },
+  TOTL: { title: 'No incidents', description: 'Nothing open or cleared. All clear.' },
+  OPEN: { title: 'Nothing unacknowledged', description: 'Every open incident has been picked up.' },
+  ACKD: { title: 'None acknowledged', description: 'Nobody has picked up an incident.' },
   CLRD: { title: 'None cleared', description: 'No incident is waiting with its alarms cleared.' },
   // The window is stated in words rather than implied. A closed incident older
   // than 24 hours is dropped by the middleware, and nothing on screen can tell
