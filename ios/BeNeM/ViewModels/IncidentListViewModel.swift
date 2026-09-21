@@ -227,6 +227,19 @@ class IncidentListViewModel: ObservableObject {
         } else {
             incidents.append(incident)
         }
+        // The row's alarm chip spins for as long as `alarmCounts[id]` is nil
+        // (IncidentListView:420-428). A full load fills that dictionary for
+        // every row it fetched — an upserted row was by definition absent from
+        // that pass, so it spun until the NEXT full reload. Reported from the
+        // field on the 13 Pro Max, 2026-09-21.
+        //
+        // Fired as a detached piece of work rather than awaited: the caller is
+        // about to push the detail screen, and making somebody wait for a
+        // second network call before the screen they tapped opens is a worse
+        // defect than the one being fixed. `loadAlarmCounts` stores `[:]` on
+        // failure, so the chip resolves to zeroes rather than spinning forever
+        // when the call does not come back.
+        Task { await loadAlarmCounts(for: [incident.incidentID]) }
     }
 
     func clearFilters() {

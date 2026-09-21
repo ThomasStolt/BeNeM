@@ -85,6 +85,49 @@ final class IncidentListRefreshTests: XCTestCase {
         XCTAssertEqual(vm.filteredIncidents.map(\.incidentID), ["29944"])
     }
 
+    /// The chip spins while `alarmCounts[id]` is nil. A full load fills that
+    /// dictionary for the rows it fetched; an upserted row is by definition not
+    /// one of them, so before this it spun until the next full reload.
+    ///
+    /// The service here is unreachable, so the count fetch FAILS — and that is
+    /// the point: `loadAlarmCounts` stores `[:]` on failure, so the chip must
+    /// resolve to zeroes rather than spin forever. If the load were never
+    /// started at all, the key would stay absent and this would time out.
+    @MainActor
+    func testUpsertingAlsoResolvesThatIncidentsAlarmChip() async throws {
+        let vm = Self.makeViewModel(baseURL: "https://127.0.0.1:1")
+        vm.upsertIncident(incident("29944"))
+
+        XCTAssertEqual(vm.incidents.map(\.incidentID), ["29944"])
+
+        let deadline = Date().addingTimeInterval(10)
+        while vm.alarmCounts["29944"] == nil && Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertNotNil(vm.alarmCounts["29944"],
+                        "nil is what draws the spinner — an upserted row must not "
+                        + "keep spinning until the next full reload")
+    }
+
+    /// Counts already held for OTHER rows must survive an upsert. The full-load
+    /// path prunes `alarmCounts` to the ids it just fetched; this path must not
+    /// inherit that behaviour, or upserting would blank every other chip.
+    @MainActor
+    func testUpsertDoesNotDisturbCountsAlreadyHeldForOtherIncidents() async throws {
+        let vm = Self.makeViewModel(baseURL: "https://127.0.0.1:1")
+        vm.incidents = [incident("24951")]
+        vm.alarmCounts["24951"] = [.red: 1]
+
+        vm.upsertIncident(incident("29944"))
+
+        let deadline = Date().addingTimeInterval(10)
+        while vm.alarmCounts["29944"] == nil && Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertEqual(vm.alarmCounts["24951"], [.red: 1],
+                       "an upsert must not prune the counts of rows it did not touch")
+    }
+
     // MARK: - 2. The foreground reload
 
     @MainActor
