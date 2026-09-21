@@ -2,14 +2,13 @@ import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConfig } from '../lib/config';
 import { ConnectionBadge, type ConnectionStatus } from './ConnectionBadge';
-import { RefreshRing } from './RefreshRing';
+import { UpdatedAt } from './UpdatedAt';
 
 interface AppHeaderProps {
   title: string;
   isLoading?: boolean;
   isError?: boolean;
   dataUpdatedAt?: number;
-  intervalMs?: number;
   onRefresh?: () => void;
 }
 
@@ -18,12 +17,11 @@ export function AppHeader({
   isLoading = false,
   isError = false,
   dataUpdatedAt = 0,
-  intervalMs = 120_000,
   onRefresh,
 }: AppHeaderProps) {
   const config = useConfig();
   const navigate = useNavigate();
-  // Badge tap opens Diagnostics (parity with iOS — refresh lives in the ring).
+  // Badge tap opens Diagnostics (parity with iOS — refresh lives beside it).
   const handleBadgeTap = useCallback(() => {
     navigate('/diagnostics');
   }, [navigate]);
@@ -51,12 +49,7 @@ export function AppHeader({
         )}
       </div>
       {dataUpdatedAt > 0 ? (
-        <RefreshRing
-          lastUpdatedAt={dataUpdatedAt}
-          intervalMs={intervalMs}
-          isLoading={isLoading}
-          onRefresh={handleRefresh}
-        />
+        <UpdatedAt updatedAt={dataUpdatedAt} isLoading={isLoading} onRefresh={handleRefresh} />
       ) : (
         <div className="w-10" />
       )}

@@ -218,37 +218,53 @@ choosing to see only acknowledged incidents is a different thing from the tile.
 
 iOS 2.13.6 (52), PWA 0.18.1.
 
-#### Incident list filter — Total / Open / Ackd / Cleared (RULED 2026-09-20, **NOT BUILT**)
+#### Incident list filter — TOTL / OPEN / ACKD / CLRD / CLSD (**PWA 0.19.0 built, not deployed; iOS 2.14.0 next**)
 
-**Thomas's ruling, recorded before any build.** It answers the two questions the 09-20 handoff
-(e)3 left open, and the third thing it said to settle with them.
+**Superseded the four-tab sketch recorded here on 2026-09-20.** Design and every ruling:
+`docs/superpowers/specs/2026-09-21-incident-list-filter-design.md` — approved, nothing open.
 
-| tab | contents |
-|---|---|
-| **Total** | everything the app holds |
-| **Open** | **NOT CLOSED** — un-acknowledged **and** acknowledged |
-| **Ackd** | the **acknowledged subset of Open**, not a peer of it |
-| **Cleared** | closed |
+| pill | contents | colour |
+|---|---|---|
+| **TOTL** | OPEN + CLRD + CLSD | neutral outline |
+| **OPEN** | state `OPEN`, acknowledged or not | red |
+| **ACKD** | the acknowledged ones **inside** OPEN | blue |
+| **CLRD** | state `ALARMS CLEARED` | green |
+| **CLSD** | closed within the last 24 hours | grey |
 
-**"Open" is the same predicate the Home tile already ships as "Active"** — `status != resolved &&
-status != closed`, iOS `NetreoIncident.isActive`, PWA `isActiveIncident()` — so the two screens
-cannot drift apart. **The Home tile's count is the Open count and the tile lands on the Open tab.**
-That is the mapping question answered: the tile's set is exactly one tab, now that the tab exists.
+```
+OPEN  = state OPEN, acknowledged or not
+ACKD  = { i in OPEN : i.acknowledged }        a SUBSET, not a fourth bucket
+CLRD  = state ALARMS CLEARED
+CLSD  = state CLOSED, closed_at within 24h
+TOTL  = OPEN + CLRD + CLSD                    (ACKD is inside OPEN and NOT added again)
+```
 
-**Retention: Cleared shows the last 24 hours**, like everything else in the app. The middleware
-holds only 24 hours of incident data as a consequence — recorded as **C15** in
-`docs/superpowers/specs/2026-09-19-incident-freshness-webhook-first-design.md`. **The tab must say
-its window in words.** An incident that closed 25 hours ago is absent, and absence that reads as
-"never happened" is the doctrine failure this repository keeps re-shipping.
+**Default pill OPEN. The Home tile's count IS the OPEN count and the tile lands on OPEN**
+(`/incidents?pill=OPEN`). Counts are computed client-side from the served list — no count
+endpoint. **Search matches title, device, incident id and ack user, WITHIN the selected pill**;
+it never widens the filter the user chose. **Rows unchanged** — the pills are a control above
+the existing list.
 
-**Mockup approved. Rows unchanged.** The filter is a control above the existing list; no row
-redesign is in scope.
+**The 2026-09-20 sketch had this wrong in two places, and both are corrected above.** It put
+`ALARMS CLEARED` in **Open** and it made **Cleared** mean *closed*; the two states are different
+facts and now have a pill each. It also defined Open as the shipped `isActiveIncident()`
+predicate (NOT CLOSED) — which included CLRD, so the tile would have counted cleared incidents
+as somebody's problem. **Ruled 2026-09-21: the tile is the OPEN count**, and the PWA tile's
+label changed from *Active Incidents* to *Open Incidents* to match.
 
-**One detail the ruling does not name, and it is not a re-decision.** `ALARMS CLEARED` is a real
-`incident_state` that BHNM returns in the **active** list — observed 2026-09-20 on incidents 29882
-and 29883. It is neither un-acknowledged-open nor acknowledged, and it is **not closed**, so by the
-ruling it falls in **Open**. Confirm the wording with Thomas when the tab is built; do not quietly
-route it elsewhere.
+**BHNM has three incident states — `OPEN`, `ALARMS CLEARED`, `CLOSED` — and acknowledged is a
+FLAG on an OPEN incident, not a state.** Clients read `state` and `acknowledged` (middleware
+2.20.0), falling back to `incident_state` only when `state` is absent. That fallback, and the
+middleware's `ACKNOWLEDGED` write into `incident_state`, are both deleted at `M1-drop`.
+
+**CLSD states its window in words** (*"Closed incidents are shown for 24 hours"*). An incident
+that closed 25 hours ago is absent, and nothing on screen can tell that apart from one that
+never existed.
+
+**Refresh: the countdown is gone, on the PWA.** Replaced by **`Updated HH:MM`** plus a refresh
+control calling `POST /api/v1/incidents/refresh`; coming to the foreground calls the same
+endpoint, every resume, with the middleware's 30 s window as the only bound. A countdown is a
+promise that something happens at zero, and under webhook mode nothing does.
 
 #### Notification deep link (both platforms, 2026-09-19)
 A tapped notification names an incident by its **bare numeric id**; the list may carry it

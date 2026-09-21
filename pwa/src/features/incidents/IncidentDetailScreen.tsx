@@ -165,8 +165,13 @@ export function IncidentDetailScreen() {
     );
   }
 
-  const isAlarmsCleared = incident.incidentState.toUpperCase() === 'ALARMS CLEARED';
-  const isAcked = incident.status === 'acknowledged';
+  // A Recovery notification lands on a CLOSED incident, so this screen must
+  // render one rather than treat it as an error. Neither a closed nor a cleared
+  // incident offers the ack button: there is nothing left to pick up.
+  const isClosed = incident.state === 'CLOSED';
+  const isAlarmsCleared = incident.state === 'ALARMS CLEARED';
+  const isFinished = isClosed || isAlarmsCleared;
+  const isAcked = incident.acknowledged;
   const alarmCounts = detail?.alarmCounts ?? incident.alarmCounts ?? EMPTY_COUNTS;
 
   const handleToggleAck = async () => {
@@ -191,6 +196,7 @@ export function IncidentDetailScreen() {
 
   const infoRows: [string, string][] = [
     ['Incident ID', incident.incidentId],
+    ...(incident.closedAt ? ([['Closed', formatTimestamp(incident.closedAt)]] as [string, string][]) : []),
     ...(detail ? ([
       ['Title', detail.title],
       ['Device', detail.deviceName],
@@ -230,8 +236,11 @@ export function IncidentDetailScreen() {
       <div className="p-3 space-y-2.5">
         {/* Status section */}
         <div className="bg-slate-900 rounded-xl p-3 flex items-center justify-between gap-3">
-          {isAlarmsCleared ? (
-            <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center text-slate-400 text-lg flex-shrink-0">
+          {isFinished ? (
+            <div
+              className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center text-slate-400 text-lg flex-shrink-0"
+              title={isClosed ? 'Closed' : 'Alarms cleared'}
+            >
               ✓
             </div>
           ) : isAcking ? (
@@ -251,7 +260,7 @@ export function IncidentDetailScreen() {
 
           <div className="flex flex-col items-center gap-1">
             <span className="text-[10px] text-slate-500">Status</span>
-            <StatusBadge status={incident.status} incidentState={incident.incidentState} />
+            <StatusBadge state={incident.state} acknowledged={incident.acknowledged} />
           </div>
 
           <AlarmBadges counts={alarmCounts} />

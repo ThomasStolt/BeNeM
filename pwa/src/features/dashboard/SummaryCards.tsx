@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom';
 
 interface Props {
-  activeIncidents: number;
+  /** The OPEN pill count. Ruled 2026-09-21 (Q5): the tile is the OPEN count —
+   * a closed incident is not somebody's problem, and neither is a cleared one. */
+  openIncidents: number;
   totalDevices: number;
 }
 
@@ -58,21 +60,23 @@ function Card({
   return <div className="flex-1">{content}</div>;
 }
 
-export function SummaryCards({ activeIncidents, totalDevices }: Props) {
-  const incidentColor = activeIncidents > 0 ? '#f87171' : '#4ade80';
-  const incidentBorder = activeIncidents > 0 ? 'rgba(239,68,68,0.25)' : 'rgba(74,222,128,0.25)';
-  const incidentShadow = activeIncidents > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(74,222,128,0.12)';
+export function SummaryCards({ openIncidents, totalDevices }: Props) {
+  const incidentColor = openIncidents > 0 ? '#f87171' : '#4ade80';
+  const incidentBorder = openIncidents > 0 ? 'rgba(239,68,68,0.25)' : 'rgba(74,222,128,0.25)';
+  const incidentShadow = openIncidents > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(74,222,128,0.12)';
 
   return (
     <div className="flex gap-3">
       <Card
         icon="⚠"
-        count={activeIncidents}
-        label="Active Incidents"
+        count={openIncidents}
+        label="Open Incidents"
         color={incidentColor}
         borderColor={incidentBorder}
         shadowColor={incidentShadow}
-        to="/incidents"
+        // The tile's set is exactly one pill, so it says which one it lands on
+        // rather than relying on the list's default happening to agree.
+        to="/incidents?pill=OPEN"
       />
       <Card
         icon="🖥"

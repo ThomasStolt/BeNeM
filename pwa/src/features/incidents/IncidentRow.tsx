@@ -63,7 +63,7 @@ export function IncidentRow({ incident }: { incident: Incident }) {
 
       {/* Row 2: status badge · scrolling device name · duration · alarm dots */}
       <div className="flex items-center gap-1.5">
-        <StatusBadge status={incident.status} incidentState={incident.incidentState} />
+        <StatusBadge state={incident.state} acknowledged={incident.acknowledged} />
         <OverflowMarquee
           text={incident.deviceName ?? incident.deviceIp ?? 'Unknown'}
           className="flex-1 min-w-0 text-[11px] text-slate-400"

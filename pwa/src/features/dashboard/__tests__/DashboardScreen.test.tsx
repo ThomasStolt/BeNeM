@@ -68,7 +68,9 @@ describe('DashboardScreen', () => {
 
   it('renders summary cards', () => {
     renderDashboard();
-    expect(screen.getByText('Active Incidents')).toBeInTheDocument();
+    // Ruled 2026-09-21 (Q5): the tile is the OPEN count, so it stopped saying
+    // "Active" — which had meant NOT CLOSED and therefore included CLRD.
+    expect(screen.getByText('Open Incidents')).toBeInTheDocument();
     expect(screen.getByText('Total Devices')).toBeInTheDocument();
   });
 

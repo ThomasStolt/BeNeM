@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIncidents } from '../incidents/useIncidents';
-import { isActiveIncident } from '../../lib/api/incidents';
+import { pillCounts } from '../incidents/pills';
 import { useTacticalSummary } from './useTacticalSummary';
 import { AppHeader } from '../../components/AppHeader';
 import { SummaryCards } from './SummaryCards';
@@ -22,10 +22,13 @@ export function DashboardScreen() {
     queryClient.invalidateQueries();
   }, [queryClient]);
 
-  // "Active" means NOT CLOSED — see isActiveIncident. This counted severity
-  // critical|major until 0.17.1, then status === 'active' until 0.18.1, which
-  // dropped an incident from the count the moment somebody acknowledged it.
-  const activeIncidents = incidents?.filter(isActiveIncident).length ?? 0;
+  // The tile IS the OPEN pill — same function the pill row calls, so the number
+  // on Home and the number on the pill agree by construction rather than by two
+  // authors writing the same condition. That is the 2026-09-19 defect's fix
+  // generalised: severity critical|major until 0.17.1, status === 'active'
+  // until 0.18.1 (which dropped an incident the moment somebody acked it), then
+  // NOT CLOSED until now. Ruled 2026-09-21: the tile is the OPEN count.
+  const openIncidents = pillCounts(incidents ?? []).OPEN;
 
   const totalDevices = summary
     ? summary.hosts.ok + summary.hosts.ack + summary.hosts.warn + summary.hosts.un + summary.hosts.crit
@@ -54,7 +57,7 @@ export function DashboardScreen() {
 
       {summary && (
         <div className="p-4 space-y-4">
-          <SummaryCards activeIncidents={activeIncidents} totalDevices={totalDevices} />
+          <SummaryCards openIncidents={openIncidents} totalDevices={totalDevices} />
           <IncidentTicker incidents={incidents ?? []} />
           <div className="grid grid-cols-2 gap-2">
             <StatusCard label="Hosts" counts={summary.hosts} />

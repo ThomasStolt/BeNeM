@@ -11,13 +11,14 @@ export async function fetchJson(
   baseUrl: string,
   path: string,
   headers?: Record<string, string>,
+  method: 'GET' | 'POST' = 'GET',
 ): Promise<unknown> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetch(`${baseUrl}${path}`, {
-      method: 'GET',
+      method,
       headers,
       signal: controller.signal,
     });

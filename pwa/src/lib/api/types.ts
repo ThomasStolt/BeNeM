@@ -1,6 +1,12 @@
 export type Severity = 'critical' | 'major' | 'minor' | 'warning' | 'informational';
 export type IncidentStatus = 'active' | 'acknowledged' | 'resolved' | 'closed';
 
+/** BHNM has THREE incident states. Acknowledged is a FLAG on an OPEN incident,
+ * not a fourth state — which is the whole reason for the split: with one field,
+ * an acknowledged incident whose alarms then clear can only be shown as one or
+ * the other. Middleware 2.20.0 serves `state` and `acknowledged` separately. */
+export type IncidentState = 'OPEN' | 'ALARMS CLEARED' | 'CLOSED';
+
 export interface AlarmCounts {
   red: number;
   orange: number;
@@ -16,8 +22,18 @@ export interface Incident {
   deviceIp: string | null;
   summary: string;
   severity: Severity;
+  /** Derived from `state` + `acknowledged` so the two can never disagree.
+   * Kept because StatusBadge, SwipeableIncidentRow and the detail screen read
+   * it; it is a view of the two fields below, never a third source. */
   status: IncidentStatus;
+  /** The raw `incident_state` exactly as served, `ACKNOWLEDGED` and all.
+   * Retained until the middleware's M1-drop. Do not filter on it — use `state`. */
   incidentState: string;
+  state: IncidentState;
+  acknowledged: boolean;
+  ackUser: string | null;
+  /** When the middleware recorded the close. Present only on CLOSED. */
+  closedAt: Date | null;
   startTime: Date;
   acknowledgedBy: string | null;
   alarmCounts: AlarmCounts | null;

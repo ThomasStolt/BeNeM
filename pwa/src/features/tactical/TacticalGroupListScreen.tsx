@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useConfig } from '../../lib/config';
 import { useTacticalGroups } from './useTacticalGroups';
 import { TacticalGroupRow, isGroupHealthy } from './TacticalGroupRow';
-import { RefreshCountdown } from '../../components/RefreshCountdown';
+import { UpdatedAt } from '../../components/UpdatedAt';
 import { EmptyState } from '../../components/EmptyState';
 
 const TITLES: Record<string, string> = {
@@ -15,7 +15,8 @@ const TITLES: Record<string, string> = {
 export function TacticalGroupListScreen() {
   const { type = 'category' } = useParams<{ type: string }>();
   const config = useConfig();
-  const { data: groups, isLoading, isError, error, dataUpdatedAt } = useTacticalGroups(type);
+  const { data: groups, isLoading, isError, error, dataUpdatedAt, refetch, isFetching } =
+    useTacticalGroups(type);
   const [filterActive, setFilterActive] = useState(false);
 
   const title = TITLES[type] ?? 'Groups';
@@ -45,7 +46,11 @@ export function TacticalGroupListScreen() {
             &#9698;
           </button>
           {dataUpdatedAt > 0 && (
-            <RefreshCountdown lastUpdatedAt={dataUpdatedAt} intervalMs={120_000} />
+            <UpdatedAt
+              updatedAt={dataUpdatedAt}
+              isLoading={isFetching}
+              onRefresh={() => { void refetch(); }}
+            />
           )}
         </div>
       </header>

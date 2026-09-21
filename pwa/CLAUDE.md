@@ -1,6 +1,6 @@
 # BHNM PWA
 
-React/TypeScript Progressive Web App (v0.10.1). Targets Android users via Web Push.
+React/TypeScript Progressive Web App. Targets Android users via Web Push.
 iOS users are directed to the native app for reliable push notifications.
 
 > Part of the BeNeM monorepo. See `../CLAUDE.md` for cross-cutting rules,
@@ -31,7 +31,7 @@ pwa/
 │   │   ├── performance/            # Time-series metric charts
 │   │   ├── scanner/                # QR scanner for benem:// URLs
 │   │   └── settings/               # Server config, push registration
-│   ├── components/                 # Shared UI (AppHeader, TabBar, RefreshRing, ConnectionBadge, StateBadge, ...)
+│   ├── components/                 # Shared UI (AppHeader, TabBar, UpdatedAt, ConnectionBadge, StateBadge, ...)
 │   └── lib/
 │       ├── api/                    # BHNM API client
 │       ├── serverStorage.ts        # Sync storage API backed by in-memory cache
@@ -59,7 +59,7 @@ Payload contract: see `../shared/push-payload-spec.md`.
 
 ### Unified App Header (`AppHeader`)
 
-All four main screens (Home, Incidents, Devices, Settings) use the shared `AppHeader` component (`src/components/AppHeader.tsx`). It accepts `title`, `isLoading`, `isError`, `dataUpdatedAt`, `intervalMs`, and `onRefresh` props and internally calls `useConfig()` to read `serverName` and `isConfigured`. Connection status is derived purely from props:
+All four main screens (Home, Incidents, Devices, Settings) use the shared `AppHeader` component (`src/components/AppHeader.tsx`). It accepts `title`, `isLoading`, `isError`, `dataUpdatedAt`, and `onRefresh` props and internally calls `useConfig()` to read `serverName` and `isConfigured`. Connection status is derived purely from props:
 
 - `!isConfigured` → `'disconnected'`
 - `isLoading` → `'checking'`
@@ -67,11 +67,19 @@ All four main screens (Home, Incidents, Devices, Settings) use the shared `AppHe
 - `dataUpdatedAt > 0` → `'connected'`
 - otherwise → `'unknown'`
 
-Settings passes no `dataUpdatedAt` — the ring is hidden and replaced by a same-width spacer.
+Settings passes no `dataUpdatedAt` — the control is hidden and replaced by a same-width spacer.
 
-### RefreshRing Countdown
+### `Updated HH:MM` replaced the countdown ring (0.19.0)
 
-`RefreshRing` (`src/components/RefreshRing.tsx`) renders at 40 px (up from 28 px) and shows an M:SS countdown (`1:18`, `0:45`, `2:00`) centred inside the SVG using a `<text>` element. The countdown is hidden while `isLoading` is true (spinning arc replaces the ring).
+`UpdatedAt` (`src/components/UpdatedAt.tsx`) states when the data was last confirmed and offers a refresh control. `RefreshRing` and `RefreshCountdown` are **deleted**.
+
+Removing the countdown is a truthfulness fix, not a cosmetic one. **A countdown is a promise that something happens at zero.** Under webhook mode nothing does — the next scheduled reconciliation is 24 hours away — so the ring was counting down to nothing, which is a green affordance asserting a claim nobody had checked. `Updated HH:MM` states a fact the app can date.
+
+The refresh control and the foreground resume both call `POST /api/v1/incidents/refresh` (middleware 2.20.0): one `getincidents`, single-flight, at most one per server per 30 s, no per-incident detail call. **The rate limit lives server-side and only server-side** — there is deliberately no client-side staleness check to go with it, which is what makes "one user's refresh serves everyone on that server" true rather than approximately true.
+
+### The incident list filter (0.19.0)
+
+Five pills — TOTL / OPEN / ACKD / CLRD / CLSD — plus search. Definitions live in ONE place, `src/features/incidents/pills.ts`, and the Home tile calls the same `pillCounts()` the pill row does, so the number on Home and the number on the pill agree by construction. See `../shared/feature-spec.md`.
 
 ### Incident Detail Data
 

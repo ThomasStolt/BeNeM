@@ -29,6 +29,10 @@ const base: Incident = {
   severity: 'critical',
   status: 'active',
   incidentState: 'OPEN',
+  state: 'OPEN',
+  acknowledged: false,
+  ackUser: null,
+  closedAt: null,
   startTime: new Date(Date.now() - 3 * 3_600_000),
   acknowledgedBy: null,
   alarmCounts: { red: 2, orange: 0, yellow: 1, green: 3, blue: 0 },
@@ -61,14 +65,21 @@ describe('IncidentRow', () => {
     expect(screen.getByText('OPEN')).toBeInTheDocument();
   });
 
-  it('renders ACKD badge for acknowledged incident', () => {
-    renderRow({ ...base, status: 'acknowledged', incidentState: 'ACKNOWLEDGED' });
+  it('renders ACKD badge for an acknowledged incident, which is still OPEN', () => {
+    renderRow({ ...base, acknowledged: true, incidentState: 'ACKNOWLEDGED' });
     expect(screen.getByText('ACKD')).toBeInTheDocument();
   });
 
-  it('renders CLRD badge for resolved incident', () => {
-    renderRow({ ...base, status: 'resolved', incidentState: 'RESOLVED' });
+  it('renders CLRD badge for ALARMS CLEARED', () => {
+    renderRow({ ...base, state: 'ALARMS CLEARED', incidentState: 'ALARMS CLEARED' });
     expect(screen.getByText('CLRD')).toBeInTheDocument();
+  });
+
+  it('renders CLSD badge for CLOSED — a closed row is not a cleared one', () => {
+    // These two shared the green CLRD chip until 0.19.0.
+    renderRow({ ...base, state: 'CLOSED', status: 'closed', incidentState: 'CLOSED' });
+    expect(screen.getByText('CLSD')).toBeInTheDocument();
+    expect(screen.queryByText('CLRD')).not.toBeInTheDocument();
   });
 
   it('renders the device name', () => {

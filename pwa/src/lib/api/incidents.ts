@@ -1,5 +1,5 @@
 import { fetchJson, postForm } from './client';
-import { AlarmCounts, ApiException, Incident, IncidentAlarm, IncidentDetail, IncidentLogEntry, IncidentStatus, Severity } from './types';
+import { AlarmCounts, ApiException, Incident, IncidentAlarm, IncidentDetail, IncidentLogEntry, IncidentState, IncidentStatus, Severity } from './types';
 import type { BhnmConfig } from '../config';
 
 const SEVERITY_MAP: Record<string, Severity> = {
@@ -95,13 +95,51 @@ function parseAlarms(arr: unknown): IncidentAlarm[] {
     }));
 }
 
-function parseRow(row: Record<string, unknown>, index: number, forcedStatus?: IncidentStatus): Incident {
+const BHNM_STATES: readonly string[] = ['OPEN', 'ALARMS CLEARED', 'CLOSED'];
+
+/** BHNM's own state, with the ack flag taken back out of it.
+ *
+ * An unrecognised value becomes OPEN rather than passing through. TOTL is
+ * OPEN + CLRD + CLSD, so a state in none of the three would drop the incident
+ * out of every pill and vanish it from the list entirely. Loud beats gone —
+ * and this mirrors the middleware's own `state_of()` exactly, so the two ends
+ * cannot disagree about what an unknown value means.
+ */
+function normaliseState(raw: string): IncidentState {
+  const up = raw.trim().toUpperCase();
+  return BHNM_STATES.includes(up) ? (up as IncidentState) : 'OPEN';
+}
+
+function coerceBool(v: unknown): boolean {
+  return v === true || v === 1 || v === '1' || v === 'true';
+}
+
+function coerceEpoch(v: unknown): Date | null {
+  if (typeof v === 'number' && Number.isFinite(v)) return new Date(v * 1000);
+  return null;
+}
+
+function parseRow(row: Record<string, unknown>, index: number, forcedState?: IncidentState): Incident {
   const incidentId = coerceId(row.incident_id ?? row.id, index);
   const stateString = typeof row.incident_state === 'string' ? row.incident_state : 'OPEN';
-  let status: IncidentStatus;
-  if (forcedStatus) status = forcedStatus;
-  else if (stateString === 'ACKNOWLEDGED') status = 'acknowledged';
-  else status = 'active';
+
+  // Read the NEW fields, and fall back to incident_state ONLY when `state` is
+  // absent — i.e. a middleware older than 2.20.0, or the legacy getincidents
+  // fall-through. The fallback maps ACKNOWLEDGED onto state OPEN + flag true,
+  // which is the same mapping normaliseState makes. It is deleted at M1-drop.
+  const servedState = typeof row.state === 'string' ? row.state : null;
+  const state: IncidentState =
+    servedState !== null ? normaliseState(servedState)
+    : forcedState ?? normaliseState(stateString);
+  const acknowledged =
+    'acknowledged' in row ? coerceBool(row.acknowledged)
+    : stateString === 'ACKNOWLEDGED';
+
+  // status is a VIEW of the two fields above, never a third source of truth.
+  const status: IncidentStatus =
+    state === 'CLOSED' ? 'closed'
+    : acknowledged ? 'acknowledged'
+    : 'active';
 
   // Alarm counts from middleware cache (null if cache cold)
   let alarmCounts: AlarmCounts | null = null;
@@ -130,6 +168,10 @@ function parseRow(row: Record<string, unknown>, index: number, forcedStatus?: In
     severity: coerceSeverity(row),
     status,
     incidentState: stateString,
+    state,
+    acknowledged,
+    ackUser: coerceString(row.ack_user),
+    closedAt: coerceEpoch(row.closed_at),
     // Field name fallback chain: BHNM REST uses start_time, legacy API uses
     // incident_open_time; some older versions use open_time. Prefer the more
     // specific names first.
@@ -179,7 +221,9 @@ export function parseIncidentsResponse(raw: unknown): Incident[] {
     });
     if (Array.isArray(obj.closed_incidents)) {
       (obj.closed_incidents as unknown[]).forEach((row, i) => {
-        if (row && typeof row === 'object') result.push(parseRow(row as Record<string, unknown>, i, 'resolved'));
+        // A row in closed_incidents IS closed. 2.20.0 says so in `state`; an
+        // older middleware does not, and the bucket is the only signal there is.
+        if (row && typeof row === 'object') result.push(parseRow(row as Record<string, unknown>, i, 'CLOSED'));
       });
     }
     return result;
@@ -327,6 +371,26 @@ export async function getCachedIncidents(config: BhnmConfig): Promise<Incident[]
     // Fall back to legacy endpoint if cached endpoint unavailable
     return getIncidents(config);
   }
+}
+
+/** C7 / M2 — the Refresh control and the foreground resume both land here.
+ *
+ * ONE `getincidents` on the middleware, single-flight, at most one per server
+ * per 30 s, and NO per-incident detail call. The rate limit lives server-side
+ * and ONLY server-side: that is what makes "one user's refresh serves everyone
+ * on that server" true rather than approximately true, and it is why there is
+ * no client-side staleness check here to go with it (design Q4, ruled 2026-09-21
+ * — every resume, the 30 s window is the only bound).
+ *
+ * The answer is the same shape as GET /api/v1/incidents, so one tap is one
+ * round trip and the caller re-renders straight from it.
+ */
+export async function refreshIncidents(config: BhnmConfig): Promise<Incident[]> {
+  const headers: Record<string, string> = {};
+  if (config.apiKey) headers['X-Proxy-Token'] = config.apiKey;
+  if (config.bhnmUrl) headers['X-BHNM-Target'] = config.bhnmUrl;
+  const raw = await fetchJson(config.baseUrl, '/api/v1/incidents/refresh', headers, 'POST');
+  return parseIncidentsResponse(raw);
 }
 
 export async function getIncidents(config: BhnmConfig): Promise<Incident[]> {

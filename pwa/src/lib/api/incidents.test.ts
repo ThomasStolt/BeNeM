@@ -25,11 +25,14 @@ describe('parseIncidentsResponse', () => {
     expect(incidents[0].displayId).toBe('#58431');
   });
 
-  it('forces closed_incidents to resolved status', () => {
+  it('forces closed_incidents to state CLOSED', () => {
+    // The bucket is the only signal a middleware older than 2.20.0 gives, and
+    // it is enough: a row in closed_incidents IS closed.
     const incidents = parseIncidentsResponse(mock);
     const closed = incidents.find((i) => i.incidentId === '58400');
     expect(closed).toBeDefined();
-    expect(closed!.status).toBe('resolved');
+    expect(closed!.state).toBe('CLOSED');
+    expect(closed!.status).toBe('closed');
   });
 
   it('maps alert_level=major to severity=major', () => {
