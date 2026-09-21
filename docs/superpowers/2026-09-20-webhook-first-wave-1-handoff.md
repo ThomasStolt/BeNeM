@@ -379,3 +379,112 @@ comment in the file. **Both runbooks require the non-empty check before the stop
 09:20Z while the legacy `getincidents` returned 11–13 active on the same server, seconds apart.
 **Use the legacy path for incident state** — it is what the middleware itself uses. Not
 investigated; recorded so the next reader does not take its silence for an empty lab.
+
+---
+
+## (j) 2026-09-21 — what is built, what is not, and what is next
+
+**Four commits are on `main` and NOT in the field. One middleware commit is NOT deployed.**
+Nothing below is inferred from elapsed time; where a state comes from Thomas it says so.
+
+### iOS 2.13.6 (53) is RELEASED — Thomas's word, 2026-09-21
+
+That retires (d)'s *"Processing and review state of 53"* and the 09-18 note that **2.13.1 (36) is
+still the store build for everyone but Thomas** — it is not any more. Thomas installed 53 from the
+App Store and field-tested it: **push arrives, a notification tap deep-links to the incident.**
+
+**The field signal, for anyone who needs to check it without touching App Store Connect: the proxy
+log carries `BeNeM/<build>` in the User-Agent.** At 13:52Z the last 48 hours showed
+`BeNeM/37,38,39,40,41,46` and no 53. That is evidence; a date is not.
+
+### Three iOS commits on `main`, none in the field
+
+| commit | what it changes |
+|---|---|
+| `b3cc27a` | **the deep-linked incident reaches the list** (`upsertIncident`, called before `navPath.append`); **the list reloads on `scenePhase == .active`**; **`AppDelegate` reads `aps-environment` from the embedded provisioning profile** instead of `#if DEBUG` |
+| `cdeb071` | **maps the entitlement's `development` onto the middleware's `sandbox`** |
+| `a74f645` | **an upserted incident also loads its alarm counts**, so its chip stops spinning |
+| `e4579f6` | *(docs)* the filter design note, plus a wrong comment corrected in `upsertIncident` |
+
+**No version bump on any of them. Nothing built for a device beyond the Debug install below.**
+Current project state: `MARKETING_VERSION 2.13.6`, `CURRENT_PROJECT_VERSION 53`.
+
+**`cdeb071` exists because `b3cc27a` was wrong on the device and the install found it.** The
+provisioning-profile read was correct and then sent the entitlement's own word, `development`,
+which `main.py:385` silently stored as **production** — the exact defect the fix exists to prevent,
+one layer further along. **Verified on the 13 Pro Max, not argued:**
+
+```
+[APNs] aps-environment from embedded.mobileprovision: development
+[APNs] Registering with middleware (environment: sandbox)
+[Register] Token saved: ...10882c55 for iPhone (APNs: sandbox)
+device_tokens: ('10882c55', 'iPhone', 'sandbox', '2026-09-21 14:00:56')
+```
+
+**The 13 Pro Max currently runs a Debug build of this tree**, installed 14:00Z. Its token row is
+`sandbox`, which matches its `development` entitlement, so push delivers.
+
+### One middleware commit on `main`, NOT deployed
+
+**`b240bdf` — an unknown APNs environment is a 400, not a silent production.** Deployed middleware
+is still **2.19.1**; this is uncommitted to the wire and **rides with build order step 6**.
+Run against the old line first: **8 failed, 3 passed** — it is a guard, not a decoration.
+
+**Consequence worth stating: the client half (`cdeb071`) is in the repo but not on any phone
+except the Debug install, and the server half is not deployed at all. Until both land, a client
+sending `development` is still silently stored as production.**
+
+### The next build: the incident list filter
+
+**`docs/superpowers/specs/2026-09-21-incident-list-filter-design.md` — APPROVED, all five open
+questions ruled the same day, nothing open.** Five pills (TOTL/OPEN/ACKD/CLRD/CLSD) plus search;
+three middleware changes; one client wave.
+
+**Build order, with versions:** middleware **2.20.0** → PWA **0.19.0** → iOS **2.14.0 (54)** →
+Thomas confirms the field → middleware **2.20.1** flips the CLSD retention flag. Later, `M1-drop`.
+
+**It folds C7** (the refresh endpoint — same trigger, same 30 s window, one endpoint not two) and
+**gives C15 its purpose** (24-hour retention is what makes CLSD possible at all).
+
+**Two payload-rule findings in it were both produced by reading the SHIPPED code rather than
+HEAD**, and both are the kind that no amount of reasoning would have caught: removing
+`ACKNOWLEDGED` from `incident_state` is a breaking change **with no field removed**, and turning on
+CLSD retention early would put closed rows into build 53's unfiltered list, which applies no status
+filter at all.
+
+### The SE experiments — STILL OPEN
+
+**Experiment 2's failover result is measured and written up**
+(`docs/evidence/2026-09-21-exp2-se-group-failover-results.md`): **handover gap 21 m 58 s**,
+`status` never moved off `UP` on any of the 13 devices across 3449 ticks, and the 2026-09-16
+prediction that a staleness check should *"stay correctly quiet"* during failover is **inverted** —
+22 minutes of unchecked devices rendered green is exactly what the marker exists to say.
+**Recommended threshold: 10 minutes, per device, on `lastUpdateTime`.**
+
+**Two things are open and both need Thomas:**
+
+1. **The fail-back gap is UNKNOWN, not zero.** SE01 was restarted at
+   `2026-09-21T06:34:50.364Z`; its row went `DOWN` → `UP` at T1+2 m 25 s with the message changing
+   to `"Updates received."`, and incident 141184 closed. **No device pause occurred** — but the API
+   exposes no service-engine assignment field, so "no pause" is equally consistent with *fail-back
+   is seamless* and *fail-back has not happened yet*. **Only Thomas's read of the BHNM UI's Service
+   Engine tab distinguishes them.**
+2. **Whole-group failure is unmeasured.** Stopping SE02 as well, same discipline, once Thomas
+   confirms the lab is settled. The question it answers is whether the group object
+   (`BHNM-A-SE-GROUP`) is a usable sentinel — on the single-SE run it was not: it raised incident
+   **141187** at T+24 m 31 s, *after* the handover had completed, and its own row still reads `UP`
+   with `lastUpdateTime` frozen for over 15 hours.
+
+**Both samplers are still running** and their JSONL files are deliberately left uncommitted:
+`docs/evidence/2026-09-20-exp2-failover.jsonl` and
+`docs/evidence/2026-09-20-se-message-watch.jsonl`.
+
+### Also standing from 2026-09-21
+
+- **`docs/runbooks/2026-09-20-experiment-1-standalone-se-shutdown.md` has not been run.** It is the
+  standalone-SE case, on BHNM-B, and it supplies the freeze-detection floor the threshold needs.
+- **`.env` / `.env.example` at the repo root** hold the lab credentials; `.env` is gitignored
+  (verified with `git check-ignore`). All four credential sets were verified end to end — both API
+  keys on both APIs, and UI login for `opus` on both instances.
+- **BHNM-A cannot reach the middleware**, so it stays out of `servers.json` and every SE
+  measurement is BHNM-side only. That is a constraint, not an omission.
