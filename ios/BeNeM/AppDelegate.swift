@@ -120,6 +120,48 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         }.resume()
     }
 
+    /// The APNs environment this build ACTUALLY HOLDS, read from the embedded
+    /// provisioning profile — not inferred from the build configuration.
+    ///
+    /// Ruled 2026-09-19 (Thomas). `#if DEBUG` was wrong in exactly the case
+    /// nobody looks at: an Xcode **Release** install declares `production` while
+    /// holding a `development` entitlement. APNs answered `400 BadDeviceToken`,
+    /// 2.18.1's cleanup removed the token, and push died on the 13 Pro Max while
+    /// the other phones kept working. Build configuration and entitlement are
+    /// different things and they disagree precisely where nobody checks.
+    ///
+    /// **No profile means App Store, which means `production`.** A store build
+    /// has no `embedded.mobileprovision` at all, so its absence is a fact rather
+    /// than a guess — which is why every failure path below returns
+    /// `production` rather than a "safe" default: on a released build, absent IS
+    /// the correct answer, and on any other build the profile is present and
+    /// readable.
+    ///
+    /// The file is CMS-signed; the payload is a plain XML plist inside it, so
+    /// the plist is sliced out rather than the signature verified. Verifying it
+    /// would add nothing: the file is inside our own signed bundle.
+    static func apnsEnvironmentFromProvisioningProfile() -> String {
+        guard let url = Bundle.main.url(forResource: "embedded",
+                                        withExtension: "mobileprovision"),
+              let data = try? Data(contentsOf: url) else {
+            print("[APNs] No embedded.mobileprovision — App Store build, environment: production")
+            return "production"
+        }
+        guard let start = data.range(of: Data("<?xml".utf8)),
+              let end = data.range(of: Data("</plist>".utf8),
+                                   in: start.upperBound..<data.endIndex),
+              let plist = try? PropertyListSerialization.propertyList(
+                  from: Data(data[start.lowerBound..<end.upperBound]),
+                  format: nil) as? [String: Any],
+              let entitlements = plist["Entitlements"] as? [String: Any],
+              let aps = entitlements["aps-environment"] as? String else {
+            print("[APNs] embedded.mobileprovision present but aps-environment unreadable — assuming production")
+            return "production"
+        }
+        print("[APNs] aps-environment from embedded.mobileprovision: \(aps)")
+        return aps
+    }
+
     func registerWithMiddleware(token: String, secret: String, middlewareURL: String) {
         guard !middlewareURL.isEmpty, let url = URL(string: "\(middlewareURL)/register") else {
             print("[APNs] No middleware URL configured — skipping token registration.")
@@ -129,11 +171,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             print("[APNs] No webhook secret for active connection — skipping token registration.")
             return
         }
-        #if DEBUG
-        let apnsEnvironment = "sandbox"
-        #else
-        let apnsEnvironment = "production"
-        #endif
+        let apnsEnvironment = AppDelegate.apnsEnvironmentFromProvisioningProfile()
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

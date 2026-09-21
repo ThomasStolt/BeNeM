@@ -206,6 +206,29 @@ class IncidentListViewModel: ObservableObject {
         }
     }
 
+    /// Put an incident the app fetched on its own into the list.
+    ///
+    /// The deep-link fetch used to parse an incident, navigate to it, and throw
+    /// it away — so returning from the detail screen showed a list that provably
+    /// did not contain the incident the user had just been reading. `incidents`
+    /// had only two writers: cleared, and replaced wholesale by a load. There
+    /// was no way in, so the row could not appear until the next refresh, which
+    /// is up to `refresh_interval` (120 s by default) of FOREGROUND time away —
+    /// the countdown does not advance while the app is backgrounded.
+    ///
+    /// Reported from the field on 2.13.6 (53), 2026-09-21.
+    ///
+    /// Append rather than sort: `filteredIncidents` does not sort, it filters,
+    /// and `getincidents` returns oldest-first — so the end of the array is
+    /// where a new incident belongs.
+    func upsertIncident(_ incident: NetreoIncident) {
+        if let idx = incidents.firstIndex(where: { $0.incidentID == incident.incidentID }) {
+            incidents[idx] = incident
+        } else {
+            incidents.append(incident)
+        }
+    }
+
     func clearFilters() {
         selectedSeverity = nil
         selectedStatus = nil

@@ -40,6 +40,7 @@ struct IncidentListView: View {
     @Binding private var pendingIncidentID: String?
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
     @AppStorage("netreo_active_connection_name") private var activeServerName = ""
+    @Environment(\.scenePhase) private var scenePhase
     private let apiService: NetreoAPIService
 
     init(viewModel: IncidentListViewModel, apiService: NetreoAPIService, navResetID: UUID, pendingIncidentID: Binding<String?>) {
@@ -113,6 +114,22 @@ struct IncidentListView: View {
                 guard viewModel.incidents.isEmpty && viewModel.errorMessage == nil else { return }
                 Task { await viewModel.loadIncidents() }
             }
+            // A resumed app shows a list as old as the moment it was backgrounded,
+            // and `onAppear` above deliberately will not reload a non-empty one.
+            // The auto-refresh countdown does not advance in the background either,
+            // so the list could sit stale for a further two minutes of foreground
+            // time. This hits the middleware's incident cache, not BHNM.
+            //
+            // `loadIncidents()` returns early while a load is in flight, so this
+            // cannot stack with the deep-link route: when the in-flight load
+            // lands, the existing `onChange(of: viewModel.isLoading)` hook above
+            // runs `navigateToPendingIncident()`. And a FAILED load leaves
+            // `incidents` untouched, so resuming with no network keeps the rows
+            // on screen rather than emptying them.
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                Task { await viewModel.loadIncidents() }
+            }
             .navigationDestination(for: NetreoIncident.self) { incident in
                 IncidentDetailView(
                     incident: incident,
@@ -158,6 +175,11 @@ struct IncidentListView: View {
                     let incident = try await apiService.fetchSingleIncident(incidentID: id)
                     await MainActor.run {
                         deepLinkState = .idle
+                        // Into the list BEFORE navigating. This is the freshest
+                        // thing the app knows about the incident and it was
+                        // being discarded, so coming back from the detail
+                        // screen showed a list without the row just read.
+                        viewModel.upsertIncident(incident)
                         navPath.append(incident)
                     }
                     return
