@@ -97,14 +97,16 @@ The reviewer asked for this to be established before designing. What follows was
 state is readable through exactly the API BeNeM already uses; no new integration is required to
 *see* it.
 
-**[MEASURED] But it did not page**, and the explanation previously recorded for that is wrong.
+**[MEASURED] But it sent no alert notification**, and the explanation previously recorded for
+that is wrong.
 29585 produced no webhook, and neither did its controlled repeat 29628 on 2026-09-16. The
 explanation "a crashed Service Engine cannot notify anyone of its own crash" **has collapsed**:
 per Thomas, **the main BHNM appliance sends the webhooks, not the Service Engine**, so during
-both outages the sender was healthy and able to page.
+both outages the sender was healthy and able to send an alert notification.
 
 So: **the one device whose outage invalidates every other device's status is the one whose outage
-reaches nobody, while the machine that would do the paging is up.** That belongs to queue item 11
+reaches nobody, while the machine that would send the alert notification is up.** That belongs to
+queue item 11
 (coverage), not here — see the dedicated section below.
 
 **~~[INFERENCE, needs confirming]~~ ANSWERED 2026-09-20 — see decision 2.** The open part was
@@ -224,7 +226,8 @@ advancing on the devices that were handed over, and how long does the handover t
 5. Sample for at least 60 minutes. Record, per device: does `lastUpdateTime` keep advancing; if it
    pauses, **for how long** — that gap is the handover time and it is the number the design needs;
    does `status` change at any point.
-6. Record whether the failed SE raises its own incident, and whether it pages. That is Q1 again,
+6. Record whether the failed SE raises its own incident, and whether an alert notification is
+   sent for it. That is Q1 again,
    on a grouped engine, and BMC may answer it first.
 7. Thomas restores it; record what arrives.
 
@@ -250,8 +253,9 @@ HH:MM**. Not green. Not red. Its own appearance.
 - **The connection badge must participate.** Today it goes green on "data arrived at some point"
   (incident-freshness Part 3). Data arriving from a front end whose engine is dead is exactly the
   case it should refuse to call healthy.
-- **Paging is the separate question.** If the SE can be identified, its outage is the single most
-  page-worthy event on the system — it means *nothing else will page you either*. That belongs
+- **Alert notification is the separate question.** If the SE can be identified, its outage is the
+  single event on the system most deserving of one — it means *no other incident will reach you
+  either*. That belongs
   with item 11, not here.
 
 ## How this ranks against item 11 (coverage visibility)

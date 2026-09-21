@@ -74,16 +74,94 @@ across 14 hours.
 **13 minutes** after its VM was hard-stopped, and BHNM's own detection is a 10-minute "no updates"
 check. By the time the engine reads `DOWN`, the devices have been stale for 13 minutes.
 
-**[MEASURED] The GROUP object does page — and it is also too slow, and it lies about itself.**
+**[MEASURED] The GROUP object raises its own incident — and it is too slow, it lies about itself,
+and no alert notification was sent for it.**
 `BHNM-A-SE-GROUP` raised incident **141187** at T+24 m 31 s, which is **after** the handover had
 already completed. Its own row still reads `status: UP` with an open incident against it, and its
-`lastUpdateTime` has been frozen at `18:25:10` for over 15 hours. Useful as a **paging** signal,
-useless as a **freshness** signal.
+`lastUpdateTime` has been frozen at `18:25:10` for over 15 hours. Useful as an **incident** signal,
+useless as a **freshness** signal — and see the alert-notification section below, which is the
+reason the distinction matters.
 
 **[MEASURED] SE01's former devices are genuinely monitored now.** Overnight they raised incidents
 normally — `UAP-AC-Pro-DB` 42, `UAP-AC-LR-Keller` 26, `US-8-60W-DB2` 6, `C9200CX` 1, `US-24-G1` 1.
 This is the check that keeps the result honest: an absence of incidents would not have distinguished
 "monitored and quiet" from "not monitored".
+
+---
+
+## Did 141184 and 141187 send an ALERT NOTIFICATION?
+
+**Asked because "an incident opened" and "somebody was told" are different facts, and only the
+second one matters to a product whose job is telling somebody.**
+
+### 141184 (`BHNM-A-SE01`) and 141187 (`BHNM-A-SE-GROUP`): NO — and the absence proves nothing about BHNM
+
+**[MEASURED]** `grep` over the whole middleware log returns **no line naming either incident id**,
+and **zero lines naming the group object at all**, ever.
+
+**That absence is structural and must not be read as a finding about BHNM's behaviour.**
+BHNM-A is on `192.168.2.208`, a LAN address with **no route to the middleware**, so no alert
+notification from BHNM-A could have arrived however its action group is configured. Whether A has
+an action group, a method, or either incident attached to one is **unmeasured** — and the honest
+statement is *"not measured"*, not *"did not notify"*. Root `CLAUDE.md`: before writing "cannot",
+ask what observation distinguishes it from "did not".
+
+### But BHNM-B detected the same outage independently, and DID send one — ten minutes sooner
+
+**[MEASURED]** BHNM-B monitors the A-stack machines as ordinary SNMP hosts (it carries
+`BHNM-A-SE01` typed `Linux/Net-SNMP`; see the 2026-09-20 correction). It raised **its own**
+incident and its action group fired:
+
+```
+2026-09-20 16:04:15,324Z [Webhook] PROBLEM — BHNM-A-SE01 — Incident 29944
+2026-09-20 16:04:15,327Z [Webhook] Queued delivery to 6 target(s) for incident 29944
+```
+
+**`16:04:15Z` is T+3 m 11 s.** Against BHNM-A's own detection of the same event at **T+13 m 01 s**.
+
+| detector | what it watches | time to alert notification |
+|---|---|---|
+| **BHNM-B**, host check on the engine's IP | is the box reachable | **T+3 m 11 s**, delivered to 6 targets |
+| **BHNM-A**, engine check on its own SE | `"No updates received in the last 10 minutes."` | T+13 m 01 s, incident only, no route to notify |
+| **BHNM-A**, the group object | passive check | T+24 m 31 s, incident only |
+
+**A plain host check on the engine's address beats BHNM's own engine-health check by ten minutes.**
+The engine-specific check has a 10-minute window built into its wording, and it spends that window
+asserting `UP`.
+
+Note the two ids are not comparable and must not be conflated: **29944 is a BHNM-B incident id**
+(B's run in the 29xxx range) and **141184 is BHNM-A's** (141xxx). Two servers, two incidents, one
+outage.
+
+### The log independently corroborates yesterday's whole VM timeline
+
+**[MEASURED]** Unprompted confirmation from a second source, which is why it is kept:
+
+```
+2026-09-20 11:04:15,018Z  PROBLEM  BHNM-A-SE02  Incident 29933   <- ~4.5 min after both VMs destroyed (10:59:40Z)
+2026-09-20 11:04:15,021Z  PROBLEM  BHNM-A-SE01  Incident 29934
+2026-09-20 14:04:16,955Z  RECOVERY BHNM-A-SE01  Incident 29934   <- after the rebuild started ~13:55Z
+2026-09-20 14:09:20,279Z  RECOVERY BHNM-A-SE02  Incident 29933
+2026-09-20 14:18:14,759Z  PROBLEM  BHNM-A-SE01  Incident 29942   <- SE01 up, NIC not connected
+2026-09-20 14:28:27,433Z  RECOVERY BHNM-A-SE01  Incident 29942   <- "Automatically connect" ticked
+2026-09-20 16:04:15,324Z  PROBLEM  BHNM-A-SE01  Incident 29944   <- THIS EXPERIMENT, T+3m11s
+```
+
+**The control this needs:** the log was demonstrably capable of a non-empty answer in the window —
+**245 webhook lines** between 2026-09-20 16:00Z and 2026-09-21 06:15Z. So the silence about 141184
+and 141187 is a silence about *those* incidents, not a dead log.
+
+### What it means for the design
+
+**BeNeM should not wait for an engine-health check.** The fastest, simplest and already-working
+detector of an engine outage is **a host check on the engine's own address from a server that is
+not that engine** — which is exactly what BHNM-B does, at 3 minutes, with an alert notification
+that reaches the phones today.
+
+The 10-minute staleness threshold recommended below therefore covers a **different** case: not
+"the engine died" — that is detectable in 3 minutes by a second BHNM — but **"these rows stopped
+being refreshed for any reason"**, which no incident anywhere describes and which stayed
+invisible for the full 22 minutes.
 
 ---
 
@@ -114,13 +192,64 @@ positive.**
 
 ---
 
+## Fail-back — SE01 restarted 2026-09-21
+
+**T1 = `2026-09-21T06:34:50.364Z`** — `qm start 212`. Issued 06:34:46.870Z, reported `running` by
+06:34:50.364Z. Sampler ran continuously across both events, so fail-back and failover are on one
+timeline.
+
+| T1+ | event |
+|---|---|
+| **+2 m 25 s** | `BHNM-A-SE01` row flips **`DOWN` → `UP`**, message `"No updates received in the last 10 minutes."` → **`"Updates received."`** |
+| **by +8 m 40 s** | incident **141184** (`BHNM-A-SE01`) has **CLOSED** |
+| **+8 m 40 s** | incident **141187** (`BHNM-A-SE-GROUP`) is **STILL OPEN**, 15 h 46 m old |
+
+### No pause occurred — and that is NOT yet the same as "fail-back is free"
+
+**[MEASURED]** Across the first 8 m 40 s after the restart, SE01's 13 devices advanced **n=78**
+times, **median 60 s, longest single pause 240 s** (`vusolo4k`, `08:35:10 → 08:39:05`) — inside the
+normal post-handover maximum of 420 s. **Nothing froze.**
+
+**[NOT MEASURED, and the distinction matters] Whether ownership has returned to SE01 at all.**
+The API exposes no service-engine assignment field — `devices/list`, `devices/find` and
+`get-host-and-service-status` all omit it, and the group object cannot be expanded. So the
+observation above is consistent with **two different worlds**:
+
+| | what it would mean |
+|---|---|
+| devices have moved back to SE01 | **fail-back is seamless** — no gap at all, against 21 m 58 s going out |
+| devices are still on SE02 | **fail-back has not happened yet**, and its gap is still ahead |
+
+**Only the BHNM UI's Service Engine tab distinguishes them, and that is Thomas's read.** Until it
+is made, the fail-back gap is **unknown**, not zero. Writing "no gap" here without this paragraph
+would be the same error as the 2026-09-20 `device_type` claim: a true observation carrying an
+untrue implication because its source was not stated.
+
+### The engine's own `message` changed, and it had not before
+
+`BHNM-A-SE01` now reads **`"Updates received."`** — the string `BHNM-B-SE01` has always carried.
+Before this experiment it read `"No updates received."` continuously for hours
+(`docs/evidence/2026-09-20-se-message-watch.jsonl`). `BHNM-A-SE02` still reads
+`"No updates received."`. Recorded as an observation; no cause is claimed.
+
+### `BHNM-A-SE-GROUP` has a stuck incident
+
+Incident **141187** has been open **15 h 46 m** while the group's own row reads `status: UP` with
+`lastUpdateTime` frozen at `2026-09-20 18:25:10` — unchanged since 2 minutes after it opened.
+**An object asserting `UP` while carrying its own open incident, and not refreshed in 15 hours,
+is the doctrine case wearing a third costume.** Whether it clears on its own is worth watching.
+
+---
+
 ## Still open
 
-- **Fail-BACK is unmeasured.** SE01 has been stopped for 14 h. Restarting it, with the sampler
-  still running, measures the return gap for free. A fail-back gap larger than 21 m 58 s would be
-  the number that sets the threshold instead.
-- **Whole-group failure is unmeasured.** Stopping SE02 as well is the second scenario Thomas named.
-- **No app-side observation exists**, by design: BHNM-A is not in `servers.json` and has no
-  connectivity to the middleware. Everything here is BHNM-side.
-- **Incident 141184 (`BHNM-A-SE01`) and 141187 (`BHNM-A-SE-GROUP`) are both still OPEN** and will
-  need clearing when SE01 comes back — worth watching, since the recovery path is untested.
+- **Fail-back gap: UNKNOWN**, pending the UI read above. Not zero.
+- **No RECOVERY alert notification for BHNM-B's incident 29944 yet**, 9 minutes after SE01 came
+  back and 2.5 minutes after its row read `UP`. The PROBLEM went out at T+3 m 11 s; the matching
+  RECOVERY is still outstanding and is worth chasing, because "does every clear produce one" is
+  already on the 09-18 handoff's NOT VERIFIED list.
+- **Whole-group failure is unmeasured.** Stopping SE02 as well is the second scenario Thomas named,
+  to run once he confirms the lab is settled.
+- **Whether BHNM-A has an action group or method at all is unmeasured**, and cannot be inferred
+  from the silence — BHNM-A has no route to the middleware.
+- **No app-side observation exists**, by design: BHNM-A is not in `servers.json`.
