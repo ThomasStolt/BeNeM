@@ -40,6 +40,10 @@ async def test_cache_loop_populates_cache():
     }
 
     mock_incidents_resp = {
+        # `result` is required, and is the real wire shape: a body that does not
+        # say it completed is an error answer, and reading it as zero incidents
+        # is what _fetch_incidents now refuses to do.
+        "result": "completed",
         "active_incidents": [
             {"incident_id": "1", "title": "Down", "name": "router1",
              "incident_state": "OPEN", "open_time": "2026-04-09T06:00:00"}

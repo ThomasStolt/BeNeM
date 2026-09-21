@@ -71,6 +71,29 @@ step 5 (2.20.1) flips the CLSD retention flag once Thomas confirms `BeNeM/54` in
   behaviour change on a released client produced by a purely additive payload, which is the GAIN
   rule's blind spot. Found by reading the shipped filter rather than assuming it.
 
+### Fixed
+
+- **`_fetch_incidents` returned the BHNM body unchecked, and an error answer read as ZERO
+  incidents.** Found in review of this change, before deploy. A wrong `api_key`, PHP's "API
+  require HTTPS", or any BHNM fault produces a body with no `active_incidents` key; the cycle
+  took the missing key for an empty list.
+
+  **Harmless before M3 — it blanked one cycle and the next repaired it.** With CLSD retention on,
+  zero incidents means every cached incident disappeared from the list, which `_retain_closed`
+  correctly reads as a close: **the whole estate marked `CLOSED` with a `closed_at` and served as
+  CLSD for the next 24 hours.** A fault turned into a day of fabricated history.
+
+  `getincidents` must now answer `result: "completed"` before anything is derived from what it
+  does not contain; otherwise it raises, the cycle fails, and **no retention pass runs at all**.
+  `result: "completed"` with no `active_incidents` key is a different thing and stays legitimate —
+  [MEASURED 2026-09-19] BHNM's own "none" answer is `{"result":"completed","detail":"No active
+  incident."}`. The refresh path reaches BHNM through the same function, so one guard covers both
+  callers.
+
+  Both guard tests were **run against the pre-fix code and fail there**, with the defect visible
+  in its own log line: `Retained 2 incident(s) as CLOSED — gone from the list, no RECOVERY seen`
+  on an `{"result": "error"}` body.
+
 ### Changed
 
 - **`ack_user` on `GET /api/v1/incidents/{id}` is now `string | null`** — BHNM's empty string

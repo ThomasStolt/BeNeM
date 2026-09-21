@@ -147,8 +147,26 @@ poll to carry it.
 
 > **A Refresh tap, or the app coming to the foreground, triggers ONE `getincidents` call on the
 > middleware. Single-flight, at most once per 30 seconds per server, independent of the polling
-> switch. It updates `state` and `acknowledged` for every incident and makes NO
-> `getincidentdetail` call.**
+> switch. It updates `state` for every incident, and `acknowledged` for every incident whose row
+> says anything about it, and makes NO `getincidentdetail` call.**
+
+**CORRECTED 2026-09-21, during the 2.20.0 build. The original wording said "updates `state` and
+`acknowledged` for every incident", and the list call cannot do the second half.** [MEASURED — the
+served-row key list in §3 below, minus the four keys enrichment adds] a `getincidents` row carries
+`incident_id`, `incident_state`, `name`, `title`, `open_time`, `device_category`, `device_site` and
+`device_note` — **and no ack field at all.**
+
+**A row that carries no ack field means "does not say", never `false`.** [THOMAS 2026-09-21] Reading
+its absence as `false` would **un-acknowledge every incident on every refresh** — the doctrine's own
+failure, an unverified value rendered as the healthy one, on the field that says whether anybody is
+already on it. So `ack_flag()` returns `None` for such a row and the refresh keeps whatever the
+cache already knew.
+
+**The consequence, stated rather than hidden: a refresh cannot learn about an acknowledgement made
+in the BHNM UI.** That fact arrives by `ACKNOWLEDGEMENT` webhook or by the next enrichment — which
+is the webhook-first premise doing its job, not a gap in the refresh. **No design change follows:**
+the ruling's substance — one list call, single-flight, no detail call, independent of the polling
+switch — is unchanged, and only the claim about what the call can observe is corrected.
 
 - **Fold this with C7.** `2026-09-19-incident-freshness-webhook-first-design.md` C7 already
   specifies a refresh endpoint, *"rate-limited server-side to one per server per 30 s"*, with *"a
@@ -348,6 +366,8 @@ five separate assertions, because that is what makes a later edit visible.
 | `test_a_closed_row_is_served_for_24h_from_closed_at_and_dropped_after` | CLSD window and C15 |
 | `test_nothing_older_than_24h_is_held_in_any_state` | C15's other half |
 | `test_incident_types_is_NOT_dropped_by_the_24h_rule` | the C15 exemption |
+| `test_an_error_body_RAISES_and_the_cache_is_untouched` | **added 2026-09-21 during the build.** `_fetch_incidents` returned the BHNM body unchecked, so an error answer — wrong api_key, HTTPS refusal, BHNM fault — read as ZERO incidents. Harmless before M3; **with retention it marks the whole estate CLOSED and serves it as CLSD for 24 hours.** The body must say `result: completed` before anything is derived from what it does not contain |
+| `test_a_completed_body_with_no_active_incidents_key_closes_everything` | the legitimate zero still works. [MEASURED 2026-09-19] BHNM's own "none" is `{"result":"completed","detail":"No active incident."}` — it completed, and every cached incident really has gone |
 
 ### iOS — `ios/BeNeMTests/IncidentPillsTests.swift`, driving the real `IncidentListViewModel`
 

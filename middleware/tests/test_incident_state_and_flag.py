@@ -27,6 +27,10 @@ TARGET = "https://bhnm-state.example.com"
 # carry ALARMS CLEARED, so a list call is the only way that state can arrive.
 NOPOLL_KEY = "state-and-flag-nopoll-key"
 NOPOLL_TARGET = "https://bhnm-nopoll.example.com"
+# A third with CLSD retention ON, which is what turns a misread body from one
+# blanked cycle into 24 hours of false CLSD.
+RETAIN_KEY = "state-and-flag-retain-key"
+RETAIN_TARGET = "https://bhnm-retain.example.com"
 
 _servers = tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w")
 json.dump([
@@ -34,6 +38,8 @@ json.dump([
      "cache_enabled": True, "cache_refresh_seconds": 120},
     {"id": "nopoll", "name": "No poll", "url": NOPOLL_TARGET, "api_key": NOPOLL_KEY,
      "pin": "", "cache_enabled": False, "cache_refresh_seconds": 120},
+    {"id": "retain", "name": "Retain", "url": RETAIN_TARGET, "api_key": RETAIN_KEY,
+     "pin": "", "cache_enabled": True, "cache_refresh_seconds": 120, "retain_closed": True},
 ], _servers)
 _servers.close()
 os.environ.setdefault("SERVERS_JSON_PATH", _servers.name)
@@ -53,6 +59,7 @@ from incident_cache import (CachedIncidents, _apply_override_fields, _prune_aged
 
 HEADERS = {"X-Proxy-Token": API_KEY, "X-BHNM-Target": TARGET}
 NOPOLL_HEADERS = {"X-Proxy-Token": NOPOLL_KEY, "X-BHNM-Target": NOPOLL_TARGET}
+RETAIN_HEADERS = {"X-Proxy-Token": RETAIN_KEY, "X-BHNM-Target": RETAIN_TARGET}
 
 
 def _row(iid, state="OPEN", **kw):
@@ -390,3 +397,101 @@ def test_override_fields_are_applied_in_exactly_one_place():
         ("ACKNOWLEDGED", "ALARMS CLEARED", True)
     _apply_override_fields(row, "CLOSED", 2000.0)
     assert (row["incident_state"], row["state"], row["closed_at"]) == ("CLOSED", "CLOSED", 2000.0)
+
+
+# -- The body must say it completed before anything is derived from it ----------
+# Retention is what raises the stakes here. An error answer has no
+# active_incidents key, and an unchecked body reads as ZERO incidents. Before
+# CLSD retention that blanked one cycle and the next one repaired it. With
+# retention, zero incidents means every cached incident vanished from the list,
+# which _retain_closed correctly treats as a close — the whole estate marked
+# CLOSED with a closed_at and served as CLSD for the next 24 hours.
+
+RETAIN_SERVER = {"id": "retain", "url": RETAIN_TARGET, "api_key": RETAIN_KEY,
+                 "pin": "", "cache_refresh_seconds": 120, "retain_closed": True}
+
+# A wrong api_key, an HTTPS refusal, a BHNM fault: whatever the wording, the
+# shape is the same — it does not say `completed` and it has no incident list.
+ERROR_BODY = {"result": "error", "detail": "Invalid password."}
+
+
+@pytest.mark.asyncio
+async def test_an_error_body_RAISES_and_the_cache_is_untouched():
+    """The cycle must FAIL, so that no retention pass runs at all. A cycle that
+    succeeds on an error answer is the doctrine failure in its operational form:
+    the positive result is real and measures something other than the thing that
+    mattered."""
+    before = CachedIncidents(active_incidents=[_row("30005"), _row("30006")],
+                             closed_incidents=[], last_updated=time.time())
+    incident_cache._cache["retain"] = before
+
+    async def post(url, data=None, **kw):
+        resp = MagicMock(status_code=200)
+        resp.json.return_value = ERROR_BODY
+        return resp
+
+    client = MagicMock()
+    client.post = post
+    with pytest.raises(ValueError):
+        await incident_cache._run_one_cycle(client, RETAIN_SERVER)
+
+    assert incident_cache._cache["retain"] is before, "the cache entry was replaced"
+    assert [i["state"] for i in before.active_incidents] == ["OPEN", "OPEN"]
+    assert before.closed_incidents == []
+    assert all(i["closed_at"] is None for i in before.active_incidents)
+
+
+@pytest.mark.asyncio
+async def test_a_completed_body_with_no_active_incidents_key_closes_everything():
+    """The legitimate zero, and it must still work. [MEASURED 2026-09-19] BHNM's
+    own "none" answer is {"result":"completed","detail":"No active incident."} —
+    it completed, it simply has nothing to list, and every cached incident really
+    has gone."""
+    incident_cache._cache["retain"] = CachedIncidents(
+        active_incidents=[_row("30005")], closed_incidents=[], last_updated=time.time())
+
+    async def post(url, data=None, **kw):
+        resp = MagicMock(status_code=200)
+        resp.json.return_value = {"result": "completed", "detail": "No active incident."}
+        return resp
+
+    client = MagicMock()
+    client.post = post
+    await incident_cache._run_one_cycle(client, RETAIN_SERVER)
+
+    entry = incident_cache._cache["retain"]
+    assert entry.active_incidents == []
+    assert [i["incident_id"] for i in entry.closed_incidents] == ["30005"]
+    assert entry.closed_incidents[0]["state"] == "CLOSED"
+    assert entry.closed_incidents[0]["closed_at"] is not None
+
+
+def test_the_refresh_path_refuses_an_error_body_too():
+    """Same guard, same function — the refresh reaches BHNM through
+    _fetch_incidents, so fixing it in one place fixes both callers."""
+    before = CachedIncidents(active_incidents=[_row("30005")], closed_incidents=[],
+                             last_updated=time.time())
+    incident_cache._cache["retain"] = before
+    ctx, calls = _bhnm(ERROR_BODY)
+    with patch("incident_cache.httpx.AsyncClient", return_value=ctx):
+        r = TestClient(main_mod.app).post("/api/v1/incidents/refresh", headers=RETAIN_HEADERS)
+    assert r.status_code == 502
+    assert incident_cache._cache["retain"] is before
+    assert before.active_incidents[0]["state"] == "OPEN"
+    # And a failed refresh must not be coalesced: the next tap has to try again
+    # rather than be handed a 30-second-old failure as an answer.
+    assert "retain" not in incident_cache._refresh_last
+
+
+@pytest.mark.asyncio
+async def test_a_non_json_body_raises_rather_than_reading_as_zero_incidents():
+    """PHP's "API require HTTPS" is not JSON at all."""
+    async def post(url, data=None, **kw):
+        resp = MagicMock(status_code=200)
+        resp.json.side_effect = ValueError("no json")
+        return resp
+
+    client = MagicMock()
+    client.post = post
+    with pytest.raises(ValueError):
+        await incident_cache._fetch_incidents(client, RETAIN_SERVER)

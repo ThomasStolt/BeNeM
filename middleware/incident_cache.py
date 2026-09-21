@@ -86,9 +86,36 @@ async def _fetch_incidents(client: httpx.AsyncClient, server: dict) -> dict:
     if server.get("pin"):
         form["pin"] = server["pin"]
     resp = await client.post(url, data=form)
-    raw = resp.json()
+    try:
+        raw = resp.json()
+    except ValueError as e:
+        # PHP's "API require HTTPS" and friends are not JSON at all.
+        raise ValueError(f"getincidents returned non-JSON from {server.get('id') or url}") from e
     if isinstance(raw, list):
-        return raw[0] if raw else {}
+        raw = raw[0] if raw else {}
+
+    # **The body must SAY it completed before anything is derived from what it
+    # does not contain.** An error answer — a wrong api_key, an HTTPS refusal, a
+    # BHNM fault — has no `active_incidents` key, and an unchecked body reads as
+    # ZERO incidents. Before CLSD retention that blanked one cycle and the next
+    # one repaired it. With retention, zero incidents means every cached incident
+    # disappeared from the list, which _retain_closed correctly treats as a close:
+    # the whole estate marked CLOSED with a closed_at, and served as CLSD for the
+    # next 24 hours. So this raises, the cycle fails, and NO retention pass runs.
+    #
+    # `result: "completed"` with no `active_incidents` key is a different thing
+    # and is a legitimate answer meaning none — [MEASURED 2026-09-19] BHNM says
+    # {"result":"completed","detail":"No active incident."}. It is not guarded
+    # against, and the caller's `.get("active_incidents", [])` handles it.
+    if not isinstance(raw, dict):
+        raise ValueError(f"getincidents returned a {type(raw).__name__}, not an object, "
+                         f"from {server.get('id') or url}")
+    if str(raw.get("result", "")).strip().lower() != "completed":
+        # result and the key names, never the body: an error string is the one
+        # place BHNM might echo something it was sent.
+        raise ValueError(f"getincidents did not complete on {server.get('id') or url} "
+                         f"(HTTP {resp.status_code}, result={raw.get('result')!r}, "
+                         f"keys={sorted(raw)})")
     return raw
 
 
