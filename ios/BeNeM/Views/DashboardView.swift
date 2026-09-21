@@ -22,6 +22,9 @@ struct DashboardView: View {
     let navResetID: UUID
     @State private var navPath = NavigationPath()
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
+    /// When this screen was last CONFIRMED by the server — what `Updated HH:MM`
+    /// renders. nil until something has actually come back.
+    @State private var lastRefreshed: Date?
     @AppStorage("netreo_active_connection_name") private var activeServerName = ""
 
     private let apiService: NetreoAPIService
@@ -85,10 +88,10 @@ struct DashboardView: View {
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    AutoRefreshButton(
-                        interval: refreshInterval,
+                    UpdatedAtButton(
+                        updatedAt: lastRefreshed,
                         isLoading: incidentViewModel.isLoading || categoryViewModel.isLoading,
-                        action: loadData
+                        action: { await loadData(); lastRefreshed = Date() }
                     )
                 }
             }
@@ -117,6 +120,7 @@ struct DashboardView: View {
                 }
             }
         }
+        .autoRefresh(every: refreshInterval) { await loadData(); lastRefreshed = Date() }
         .onChange(of: navResetID) { _, _ in withAnimation { navPath = NavigationPath() } }
         .onChange(of: ObjectIdentifier(apiService)) { _, _ in
             // incidentViewModel is owned by ContentView — it handles its own updateAPIService.
@@ -131,10 +135,9 @@ struct DashboardView: View {
     private var statusCards: some View {
         HStack(spacing: 12) {
             Button {
-                // Land on the same set the tile counted. activeIncidentsCount is
-                // status == .active, so the list must be filtered to match or the
-                // number on the tile and the rows on the screen disagree.
-                incidentViewModel.filterByStatus(.active)
+                // The tile's set is exactly ONE pill, so it selects that pill
+                // rather than relying on the list's default happening to agree.
+                incidentViewModel.select(.totl)
                 selectedTab = 1
             } label: {
                 StatusCard(
@@ -576,9 +579,10 @@ struct IncidentTickerBanner: View {
     private var content: some View {
         let incident = visible[currentIndex % visible.count]
         let counts   = alarmCounts[incident.incidentID]
-        let isCleared = incident.incidentState.uppercased() == "ALARMS CLEARED"
-        let badgeLabel = isCleared ? "CLRD" : incident.status.displayLabel
-        let badgeColor = isCleared ? heatMapGreen : incident.status.displayColor
+        // One home for this: NetreoIncident.chip. The ticker and the incident
+        // row each used to compute it, which is how CLOSED ended up with a
+        // different label here than in the list.
+        let (badgeLabel, badgeColor) = incident.chip
 
         return NavigationLink(destination: IncidentDetailView(
             incident: incident,

@@ -11,31 +11,16 @@ extension Notification.Name {
 @MainActor
 class IncidentListViewModel: ObservableObject {
 
-    enum FilterBadge: CaseIterable {
-        case critical       // rot:    severity == .critical
-        case major          // orange: severity == .major
-        case warning        // yellow: severity == .warning / .minor
-        case ok             // green:  status == .resolved / .closed
-        case acknowledged   // blau:   status == .acknowledged
-
-        var color: Color {
-            switch self {
-            case .critical:     return .red
-            case .major:        return .orange
-            case .warning:      return Color(red: 0.75, green: 0.55, blue: 0)
-            case .ok:           return .green
-            case .acknowledged: return .blue
-            }
-        }
-    }
-
     @Published var incidents: [NetreoIncident] = []
     @Published var alarmCounts: [String: [AlarmColor: Int]] = [:]
     @Published var isLoading = false
     @Published var errorMessage: String?
-    @Published var selectedSeverity: NetreoIncident.IncidentSeverity?
-    @Published var selectedStatus: NetreoIncident.IncidentStatus?
-    @Published var activeBadge: FilterBadge?
+    @Published var selectedPill: IncidentPill = .defaultPill
+    @Published var searchText: String = ""
+    /// When the list was last CONFIRMED by the server — what `Updated HH:MM`
+    /// renders. Set only on a successful load or refresh: a failed one must not
+    /// move the clock, or the header dates data the server never returned.
+    @Published var lastUpdated: Date?
 
     private var apiService: NetreoAPIService
     private var statusObserver: NSObjectProtocol?
@@ -66,73 +51,56 @@ class IncidentListViewModel: ObservableObject {
         Task { await loadIncidents() }
     }
     
+    /// The rows to render: the selected pill, then the search WITHIN it.
+    ///
+    /// Search never escapes the pill. A query that matches a closed incident
+    /// while OPEN is selected returns nothing, rather than quietly widening the
+    /// filter the user chose — the pill is a statement about what is on screen,
+    /// and search must not falsify it.
     var filteredIncidents: [NetreoIncident] {
-        var filtered = incidents
-
-        if let badge = activeBadge {
-            switch badge {
-            case .critical:
-                filtered = filtered.filter { $0.severity == .critical }
-            case .major:
-                filtered = filtered.filter { $0.severity == .major }
-            case .warning:
-                filtered = filtered.filter { $0.severity == .warning || $0.severity == .minor }
-            case .ok:
-                filtered = filtered.filter { $0.status == .resolved || $0.status == .closed }
-            case .acknowledged:
-                filtered = filtered.filter { $0.status == .acknowledged }
-            }
-        } else {
-            if let severity = selectedSeverity {
-                filtered = filtered.filter { $0.severity == severity }
-            }
-            if let status = selectedStatus {
-                if status == .active {
-                    // The Home tile's filter. It must select the SAME set that
-                    // activeIncidentsCount counted, or the tile's number and the
-                    // rows disagree — and it must not drop an incident the
-                    // moment the user acknowledges it.
-                    filtered = filtered.filter(\.isActive)
-                } else {
-                    filtered = filtered.filter { $0.status == status }
-                }
-            }
-        }
-
-        return filtered.sorted { (Int($0.incidentID) ?? 0) > (Int($1.incidentID) ?? 0) }
-    }
-
-    func count(for badge: FilterBadge) -> Int {
-        switch badge {
-        case .critical:     return incidents.filter { $0.severity == .critical }.count
-        case .major:        return incidents.filter { $0.severity == .major }.count
-        case .warning:      return incidents.filter { $0.severity == .warning || $0.severity == .minor }.count
-        case .ok:           return incidents.filter { $0.status == .resolved || $0.status == .closed }.count
-        case .acknowledged: return incidents.filter { $0.status == .acknowledged }.count
-        }
-    }
-
-    func toggleBadge(_ badge: FilterBadge) {
-        activeBadge = (activeBadge == badge) ? nil : badge
-    }
-
-    var openIncidents: [NetreoIncident] {
         incidents
-            .filter { $0.status == .active && $0.incidentState.uppercased() != "ALARMS CLEARED" }
+            .filter { selectedPill.contains($0) && $0.matches(search: searchText) }
             .sorted { (Int($0.incidentID) ?? 0) > (Int($1.incidentID) ?? 0) }
     }
 
-    var activeIncidentsCount: Int {
-        // NOT `status == .active` — that excludes every acknowledged incident,
-        // so the number dropped the moment a user acted on one. See
-        // NetreoIncident.isActive.
-        incidents.filter(\.isActive).count
+    /// Counts are computed CLIENT-SIDE from the served list. There is no count
+    /// endpoint — the list is already in hand, and a second source would be a
+    /// second thing that can disagree with the rows on screen.
+    func count(for pill: IncidentPill) -> Int {
+        incidents.filter(pill.contains).count
+    }
+
+    func select(_ pill: IncidentPill) {
+        selectedPill = pill
+    }
+
+    /// **The Home tile IS the TOTL pill** — everything NOT CLOSED.
+    ///
+    /// Ruled 2026-09-21 (Thomas), superseding the design note's Q5 ("the tile
+    /// is the OPEN count"). **TOTL is BHNM's own Active List View**, so
+    /// "Active Incidents" is the right label for it — and, decisively, the
+    /// number does not drop the moment somebody acknowledges. With disjoint
+    /// pills an OPEN count would have done exactly that, which is the
+    /// 2026-09-19 defect by another route.
+    ///
+    /// It calls the same `count(for:)` the pill row calls, so the number on
+    /// Home and the number on the pill agree by construction rather than by two
+    /// authors happening to write the same condition.
+    var activeIncidentsCount: Int { count(for: .totl) }
+
+    /// The Home ticker's rows — the TOTL pill, the same predicate as the
+    /// tile's number. Defined through `IncidentPill` so the ticker, the tile
+    /// and the list cannot mean three different things by "active".
+    var openIncidents: [NetreoIncident] {
+        incidents
+            .filter(IncidentPill.totl.contains)
+            .sorted { (Int($0.incidentID) ?? 0) > (Int($1.incidentID) ?? 0) }
     }
 
     var criticalIncidentsCount: Int {
-        incidents.filter { $0.severity == .critical && $0.status != .resolved }.count
+        incidents.filter { $0.severity == .critical && $0.state != .closed }.count
     }
-    
+
     func loadIncidents() async {
         #if DEBUG
         print("IncidentListViewModel: Starting to load incidents")
@@ -164,6 +132,7 @@ class IncidentListViewModel: ObservableObject {
                     alarmCounts[id] = counts
                 }
                 incidents = fetchedIncidents
+                lastUpdated = Date()
                 isLoading = false
             }
             // Only fetch individual alarm counts for incidents missing from cache
@@ -187,8 +156,42 @@ class IncidentListViewModel: ObservableObject {
         }
     }
     
+    /// C7's Refresh, and the same call the app makes when it comes to the
+    /// foreground and on pull-to-refresh.
+    ///
+    /// ONE `getincidents` on the middleware, single-flight, at most one per
+    /// server per 30 s, and NO per-incident detail call. **The rate limit lives
+    /// server-side and only server-side** — there is deliberately no
+    /// client-side staleness check to go with it, which is what makes "one
+    /// user's refresh serves everyone on that server" true rather than
+    /// approximately true (design Q4, ruled 2026-09-21: every resume).
+    ///
+    /// The list is replaced from the endpoint's own answer, so one tap is one
+    /// round trip. A FAILURE leaves `incidents` and `lastUpdated` untouched:
+    /// the rows on screen are still the last thing the server actually
+    /// confirmed, and the header goes on saying when that was rather than
+    /// implying this moment.
     func refreshIncidents() async {
-        await loadIncidents()
+        if isLoading { return }
+        isLoading = true
+        errorMessage = nil
+        do {
+            let (fetched, cachedAlarmCounts) = try await apiService.refreshIncidents()
+            let newIDs = Set(fetched.map(\.incidentID))
+            alarmCounts = alarmCounts.filter { newIDs.contains($0.key) }
+            for (id, counts) in cachedAlarmCounts { alarmCounts[id] = counts }
+            incidents = fetched
+            lastUpdated = Date()
+            isLoading = false
+            // The refresh is list-only by design, so rows it has never enriched
+            // carry no counts. Fill those in afterwards rather than making the
+            // user wait for them — the chip shows a spinner until they land.
+            let missing = fetched.filter { alarmCounts[$0.incidentID] == nil }.map(\.incidentID)
+            if !missing.isEmpty { await loadAlarmCounts(for: missing) }
+        } catch {
+            errorMessage = error.localizedDescription
+            isLoading = false
+        }
     }
 
     func loadAlarmCounts(for incidentIDs: [String]? = nil) async {
@@ -200,9 +203,16 @@ class IncidentListViewModel: ObservableObject {
         }
     }
     
+    /// Patch the ACK FLAG, not `status` — `status` is derived and has no setter.
+    /// An ack changes one fact about an incident and must not touch its state:
+    /// un-acking an ALARMS CLEARED incident clears the flag, it does not
+    /// re-open the alarms.
     func updateIncidentStatus(incidentID: String, status: NetreoIncident.IncidentStatus) {
-        if let idx = incidents.firstIndex(where: { $0.incidentID == incidentID }) {
-            incidents[idx].status = status
+        guard let idx = incidents.firstIndex(where: { $0.incidentID == incidentID }) else { return }
+        switch status {
+        case .acknowledged: incidents[idx].acknowledged = true
+        case .active:       incidents[idx].acknowledged = false
+        case .resolved, .closed: incidents[idx].state = .closed
         }
     }
 
@@ -243,17 +253,5 @@ class IncidentListViewModel: ObservableObject {
         Task { await loadAlarmCounts(for: [incident.incidentID]) }
     }
 
-    func clearFilters() {
-        selectedSeverity = nil
-        selectedStatus = nil
-    }
-    
-    func filterBySeverity(_ severity: NetreoIncident.IncidentSeverity?) {
-        selectedSeverity = severity
-    }
-    
-    func filterByStatus(_ status: NetreoIncident.IncidentStatus?) {
-        selectedStatus = status
-    }
 }
 

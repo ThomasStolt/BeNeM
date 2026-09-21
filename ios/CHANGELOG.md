@@ -10,6 +10,71 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [2.14.0] - 2026-09-21
+
+Step 3 of the incident list filter build order. **Built only — not installed, not submitted.**
+
+### Added
+
+- **Five filter pills — TOTL / OPEN / ACKD / CLRD / CLSD — with counts, plus search.** The
+  selected pill takes its own state colour; rows are unchanged. **The five are DISJOINT and
+  TOTL is the default**, showing everything except closed. Definitions live in exactly one
+  place, `IncidentPill`, and the Home tile calls the same `count(for:)` the pill row calls.
+
+  **Acknowledging MOVES a row from OPEN to ACKD**, and that is safe only because TOTL is the
+  default tab — the row the user just acked is still on the screen they were looking at.
+  Moving the default away from TOTL re-opens the 2026-09-19 defect, and the test says so.
+
+- **`state`, `acknowledged`, `ackUser` and `closedAt` are decoded** from middleware 2.20.0,
+  falling back to `incident_state` only when `state` is absent. **`status` is now DERIVED**
+  from `state` + `acknowledged` rather than parsed in parallel with them, so rows, the detail
+  screen and the pills cannot disagree. There is deliberately no `status:` initialiser — a
+  second way in is a second thing that can drift.
+
+- **A CLOSED incident renders**, under CLSD with a grey chip and on the detail screen with a
+  `Closed` timestamp and no ack button. A Recovery notification lands there.
+
+### Changed
+
+- **The Home tile counts the TOTL pill and lands on it**, keeping its "Active Incidents"
+  label. TOTL is everything not closed, which is **BHNM's own Active List View** — so the
+  label is right and **the count does not drop when somebody acknowledges**. An OPEN-counting
+  tile would have fallen the moment a user acted, which is the 2026-09-19 defect by another
+  route, on the very number that defect was about. Asserted both ways in the tests.
+
+- **`AutoRefreshButton` and its countdown are deleted**, replaced by `UpdatedAtButton`:
+  `Updated HH:MM` plus a refresh control. A countdown is a promise that something happens at
+  zero, and under webhook mode nothing does. `Updated —` until the server has actually
+  confirmed something; an app that has not been told anything must not date its screen to now.
+
+  The incident list's control, its `scenePhase` resume hook and its pull-to-refresh all POST
+  `/api/v1/incidents/refresh` (one `getincidents`, single-flight, ≤1 per server per 30 s, no
+  detail call). **The 30 s window is the only bound** — no client-side staleness check.
+
+  **Only the incident list loses its 120-second timer.** Home, Devices and Groups keep theirs
+  via the new `.autoRefresh(every:)` modifier, beside their own `Updated HH:MM` and manual
+  refresh. The countdown is gone everywhere — it was a promise nothing kept under webhook mode
+  — but on those three screens something really does happen on a timer, because none of that
+  data has a webhook. Separating the timer from the label is the point: the screen states a
+  fact, not a prediction.
+
+- **The severity badges and the status picker are gone** — `FilterBadge`, `FiltersView`,
+  `selectedSeverity`/`selectedStatus` and `IncidentStatus.displayLabel`/`displayColor` with
+  them. The pills replace all of it.
+
+- **`NetreoIncident.chip` is the ONLY place a state becomes a label and a colour.** The
+  incident row and the Home ticker each computed it before, which is how CLOSED ended up
+  reading "CLOSED" in one vocabulary while the filter used another.
+
+### Removed
+
+- `ActiveMeansNotClosedTests.swift` and `NetreoIncident.isActive`. Nothing filters on "not
+  closed" any more — TOTL is that predicate now. **The lesson it carried is not lost**: it is
+  `IncidentPillsTests.testACKingMovesTheRowFromOPENToACKDAndKeepsItOnTheDEFAULTTab`, with the
+  2026-09-19 provenance intact.
+
+---
+
 ## [2.13.4] — 2026-09-19
 
 > Built, not released. Waiting for the next batch.

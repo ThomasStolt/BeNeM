@@ -57,6 +57,7 @@ struct IncidentListView: View {
                     ProgressView("Loading incidents...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
+                    filterBar
                     incidentsList
                 }
             }
@@ -85,8 +86,8 @@ struct IncidentListView: View {
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    AutoRefreshButton(
-                        interval: refreshInterval,
+                    UpdatedAtButton(
+                        updatedAt: viewModel.lastUpdated,
                         isLoading: viewModel.isLoading,
                         action: viewModel.refreshIncidents
                     )
@@ -128,7 +129,12 @@ struct IncidentListView: View {
             // on screen rather than emptying them.
             .onChange(of: scenePhase) { _, phase in
                 guard phase == .active else { return }
-                Task { await viewModel.loadIncidents() }
+                // Re-pointed at the refresh endpoint in 2.14.0. Every resume,
+                // with the middleware's 30 s single-flight window as the ONLY
+                // bound — no client-side staleness check, which is what makes
+                // "one user's refresh serves everyone on that server" true
+                // rather than approximately true (design Q4).
+                Task { await viewModel.refreshIncidents() }
             }
             .navigationDestination(for: NetreoIncident.self) { incident in
                 IncidentDetailView(
@@ -280,6 +286,67 @@ struct IncidentListView: View {
         }
     }
 
+    /// Five pills and a search field. Rows below are unchanged — this is a
+    /// control above the existing list, not a row redesign.
+    private var filterBar: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 6) {
+                ForEach(IncidentPill.allCases) { pill in
+                    let isSelected = pill == viewModel.selectedPill
+                    Button { viewModel.select(pill) } label: {
+                        HStack(spacing: 3) {
+                            Text(pill.rawValue)
+                                .font(.system(size: 10, weight: .bold))
+                            Text("\(viewModel.count(for: pill))")
+                                .font(.system(size: 10, weight: .semibold))
+                                .monospacedDigit()
+                                .opacity(0.85)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
+                        .foregroundColor(isSelected ? pill.onColor : .secondary)
+                        .background(
+                            Capsule().fill(isSelected ? pill.color : Color.clear)
+                        )
+                        .overlay(
+                            Capsule().stroke(isSelected ? Color.clear : Color(.systemGray4),
+                                             lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(pill.rawValue), \(viewModel.count(for: pill))")
+                    .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+                }
+            }
+
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                TextField("Search incidents", text: $viewModel.searchText)
+                    .font(.subheadline)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                if !viewModel.searchText.isEmpty {
+                    Button { viewModel.searchText = "" } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 9))
+        }
+        .padding(.horizontal)
+        .padding(.top, 6)
+        .padding(.bottom, 4)
+        .background(Color(.systemGroupedBackground))
+    }
+
     private var incidentsList: some View {
         List {
             if let err = viewModel.errorMessage {
@@ -290,7 +357,9 @@ struct IncidentListView: View {
                     .padding(.vertical, 8)
                     .padding(.horizontal, 12)
             } else if viewModel.filteredIncidents.isEmpty {
-                Text("There are currently no open incidents.")
+                Text(viewModel.searchText.trimmingCharacters(in: .whitespaces).isEmpty
+                     ? viewModel.selectedPill.emptyMessage
+                     : "Nothing in \(viewModel.selectedPill.rawValue) matches “\(viewModel.searchText)”.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -329,13 +398,14 @@ struct IncidentListView: View {
                 .listRowSeparator(.hidden)
                 // Swipe rechts → ACK oder UnACK
                 .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                    let isAlarmsCleared = incident.incidentState.uppercased() == "ALARMS CLEARED"
-                    if isAlarmsCleared {
+                    // Neither a closed nor a cleared incident offers ACK:
+                    // there is nothing left to pick up.
+                    if incident.state != .open {
                         Button { } label: {
                             Label("ACK", systemImage: "checkmark.circle")
                         }
                         .tint(.gray)
-                    } else if incident.status == .acknowledged {
+                    } else if incident.acknowledged {
                         Button {
                             Task {
                                 let ok = try? await apiService.unacknowledgeIncident(
@@ -386,8 +456,6 @@ struct IncidentRowView: View {
     let alarmCounts: [AlarmColor: Int]?
 
     var body: some View {
-        let isAlarmsCleared = incident.incidentState.uppercased() == "ALARMS CLEARED"
-
         VStack(alignment: .leading, spacing: 3) {
             // Top: #ID  +  scrolling title
             HStack(spacing: 5) {
@@ -402,11 +470,8 @@ struct IncidentRowView: View {
 
             // Bottom: status label  +  scrolling device name  +  time  +  alarms
             HStack(alignment: .center, spacing: 5) {
-                AlarmBadge(
-                    label: isAlarmsCleared ? "CLRD" : incident.status.displayLabel,
-                    color: isAlarmsCleared ? AlarmColor.green.color : incident.status.displayColor
-                )
-                .frame(minWidth: 44)
+                AlarmBadge(label: incident.chip.label, color: incident.chip.color)
+                    .frame(minWidth: 44)
 
                 ScrollingText(text: incident.deviceName ?? "",
                               font: .caption, weight: .regular, color: .secondary)
@@ -520,26 +585,6 @@ struct ScrollingText: View {
 }
 
 
-extension NetreoIncident.IncidentStatus {
-    var displayLabel: String {
-        switch self {
-        case .active:       return "OPEN"
-        case .acknowledged: return "ACKD"
-        case .resolved:     return "OK"
-        case .closed:       return "CLOSED"
-        }
-    }
-
-    var displayColor: Color {
-        switch self {
-        case .active:       return .red
-        case .acknowledged: return .blue
-        case .resolved:     return Color(red: 0.13, green: 0.55, blue: 0.13)
-        case .closed:       return Color(.systemGray)
-        }
-    }
-}
-
 struct AlarmBadge: View {
     let label: String
     let color: Color
@@ -563,53 +608,6 @@ struct AlarmBadge: View {
             )
     }
 }
-
-struct FiltersView: View {
-    @ObservedObject var viewModel: IncidentListViewModel
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        NavigationView {
-            Form {
-                Section("Severity") {
-                    Picker("Severity", selection: $viewModel.selectedSeverity) {
-                        Text("All").tag(nil as NetreoIncident.IncidentSeverity?)
-                        ForEach(NetreoIncident.IncidentSeverity.allCases, id: \.self) { severity in
-                            Text(severity.rawValue.capitalized).tag(severity as NetreoIncident.IncidentSeverity?)
-                        }
-                    }
-                }
-                
-                Section("Status") {
-                    Picker("Status", selection: $viewModel.selectedStatus) {
-                        Text("All").tag(nil as NetreoIncident.IncidentStatus?)
-                        ForEach(NetreoIncident.IncidentStatus.allCases, id: \.self) { status in
-                            Text(status.rawValue.capitalized).tag(status as NetreoIncident.IncidentStatus?)
-                        }
-                    }
-                }
-                
-                Section {
-                    Button("Clear All Filters") {
-                        viewModel.clearFilters()
-                    }
-                    .foregroundColor(.red)
-                }
-            }
-            .navigationTitle("Filters")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-}
-
-
 
 #Preview {
     let service = NetreoAPIService(baseURL: "http://demo.netreo.com", apiKey: "test")

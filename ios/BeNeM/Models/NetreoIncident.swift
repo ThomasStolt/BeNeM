@@ -19,7 +19,16 @@ struct NetreoIncident: Codable, Identifiable, Hashable {
     let summary: String
     let description: String?
     let severity: IncidentSeverity
-    var status: IncidentStatus
+    /// BHNM's own state. **Never carries the ack flag** — see `IncidentState`.
+    var state: IncidentState
+    /// The ack flag. Meaningful on any state; the pills only read it inside OPEN.
+    var acknowledged: Bool
+    /// Who acknowledged, per BHNM. Feeds search.
+    let ackUser: String?
+    /// When the middleware recorded the close. Present only on CLOSED.
+    let closedAt: Date?
+    /// The raw `incident_state` exactly as served, `ACKNOWLEDGED` and all.
+    /// Retained until the middleware's M1-drop. **Do not filter on it** — use `state`.
     let incidentState: String
     let category: String?
     let startTime: Date
@@ -72,22 +81,35 @@ struct NetreoIncident: Codable, Identifiable, Hashable {
         case closed = "closed"
     }
 
-    /// **"Active" means NOT CLOSED.** An acknowledged incident is still open and
-    /// still the user's problem — somebody has said "I am on it", not "it is
-    /// fine" — and BHNM's own UI keeps it in the list.
+    /// **BHNM has three incident states, and acknowledged is not one of them.**
     ///
-    /// This exists because `.active` and `.acknowledged` are separate cases of
-    /// `IncidentStatus`, so `status == .active` silently EXCLUDES every incident
-    /// the user has acted on. Observed on a phone 2026-09-19: acking from the
-    /// app made the row vanish, because the Home tile had filtered the list to
-    /// `status == .active` and the ack moved it out of that set.
-    ///
-    /// **The tile count and the list filter must both use this**, or the number
-    /// on the tile and the rows on the screen disagree again.
-    var isActive: Bool {
-        status != .resolved && status != .closed
+    /// Acknowledged is a FLAG on an OPEN incident. With one field, an
+    /// acknowledged incident whose alarms then clear can only be shown as one
+    /// or the other — which is the whole reason middleware 2.20.0 split them.
+    enum IncidentState: String, Codable, CaseIterable {
+        case open = "OPEN"
+        case alarmsCleared = "ALARMS CLEARED"
+        case closed = "CLOSED"
+
+        /// An unrecognised value becomes `.open` rather than passing through.
+        /// TOTL is OPEN + CLRD + CLSD, so a state in none of the three would
+        /// drop the incident out of EVERY pill and vanish it from the list.
+        /// Loud beats gone — and this mirrors the middleware's own `state_of()`
+        /// exactly, so the two ends cannot disagree about an unknown value.
+        init(bhnm raw: String?) {
+            self = IncidentState(rawValue: (raw ?? "").trimmingCharacters(in: .whitespaces).uppercased()) ?? .open
+        }
     }
-    
+
+    /// **DERIVED, never stored.** Rows, the detail screen and the pills all read
+    /// this, so making it a view of `state` + `acknowledged` is what stops the
+    /// three disagreeing. Before 2.14.0 it was a stored field parsed in parallel
+    /// with `incidentState`, and the two could — and did — say different things.
+    var status: IncidentStatus {
+        if state == .closed { return .closed }
+        return acknowledged ? .acknowledged : .active
+    }
+
     enum CodingKeys: String, CodingKey {
         case incidentID = "incident_id"
         case deviceIP = "device_ip"
@@ -96,6 +118,10 @@ struct NetreoIncident: Codable, Identifiable, Hashable {
         case description
         case severity
         case status
+        case state
+        case acknowledged
+        case ackUser = "ack_user"
+        case closedAt = "closed_at"
         case incidentState = "incident_state"
         case category
         case startTime = "start_time"
@@ -104,14 +130,24 @@ struct NetreoIncident: Codable, Identifiable, Hashable {
         case acknowledgedBy = "acknowledged_by"
     }
     
-    init(incidentID: String, deviceIP: String?, deviceName: String?, summary: String, description: String?, severity: IncidentSeverity, status: IncidentStatus, incidentState: String = "OPEN", category: String?, startTime: Date, acknowledgedTime: Date? = nil, resolvedTime: Date? = nil, acknowledgedBy: String? = nil) {
+    /// One initialiser, taking the two facts. There is deliberately no
+    /// `status:` overload — a second way in is a second thing that can disagree.
+    init(incidentID: String, deviceIP: String?, deviceName: String?, summary: String,
+         description: String?, severity: IncidentSeverity,
+         state: IncidentState = .open, acknowledged: Bool = false,
+         ackUser: String? = nil, closedAt: Date? = nil,
+         incidentState: String = "OPEN", category: String?, startTime: Date,
+         acknowledgedTime: Date? = nil, resolvedTime: Date? = nil, acknowledgedBy: String? = nil) {
         self.incidentID = incidentID
         self.deviceIP = deviceIP
         self.deviceName = deviceName
         self.summary = summary
         self.description = description
         self.severity = severity
-        self.status = status
+        self.state = state
+        self.acknowledged = acknowledged
+        self.ackUser = ackUser
+        self.closedAt = closedAt
         self.incidentState = incidentState
         self.category = category
         self.startTime = startTime
@@ -135,13 +171,33 @@ struct NetreoIncident: Codable, Identifiable, Hashable {
             severity = .informational
         }
         
-        if let statusString = try? container.decode(String.self, forKey: .status) {
-            status = IncidentStatus(rawValue: statusString.lowercased()) ?? .active
-        } else {
-            status = .active
-        }
-        
         incidentState = (try? container.decodeIfPresent(String.self, forKey: .incidentState)) ?? "OPEN"
+
+        // Read the NEW fields, and fall back to `incident_state` ONLY when
+        // `state` is absent — a middleware older than 2.20.0, or the legacy
+        // getincidents fall-through. The fallback maps ACKNOWLEDGED onto
+        // state OPEN + flag true, which is the same mapping IncidentState(bhnm:)
+        // makes. Deleted at M1-drop. `decodeIfPresent` throughout: a client that
+        // REQUIRES a key cannot be deployed ahead of the server that sends it.
+        let servedState = try? container.decodeIfPresent(String.self, forKey: .state)
+        if let servedState {
+            state = IncidentState(bhnm: servedState)
+        } else {
+            state = IncidentState(bhnm: incidentState)
+        }
+        if let flag = try? container.decodeIfPresent(Bool.self, forKey: .acknowledged) {
+            acknowledged = flag
+        } else if let flag = try? container.decodeIfPresent(Int.self, forKey: .acknowledged) {
+            acknowledged = flag != 0
+        } else {
+            acknowledged = incidentState.uppercased() == "ACKNOWLEDGED"
+        }
+        ackUser = try? container.decodeIfPresent(String.self, forKey: .ackUser)
+        if let epoch = try? container.decodeIfPresent(Double.self, forKey: .closedAt) {
+            closedAt = Date(timeIntervalSince1970: epoch)
+        } else {
+            closedAt = nil
+        }
         category = try container.decodeIfPresent(String.self, forKey: .category)
         
         if let timestamp = try? container.decode(Double.self, forKey: .startTime) {
@@ -184,6 +240,11 @@ struct NetreoIncident: Codable, Identifiable, Hashable {
         try container.encodeIfPresent(description, forKey: .description)
         try container.encode(severity.rawValue, forKey: .severity)
         try container.encode(status.rawValue, forKey: .status)
+        try container.encode(state.rawValue, forKey: .state)
+        try container.encode(acknowledged, forKey: .acknowledged)
+        try container.encodeIfPresent(ackUser, forKey: .ackUser)
+        try container.encodeIfPresent(closedAt?.timeIntervalSince1970, forKey: .closedAt)
+        try container.encodeIfPresent(incidentState, forKey: .incidentState)
         try container.encodeIfPresent(category, forKey: .category)
         try container.encode(startTime.timeIntervalSince1970, forKey: .startTime)
         try container.encodeIfPresent(acknowledgedTime?.timeIntervalSince1970, forKey: .acknowledgedTime)
@@ -194,6 +255,6 @@ struct NetreoIncident: Codable, Identifiable, Hashable {
 
 extension NetreoIncident.CodingKeys: CaseIterable {
     static var allCases: [NetreoIncident.CodingKeys] {
-        return [.incidentID, .deviceIP, .deviceName, .summary, .description, .severity, .status, .category, .startTime, .acknowledgedTime, .resolvedTime, .acknowledgedBy]
+        return [.incidentID, .deviceIP, .deviceName, .summary, .description, .severity, .status, .state, .acknowledged, .ackUser, .closedAt, .incidentState, .category, .startTime, .acknowledgedTime, .resolvedTime, .acknowledgedBy]
     }
 }

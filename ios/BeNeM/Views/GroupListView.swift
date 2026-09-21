@@ -11,6 +11,9 @@ struct GroupListView: View {
     let title: String
     @ObservedObject private var viewModel: TacticalViewModel
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
+    /// When this screen was last CONFIRMED by the server — what `Updated HH:MM`
+    /// renders. nil until something has actually come back.
+    @State private var lastRefreshed: Date?
 
     init(title: String, viewModel: TacticalViewModel) {
         self.title = title
@@ -93,10 +96,10 @@ struct GroupListView: View {
                 }
                 .padding(.trailing, 6)
 
-                AutoRefreshButton(
-                    interval: refreshInterval,
+                UpdatedAtButton(
+                    updatedAt: lastRefreshed,
                     isLoading: viewModel.isLoading,
-                    action: viewModel.load
+                    action: { await viewModel.load(); lastRefreshed = Date() }
                 )
             }
         }
@@ -105,7 +108,8 @@ struct GroupListView: View {
             // If groups is empty (direct navigation), this triggers the full load.
             await viewModel.load()
         }
-        .refreshable { await viewModel.load() }
+        .refreshable { await viewModel.load(); lastRefreshed = Date() }
+        .autoRefresh(every: refreshInterval) { await viewModel.load(); lastRefreshed = Date() }
     }
 
     // MARK: Column header

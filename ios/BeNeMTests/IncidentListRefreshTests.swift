@@ -32,10 +32,10 @@ final class IncidentListRefreshTests: XCTestCase {
 
     private func incident(_ id: String,
                           summary: String = "s",
-                          status: NetreoIncident.IncidentStatus = .active) -> NetreoIncident {
+                          acknowledged: Bool = false) -> NetreoIncident {
         NetreoIncident(
             incidentID: id, deviceIP: nil, deviceName: "dev", summary: summary,
-            description: nil, severity: .critical, status: status,
+            description: nil, severity: .critical, acknowledged: acknowledged,
             incidentState: "OPEN", category: nil, startTime: Date(),
             acknowledgedTime: nil, resolvedTime: nil, acknowledgedBy: nil)
     }
@@ -59,7 +59,7 @@ final class IncidentListRefreshTests: XCTestCase {
         let vm = Self.makeViewModel()
         vm.incidents = [incident("24951"), incident("27516", summary: "stale")]
 
-        vm.upsertIncident(incident("27516", summary: "fresh", status: .acknowledged))
+        vm.upsertIncident(incident("27516", summary: "fresh", acknowledged: true))
 
         XCTAssertEqual(vm.incidents.count, 2, "no duplicate row for the same incident")
         XCTAssertEqual(vm.incidents[1].incidentID, "27516", "replaced in place, not moved")
@@ -81,7 +81,7 @@ final class IncidentListRefreshTests: XCTestCase {
         // CLOSED" ruling: an upserted row is worthless if the default filter
         // then hides it.
         let vm = Self.makeViewModel()
-        vm.upsertIncident(incident("29944", status: .acknowledged))
+        vm.upsertIncident(incident("29944", acknowledged: true))
         XCTAssertEqual(vm.filteredIncidents.map(\.incidentID), ["29944"])
     }
 

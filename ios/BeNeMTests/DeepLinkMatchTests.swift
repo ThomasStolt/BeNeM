@@ -14,7 +14,7 @@ final class DeepLinkMatchTests: XCTestCase {
     private func incident(_ id: String) -> NetreoIncident {
         NetreoIncident(
             incidentID: id, deviceIP: nil, deviceName: "dev", summary: "s",
-            description: nil, severity: .critical, status: .active,
+            description: nil, severity: .critical,
             incidentState: "OPEN", category: nil, startTime: Date(),
             acknowledgedTime: nil, resolvedTime: nil, acknowledgedBy: nil)
     }

@@ -14,6 +14,9 @@ struct IncidentDetailView: View {
     @State private var currentStatus: NetreoIncident.IncidentStatus
     @State private var isAcking = false
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
+    /// When this screen was last CONFIRMED by the server — what `Updated HH:MM`
+    /// renders. nil until something has actually come back.
+    @State private var lastRefreshed: Date?
 
     init(incident: NetreoIncident, apiService: NetreoAPIService, preloadedAlarmCounts: [AlarmColor: Int]?) {
         self.incident = incident
@@ -48,10 +51,10 @@ struct IncidentDetailView: View {
                     .font(.headline)
             }
             ToolbarItem(placement: .navigationBarTrailing) {
-                AutoRefreshButton(
-                    interval: refreshInterval,
+                UpdatedAtButton(
+                    updatedAt: lastRefreshed,
                     isLoading: isLoading,
-                    action: loadDetail
+                    action: { await loadDetail(); lastRefreshed = Date() }
                 )
             }
         }
@@ -60,22 +63,39 @@ struct IncidentDetailView: View {
 
     // MARK: - Main Content
 
+    /// The incident as this screen currently understands it: the row it was
+    /// pushed with, plus any ack the user has since made here. One value, so the
+    /// chip, the button and the info rows cannot disagree about it.
+    private var current: NetreoIncident {
+        var c = incident
+        c.acknowledged = isAcked
+        return c
+    }
+    private var isAcked: Bool { currentStatus == .acknowledged }
+    private var isClosed: Bool { incident.state == .closed }
+    private var isFinished: Bool { incident.state != .open }
+    private var chip: (label: String, color: Color) { current.chip }
+
     @ViewBuilder
     private func detailContent(_ d: IncidentDetail) -> some View {
         List {
             // ── Status Section ──────────────────────────────────────────
             Section {
                 HStack(spacing: 0) {
-                    // ACK / UnACK button
-                    let isAlarmsCleared = d.incidentState.uppercased() == "ALARMS CLEARED"
-                    if isAlarmsCleared {
+                    // ACK / UnACK button.
+                    //
+                    // A Recovery notification lands on a CLOSED incident, so
+                    // this screen must RENDER one rather than treat it as an
+                    // error. Neither a closed nor a cleared incident offers the
+                    // ack button: there is nothing left to pick up.
+                    if isFinished {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.largeTitle)
                             .foregroundColor(Color(.systemGray4))
                     } else if isAcking {
                         ProgressView()
                             .frame(width: 36, height: 36)
-                    } else if currentStatus == .acknowledged {
+                    } else if isAcked {
                         Button {
                             Task { await toggleAck() }
                         } label: {
@@ -96,16 +116,15 @@ struct IncidentDetailView: View {
                     }
 
                     Spacer()
-                    let stateLabel: String = {
-                        if currentStatus == .acknowledged { return "ACK" }
-                        if d.incidentState.uppercased() == "ACKNOWLEDGED" { return "OPEN" }
-                        return d.incidentState
-                    }()
+                    // The SAME chip the list row and the pills use — one
+                    // vocabulary. It used to build its own label here, which is
+                    // how "ACK"/"OPEN"/raw incidentState ended up on this screen
+                    // while the list said something else.
                     HStack(spacing: 6) {
                         Text("Status:")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        StateBadge(label: stateLabel)
+                        AlarmBadge(label: chip.label, color: chip.color)
                     }
                     Spacer()
 
@@ -140,6 +159,12 @@ struct IncidentDetailView: View {
                 if let openTime = d.openTime {
                     InfoRow(label: "Created",    value: formatDate(openTime))
                     InfoRow(label: "Duration",   value: durationString(from: openTime))
+                }
+                // Present only on CLOSED, and it is the MIDDLEWARE's clock, not
+                // BHNM's — the middleware records when it learned, which is the
+                // only thing it can honestly claim (design Q2).
+                if let closedAt = incident.closedAt {
+                    InfoRow(label: "Closed",     value: formatDate(closedAt))
                 }
                 if d.acknowledged {
                     if let t = d.ackTime    { InfoRow(label: "ACK Time",    value: formatDate(t)) }

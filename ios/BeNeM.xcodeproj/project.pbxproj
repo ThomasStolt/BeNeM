@@ -10,6 +10,7 @@
 		0C5B03F8948A9FAED4D26D5C /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8772CD08D51558E991F655D3 /* Diagnostics.swift */; };
 		14EDDC2D8AD93C007138B461 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD7E107334A8CF39B16872A2 /* DiagnosticsView.swift */; };
 		8C6281232E64CF2300522D09 /* NetreoIncident.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6281222E64CF2300522D09 /* NetreoIncident.swift */; };
+		8CAA20140001000000000001 /* IncidentPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CAA20140001000000000002 /* IncidentPill.swift */; };
 		8C6281282E64CF6D00522D09 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6281262E64CF6D00522D09 /* DashboardView.swift */; };
 		8C6281292E64CF6D00522D09 /* IncidentListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6281272E64CF6D00522D09 /* IncidentListView.swift */; };
 		8C62812B2E64D3C700522D09 /* IncidentListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C62812A2E64D3C700522D09 /* IncidentListViewModel.swift */; };
@@ -42,7 +43,7 @@
 		EE000B000000000000000001 /* AckAttributionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000B000000000000000002 /* AckAttributionTests.swift */; };
 		EE000C000000000000000001 /* UnverifiedAlertTypeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000C000000000000000002 /* UnverifiedAlertTypeTests.swift */; };
 		EE000D000000000000000001 /* DeepLinkMatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000D000000000000000002 /* DeepLinkMatchTests.swift */; };
-		EE000E000000000000000001 /* ActiveMeansNotClosedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000E000000000000000002 /* ActiveMeansNotClosedTests.swift */; };
+		8CAA20140002000000000001 /* IncidentPillsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CAA20140002000000000002 /* IncidentPillsTests.swift */; };
 		EE000F000000000000000001 /* IncidentListRefreshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000F000000000000000002 /* IncidentListRefreshTests.swift */; };
 		EE0010000000000000000001 /* APNsEnvironmentMappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0010000000000000000002 /* APNsEnvironmentMappingTests.swift */; };
 		EE0009000000000000000003 /* ServerDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0009000000000000000004 /* ServerDraftTests.swift */; };
@@ -66,6 +67,7 @@
 		8772CD08D51558E991F655D3 /* Diagnostics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Diagnostics.swift; sourceTree = "<group>"; };
 		8A7E89D0F35897B0D8884CA8 /* ClientCallLog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClientCallLog.swift; sourceTree = "<group>"; };
 		8C6281222E64CF2300522D09 /* NetreoIncident.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetreoIncident.swift; sourceTree = "<group>"; };
+		8CAA20140001000000000002 /* IncidentPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentPill.swift; sourceTree = "<group>"; };
 		8C6281262E64CF6D00522D09 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		8C6281272E64CF6D00522D09 /* IncidentListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentListView.swift; sourceTree = "<group>"; };
 		8C62812A2E64D3C700522D09 /* IncidentListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentListViewModel.swift; sourceTree = "<group>"; };
@@ -98,7 +100,7 @@
 		EE000B000000000000000002 /* AckAttributionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AckAttributionTests.swift; sourceTree = "<group>"; };
 		EE000C000000000000000002 /* UnverifiedAlertTypeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnverifiedAlertTypeTests.swift; sourceTree = "<group>"; };
 		EE000D000000000000000002 /* DeepLinkMatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkMatchTests.swift; sourceTree = "<group>"; };
-		EE000E000000000000000002 /* ActiveMeansNotClosedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveMeansNotClosedTests.swift; sourceTree = "<group>"; };
+		8CAA20140002000000000002 /* IncidentPillsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentPillsTests.swift; sourceTree = "<group>"; };
 		EE000F000000000000000002 /* IncidentListRefreshTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentListRefreshTests.swift; sourceTree = "<group>"; };
 		EE0010000000000000000002 /* APNsEnvironmentMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APNsEnvironmentMappingTests.swift; sourceTree = "<group>"; };
 		EE0009000000000000000004 /* ServerDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerDraftTests.swift; sourceTree = "<group>"; };
@@ -146,7 +148,7 @@
 				EE000B000000000000000002 /* AckAttributionTests.swift */,
 				EE000C000000000000000002 /* UnverifiedAlertTypeTests.swift */,
 				EE000D000000000000000002 /* DeepLinkMatchTests.swift */,
-				EE000E000000000000000002 /* ActiveMeansNotClosedTests.swift */,
+				8CAA20140002000000000002 /* IncidentPillsTests.swift */,
 				EE000F000000000000000002 /* IncidentListRefreshTests.swift */,
 				EE0010000000000000000002 /* APNsEnvironmentMappingTests.swift */,
 			);
@@ -193,6 +195,7 @@
 			isa = PBXGroup;
 			children = (
 				8C6281222E64CF2300522D09 /* NetreoIncident.swift */,
+				8CAA20140001000000000002 /* IncidentPill.swift */,
 				AABB0001000000000000001B /* IncidentDetail.swift */,
 				A11234567890005B /* NetreoDevice.swift */,
 				BB0001000000000000000002 /* GroupSummary.swift */,
@@ -419,6 +422,7 @@
 				8C62812F2E64D5C900522D09 /* DeviceListViewModel.swift in Sources */,
 				8C62812E2E64D5B200522D09 /* NetreoDevice.swift in Sources */,
 				8C6281232E64CF2300522D09 /* NetreoIncident.swift in Sources */,
+				8CAA20140001000000000001 /* IncidentPill.swift in Sources */,
 				AABB0001000000000000001A /* IncidentDetail.swift in Sources */,
 				AABB0001000000000000002A /* IncidentDetailView.swift in Sources */,
 				BB0001000000000000000001 /* GroupSummary.swift in Sources */,
@@ -459,7 +463,7 @@
 				EE000B000000000000000001 /* AckAttributionTests.swift in Sources */,
 				EE000C000000000000000001 /* UnverifiedAlertTypeTests.swift in Sources */,
 				EE000D000000000000000001 /* DeepLinkMatchTests.swift in Sources */,
-				EE000E000000000000000001 /* ActiveMeansNotClosedTests.swift in Sources */,
+				8CAA20140002000000000001 /* IncidentPillsTests.swift in Sources */,
 				EE000F000000000000000001 /* IncidentListRefreshTests.swift in Sources */,
 				EE0010000000000000000001 /* APNsEnvironmentMappingTests.swift in Sources */,
 			);
@@ -594,7 +598,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BeNeM/BeNeM.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 53;
+				CURRENT_PROJECT_VERSION = 54;
 				DEVELOPMENT_ASSET_PATHS = "\"BeNeM/Preview Content\"";
 				DEVELOPMENT_TEAM = 8L27BJGYXP;
 				ENABLE_PREVIEWS = YES;
@@ -606,7 +610,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.13.6;
+				MARKETING_VERSION = 2.14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tstolt.benem;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -622,7 +626,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BeNeM/BeNeM.release.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 53;
+				CURRENT_PROJECT_VERSION = 54;
 				DEVELOPMENT_ASSET_PATHS = "\"BeNeM/Preview Content\"";
 				DEVELOPMENT_TEAM = 8L27BJGYXP;
 				ENABLE_PREVIEWS = YES;
@@ -634,7 +638,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.13.6;
+				MARKETING_VERSION = 2.14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tstolt.benem;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -648,7 +652,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 53;
+				CURRENT_PROJECT_VERSION = 54;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
@@ -665,7 +669,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 53;
+				CURRENT_PROJECT_VERSION = 54;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;

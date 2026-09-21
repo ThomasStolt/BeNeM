@@ -1078,37 +1078,63 @@ class NetreoAPIService: ObservableObject {
             throw APIError.invalidResponse
         }
 
-        // If response is a proxied BHNM response (cache cold), it has no cache_age_seconds
-        let isCached = json["cache_age_seconds"] != nil
+        return try parseIncidentsPayload(json)
+    }
 
+    /// C7 / M2 — the Refresh control, the foreground resume and pull-to-refresh
+    /// all land here.
+    ///
+    /// ONE `getincidents` on the middleware, single-flight, at most one per
+    /// server per 30 s, and NO per-incident detail call. It answers with the
+    /// same shape as `GET /api/v1/incidents` plus `coalesced`, so one tap is one
+    /// round trip and the caller re-renders straight from it.
+    ///
+    /// **It does NOT fall back to the legacy endpoint.** `fetchCachedIncidents`
+    /// does, because a cold cache still owes the user a list. A refresh that
+    /// silently became a legacy poll would report success for the one thing it
+    /// exists to do and not have done it — and on a middleware older than
+    /// 2.20.0 the route does not exist, which the caller must be able to see.
+    func refreshIncidents() async throws -> ([NetreoIncident], [String: [AlarmColor: Int]]) {
+        guard let url = URL(string: "\(configuration.baseURL)/api/v1/incidents/refresh") else {
+            throw APIError.configurationError("Invalid URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        addProxyToken(&request)
+
+        let (data, response) = try await urlSession.data(for: request)
+        guard let http = response as? HTTPURLResponse, 200...299 ~= http.statusCode else {
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw APIError.httpError(code, data)
+        }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw APIError.invalidResponse
+        }
+        return try parseIncidentsPayload(json)
+    }
+
+    /// The shared shape-reader for `/api/v1/incidents` and its refresh sibling.
+    /// One reader, so the two routes cannot drift in how they interpret a row.
+    private func parseIncidentsPayload(_ json: [String: Any]) throws
+        -> ([NetreoIncident], [String: [AlarmColor: Int]]) {
+        // A proxied BHNM response (cache cold) carries no cache_age_seconds and
+        // no enrichment — its rows must not be credited with alarm counts.
+        let isCached = json["cache_age_seconds"] != nil
         var incidents: [NetreoIncident] = []
         var alarmCounts: [String: [AlarmColor: Int]] = [:]
 
-        if let activeArray = json["active_incidents"] as? [[String: Any]] {
-            let parsed = try parseIncidentsFromNetreoFormat(from: activeArray, defaultStatus: nil)
+        for (key, forced) in [("active_incidents", NetreoIncident.IncidentState?.none),
+                              ("closed_incidents", .closed)] {
+            guard let array = json[key] as? [[String: Any]] else { continue }
+            let parsed = try parseIncidentsFromNetreoFormat(from: array, forcedState: forced)
             incidents.append(contentsOf: parsed)
-
-            if isCached {
-                for (i, raw) in activeArray.enumerated() where i < parsed.count {
-                    if let counts = raw["alarm_counts"] as? [String: Any] {
-                        alarmCounts[parsed[i].incidentID] = parseAlarmCounts(counts)
-                    }
+            guard isCached else { continue }
+            for (i, raw) in array.enumerated() where i < parsed.count {
+                if let counts = raw["alarm_counts"] as? [String: Any] {
+                    alarmCounts[parsed[i].incidentID] = parseAlarmCounts(counts)
                 }
             }
         }
-        if let closedArray = json["closed_incidents"] as? [[String: Any]] {
-            let parsed = try parseIncidentsFromNetreoFormat(from: closedArray, defaultStatus: .resolved)
-            incidents.append(contentsOf: parsed)
-
-            if isCached {
-                for (i, raw) in closedArray.enumerated() where i < parsed.count {
-                    if let counts = raw["alarm_counts"] as? [String: Any] {
-                        alarmCounts[parsed[i].incidentID] = parseAlarmCounts(counts)
-                    }
-                }
-            }
-        }
-
         return (incidents, alarmCounts)
     }
 
@@ -1222,9 +1248,9 @@ class NetreoAPIService: ObservableObject {
 
             // Try to parse incidents from response data
             if let activeArray = jsonObject["active_incidents"] as? [[String: Any]] {
-                var result = try parseIncidentsFromNetreoFormat(from: activeArray, defaultStatus: nil)
+                var result = try parseIncidentsFromNetreoFormat(from: activeArray, forcedState: nil)
                 if let closedArray = jsonObject["closed_incidents"] as? [[String: Any]] {
-                    result += try parseIncidentsFromNetreoFormat(from: closedArray, defaultStatus: .resolved)
+                    result += try parseIncidentsFromNetreoFormat(from: closedArray, forcedState: .closed)
                 }
                 return result
             } else if let incidentsArray = jsonObject["incidents"] as? [[String: Any]] {
@@ -1239,7 +1265,7 @@ class NetreoAPIService: ObservableObject {
         throw APIError.invalidResponse
     }
     
-    private func parseIncidentsFromNetreoFormat(from array: [[String: Any]], defaultStatus: NetreoIncident.IncidentStatus? = nil) throws -> [NetreoIncident] {
+    private func parseIncidentsFromNetreoFormat(from array: [[String: Any]], forcedState: NetreoIncident.IncidentState? = nil) throws -> [NetreoIncident] {
         var incidents: [NetreoIncident] = []
         #if DEBUG
         print("Parsing \(array.count) incidents from Netreo format")
@@ -1299,14 +1325,34 @@ class NetreoAPIService: ObservableObject {
                     ?? incidentData["host_ip"] as? String
                 let stateString = incidentData["incident_state"] as? String ?? "OPEN"
 
-                let status: NetreoIncident.IncidentStatus
-                if let forced = defaultStatus {
-                    status = forced
-                } else if stateString == "ACKNOWLEDGED" {
-                    status = .acknowledged
+                // Read the NEW fields (middleware 2.20.0), and fall back to
+                // `incident_state` ONLY when `state` is absent — an older
+                // middleware, or the legacy getincidents fall-through. The
+                // fallback maps ACKNOWLEDGED onto state OPEN + flag true, the
+                // same mapping IncidentState(bhnm:) makes. Deleted at M1-drop.
+                let servedState = incidentData["state"] as? String
+                let state: NetreoIncident.IncidentState
+                if let servedState {
+                    state = NetreoIncident.IncidentState(bhnm: servedState)
+                } else if let forced = forcedState {
+                    // A row in closed_incidents IS closed, and on an older
+                    // middleware the bucket is the only signal there is.
+                    state = forced
                 } else {
-                    status = .active
+                    state = NetreoIncident.IncidentState(bhnm: stateString)
                 }
+
+                let acknowledged: Bool
+                if let flag = incidentData["acknowledged"] as? Bool {
+                    acknowledged = flag
+                } else if let n = incidentData["acknowledged"] as? Int {
+                    acknowledged = n != 0
+                } else {
+                    acknowledged = stateString.uppercased() == "ACKNOWLEDGED"
+                }
+
+                let ackUser = (incidentData["ack_user"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                let closedAt = (incidentData["closed_at"] as? Double).map(Date.init(timeIntervalSince1970:))
 
                 // Netreo provides no severity field on this endpoint.
                 // Read from known fields; fall back to .critical as the safe default
@@ -1365,7 +1411,10 @@ class NetreoAPIService: ObservableObject {
                     summary: title,
                     description: nil,
                     severity: severity,
-                    status: status,
+                    state: state,
+                    acknowledged: acknowledged,
+                    ackUser: ackUser,
+                    closedAt: closedAt,
                     incidentState: stateString,
                     category: "Network",
                     startTime: startTime

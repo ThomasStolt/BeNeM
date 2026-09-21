@@ -64,6 +64,9 @@ struct DeviceListView: View {
     @State private var maintOnly = false
     @ObservedObject private var connection = ConnectionMonitor.shared
     @AppStorage("refresh_interval") private var refreshInterval: Double = 120.0
+    /// When this screen was last CONFIRMED by the server — what `Updated HH:MM`
+    /// renders. nil until something has actually come back.
+    @State private var lastRefreshed: Date?
     @AppStorage("netreo_active_connection_name") private var activeServerName = ""
     private let apiService: NetreoAPIService
 
@@ -198,14 +201,15 @@ struct DeviceListView: View {
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    AutoRefreshButton(
-                        interval: refreshInterval,
+                    UpdatedAtButton(
+                        updatedAt: lastRefreshed,
                         isLoading: viewModel.isLoading,
-                        action: { await viewModel.loadDevices() }
+                        action: { await viewModel.loadDevices(); lastRefreshed = Date() }
                     )
                 }
             }
-            .refreshable { await viewModel.loadDevices() }
+            .refreshable { await viewModel.loadDevices(); lastRefreshed = Date() }
+            .autoRefresh(every: refreshInterval) { await viewModel.loadDevices(); lastRefreshed = Date() }
             .overlay {
                 if viewModel.isLoading && viewModel.devices.isEmpty {
                     ProgressView("Loading devices...")

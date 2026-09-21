@@ -170,63 +170,90 @@ struct ConnectionBadgeButton: View {
     }
 }
 
-// MARK: - AutoRefreshButton
+// MARK: - UpdatedAtButton
 
-/// A toolbar button that shows a circular countdown ring and auto-refreshes every `interval` seconds.
-/// Tapping the button triggers an immediate refresh and resets the countdown.
-struct AutoRefreshButton: View {
-    let interval: Double          // seconds between auto-refreshes
+/// `Updated HH:MM` plus a refresh control — what replaced the countdown ring.
+///
+/// **Removing the countdown is a truthfulness fix, not a cosmetic one.** A
+/// countdown is a promise that something happens at zero. Under webhook mode
+/// nothing does: the next scheduled reconciliation is 24 hours away, so the
+/// ring was counting down to nothing — a green affordance asserting a claim
+/// nobody had checked. `Updated HH:MM` states a fact the app can date.
+///
+/// `updatedAt` is nil until the server has actually confirmed something. It
+/// renders as "Updated —", never as the current time: an app that has not been
+/// told anything must not date its screen to this moment.
+struct UpdatedAtButton: View {
+    let updatedAt: Date?
     let isLoading: Bool
     let action: () async -> Void
 
-    @State private var elapsed: Double = 0
-    private let ticker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    private static let formatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
 
-    private var progress: Double { max(0, (interval - elapsed) / interval) }
-
-    private var countdownLabel: String {
-        let remaining = max(0, interval - elapsed)
-        let minutes = Int(remaining) / 60
-        let seconds = Int(remaining) % 60
-        return "\(minutes):\(String(format: "%02d", seconds))"
+    private var label: String {
+        if isLoading { return "Updating…" }
+        guard let updatedAt else { return "Updated —" }
+        return "Updated \(Self.formatter.string(from: updatedAt))"
     }
 
     var body: some View {
-        ZStack {
-            // Countdown ring — hidden while loading
-            if !isLoading {
-                Circle()
-                    .stroke(Color(.systemGray4), lineWidth: 2)
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .animation(.linear(duration: 1), value: progress)
-            }
-
+        HStack(spacing: 4) {
+            Text(label)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .monospacedDigit()
             if isLoading {
-                ProgressView()
-                    .scaleEffect(0.8)
+                ProgressView().scaleEffect(0.6)
             } else {
-                Text(countdownLabel)
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .kerning(-0.3)
-                    .foregroundColor(.secondary)
+                Image(systemName: "arrow.clockwise")
+                    .font(.caption)
+                    .foregroundColor(.accentColor)
             }
         }
-        .frame(width: 30, height: 30)
         .contentShape(Rectangle())
         .onTapGesture {
             guard !isLoading else { return }
-            elapsed = 0
             Task { await action() }
         }
-        .onReceive(ticker) { _ in
-            elapsed += 1
-            if elapsed >= interval, !isLoading {
-                elapsed = 0
-                Task { await action() }
+        .accessibilityLabel("Refresh")
+        .accessibilityValue(label)
+    }
+}
+
+// MARK: - Auto-refresh
+
+/// A plain interval timer, separated from the thing that reports the time.
+///
+/// `UpdatedAtButton` deliberately shows no countdown: a countdown is a promise
+/// that something happens at zero. On Home, Devices and Groups something DOES
+/// happen at zero — there is no webhook for any of that data, so polling is the
+/// only way it moves — but the screen still states a fact (`Updated HH:MM`)
+/// rather than a prediction.
+///
+/// **The incident list does NOT use this.** Ruled 2026-09-21: under webhook
+/// mode its list is pushed to, and its refresh is the user's tap, the
+/// foreground resume, or pull-to-refresh.
+struct AutoRefreshModifier: ViewModifier {
+    let interval: Double
+    let action: () async -> Void
+
+    func body(content: Content) -> some View {
+        content.task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: UInt64(max(15, interval) * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                await action()
             }
         }
+    }
+}
+
+extension View {
+    func autoRefresh(every interval: Double, action: @escaping () async -> Void) -> some View {
+        modifier(AutoRefreshModifier(interval: interval, action: action))
     }
 }
