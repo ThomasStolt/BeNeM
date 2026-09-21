@@ -44,6 +44,7 @@
 		EE000D000000000000000001 /* DeepLinkMatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000D000000000000000002 /* DeepLinkMatchTests.swift */; };
 		EE000E000000000000000001 /* ActiveMeansNotClosedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000E000000000000000002 /* ActiveMeansNotClosedTests.swift */; };
 		EE000F000000000000000001 /* IncidentListRefreshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000F000000000000000002 /* IncidentListRefreshTests.swift */; };
+		EE0010000000000000000001 /* APNsEnvironmentMappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0010000000000000000002 /* APNsEnvironmentMappingTests.swift */; };
 		EE0009000000000000000003 /* ServerDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0009000000000000000004 /* ServerDraftTests.swift */; };
 		F1F10DD12CE00002 /* FloppyDiskIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00001 /* FloppyDiskIcon.swift */; };
 		F1F10DD12CE00004 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F10DD12CE00003 /* QRScannerView.swift */; };
@@ -99,6 +100,7 @@
 		EE000D000000000000000002 /* DeepLinkMatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkMatchTests.swift; sourceTree = "<group>"; };
 		EE000E000000000000000002 /* ActiveMeansNotClosedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveMeansNotClosedTests.swift; sourceTree = "<group>"; };
 		EE000F000000000000000002 /* IncidentListRefreshTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentListRefreshTests.swift; sourceTree = "<group>"; };
+		EE0010000000000000000002 /* APNsEnvironmentMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APNsEnvironmentMappingTests.swift; sourceTree = "<group>"; };
 		EE0009000000000000000004 /* ServerDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerDraftTests.swift; sourceTree = "<group>"; };
 		EE0009000000000000000005 /* BeNeMTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BeNeMTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1F10DD12CE00001 /* FloppyDiskIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloppyDiskIcon.swift; sourceTree = "<group>"; };
@@ -146,6 +148,7 @@
 				EE000D000000000000000002 /* DeepLinkMatchTests.swift */,
 				EE000E000000000000000002 /* ActiveMeansNotClosedTests.swift */,
 				EE000F000000000000000002 /* IncidentListRefreshTests.swift */,
+				EE0010000000000000000002 /* APNsEnvironmentMappingTests.swift */,
 			);
 			path = BeNeMTests;
 			sourceTree = "<group>";
@@ -458,6 +461,7 @@
 				EE000D000000000000000001 /* DeepLinkMatchTests.swift in Sources */,
 				EE000E000000000000000001 /* ActiveMeansNotClosedTests.swift in Sources */,
 				EE000F000000000000000001 /* IncidentListRefreshTests.swift in Sources */,
+				EE0010000000000000000001 /* APNsEnvironmentMappingTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

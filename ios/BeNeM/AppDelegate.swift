@@ -144,6 +144,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         guard let url = Bundle.main.url(forResource: "embedded",
                                         withExtension: "mobileprovision"),
               let data = try? Data(contentsOf: url) else {
+            // The ONLY case that legitimately yields "production" without
+            // reading it: a store build carries no profile at all.
             print("[APNs] No embedded.mobileprovision — App Store build, environment: production")
             return "production"
         }
@@ -155,11 +157,46 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                   format: nil) as? [String: Any],
               let entitlements = plist["Entitlements"] as? [String: Any],
               let aps = entitlements["aps-environment"] as? String else {
-            print("[APNs] embedded.mobileprovision present but aps-environment unreadable — assuming production")
+            print("[APNs] embedded.mobileprovision present but aps-environment unreadable — DEFECT, registering as production")
             return "production"
         }
         print("[APNs] aps-environment from embedded.mobileprovision: \(aps)")
-        return aps
+        return apnsEnvironment(forEntitlement: aps)
+    }
+
+    /// Translate the ENTITLEMENT's vocabulary into the MIDDLEWARE's.
+    ///
+    /// They are not the same words, and that cost a real installation on
+    /// 2026-09-21: the first version of this fix read `aps-environment`
+    /// correctly, sent the literal `development`, and `main.py:385` — which
+    /// accepted only `sandbox`/`production` — silently stored it as
+    /// **production**. So a `development` entitlement was registered as
+    /// production again: exactly the defect this function exists to prevent,
+    /// reintroduced one layer further along. Reading the right value is not
+    /// enough; it has to be said in the language the other end speaks.
+    ///
+    /// | entitlement | APNs host | middleware |
+    /// |---|---|---|
+    /// | `development` | sandbox | `sandbox` |
+    /// | `production` | production | `production` |
+    ///
+    /// **Anything else is a defect and is passed through unchanged, loudly.**
+    /// It is not coerced to `production`: the middleware now refuses an
+    /// unknown value with a 400, and a refused registration that says so is
+    /// worth more than an accepted one that is wrong. `production` is returned
+    /// without being read in exactly one case — no profile — and that case is
+    /// handled by the caller above.
+    ///
+    /// Not `private`: BeNeMTests asserts it.
+    static func apnsEnvironment(forEntitlement value: String) -> String {
+        switch value {
+        case "development": return "sandbox"
+        case "production":  return "production"
+        default:
+            print("[APNs] DEFECT — unknown aps-environment \(value.isEmpty ? "<empty>" : value) — "
+                  + "sending it unchanged; the middleware will refuse it")
+            return value
+        }
     }
 
     func registerWithMiddleware(token: String, secret: String, middlewareURL: String) {
