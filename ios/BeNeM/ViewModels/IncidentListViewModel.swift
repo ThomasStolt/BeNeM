@@ -218,9 +218,10 @@ class IncidentListViewModel: ObservableObject {
     ///
     /// Reported from the field on 2.13.6 (53), 2026-09-21.
     ///
-    /// Append rather than sort: `filteredIncidents` does not sort, it filters,
-    /// and `getincidents` returns oldest-first — so the end of the array is
-    /// where a new incident belongs.
+    /// Append rather than insert at a position: `filteredIncidents` re-sorts by
+    /// incident id descending on every read (`:102`), so where the row lands in
+    /// this array is irrelevant to what the user sees. An earlier version of
+    /// this comment claimed `filteredIncidents` does not sort. It does.
     func upsertIncident(_ incident: NetreoIncident) {
         if let idx = incidents.firstIndex(where: { $0.incidentID == incident.incidentID }) {
             incidents[idx] = incident
