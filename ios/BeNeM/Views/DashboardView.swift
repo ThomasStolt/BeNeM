@@ -137,7 +137,7 @@ struct DashboardView: View {
             Button {
                 // The tile's set is exactly ONE pill, so it selects that pill
                 // rather than relying on the list's default happening to agree.
-                incidentViewModel.select(.totl)
+                incidentViewModel.select(.total)
                 selectedTab = 1
             } label: {
                 StatusCard(

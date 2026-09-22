@@ -92,7 +92,7 @@ struct NetreoIncident: Codable, Identifiable, Hashable {
         case closed = "CLOSED"
 
         /// An unrecognised value becomes `.open` rather than passing through.
-        /// TOTL is OPEN + CLRD + CLSD, so a state in none of the three would
+        /// TOTAL is OPEN + CLRD + CLSD, so a state in none of the three would
         /// drop the incident out of EVERY pill and vanish it from the list.
         /// Loud beats gone — and this mirrors the middleware's own `state_of()`
         /// exactly, so the two ends cannot disagree about an unknown value.

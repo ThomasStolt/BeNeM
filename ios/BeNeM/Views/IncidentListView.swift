@@ -290,34 +290,9 @@ struct IncidentListView: View {
     /// control above the existing list, not a row redesign.
     private var filterBar: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 6) {
-                ForEach(IncidentPill.allCases) { pill in
-                    let isSelected = pill == viewModel.selectedPill
-                    Button { viewModel.select(pill) } label: {
-                        HStack(spacing: 3) {
-                            Text(pill.rawValue)
-                                .font(.system(size: 10, weight: .bold))
-                            Text("\(viewModel.count(for: pill))")
-                                .font(.system(size: 10, weight: .semibold))
-                                .monospacedDigit()
-                                .opacity(0.85)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 5)
-                        .foregroundColor(isSelected ? pill.onColor : .secondary)
-                        .background(
-                            Capsule().fill(isSelected ? pill.color : Color.clear)
-                        )
-                        .overlay(
-                            Capsule().stroke(isSelected ? Color.clear : Color(.systemGray4),
-                                             lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("\(pill.rawValue), \(viewModel.count(for: pill))")
-                    .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-                }
-            }
+            IncidentPillBar(selected: viewModel.selectedPill,
+                            count: { viewModel.count(for: $0) },
+                            onSelect: { viewModel.select($0) })
 
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")

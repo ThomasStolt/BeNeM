@@ -74,10 +74,10 @@ class IncidentListViewModel: ObservableObject {
         selectedPill = pill
     }
 
-    /// **The Home tile IS the TOTL pill** — everything NOT CLOSED.
+    /// **The Home tile IS the TOTAL pill** — everything NOT CLOSED.
     ///
     /// Ruled 2026-09-21 (Thomas), superseding the design note's Q5 ("the tile
-    /// is the OPEN count"). **TOTL is BHNM's own Active List View**, so
+    /// is the OPEN count"). **TOTAL is BHNM's own Active List View**, so
     /// "Active Incidents" is the right label for it — and, decisively, the
     /// number does not drop the moment somebody acknowledges. With disjoint
     /// pills an OPEN count would have done exactly that, which is the
@@ -86,14 +86,14 @@ class IncidentListViewModel: ObservableObject {
     /// It calls the same `count(for:)` the pill row calls, so the number on
     /// Home and the number on the pill agree by construction rather than by two
     /// authors happening to write the same condition.
-    var activeIncidentsCount: Int { count(for: .totl) }
+    var activeIncidentsCount: Int { count(for: .total) }
 
-    /// The Home ticker's rows — the TOTL pill, the same predicate as the
+    /// The Home ticker's rows — the TOTAL pill, the same predicate as the
     /// tile's number. Defined through `IncidentPill` so the ticker, the tile
     /// and the list cannot mean three different things by "active".
     var openIncidents: [NetreoIncident] {
         incidents
-            .filter(IncidentPill.totl.contains)
+            .filter(IncidentPill.total.contains)
             .sorted { (Int($0.incidentID) ?? 0) > (Int($1.incidentID) ?? 0) }
     }
 

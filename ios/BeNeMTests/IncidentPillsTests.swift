@@ -1,4 +1,6 @@
 import XCTest
+import SwiftUI
+import UIKit
 @testable import BeNeM
 
 /// The nine from the design note's §5, plus the transition fallback and the
@@ -65,7 +67,7 @@ final class IncidentPillsTests: XCTestCase {
     func testTheFivePillsAreDISJOINT() {
         let vm = loaded()
         for inc in vm.incidents {
-            let member = IncidentPill.allCases.filter { $0 != .totl && $0.contains(inc) }
+            let member = IncidentPill.allCases.filter { $0 != .total && $0.contains(inc) }
             XCTAssertEqual(member.count, 1,
                            "incident \(inc.incidentID) is in \(member.map(\.rawValue))")
         }
@@ -73,10 +75,10 @@ final class IncidentPillsTests: XCTestCase {
         XCTAssertEqual(vm.count(for: .ackd), 1)
         XCTAssertEqual(vm.count(for: .clrd), 1)
         XCTAssertEqual(vm.count(for: .clsd), 1)
-        // TOTL is the union of the first three, and EXCLUDES CLSD.
-        XCTAssertEqual(vm.count(for: .totl),
+        // TOTAL is the union of the first three, and EXCLUDES CLSD.
+        XCTAssertEqual(vm.count(for: .total),
                        vm.count(for: .open) + vm.count(for: .ackd) + vm.count(for: .clrd))
-        XCTAssertEqual(vm.count(for: .totl), 3)
+        XCTAssertEqual(vm.count(for: .total), 3)
     }
 
     @MainActor
@@ -94,13 +96,13 @@ final class IncidentPillsTests: XCTestCase {
     }
 
     @MainActor
-    func testTheHomeTileCountEqualsTheTOTLPillCount() {
-        // The tile IS the TOTL pill. The same class of defect as 2026-09-19:
+    func testTheHomeTileCountEqualsTheTOTALPillCount() {
+        // The tile IS the TOTAL pill. The same class of defect as 2026-09-19:
         // the tile and the list computed the same idea twice, and one of them
         // dropped acknowledged incidents.
         let vm = loaded()
-        vm.select(.totl)
-        XCTAssertEqual(vm.activeIncidentsCount, vm.count(for: .totl))
+        vm.select(.total)
+        XCTAssertEqual(vm.activeIncidentsCount, vm.count(for: .total))
         XCTAssertEqual(vm.activeIncidentsCount, vm.filteredIncidents.count)
         XCTAssertEqual(vm.activeIncidentsCount, vm.openIncidents.count,
                        "the ticker, the tile and the list must mean one thing by active")
@@ -108,7 +110,7 @@ final class IncidentPillsTests: XCTestCase {
 
     @MainActor
     func testTheTileCountDoesNotDropWhenSomebodyAcknowledges() {
-        // Why the tile is TOTL and not OPEN. With disjoint pills an OPEN count
+        // Why the tile is TOTAL and not OPEN. With disjoint pills an OPEN count
         // would fall the moment a user acted — the 2026-09-19 defect by
         // another route, on the very number that defect was about.
         let vm = loaded()
@@ -124,14 +126,14 @@ final class IncidentPillsTests: XCTestCase {
     }
 
     @MainActor
-    func testTheDefaultPillIsTOTL() {
-        XCTAssertEqual(IncidentPill.defaultPill, .totl)
-        XCTAssertEqual(Self.makeViewModel().selectedPill, .totl)
+    func testTheDefaultPillIsTOTAL() {
+        XCTAssertEqual(IncidentPill.defaultPill, .total)
+        XCTAssertEqual(Self.makeViewModel().selectedPill, .total)
     }
 
     @MainActor
-    func testTOTLExcludesClosedIncidents() {
-        // Ruled 2026-09-21 (Thomas), changing the design note. TOTL is the
+    func testTOTALExcludesClosedIncidents() {
+        // Ruled 2026-09-21 (Thomas), changing the design note. TOTAL is the
         // default tab, and a closed incident is not something to show somebody
         // before they have asked for it. CLSD is the one tab you opt into.
         let vm = loaded()
@@ -139,33 +141,85 @@ final class IncidentPillsTests: XCTestCase {
                        ["27516", "30005", "30014"])
         XCTAssertFalse(vm.filteredIncidents.contains { $0.state == .closed })
         XCTAssertTrue(vm.filteredIncidents.contains { $0.acknowledged },
-                      "TOTL is the union of OPEN, ACKD and CLRD")
+                      "TOTAL is the union of OPEN, ACKD and CLRD")
         XCTAssertEqual(vm.count(for: .clsd), 1, "the closed row still exists — in CLSD")
     }
 
-    func testTheTOTLPillIsGoldAndCollidesWithNothing() {
-        // A grey selected pill reads as disabled, and TOTL is the default.
-        XCTAssertNotEqual(IncidentPill.totl.color, IncidentPill.clsd.color)
-        for pill in IncidentPill.allCases where pill != .totl {
-            XCTAssertNotEqual(IncidentPill.totl.color, pill.color,
-                              "TOTL must not borrow \(pill.rawValue)'s colour")
+    func testTheTOTALPillIsTheAppIconPurpleAndCollidesWithNothing() {
+        // **The hex is a MEASUREMENT, and this asserts the measurement.**
+        // Read 2026-09-22 from Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+        // by quantising it to eight colours: the largest cluster is #1B0F33,
+        // 799 841 of 1 048 576 pixels (76.3%). Shared verbatim with the PWA's
+        // IncidentPills.tsx, which asserts the same string — so a change on one
+        // platform fails on that platform rather than drifting silently.
+        XCTAssertEqual(IncidentPill.totalHex, "#1B0F33",
+                       "the sampled dominant purple of AppIcon-1024.png")
+
+        // And the colour actually derives from it, rather than the constant
+        // sitting beside a hand-typed Color that has drifted off it.
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(IncidentPill.total.color).getRed(&r, green: &g, blue: &b, alpha: &a)
+        XCTAssertEqual(Int((r * 255).rounded()), 0x1B)
+        XCTAssertEqual(Int((g * 255).rounded()), 0x0F)
+        XCTAssertEqual(Int((b * 255).rounded()), 0x33)
+
+        // A grey selected pill reads as disabled, and TOTAL is the default.
+        XCTAssertNotEqual(IncidentPill.total.color, IncidentPill.clsd.color)
+        for pill in IncidentPill.allCases where pill != .total {
+            XCTAssertNotEqual(IncidentPill.total.color, pill.color,
+                              "TOTAL must not borrow \(pill.rawValue)'s colour")
         }
         // And it must not be mistakable for a SEVERITY either — the alarm chips
         // sit on the same row as the pills' own labels.
         for alarm in [AlarmColor.yellow, .orange, .red, .green, .blue] {
-            XCTAssertNotEqual(IncidentPill.totl.color, alarm.color,
-                              "TOTL must not read as the \(alarm) alarm chip")
+            XCTAssertNotEqual(IncidentPill.total.color, alarm.color,
+                              "TOTAL must not read as the \(alarm) alarm chip")
         }
-        XCTAssertEqual(IncidentPill.totl.onColor, .black, "white on gold is not legible")
-        for pill in IncidentPill.allCases where pill != .totl {
+        // White on all five now. #1B0F33 sits at 18.1:1 against white, so the
+        // black-on-gold exception is gone rather than inverted.
+        for pill in IncidentPill.allCases {
             XCTAssertEqual(pill.onColor, .white)
         }
+    }
+
+    /// **The fit is proved by rendering, not by arithmetic.** The pill row is
+    /// laid out at exactly the width it gets on the narrowest supported phone —
+    /// 375 pt minus the filter bar's 16 pt horizontal padding either side — with
+    /// every count at its widest plausible value, and the image is written out
+    /// so a human can look at it.
+    ///
+    /// **What this test proves and what it does not.** It proves the row renders
+    /// at 375 pt on two lines and it produces the artefact; it does NOT assert
+    /// that the text is at full size, because `minimumScaleFactor(0.5)` means a
+    /// row that no longer fits shrinks rather than fails. The fit itself is
+    /// established by looking at the PNG this writes — that is why the path is
+    /// printed rather than the image silently discarded.
+    @MainActor
+    func testTheFivePillsFitAt375ptWithFiveDigitCounts() throws {
+        let bar = IncidentPillBar(selected: .total, count: { _ in 99999 }, onSelect: { _ in })
+            .frame(width: 375 - 32)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color(.systemGroupedBackground))
+
+        let renderer = ImageRenderer(content: bar)
+        renderer.scale = 3
+        let image = try XCTUnwrap(renderer.uiImage, "the pill row must render")
+
+        // 375 pt wide at @3x. The height is whatever two stacked lines need.
+        XCTAssertEqual(image.size.width, 375, accuracy: 0.5)
+        XCTAssertGreaterThan(image.size.height, 24, "two lines, not one")
+
+        let out = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("ios-pills-375pt.png")
+        try XCTUnwrap(image.pngData()).write(to: out)
+        print("PILL SNAPSHOT: \(out.path)")
     }
 
     @MainActor
     func testThePillsAreInTheMockupsOrder() {
         XCTAssertEqual(IncidentPill.allCases.map(\.rawValue),
-                       ["TOTL", "OPEN", "ACKD", "CLRD", "CLSD"])
+                       ["TOTAL", "OPEN", "ACKD", "CLRD", "CLSD"])
     }
 
     // MARK: - The lesson the old ActiveMeansNotClosedTests carried
@@ -175,22 +229,22 @@ final class IncidentPillsTests: XCTestCase {
         // Observed on a phone 2026-09-19: Thomas acknowledged an incident FROM
         // THE APP and it vanished. With disjoint pills an ack DOES move the row
         // out of OPEN — by design, ruled 2026-09-21. **The thing that keeps
-        // that from being the 2026-09-19 defect is that TOTL is the default
+        // that from being the 2026-09-19 defect is that TOTAL is the default
         // tab**, so the row the user just acked is still on the screen they
-        // were looking at. Moving the default away from TOTL re-opens the wound.
+        // were looking at. Moving the default away from TOTAL re-opens the wound.
         let vm = loaded()
-        XCTAssertEqual(vm.selectedPill, .totl, "the default is what makes this safe")
+        XCTAssertEqual(vm.selectedPill, .total, "the default is what makes this safe")
         let onDefaultBefore = vm.filteredIncidents.map(\.incidentID).sorted()
 
         vm.updateIncidentStatus(incidentID: "30005", status: .acknowledged)
 
         XCTAssertEqual(vm.filteredIncidents.map(\.incidentID).sorted(), onDefaultBefore,
                        "the acked row must still be on the default tab")
-        XCTAssertEqual(vm.activeIncidentsCount, vm.count(for: .totl),
+        XCTAssertEqual(vm.activeIncidentsCount, vm.count(for: .total),
                        "and the Home tile must still agree with that tab")
         XCTAssertEqual(vm.count(for: .open), 0)
         XCTAssertEqual(vm.count(for: .ackd), 2)
-        XCTAssertEqual(vm.count(for: .totl), 3, "TOTL is unmoved by an ack")
+        XCTAssertEqual(vm.count(for: .total), 3, "TOTAL is unmoved by an ack")
     }
 
     @MainActor
@@ -239,7 +293,7 @@ final class IncidentPillsTests: XCTestCase {
     @MainActor
     func testAnEmptyOrBlankSearchMatchesEverythingInThePill() {
         let vm = loaded()
-        vm.select(.totl)
+        vm.select(.total)
         for query in ["", "   "] {
             vm.searchText = query
             XCTAssertEqual(vm.filteredIncidents.count, 3, "query: \(query.debugDescription)")
@@ -260,7 +314,7 @@ final class IncidentPillsTests: XCTestCase {
         XCTAssertEqual(inc.status, .acknowledged, "status is DERIVED from the two")
         XCTAssertFalse(IncidentPill.open.contains(inc), "acked rows live in ACKD, not OPEN")
         XCTAssertTrue(IncidentPill.ackd.contains(inc))
-        XCTAssertTrue(IncidentPill.totl.contains(inc))
+        XCTAssertTrue(IncidentPill.total.contains(inc))
     }
 
     func testTheServedStateWinsOverIncidentState() throws {
@@ -278,14 +332,14 @@ final class IncidentPillsTests: XCTestCase {
     }
 
     func testAnUnrecognisedStateBecomesOPENRatherThanVanishing() {
-        // TOTL is OPEN + CLRD + CLSD, so a state in none of the three would drop
+        // TOTAL is OPEN + CLRD + CLSD, so a state in none of the three would drop
         // the row out of EVERY pill. Mirrors the middleware's own state_of().
         XCTAssertEqual(NetreoIncident.IncidentState(bhnm: "SOMETHING NEW"), .open)
         XCTAssertEqual(NetreoIncident.IncidentState(bhnm: nil), .open)
         XCTAssertEqual(NetreoIncident.IncidentState(bhnm: "  alarms cleared "), .alarmsCleared)
 
         let odd = incident("7")
-        XCTAssertEqual(IncidentPill.allCases.filter { $0.contains(odd) }, [.totl, .open])
+        XCTAssertEqual(IncidentPill.allCases.filter { $0.contains(odd) }, [.total, .open])
         let closed = incident("8", state: .closed)
         XCTAssertEqual(IncidentPill.allCases.filter { $0.contains(closed) }, [.clsd],
                        "a closed incident is in CLSD and in nothing else")

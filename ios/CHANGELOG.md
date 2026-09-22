@@ -12,18 +12,36 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [2.14.0] - 2026-09-21
 
-Step 3 of the incident list filter build order. **Built only — not installed, not submitted.**
+Step 3 of the incident list filter build order. **Not submitted.** Build 54 was rebuilt on
+2026-09-22 with the pill rename, the two-line layout and the new TOTAL colour folded in; the
+build number is deliberately unchanged because 54 has never left this machine.
 
 ### Added
 
-- **Five filter pills — TOTL / OPEN / ACKD / CLRD / CLSD — with counts, plus search.** The
-  selected pill takes its own state colour; rows are unchanged. **The five are DISJOINT and
-  TOTL is the default**, showing everything except closed. Definitions live in exactly one
+- **Five filter pills — TOTAL / OPEN / ACKD / CLRD / CLSD — with counts, plus search.** The
+  selected pill takes its own state colour; rows are unchanged.
+
+  **The pill is two lines: the count on top, the label beneath in small caps.** Side by side
+  stopped fitting when `TOTL` became `TOTAL` — at 375 pt the five pills share 343 pt, ~64 pt
+  each, and a single-line `TOTAL 99999` had room for the label and about four digits. Proved
+  by rendering, not by arithmetic: `docs/evidence/2026-09-22-ios-pills-375pt.png`, written by
+  `testTheFivePillsFitAt375ptWithFiveDigitCounts`.
+
+  **TOTAL is the app icon's own purple, `#1B0F33`, with white text** — measured, not chosen:
+  quantise `AppIcon-1024.png` to eight colours and the largest cluster is `#1B0F33`, 799,841
+  of 1,048,576 pixels (76.3%). It replaces the gold `#c9a227`. The same string is asserted on
+  both platforms, so they cannot drift on it.
+
+  **The count is `Text(verbatim:)`.** `Text("\(anInt)")` is a `LocalizedStringKey` and formats
+  through the locale, which drew 99999 as `99.999` — wider than the fit allows and out of step
+  with the PWA. Found by looking at the 375 pt snapshot; it was in the first build of 54 too,
+  invisible only because real counts are single digits. **The five are DISJOINT and
+  TOTAL is the default**, showing everything except closed. Definitions live in exactly one
   place, `IncidentPill`, and the Home tile calls the same `count(for:)` the pill row calls.
 
-  **Acknowledging MOVES a row from OPEN to ACKD**, and that is safe only because TOTL is the
+  **Acknowledging MOVES a row from OPEN to ACKD**, and that is safe only because TOTAL is the
   default tab — the row the user just acked is still on the screen they were looking at.
-  Moving the default away from TOTL re-opens the 2026-09-19 defect, and the test says so.
+  Moving the default away from TOTAL re-opens the 2026-09-19 defect, and the test says so.
 
 - **`state`, `acknowledged`, `ackUser` and `closedAt` are decoded** from middleware 2.20.0,
   falling back to `incident_state` only when `state` is absent. **`status` is now DERIVED**
@@ -36,8 +54,8 @@ Step 3 of the incident list filter build order. **Built only — not installed, 
 
 ### Changed
 
-- **The Home tile counts the TOTL pill and lands on it**, keeping its "Active Incidents"
-  label. TOTL is everything not closed, which is **BHNM's own Active List View** — so the
+- **The Home tile counts the TOTAL pill and lands on it**, keeping its "Active Incidents"
+  label. TOTAL is everything not closed, which is **BHNM's own Active List View** — so the
   label is right and **the count does not drop when somebody acknowledges**. An OPEN-counting
   tile would have fallen the moment a user acted, which is the 2026-09-19 defect by another
   route, on the very number that defect was about. Asserted both ways in the tests.
@@ -69,7 +87,7 @@ Step 3 of the incident list filter build order. **Built only — not installed, 
 ### Removed
 
 - `ActiveMeansNotClosedTests.swift` and `NetreoIncident.isActive`. Nothing filters on "not
-  closed" any more — TOTL is that predicate now. **The lesson it carried is not lost**: it is
+  closed" any more — TOTAL is that predicate now. **The lesson it carried is not lost**: it is
   `IncidentPillsTests.testACKingMovesTheRowFromOPENToACKDAndKeepsItOnTheDEFAULTTab`, with the
   2026-09-19 provenance intact.
 
