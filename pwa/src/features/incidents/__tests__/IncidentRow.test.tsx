@@ -75,10 +75,10 @@ describe('IncidentRow', () => {
     expect(screen.getByText('CLRD')).toBeInTheDocument();
   });
 
-  it('renders CLSD badge for CLOSED — a closed row is not a cleared one', () => {
+  it('renders CLOSED badge for CLOSED — a closed row is not a cleared one', () => {
     // These two shared the green CLRD chip until 0.19.0.
     renderRow({ ...base, state: 'CLOSED', status: 'closed', incidentState: 'CLOSED' });
-    expect(screen.getByText('CLSD')).toBeInTheDocument();
+    expect(screen.getByText('CLOSED')).toBeInTheDocument();
     expect(screen.queryByText('CLRD')).not.toBeInTheDocument();
   });
 

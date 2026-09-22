@@ -14,6 +14,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [0.19.7] - 2026-09-22
+
+### Changed
+
+- **The CLSD pill is labelled CLOSED.** The four-letter abbreviation was a fit constraint from
+  when the label sat beside the count on one line; the two-line pill has room for the word, and
+  "CLSD" was the only label a reader had to decode. `Pill` is `'CLOSED'`, the `?pill=` URL value
+  follows it, and the row badge reads CLOSED too — it takes the same string.
+
+  **Re-proved at 375 px with every count at 99999**, because a two-letter-longer label is exactly
+  the kind of change that stops fitting: every pill still measures `scrollWidth == clientWidth ==
+  62`, with the label needing 41 px of it against CLRD's 27 and the count's 52.
+  `docs/evidence/2026-09-22-pwa-pills-375pt.png`.
+
+> **A stale `/incidents?pill=CLSD` link now lands on TOTAL, not CLOSED.** An unrecognised pill
+> falls back to `DEFAULT_PILL`, which is how the `?pill=TOTL` links survived the earlier rename —
+> they happened to be going to TOTAL anyway. `CLSD` does not, so that link loses its destination.
+> No alias was added: the value is only ever written into the URL by tapping the pill, so the
+> reach is a bookmark or a reload of a tab that is about to be replaced. Say the word and it is
+> two lines in `isPill`.
+
+---
+
 ## [0.19.6] - 2026-09-22
 
 ### Changed

@@ -34,7 +34,7 @@ const EMPTY_FOR_PILL: Record<Pill, { title: string; description: string }> = {
   // The window is stated in words rather than implied. A closed incident older
   // than 24 hours is dropped by the middleware, and nothing on screen can tell
   // that apart from one that never existed — so the tab says what it covers.
-  CLSD: { title: 'Nothing closed recently', description: 'Closed incidents are shown for 24 hours.' },
+  CLOSED: { title: 'Nothing closed recently', description: 'Closed incidents are shown for 24 hours.' },
 };
 
 export function IncidentListScreen() {

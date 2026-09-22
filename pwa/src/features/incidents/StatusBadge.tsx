@@ -11,7 +11,7 @@ import type { Incident } from '../../lib/api/types';
 type Props = Pick<Incident, 'state' | 'acknowledged'>;
 
 function resolve({ state, acknowledged }: Props) {
-  if (state === 'CLOSED') return { label: 'CLSD', className: 'bg-slate-500 text-white' } as const;
+  if (state === 'CLOSED') return { label: 'CLOSED', className: 'bg-slate-500 text-white' } as const;
   if (state === 'ALARMS CLEARED') return { label: 'CLRD', className: 'bg-emerald-600 text-white' } as const;
   if (acknowledged) return { label: 'ACKD', className: 'bg-blue-600 text-white' } as const;
   return { label: 'OPEN', className: 'bg-red-600 text-white' } as const;

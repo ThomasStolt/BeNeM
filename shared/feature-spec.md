@@ -218,7 +218,7 @@ choosing to see only acknowledged incidents is a different thing from the tile.
 
 iOS 2.13.6 (52), PWA 0.18.1.
 
-#### Incident list filter — TOTAL / OPEN / ACKD / CLRD / CLSD (**PWA 0.19.6 live; iOS 2.14.0 (54) built, not submitted**)
+#### Incident list filter — TOTAL / OPEN / ACKD / CLRD / CLOSED (**PWA 0.19.7 live; iOS 2.14.0 (54) built, not submitted**)
 
 **Superseded the four-tab sketch recorded here on 2026-09-20.** Design and every ruling:
 `docs/superpowers/specs/2026-09-21-incident-list-filter-design.md` — approved, nothing open.
@@ -229,17 +229,17 @@ iOS 2.13.6 (52), PWA 0.18.1.
 | **OPEN** | state `OPEN` and **not** acknowledged | red |
 | **ACKD** | state `OPEN` and acknowledged | blue |
 | **CLRD** | state `ALARMS CLEARED` | green |
-| **CLSD** | closed within the last 24 hours | grey |
+| **CLOSED** | closed within the last 24 hours | base `#F2F2F7` / tint `#FFFFFF` |
 
 ```
 OPEN  = state OPEN and NOT acknowledged
 ACKD  = state OPEN and acknowledged
 CLRD  = state ALARMS CLEARED
-CLSD  = state CLOSED, closed_at within 24h
+CLOSED  = state CLOSED, closed_at within 24h
 TOTAL  = OPEN + ACKD + CLRD                    everything EXCEPT closed
 ```
 
-**The five pills are DISJOINT** — every incident is in exactly one of OPEN / ACKD / CLRD / CLSD,
+**The five pills are DISJOINT** — every incident is in exactly one of OPEN / ACKD / CLRD / CLOSED,
 and TOTAL is the union of the first three. Amended 2026-09-21 (Thomas) from the design note's
 original subset model; the note carries the full amendment and the reason.
 
@@ -272,14 +272,14 @@ fill and a brighter `tint` for the frame, the unselected text and the unselected
 | OPEN | `#DC2626` | `#F87171` |
 | ACKD | `#2563EB` | `#60A5FA` |
 | CLRD | `#16A34A` | `#4ADE80` |
-| CLSD | `#F2F2F7` | `#FFFFFF` |
+| CLOSED | `#F2F2F7` | `#FFFFFF` |
 
 Unselected ground `#1a1a1d` on all five — **not transparent**, or the row reads as outlines
-floating on nothing and the pills change footprint as the selection moves. **CLSD is the
+floating on nothing and the pills change footprint as the selection moves. **CLOSED is the
 exception twice**: its selected text is `#111114` (its fill is nearly white), and unselected it
 has no frame and no glow at all — white text on the bare plate, because a `#FFFFFF` frame would
 make the one tab you opt into the brightest thing in the row. **Both suites assert all ten hex
-values and the CLSD rule**, so one platform cannot drift off the other quietly. The gold
+values and the CLOSED rule**, so one platform cannot drift off the other quietly. The gold
 `#c9a227` of PWA 0.18.x–0.19.1 and the briefly-used `#1B0F33` are both gone.
 
 > **`#1B0F33` was a measurement, and it was the wrong measurement.** PWA 0.19.2–0.19.3 and the
@@ -320,7 +320,7 @@ FLAG on an OPEN incident, not a state.** Clients read `state` and `acknowledged`
 2.20.0), falling back to `incident_state` only when `state` is absent. That fallback, and the
 middleware's `ACKNOWLEDGED` write into `incident_state`, are both deleted at `M1-drop`.
 
-**CLSD states its window in words** (*"Closed incidents are shown for 24 hours"*). An incident
+**CLOSED states its window in words** (*"Closed incidents are shown for 24 hours"*). An incident
 that closed 25 hours ago is absent, and nothing on screen can tell that apart from one that
 never existed.
 

@@ -99,13 +99,13 @@ describe('IncidentListScreen', () => {
     renderScreen();
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((t) => t.getAttribute('data-pill'))).toEqual(
-      ['TOTAL', 'OPEN', 'ACKD', 'CLRD', 'CLSD'],
+      ['TOTAL', 'OPEN', 'ACKD', 'CLRD', 'CLOSED'],
     );
     expect(pill('TOTAL')).toHaveTextContent('3');
     expect(pill('OPEN')).toHaveTextContent('1');
     expect(pill('ACKD')).toHaveTextContent('1');
     expect(pill('CLRD')).toHaveTextContent('1');
-    expect(pill('CLSD')).toHaveTextContent('1');
+    expect(pill('CLOSED')).toHaveTextContent('1');
   });
 
   it('defaults to TOTAL, which is everything except closed', () => {
@@ -115,7 +115,7 @@ describe('IncidentListScreen', () => {
     expect(text).toContain('#30005');
     expect(text).toContain('#27516');   // acknowledged, still OPEN
     expect(text).toContain('#30014');   // alarms cleared
-    expect(text).not.toContain('#30007'); // CLOSED — opt in via CLSD
+    expect(text).not.toContain('#30007'); // CLOSED — opt in via CLOSED
   });
 
   it('OPEN shows unacknowledged incidents only; the acked one is in ACKD', async () => {
@@ -135,9 +135,9 @@ describe('IncidentListScreen', () => {
     OPEN: { base: 'rgb(220, 38, 38)', tint: 'rgb(248, 113, 113)', hex: ['#DC2626', '#F87171'] },
     ACKD: { base: 'rgb(37, 99, 235)', tint: 'rgb(96, 165, 250)', hex: ['#2563EB', '#60A5FA'] },
     CLRD: { base: 'rgb(22, 163, 74)', tint: 'rgb(74, 222, 128)', hex: ['#16A34A', '#4ADE80'] },
-    CLSD: { base: 'rgb(242, 242, 247)', tint: 'rgb(255, 255, 255)', hex: ['#F2F2F7', '#FFFFFF'] },
+    CLOSED: { base: 'rgb(242, 242, 247)', tint: 'rgb(255, 255, 255)', hex: ['#F2F2F7', '#FFFFFF'] },
   } as const;
-  const PILL_NAMES = ['TOTAL', 'OPEN', 'ACKD', 'CLRD', 'CLSD'] as const;
+  const PILL_NAMES = ['TOTAL', 'OPEN', 'ACKD', 'CLRD', 'CLOSED'] as const;
 
   it('fills the selected pill with its BASE and frames it in its TINT', async () => {
     renderScreen();
@@ -148,9 +148,9 @@ describe('IncidentListScreen', () => {
       expect(el.style.backgroundColor).toBe(base);
       expect(el.style.borderColor).toBe(tint);
       expect(el.style.borderWidth).toBe('1.5px');
-      // White text on four; CLSD's fill is nearly white, so white on white
+      // White text on four; CLOSED's fill is nearly white, so white on white
       // would be the whole label gone.
-      expect(el.style.color).toBe(name === 'CLSD' ? 'rgb(17, 17, 20)' : 'rgb(255, 255, 255)');
+      expect(el.style.color).toBe(name === 'CLOSED' ? 'rgb(17, 17, 20)' : 'rgb(255, 255, 255)');
       // Selected glow: 14px at 85%, in the BASE.
       expect(el.style.boxShadow).toBe(`0 0 14px ${PALETTE[name].hex[0]}D9`);
     }
@@ -159,7 +159,7 @@ describe('IncidentListScreen', () => {
   it('frames, texts and glows an UNSELECTED pill in its TINT, on the #1a1a1d plate', async () => {
     renderScreen();                       // TOTAL is selected; the other four are not
     await userEvent.click(pill('TOTAL'));
-    for (const name of PILL_NAMES.filter((p) => p !== 'TOTAL' && p !== 'CLSD')) {
+    for (const name of PILL_NAMES.filter((p) => p !== 'TOTAL' && p !== 'CLOSED')) {
       const el = pill(name);
       const { tint, hex } = PALETTE[name];
       // Not transparent. Round one let the page through and the row read as
@@ -171,12 +171,12 @@ describe('IncidentListScreen', () => {
     }
   });
 
-  it('gives an UNSELECTED CLSD no frame and no glow — white text on the plate alone', async () => {
+  it('gives an UNSELECTED CLOSED no frame and no glow — white text on the plate alone', async () => {
     // The one tab you opt into, and the only pill not competing for attention
     // when you have not. A frame in #FFFFFF would be the brightest thing in a
     // row nobody is looking at.
     renderScreen();
-    const el = pill('CLSD');
+    const el = pill('CLOSED');
     expect(el).toHaveAttribute('data-selected', 'false');
     expect(el.style.boxShadow).toBe('none');
     expect(el.style.borderColor).toBe('transparent');
@@ -187,9 +187,9 @@ describe('IncidentListScreen', () => {
     expect(el.style.backgroundColor).toBe('rgb(26, 26, 29)');
 
     // And it does get both back when it IS selected.
-    await userEvent.click(pill('CLSD'));
-    expect(pill('CLSD').style.boxShadow).toBe('0 0 14px #F2F2F7D9');
-    expect(pill('CLSD').style.borderColor).toBe('rgb(255, 255, 255)');
+    await userEvent.click(pill('CLOSED'));
+    expect(pill('CLOSED').style.boxShadow).toBe('0 0 14px #F2F2F7D9');
+    expect(pill('CLOSED').style.borderColor).toBe('rgb(255, 255, 255)');
   });
 
   it('draws the two glow radii, and never a filter', async () => {
@@ -211,8 +211,8 @@ describe('IncidentListScreen', () => {
   });
 
   it('honours ?pill=OPEN from the Home tile', () => {
-    renderScreen('/incidents?pill=CLSD');
-    expect(pill('CLSD')).toHaveAttribute('aria-selected', 'true');
+    renderScreen('/incidents?pill=CLOSED');
+    expect(pill('CLOSED')).toHaveAttribute('aria-selected', 'true');
   });
 
   it('falls back to the default pill for an unrecognised one in the URL', () => {
@@ -232,12 +232,12 @@ describe('IncidentListScreen', () => {
     expect(pill('TOTAL')).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('renders a CLOSED row under CLSD with a grey chip', async () => {
+  it('renders a CLOSED row under CLOSED with a grey chip', async () => {
     renderScreen();
-    await userEvent.click(pill('CLSD'));
+    await userEvent.click(pill('CLOSED'));
     const list = screen.getByTestId('incident-list');
     expect(within(list).getByText('#30007')).toBeInTheDocument();
-    const chip = within(list).getByText('CLSD');
+    const chip = within(list).getByText('CLOSED');
     expect(chip.className).toContain('bg-slate-500');
   });
 
@@ -250,7 +250,7 @@ describe('IncidentListScreen', () => {
     expect(screen.queryByTestId('incident-list')).not.toBeInTheDocument();
     expect(screen.getByText('No matches')).toBeInTheDocument();
 
-    await userEvent.click(pill('CLSD'));
+    await userEvent.click(pill('CLOSED'));
     expect(within(screen.getByTestId('incident-list')).getByText('#30007')).toBeInTheDocument();
   });
 
@@ -269,9 +269,9 @@ describe('IncidentListScreen', () => {
     expect(refresh).toHaveBeenCalled();
   });
 
-  it('states the CLSD window in words when the tab is empty', async () => {
+  it('states the CLOSED window in words when the tab is empty', async () => {
     renderScreen('/incidents?pill=CLRD');
-    await userEvent.click(pill('CLSD'));
+    await userEvent.click(pill('CLOSED'));
     await userEvent.type(screen.getByLabelText('Search incidents'), 'zzz-no-such-thing');
     expect(screen.getByText('No matches')).toBeInTheDocument();
   });

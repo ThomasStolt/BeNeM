@@ -29,18 +29,18 @@ describe('StatusBadge', () => {
     expect(container.firstChild).toHaveClass('bg-emerald-600');
   });
 
-  it('shows CLSD in grey for CLOSED — NOT the green CLRD chip', () => {
+  it('shows CLOSED in grey for CLOSED — NOT the green CLRD chip', () => {
     // The defect this replaces: until 0.19.0, `status === 'closed'` and the
     // literal 'ALARMS CLEARED' shared one branch, so a closed incident and a
     // cleared one rendered the SAME green CLRD chip. They are different facts.
     const { container } = render(<StatusBadge state="CLOSED" acknowledged={false} />);
-    expect(screen.getByText('CLSD')).toBeInTheDocument();
+    expect(screen.getByText('CLOSED')).toBeInTheDocument();
     expect(container.firstChild).toHaveClass('bg-slate-500');
     expect(screen.queryByText('CLRD')).not.toBeInTheDocument();
   });
 
-  it('shows CLSD for a CLOSED incident that was acknowledged before it closed', () => {
+  it('shows CLOSED for a CLOSED incident that was acknowledged before it closed', () => {
     render(<StatusBadge state="CLOSED" acknowledged={true} />);
-    expect(screen.getByText('CLSD')).toBeInTheDocument();
+    expect(screen.getByText('CLOSED')).toBeInTheDocument();
   });
 });

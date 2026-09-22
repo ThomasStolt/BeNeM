@@ -7,13 +7,13 @@ import type { Incident } from '../../lib/api/types';
  *   OPEN  = state OPEN and NOT acknowledged
  *   ACKD  = state OPEN and acknowledged
  *   CLRD  = state ALARMS CLEARED
- *   CLSD  = state CLOSED, inside the middleware's 24-hour retention window
+ *   CLOSED  = state CLOSED, inside the middleware's 24-hour retention window
  *   TOTAL  = OPEN + ACKD + CLRD                    everything EXCEPT closed
  *
- * **The five are DISJOINT, and TOTAL excludes CLSD. Ruled 2026-09-21 (Thomas),
+ * **The five are DISJOINT, and TOTAL excludes CLOSED. Ruled 2026-09-21 (Thomas),
  * changing the design note twice over.** The note had ACKD as a *subset* of
- * OPEN and `TOTAL = OPEN + CLRD + CLSD`; it is neither. Every incident is in
- * exactly one of OPEN / ACKD / CLRD / CLSD, and TOTAL is the union of the first
+ * OPEN and `TOTAL = OPEN + CLRD + CLOSED`; it is neither. Every incident is in
+ * exactly one of OPEN / ACKD / CLRD / CLOSED, and TOTAL is the union of the first
  * three — which makes TOTAL exactly "not closed", the predicate this product has
  * called "active" since 0.18.1.
  *
@@ -29,9 +29,9 @@ import type { Incident } from '../../lib/api/types';
  * state — so "acknowledged" and "alarms cleared" shared one field and could not
  * both be true.
  */
-export type Pill = 'TOTAL' | 'OPEN' | 'ACKD' | 'CLRD' | 'CLSD';
+export type Pill = 'TOTAL' | 'OPEN' | 'ACKD' | 'CLRD' | 'CLOSED';
 
-export const PILLS: readonly Pill[] = ['TOTAL', 'OPEN', 'ACKD', 'CLRD', 'CLSD'];
+export const PILLS: readonly Pill[] = ['TOTAL', 'OPEN', 'ACKD', 'CLRD', 'CLOSED'];
 
 /** Ruled 2026-09-21 (Thomas): the list opens on TOTAL — everything that is not
  * closed. **The Home tile still lands on OPEN and still counts OPEN** (Q5); the
@@ -47,7 +47,7 @@ export function inPill(incident: Incident, pill: Pill): boolean {
     case 'OPEN': return incident.state === 'OPEN' && !incident.acknowledged;
     case 'ACKD': return incident.state === 'OPEN' && incident.acknowledged;
     case 'CLRD': return incident.state === 'ALARMS CLEARED';
-    case 'CLSD': return incident.state === 'CLOSED';
+    case 'CLOSED': return incident.state === 'CLOSED';
     // Written as the union of its parts rather than `state !== 'CLOSED'`, so
     // that TOTAL and the sum of the pills beside it cannot drift apart.
     case 'TOTAL': return inPill(incident, 'OPEN')
@@ -62,7 +62,7 @@ export type PillCounts = Record<Pill, number>;
  * endpoint — the list is already in hand, and a second source would be a second
  * thing that can disagree with the rows on screen. */
 export function pillCounts(incidents: readonly Incident[]): PillCounts {
-  const counts: PillCounts = { TOTAL: 0, OPEN: 0, ACKD: 0, CLRD: 0, CLSD: 0 };
+  const counts: PillCounts = { TOTAL: 0, OPEN: 0, ACKD: 0, CLRD: 0, CLOSED: 0 };
   for (const i of incidents) {
     for (const p of PILLS) if (inPill(i, p)) counts[p]++;
   }

@@ -18,7 +18,7 @@ const PALETTE: Record<Pill, { base: string; tint: string }> = {
   OPEN: { base: '#DC2626', tint: '#F87171' },
   ACKD: { base: '#2563EB', tint: '#60A5FA' },
   CLRD: { base: '#16A34A', tint: '#4ADE80' },
-  CLSD: { base: '#F2F2F7', tint: '#FFFFFF' },
+  CLOSED: { base: '#F2F2F7', tint: '#FFFFFF' },
 };
 
 /** The ground an UNSELECTED pill sits on. **Not transparent** — round one let
@@ -27,16 +27,16 @@ const PALETTE: Record<Pill, { base: string; tint: string }> = {
  * or not, which is what stops the row jumping as the selection moves. */
 const UNSELECTED_BG = '#1a1a1d';
 
-/** CLSD's selected text. The one pill whose fill is nearly white, so
+/** CLOSED's selected text. The one pill whose fill is nearly white, so
  * white-on-white would be the whole label gone. Near-black rather than pure
  * black, to match the ground the row sits on. */
-const CLSD_ON = '#111114';
+const CLOSED_ON = '#111114';
 
-/** CLSD is the only pill with no frame and no glow when unselected: white text
+/** CLOSED is the only pill with no frame and no glow when unselected: white text
  * on the bare plate. It is the one tab you opt into, and a frame in `#FFFFFF`
  * would make it the brightest thing in a row you are not looking at. */
 function isFramedWhenUnselected(pill: Pill): boolean {
-  return pill !== 'CLSD';
+  return pill !== 'CLOSED';
 }
 
 /** The glow, exactly as the mockup specifies it: 4 px at 55% unselected, 14 px
@@ -124,11 +124,11 @@ export function IncidentPills({ selected, counts, onSelect }: Props) {
               borderWidth: '1.5px',
               borderStyle: 'solid',
               // `transparent`, not `none`: the border box has to keep its width
-              // or the frameless CLSD pill would be 3px narrower than the four
+              // or the frameless CLOSED pill would be 3px narrower than the four
               // beside it and the row would not line up.
               borderColor: framed ? tint : 'transparent',
               color: isSelected
-                ? (pill === 'CLSD' ? CLSD_ON : '#FFFFFF')
+                ? (pill === 'CLOSED' ? CLOSED_ON : '#FFFFFF')
                 : tint,
               boxShadow: framed ? `0 0 ${radius}px ${withAlpha(glow, opacity)}` : 'none',
             }}

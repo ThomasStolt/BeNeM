@@ -57,8 +57,8 @@ describe('the five pills', () => {
       expect(member, `incident ${i.incidentId}`).toHaveLength(1);
     }
     const c = pillCounts(list);
-    expect([c.OPEN, c.ACKD, c.CLRD, c.CLSD]).toEqual([1, 1, 1, 1]);
-    // TOTAL is the union of the first three, and EXCLUDES CLSD.
+    expect([c.OPEN, c.ACKD, c.CLRD, c.CLOSED]).toEqual([1, 1, 1, 1]);
+    // TOTAL is the union of the first three, and EXCLUDES CLOSED.
     expect(c.TOTAL).toBe(c.OPEN + c.ACKD + c.CLRD);
     expect(c.TOTAL).toBe(3);
   });
@@ -67,8 +67,8 @@ describe('the five pills', () => {
     expect(selectIncidents(parsed(), 'CLRD', '').map((i) => i.incidentId)).toEqual(['30014']);
   });
 
-  it('CLSD is exactly state CLOSED', () => {
-    expect(selectIncidents(parsed(), 'CLSD', '').map((i) => i.incidentId)).toEqual(['30007']);
+  it('CLOSED is exactly state CLOSED', () => {
+    expect(selectIncidents(parsed(), 'CLOSED', '').map((i) => i.incidentId)).toEqual(['30007']);
   });
 
   it('the Home tile count equals the TOTAL pill count', () => {
@@ -103,15 +103,15 @@ describe('the five pills', () => {
   it('TOTAL excludes closed incidents', () => {
     // Ruled 2026-09-21 (Thomas), changing the design note. TOTAL is the default
     // tab, and a closed incident is not something to show somebody before they
-    // have asked for it. CLSD is the one tab you opt into.
+    // have asked for it. CLOSED is the one tab you opt into.
     const list = parsed();
     expect(selectIncidents(list, 'TOTAL', '').map((i) => i.incidentId).sort())
       .toEqual(['27516', '30005', '30014']);
     expect(selectIncidents(list, 'TOTAL', '').some((i) => i.state === 'CLOSED')).toBe(false);
     expect(selectIncidents(list, 'TOTAL', '').some((i) => i.acknowledged)).toBe(true);
-    expect(pillCounts(list).CLSD).toBe(1);
+    expect(pillCounts(list).CLOSED).toBe(1);
     const closed = list.find((i) => i.state === 'CLOSED')!;
-    expect(PILLS.filter((p) => inPill(closed, p))).toEqual(['CLSD']);
+    expect(PILLS.filter((p) => inPill(closed, p))).toEqual(['CLOSED']);
   });
 
   it('acking moves a row from OPEN to ACKD and leaves TOTAL unmoved', () => {
@@ -149,7 +149,7 @@ describe('search', () => {
     // filter would falsify the pill, which is a statement about what is on screen.
     const list = parsed();
     expect(selectIncidents(list, 'OPEN', 'raspi')).toEqual([]);
-    expect(selectIncidents(list, 'CLSD', 'raspi').map((i) => i.incidentId)).toEqual(['30007']);
+    expect(selectIncidents(list, 'CLOSED', 'raspi').map((i) => i.incidentId)).toEqual(['30007']);
   });
 
   it('an empty query matches everything in the pill', () => {
@@ -173,7 +173,7 @@ describe('the transition fallback', () => {
       closed_incidents: [{ incident_id: '4', title: 'd', incident_state: 'CLOSED' }],
     };
     const c = pillCounts(parseIncidentsResponse(old));
-    expect(c).toEqual({ TOTAL: 3, OPEN: 1, ACKD: 1, CLRD: 1, CLSD: 1 });
+    expect(c).toEqual({ TOTAL: 3, OPEN: 1, ACKD: 1, CLRD: 1, CLOSED: 1 });
 
     const acked = parseIncidentsResponse(old).find((i) => i.incidentId === '2')!;
     expect(acked.state).toBe('OPEN');
@@ -185,7 +185,7 @@ describe('the transition fallback', () => {
     const old = { active_incidents: [], closed_incidents: [{ incident_id: '9', title: 'x' }] };
     const [row] = parseIncidentsResponse(old);
     expect(row.state).toBe('CLOSED');
-    expect(inPill(row, 'CLSD')).toBe(true);
+    expect(inPill(row, 'CLOSED')).toBe(true);
   });
 
   it('an unrecognised state becomes OPEN rather than vanishing', () => {
@@ -199,12 +199,12 @@ describe('the transition fallback', () => {
 });
 
 describe('a closed row', () => {
-  it('parses with its closed_at and renders under CLSD', () => {
+  it('parses with its closed_at and renders under CLOSED', () => {
     const row = parsed().find((i) => i.incidentId === '30007')!;
     expect(row.state).toBe('CLOSED');
     expect(row.closedAt).toBeInstanceOf(Date);
     expect(row.closedAt!.getTime()).toBe(Math.round(1789928537.339 * 1000));
-    expect(inPill(row, 'CLSD')).toBe(true);
+    expect(inPill(row, 'CLOSED')).toBe(true);
     expect(inPill(row, 'TOTAL')).toBe(false);
     expect(inPill(row, 'OPEN')).toBe(false);
   });
