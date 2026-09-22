@@ -127,22 +127,56 @@ describe('IncidentListScreen', () => {
     // 799,841 of 1,048,576 pixels (76.3%). iOS asserts the identical string in
     // IncidentPillsTests, so the two platforms cannot drift on it in silence.
     renderScreen();
-    expect(pill('TOTAL').className).toContain('bg-[#1B0F33]');   // the app icon purple
-    expect(pill('TOTAL').className).toContain('text-white');      // 18.1:1 on that purple
-    expect(pill('TOTAL').className).not.toContain('bg-slate');    // not grey: it is the default
-    expect(pill('TOTAL').className).not.toContain('#c9a227');     // and no longer the 0.19.x gold
-    expect(pill('TOTAL').className).not.toContain('yellow-400');  // not the alarm chip's yellow
-    expect(pill('TOTAL').className).not.toContain('orange-500');
+    expect(pill('TOTAL').style.backgroundColor).toBe('rgb(27, 15, 51)');   // #1B0F33
+    expect(pill('TOTAL').style.color).toBe('rgb(255, 255, 255)');          // 18.1:1 on it
     await userEvent.click(pill('OPEN'));
-    expect(pill('OPEN').className).toContain('bg-red-600');
+    expect(pill('OPEN').style.backgroundColor).toBe('rgb(220, 38, 38)');
     await userEvent.click(pill('ACKD'));
-    expect(pill('ACKD').className).toContain('bg-blue-600');
+    expect(pill('ACKD').style.backgroundColor).toBe('rgb(37, 99, 235)');
     await userEvent.click(pill('CLRD'));
-    expect(pill('CLRD').className).toContain('bg-emerald-600');
+    expect(pill('CLRD').style.backgroundColor).toBe('rgb(5, 150, 105)');
     await userEvent.click(pill('CLSD'));
-    expect(pill('CLSD').className).toContain('bg-slate-500');
+    expect(pill('CLSD').style.backgroundColor).toBe('rgb(100, 116, 139)');
     await userEvent.click(pill('TOTAL'));
-    expect(pill('TOTAL').className).toContain('bg-[#1B0F33]');
+    expect(pill('TOTAL').style.backgroundColor).toBe('rgb(27, 15, 51)');
+  });
+
+  it('draws the two glow radii, and TOTAL glows #7C3AED while it fills #1B0F33', async () => {
+    // **The two hexes and the two radii, which is the whole of the mockup that
+    // can be asserted rather than looked at.** TOTAL is the only pill whose
+    // accent differs from its fill, and it has to be: #1B0F33 is a near-black,
+    // and a near-black border and halo on a slate-950 page is nothing at all.
+    // iOS holds the identical pair in IncidentPill.totalHex / .totalGlowHex.
+    renderScreen();
+
+    const total = pill('TOTAL');                       // selected: 14px at 85%
+    expect(total.style.backgroundColor).toBe('rgb(27, 15, 51)');   // #1B0F33, the FILL
+    expect(total.style.boxShadow).toBe('0 0 14px #7C3AEDD9');      // #7C3AED, the GLOW
+    expect(total.style.borderColor).toBe('rgb(124, 58, 237)');   // #7C3AED
+    expect(total.style.borderWidth).toBe('1.5px');
+
+    const open = pill('OPEN');                         // unselected: 4px at 55%
+    expect(open.style.backgroundColor).toBe('transparent');
+    expect(open.style.boxShadow).toBe('0 0 4px #DC26268C');
+    expect(open.style.color).toBe('rgb(220, 38, 38)');  // text in the pill's own colour
+    expect(open.style.borderColor).toBe('rgb(220, 38, 38)');
+
+    // And the radii swap with the selection, rather than being stuck on one pill.
+    await userEvent.click(pill('OPEN'));
+    expect(pill('OPEN').style.boxShadow).toBe('0 0 14px #DC2626D9');
+    expect(pill('TOTAL').style.boxShadow).toBe('0 0 4px #7C3AED8C');
+
+    // box-shadow, never filter: drop-shadow — a filter would blur the digits.
+    for (const p of ['TOTAL', 'OPEN', 'ACKD', 'CLRD', 'CLSD']) {
+      expect(pill(p).style.filter).toBe('');
+    }
+  });
+
+  it('turns the colour transition off for a reader who asked for less movement', () => {
+    // The glow is static and nothing animates in or out, so the 150 ms
+    // transition-colors is the only thing here that moves.
+    renderScreen();
+    expect(pill('TOTAL').className).toContain('motion-reduce:transition-none');
   });
 
   it('honours ?pill=OPEN from the Home tile', () => {

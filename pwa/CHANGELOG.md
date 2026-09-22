@@ -14,6 +14,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [0.19.3] - 2026-09-22
+
+### Changed
+
+- **The pills glow.** Unselected: transparent fill, a 1.5 px border in the pill's own colour,
+  text in that colour, and a soft 4 px outer glow at 55%. Selected: filled as before, white
+  text, and a 14 px glow at 85%. **TOTAL's fill stays `#1B0F33`** — the measured app-icon
+  purple — **but its border, text and glow are `#7C3AED`**, because a near-black outline and
+  halo on a slate-950 page is nothing at all. iOS holds the identical two hexes and the
+  identical two radii; both suites assert them.
+
+  `box-shadow`, never `filter: drop-shadow` — a filter promotes the element to its own
+  compositing layer and blurs everything inside it, digits included.
+
+  **Colours moved from Tailwind classes to inline styles.** Tailwind's JIT only emits an
+  arbitrary value it can see as a literal string, so a per-pill `bg-[${hex}]` compiles to no
+  class at all and the pill renders transparent — with no error anywhere. Inline styles have no
+  build step to fall through, and they let the fill, the border and the glow read one palette
+  entry instead of three hand-synchronised strings.
+
+  **`motion-reduce:transition-none`** turns off the 150 ms colour transition for a reader who
+  asked for less movement. That is the only thing here that moves: the glow is static and
+  nothing animates in or out.
+
+  Re-rendered at 375 px with every count at 99999: `docs/evidence/2026-09-22-pwa-pills-375pt.png`.
+
+---
+
 ## [0.19.2] - 2026-09-22
 
 ### Changed

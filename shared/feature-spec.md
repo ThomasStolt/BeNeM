@@ -218,7 +218,7 @@ choosing to see only acknowledged incidents is a different thing from the tile.
 
 iOS 2.13.6 (52), PWA 0.18.1.
 
-#### Incident list filter — TOTAL / OPEN / ACKD / CLRD / CLSD (**PWA 0.19.2 live; iOS 2.14.0 (54) built, not submitted**)
+#### Incident list filter — TOTAL / OPEN / ACKD / CLRD / CLSD (**PWA 0.19.3 live; iOS 2.14.0 (54) built, not submitted**)
 
 **Superseded the four-tab sketch recorded here on 2026-09-20.** Design and every ruling:
 `docs/superpowers/specs/2026-09-21-incident-list-filter-design.md` — approved, nothing open.
@@ -268,6 +268,17 @@ Counts use tabular figures on both so the five columns do not jitter as the numb
 cluster is `#1B0F33` — 799,841 of 1,048,576 pixels, 76.3%, the icon's background field. White
 text on it (18.1:1). It replaces the gold `#c9a227` of PWA 0.19.x and the first build of iOS 54.
 **Both suites assert the literal string**, so one platform cannot drift off the other quietly.
+
+**The pills glow, both platforms** (2026-09-22, from Thomas's mockup). Unselected: transparent
+fill, a 1.5 pt border in the pill's own colour, text in that colour, a soft 4 pt outer glow at
+55%. Selected: filled, white text, a 14 pt glow at 85%. **TOTAL's fill stays `#1B0F33` but its
+border, text and glow are `#7C3AED`** — a near-black outline and halo is invisible on either
+platform's ground, so TOTAL is the one pill whose accent differs from its fill. iOS uses shadow
+modifiers (`strokeBorder(...).shadow(...)` — a SwiftUI shadow is derived from the alpha of what
+it is attached to, so a glow hung off a `Color.clear` fill renders nothing); the PWA uses
+`box-shadow` and never `filter`, which would blur the digits. **Both hexes and both radii are
+asserted on both platforms.** Reduce Motion: the iOS row has no animation to disable; the PWA
+carries `motion-reduce:transition-none` for its 150 ms colour transition.
 
 **`?pill=TOTL` still lands on TOTAL, with no alias code.** An unrecognised pill already falls
 back to `DEFAULT_PILL`, and that is TOTAL — so the links 0.19.1 put in cached bundles and
