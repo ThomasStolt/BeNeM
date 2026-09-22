@@ -74,8 +74,8 @@ final class IncidentPillsTests: XCTestCase {
         XCTAssertEqual(vm.count(for: .open), 1)
         XCTAssertEqual(vm.count(for: .ackd), 1)
         XCTAssertEqual(vm.count(for: .clrd), 1)
-        XCTAssertEqual(vm.count(for: .clsd), 1)
-        // TOTAL is the union of the first three, and EXCLUDES CLSD.
+        XCTAssertEqual(vm.count(for: .closed), 1)
+        // TOTAL is the union of the first three, and EXCLUDES CLOSED.
         XCTAssertEqual(vm.count(for: .total),
                        vm.count(for: .open) + vm.count(for: .ackd) + vm.count(for: .clrd))
         XCTAssertEqual(vm.count(for: .total), 3)
@@ -89,9 +89,9 @@ final class IncidentPillsTests: XCTestCase {
     }
 
     @MainActor
-    func testCLSDIsExactlyStateClosed() {
+    func testCLOSEDIsExactlyStateClosed() {
         let vm = loaded()
-        vm.select(.clsd)
+        vm.select(.closed)
         XCTAssertEqual(vm.filteredIncidents.map(\.incidentID), ["30007"])
     }
 
@@ -135,14 +135,14 @@ final class IncidentPillsTests: XCTestCase {
     func testTOTALExcludesClosedIncidents() {
         // Ruled 2026-09-21 (Thomas), changing the design note. TOTAL is the
         // default tab, and a closed incident is not something to show somebody
-        // before they have asked for it. CLSD is the one tab you opt into.
+        // before they have asked for it. CLOSED is the one tab you opt into.
         let vm = loaded()
         XCTAssertEqual(vm.filteredIncidents.map(\.incidentID).sorted(),
                        ["27516", "30005", "30014"])
         XCTAssertFalse(vm.filteredIncidents.contains { $0.state == .closed })
         XCTAssertTrue(vm.filteredIncidents.contains { $0.acknowledged },
                       "TOTAL is the union of OPEN, ACKD and CLRD")
-        XCTAssertEqual(vm.count(for: .clsd), 1, "the closed row still exists — in CLSD")
+        XCTAssertEqual(vm.count(for: .closed), 1, "the closed row still exists — in CLOSED")
     }
 
     /// The ten hex values, exactly as the mockup states them. The PWA holds the
@@ -152,7 +152,7 @@ final class IncidentPillsTests: XCTestCase {
         .open:  ("#DC2626", "#F87171"),
         .ackd:  ("#2563EB", "#60A5FA"),
         .clrd:  ("#16A34A", "#4ADE80"),
-        .clsd:  ("#F2F2F7", "#FFFFFF"),
+        .closed:  ("#F2F2F7", "#FFFFFF"),
     ]
 
     /// `[Int]` and not a tuple: XCTAssertEqual needs Equatable, and a tuple is
@@ -193,19 +193,19 @@ final class IncidentPillsTests: XCTestCase {
                        "not transparent — round one let the page through")
         XCTAssertEqual(IncidentPill.clsdOnHex, "#111114")
 
-        // White on four; near-black on CLSD, whose fill is nearly white.
-        XCTAssertEqual(rgb(IncidentPill.clsd.onColor), rgb(hex: "#111114"))
-        for pill in IncidentPill.allCases where pill != .clsd {
+        // White on four; near-black on CLOSED, whose fill is nearly white.
+        XCTAssertEqual(rgb(IncidentPill.closed.onColor), rgb(hex: "#111114"))
+        for pill in IncidentPill.allCases where pill != .closed {
             XCTAssertEqual(pill.onColor, .white, "\(pill.rawValue) takes white text when filled")
         }
     }
 
-    func testCLSDIsFramelessAndGlowlessWhenUNSELECTED() {
+    func testCLOSEDIsFramelessAndGlowlessWhenUNSELECTED() {
         // The one tab you opt into, and the only pill not competing for
         // attention when you have not: a frame in #FFFFFF would be the
         // brightest thing in a row nobody is looking at.
-        XCTAssertFalse(IncidentPill.clsd.isFramedWhenUnselected)
-        for pill in IncidentPill.allCases where pill != .clsd {
+        XCTAssertFalse(IncidentPill.closed.isFramedWhenUnselected)
+        for pill in IncidentPill.allCases where pill != .closed {
             XCTAssertTrue(pill.isFramedWhenUnselected,
                           "\(pill.rawValue) keeps its frame and glow unselected")
         }
@@ -284,7 +284,7 @@ final class IncidentPillsTests: XCTestCase {
     @MainActor
     func testThePillsAreInTheMockupsOrder() {
         XCTAssertEqual(IncidentPill.allCases.map(\.rawValue),
-                       ["TOTAL", "OPEN", "ACKD", "CLRD", "CLSD"])
+                       ["TOTAL", "OPEN", "ACKD", "CLRD", "CLOSED"])
     }
 
     // MARK: - The lesson the old ActiveMeansNotClosedTests carried
@@ -351,7 +351,7 @@ final class IncidentPillsTests: XCTestCase {
         vm.searchText = "raspi"
         XCTAssertTrue(vm.filteredIncidents.isEmpty)
 
-        vm.select(.clsd)
+        vm.select(.closed)
         XCTAssertEqual(vm.filteredIncidents.map(\.incidentID), ["30007"])
     }
 
@@ -397,7 +397,7 @@ final class IncidentPillsTests: XCTestCase {
     }
 
     func testAnUnrecognisedStateBecomesOPENRatherThanVanishing() {
-        // TOTAL is OPEN + CLRD + CLSD, so a state in none of the three would drop
+        // TOTAL is OPEN + CLRD + CLOSED, so a state in none of the three would drop
         // the row out of EVERY pill. Mirrors the middleware's own state_of().
         XCTAssertEqual(NetreoIncident.IncidentState(bhnm: "SOMETHING NEW"), .open)
         XCTAssertEqual(NetreoIncident.IncidentState(bhnm: nil), .open)
@@ -406,8 +406,8 @@ final class IncidentPillsTests: XCTestCase {
         let odd = incident("7")
         XCTAssertEqual(IncidentPill.allCases.filter { $0.contains(odd) }, [.total, .open])
         let closed = incident("8", state: .closed)
-        XCTAssertEqual(IncidentPill.allCases.filter { $0.contains(closed) }, [.clsd],
-                       "a closed incident is in CLSD and in nothing else")
+        XCTAssertEqual(IncidentPill.allCases.filter { $0.contains(closed) }, [.closed],
+                       "a closed incident is in CLOSED and in nothing else")
     }
 
     func testAcknowledgedDecodesFromBoolAndFromInt() throws {
@@ -427,15 +427,15 @@ final class IncidentPillsTests: XCTestCase {
     // MARK: - A closed row renders
 
     @MainActor
-    func testAClosedRowRendersWithAGreyCLSDChip() {
+    func testAClosedRowRendersWithAGreyCLOSEDChip() {
         // The Recovery-notification landing. Until 2.14.0 a CLOSED incident's
-        // chip read "CLOSED" in the list while the filter said CLSD, and a
+        // chip read "CLOSED" in the list while the filter said CLOSED, and a
         // cleared one was special-cased to green — two vocabularies.
         let vm = loaded()
-        vm.select(.clsd)
+        vm.select(.closed)
         let row = try! XCTUnwrap(vm.filteredIncidents.first)
-        XCTAssertEqual(row.chip.label, "CLSD")
-        XCTAssertEqual(row.chip.color, IncidentPill.clsd.color)
+        XCTAssertEqual(row.chip.label, "CLOSED")
+        XCTAssertEqual(row.chip.color, IncidentPill.closed.color)
         XCTAssertNotEqual(row.chip.color, IncidentPill.clrd.color,
                           "closed and cleared are different facts and must look different")
         XCTAssertNotNil(row.closedAt, "a closed row states WHEN it closed")
@@ -446,8 +446,8 @@ final class IncidentPillsTests: XCTestCase {
         XCTAssertEqual(incident("1", acknowledged: true).chip.label, "ACKD")
         XCTAssertEqual(incident("1", state: .alarmsCleared).chip.label, "CLRD")
         XCTAssertEqual(incident("1", state: .alarmsCleared, acknowledged: true).chip.label, "CLRD")
-        XCTAssertEqual(incident("1", state: .closed).chip.label, "CLSD")
-        XCTAssertEqual(incident("1", state: .closed, acknowledged: true).chip.label, "CLSD")
+        XCTAssertEqual(incident("1", state: .closed).chip.label, "CLOSED")
+        XCTAssertEqual(incident("1", state: .closed, acknowledged: true).chip.label, "CLOSED")
     }
 
     func testStatusIsDerivedAndCannotDisagreeWithTheTwoFacts() {

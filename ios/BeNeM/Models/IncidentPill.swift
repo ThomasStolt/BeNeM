@@ -7,13 +7,13 @@ import SwiftUI
 ///     OPEN  = state OPEN and NOT acknowledged
 ///     ACKD  = state OPEN and acknowledged
 ///     CLRD  = state ALARMS CLEARED
-///     CLSD  = state CLOSED, inside the middleware's 24-hour retention window
+///     CLOSED  = state CLOSED, inside the middleware's 24-hour retention window
 ///     TOTAL  = OPEN + ACKD + CLRD                    everything EXCEPT closed
 ///
-/// **The five are DISJOINT, and TOTAL excludes CLSD. Ruled 2026-09-21 (Thomas),
+/// **The five are DISJOINT, and TOTAL excludes CLOSED. Ruled 2026-09-21 (Thomas),
 /// changing the design note twice over.** The note had ACKD as a *subset* of
-/// OPEN and `TOTAL = OPEN + CLRD + CLSD`; it is neither. Every incident is in
-/// exactly one of OPEN / ACKD / CLRD / CLSD, and TOTAL is the union of the first
+/// OPEN and `TOTAL = OPEN + CLRD + CLOSED`; it is neither. Every incident is in
+/// exactly one of OPEN / ACKD / CLRD / CLOSED, and TOTAL is the union of the first
 /// three — which makes TOTAL exactly "not closed", the predicate this product
 /// has called "active" since 0.18.1.
 ///
@@ -37,7 +37,7 @@ enum IncidentPill: String, CaseIterable, Identifiable {
     case open = "OPEN"
     case ackd = "ACKD"
     case clrd = "CLRD"
-    case clsd = "CLSD"
+    case closed = "CLOSED"
 
     var id: String { rawValue }
 
@@ -70,7 +70,7 @@ enum IncidentPill: String, CaseIterable, Identifiable {
         .open:  (base: "#DC2626", tint: "#F87171"),
         .ackd:  (base: "#2563EB", tint: "#60A5FA"),
         .clrd:  (base: "#16A34A", tint: "#4ADE80"),
-        .clsd:  (base: "#F2F2F7", tint: "#FFFFFF"),
+        .closed:  (base: "#F2F2F7", tint: "#FFFFFF"),
     ]
 
     /// The ground an UNSELECTED pill sits on. **Not transparent** — round one
@@ -80,7 +80,7 @@ enum IncidentPill: String, CaseIterable, Identifiable {
     /// selection moves.
     static let unselectedBackgroundHex = "#1a1a1d"
 
-    /// CLSD's selected text. **The one pill whose fill is nearly white**, so
+    /// CLOSED's selected text. **The one pill whose fill is nearly white**, so
     /// white-on-white would be the whole label gone. Near-black rather than pure
     /// black, to match the ground the row sits on.
     static let clsdOnHex = "#111114"
@@ -117,22 +117,22 @@ enum IncidentPill: String, CaseIterable, Identifiable {
 
     /// Does this pill draw a frame and a glow when it is NOT selected?
     ///
-    /// **False for CLSD alone**, per the mockup: unselected it is white text on
+    /// **False for CLOSED alone**, per the mockup: unselected it is white text on
     /// the bare plate, with no frame and no halo. It is the one tab you opt
     /// into, and the only one that is not competing for attention when you have
     /// not — a frame in `#FFFFFF` would be the brightest thing in the row.
-    var isFramedWhenUnselected: Bool { self != .clsd }
+    var isFramedWhenUnselected: Bool { self != .closed }
 
     /// Text on top of `color` when the pill is selected. White on four;
-    /// `#111114` on CLSD, whose fill is nearly white.
-    var onColor: Color { self == .clsd ? Color(hex: IncidentPill.clsdOnHex) : .white }
+    /// `#111114` on CLOSED, whose fill is nearly white.
+    var onColor: Color { self == .closed ? Color(hex: IncidentPill.clsdOnHex) : .white }
 
     func contains(_ incident: NetreoIncident) -> Bool {
         switch self {
         case .open: return incident.state == .open && !incident.acknowledged
         case .ackd: return incident.state == .open && incident.acknowledged
         case .clrd: return incident.state == .alarmsCleared
-        case .clsd: return incident.state == .closed
+        case .closed: return incident.state == .closed
         // Written as the union of its parts rather than `state != .closed`, so
         // that TOTAL and the sum of the pills beside it cannot drift apart.
         case .total: return IncidentPill.open.contains(incident)
@@ -150,7 +150,7 @@ enum IncidentPill: String, CaseIterable, Identifiable {
         case .open: return "There are currently no unacknowledged incidents."
         case .ackd: return "Nobody has acknowledged an incident."
         case .clrd: return "No incident is waiting with its alarms cleared."
-        case .clsd: return "Nothing closed recently. Closed incidents are shown for 24 hours."
+        case .closed: return "Nothing closed recently. Closed incidents are shown for 24 hours."
         }
     }
 }
@@ -176,7 +176,7 @@ extension NetreoIncident {
     /// in step. Same labels and colours as `IncidentPill`, by construction.
     var chip: (label: String, color: Color) {
         switch state {
-        case .closed:        return (IncidentPill.clsd.rawValue, IncidentPill.clsd.color)
+        case .closed:        return (IncidentPill.closed.rawValue, IncidentPill.closed.color)
         case .alarmsCleared: return (IncidentPill.clrd.rawValue, IncidentPill.clrd.color)
         case .open:          return acknowledged
             ? (IncidentPill.ackd.rawValue, IncidentPill.ackd.color)
@@ -263,7 +263,7 @@ struct IncidentPillBar: View {
                     // Shadow modifiers only — no `.blur`, no material, no
                     // `UIVisualEffectView`.
                     //
-                    // **CLSD unselected has no frame and no glow, and one
+                    // **CLOSED unselected has no frame and no glow, and one
                     // `Color.clear` does both.** A SwiftUI shadow is derived
                     // from the alpha of what it is attached to, so a clear
                     // stroke casts nothing — the same property the glow depends

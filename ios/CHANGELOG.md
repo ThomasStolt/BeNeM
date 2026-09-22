@@ -18,7 +18,7 @@ build number is deliberately unchanged because 54 has never left this machine.
 
 ### Added
 
-- **Five filter pills — TOTAL / OPEN / ACKD / CLRD / CLSD — with counts, plus search.** The
+- **Five filter pills — TOTAL / OPEN / ACKD / CLRD / CLOSED — with counts, plus search.** The
   selected pill takes its own state colour; rows are unchanged.
 
   **The pill is two lines: the count on top, the label beneath in small caps.** Side by side
@@ -27,11 +27,17 @@ build number is deliberately unchanged because 54 has never left this machine.
   by rendering, not by arithmetic: `docs/evidence/2026-09-22-ios-pills-375pt.png`, written by
   `testTheFivePillsFitAt375ptWithFiveDigitCounts`.
 
+  **The CLSD pill is labelled CLOSED.** The abbreviation was a fit constraint from when the
+  label sat beside the count on one line; the two-line pill has room for the word, and CLSD was
+  the only label a reader had to decode. The row chip takes the same string, so it reads CLOSED
+  too. Re-proved at 375 pt with every count at 99999 — a two-letter-longer label is exactly the
+  kind of change that stops fitting.
+
   **Every pill has TWO colours** (round two of the mockup): a `base` for the selected fill and a
   brighter `tint` for the frame, the unselected text and the unselected glow — TOTAL
   `#7C3AED`/`#A78BFA`, OPEN `#DC2626`/`#F87171`, ACKD `#2563EB`/`#60A5FA`, CLRD
-  `#16A34A`/`#4ADE80`, CLSD `#F2F2F7`/`#FFFFFF`. Unselected ground `#1a1a1d` on all five, not
-  transparent. **CLSD is the exception twice**: selected text `#111114` because its fill is
+  `#16A34A`/`#4ADE80`, CLOSED `#F2F2F7`/`#FFFFFF`. Unselected ground `#1a1a1d` on all five, not
+  transparent. **CLOSED is the exception twice**: selected text `#111114` because its fill is
   nearly white, and unselected it has no frame and no glow at all. All ten values are asserted
   on both platforms, as is the CLSD rule.
 
