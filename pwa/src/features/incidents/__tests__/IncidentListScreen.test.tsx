@@ -121,14 +121,14 @@ describe('IncidentListScreen', () => {
   });
 
   it('gives the selected pill its own state colour', async () => {
-    // **#1B0F33 is a MEASUREMENT and this asserts the measurement.** Read
-    // 2026-09-22 from ios/BeNeM/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
-    // by quantising it to eight colours: the largest cluster is #1B0F33,
-    // 799,841 of 1,048,576 pixels (76.3%). iOS asserts the identical string in
-    // IncidentPillsTests, so the two platforms cannot drift on it in silence.
+    // TOTAL is #7C3AED, the same in both states, exactly like the other four.
+    // It replaced #1B0F33 — the app icon's measured dominant colour, and the
+    // wrong value: the icon's dominant colour is its dark BACKGROUND, so the
+    // selected pill was a near-black block on a near-black page and did not
+    // read as selected at all. iOS asserts the identical string.
     renderScreen();
-    expect(pill('TOTAL').style.backgroundColor).toBe('rgb(27, 15, 51)');   // #1B0F33
-    expect(pill('TOTAL').style.color).toBe('rgb(255, 255, 255)');          // 18.1:1 on it
+    expect(pill('TOTAL').style.backgroundColor).toBe('rgb(124, 58, 237)');  // #7C3AED
+    expect(pill('TOTAL').style.color).toBe('rgb(255, 255, 255)');           // 5.6:1 on it
     await userEvent.click(pill('OPEN'));
     expect(pill('OPEN').style.backgroundColor).toBe('rgb(220, 38, 38)');
     await userEvent.click(pill('ACKD'));
@@ -138,21 +138,19 @@ describe('IncidentListScreen', () => {
     await userEvent.click(pill('CLSD'));
     expect(pill('CLSD').style.backgroundColor).toBe('rgb(100, 116, 139)');
     await userEvent.click(pill('TOTAL'));
-    expect(pill('TOTAL').style.backgroundColor).toBe('rgb(27, 15, 51)');
+    expect(pill('TOTAL').style.backgroundColor).toBe('rgb(124, 58, 237)');
   });
 
-  it('draws the two glow radii, and TOTAL glows #7C3AED while it fills #1B0F33', async () => {
-    // **The two hexes and the two radii, which is the whole of the mockup that
-    // can be asserted rather than looked at.** TOTAL is the only pill whose
-    // accent differs from its fill, and it has to be: #1B0F33 is a near-black,
-    // and a near-black border and halo on a slate-950 page is nothing at all.
-    // iOS holds the identical pair in IncidentPill.totalHex / .totalGlowHex.
+  it('draws the two glow radii, and TOTAL is #7C3AED in BOTH states', async () => {
+    // **The hex and the two radii — the whole of the mockup that can be
+    // asserted rather than looked at.** No pill has a second colour any more:
+    // fill, border, text and glow are one value each, and #1B0F33 is gone.
     renderScreen();
 
     const total = pill('TOTAL');                       // selected: 14px at 85%
-    expect(total.style.backgroundColor).toBe('rgb(27, 15, 51)');   // #1B0F33, the FILL
-    expect(total.style.boxShadow).toBe('0 0 14px #7C3AEDD9');      // #7C3AED, the GLOW
-    expect(total.style.borderColor).toBe('rgb(124, 58, 237)');   // #7C3AED
+    expect(total.style.backgroundColor).toBe('rgb(124, 58, 237)');  // #7C3AED FILLS it
+    expect(total.style.boxShadow).toBe('0 0 14px #7C3AEDD9');       // and glows it
+    expect(total.style.borderColor).toBe('rgb(124, 58, 237)');
     expect(total.style.borderWidth).toBe('1.5px');
 
     const open = pill('OPEN');                         // unselected: 4px at 55%
@@ -162,9 +160,13 @@ describe('IncidentListScreen', () => {
     expect(open.style.borderColor).toBe('rgb(220, 38, 38)');
 
     // And the radii swap with the selection, rather than being stuck on one pill.
+    // An UNSELECTED TOTAL is the same violet, hollow: transparent fill, violet
+    // border, violet text, 4px violet glow — the rule the other four follow.
     await userEvent.click(pill('OPEN'));
     expect(pill('OPEN').style.boxShadow).toBe('0 0 14px #DC2626D9');
     expect(pill('TOTAL').style.boxShadow).toBe('0 0 4px #7C3AED8C');
+    expect(pill('TOTAL').style.backgroundColor).toBe('transparent');
+    expect(pill('TOTAL').style.color).toBe('rgb(124, 58, 237)');
 
     // box-shadow, never filter: drop-shadow — a filter would blur the digits.
     for (const p of ['TOTAL', 'OPEN', 'ACKD', 'CLRD', 'CLSD']) {

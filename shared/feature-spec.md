@@ -218,14 +218,14 @@ choosing to see only acknowledged incidents is a different thing from the tile.
 
 iOS 2.13.6 (52), PWA 0.18.1.
 
-#### Incident list filter — TOTAL / OPEN / ACKD / CLRD / CLSD (**PWA 0.19.3 live; iOS 2.14.0 (54) built, not submitted**)
+#### Incident list filter — TOTAL / OPEN / ACKD / CLRD / CLSD (**PWA 0.19.4 live; iOS 2.14.0 (54) built, not submitted**)
 
 **Superseded the four-tab sketch recorded here on 2026-09-20.** Design and every ruling:
 `docs/superpowers/specs/2026-09-21-incident-list-filter-design.md` — approved, nothing open.
 
 | pill | contents | colour |
 |---|---|---|
-| **TOTAL** | OPEN + ACKD + CLRD — everything **except** closed | the app icon's purple, `#1B0F33` |
+| **TOTAL** | OPEN + ACKD + CLRD — everything **except** closed | violet `#7C3AED` |
 | **OPEN** | state `OPEN` and **not** acknowledged | red |
 | **ACKD** | state `OPEN` and acknowledged | blue |
 | **CLRD** | state `ALARMS CLEARED` | green |
@@ -263,20 +263,28 @@ digits. Rendered proof at 375 pt with every count at 99999, both platforms:
 `docs/evidence/2026-09-22-ios-pills-375pt.png` and `docs/evidence/2026-09-22-pwa-pills-375pt.png`.
 Counts use tabular figures on both so the five columns do not jitter as the numbers change.
 
-**TOTAL's `#1B0F33` is a MEASUREMENT, not a choice.** Quantise
-`ios/BeNeM/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png` to eight colours and the largest
-cluster is `#1B0F33` — 799,841 of 1,048,576 pixels, 76.3%, the icon's background field. White
-text on it (18.1:1). It replaces the gold `#c9a227` of PWA 0.19.x and the first build of iOS 54.
+**TOTAL is `#7C3AED`, one colour in both states, exactly like the other four.** White text when
+filled (5.6:1). It replaces the gold `#c9a227` of PWA 0.18.x–0.19.1 and, briefly, `#1B0F33`.
 **Both suites assert the literal string**, so one platform cannot drift off the other quietly.
+
+> **`#1B0F33` was a measurement, and it was the wrong measurement.** PWA 0.19.2–0.19.3 and the
+> intermediate build 54 filled TOTAL with the app icon's dominant colour — quantise
+> `ios/BeNeM/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png` to eight colours and the
+> largest cluster is `#1B0F33`, 799,841 of 1,048,576 pixels, 76.3%. The number was correct. It
+> is the icon's dark **background**, because sampling the dominant colour of an image whose
+> subject is a thin bright line returns the field behind the subject — and a near-black fill on
+> a near-black page does not read as selected. Reported from the device 2026-09-22 and dropped
+> the same day. **A measured value is not automatically the right value**, and "I measured it"
+> is not the same claim as "I checked it was legible."
 
 **The pills glow, both platforms** (2026-09-22, from Thomas's mockup). Unselected: transparent
 fill, a 1.5 pt border in the pill's own colour, text in that colour, a soft 4 pt outer glow at
-55%. Selected: filled, white text, a 14 pt glow at 85%. **TOTAL's fill stays `#1B0F33` but its
-border, text and glow are `#7C3AED`** — a near-black outline and halo is invisible on either
-platform's ground, so TOTAL is the one pill whose accent differs from its fill. iOS uses shadow
+55%. Selected: filled, white text, a 14 pt glow at 85%. **All five follow the same rule, TOTAL
+included** — one colour per pill, used for the fill when selected and for the border, text and
+glow when not. iOS uses shadow
 modifiers (`strokeBorder(...).shadow(...)` — a SwiftUI shadow is derived from the alpha of what
 it is attached to, so a glow hung off a `Color.clear` fill renders nothing); the PWA uses
-`box-shadow` and never `filter`, which would blur the digits. **Both hexes and both radii are
+`box-shadow` and never `filter`, which would blur the digits. **The hex and both radii are
 asserted on both platforms.** Reduce Motion: the iOS row has no animation to disable; the PWA
 carries `motion-reduce:transition-none` for its 150 ms colour transition.
 

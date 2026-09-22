@@ -14,6 +14,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [0.19.4] - 2026-09-22
+
+### Fixed
+
+- **The selected TOTAL pill did not read as selected.** Reported from the device: `#1B0F33` on
+  slate-950 is a near-black block on a near-black page, and a filled pill that cannot be told
+  from an empty one is the doctrine's own failure wearing a colour — a selected state asserting
+  itself where nothing is visible to assert it.
+
+  **`#1B0F33` is dropped entirely.** TOTAL is `#7C3AED` in both states and behaves exactly like
+  the other four: outlined, violet-texted and 4 px-glowing when unselected; filled violet with
+  white text and a 14 px glow when selected. No pill has a second colour any more — the
+  `PALETTE` of `{fill, accent}` pairs collapsed to one `COLOUR` per pill, and iOS dropped its
+  `accent` property in the same change.
+
+  **The measurement was right and the reasoning was wrong.** `#1B0F33` genuinely is the app
+  icon's dominant colour — 799,841 of 1,048,576 pixels, 76.3%, quantised to eight colours — and
+  that is precisely because it is the icon's dark *background*. Sampling the dominant colour of
+  an image whose subject is a thin bright line returns the field behind the subject. **A
+  measured value is not automatically the right value.**
+
+  Re-rendered at 375 px with every count at 99999: `docs/evidence/2026-09-22-pwa-pills-375pt.png`.
+
+---
+
 ## [0.19.3] - 2026-09-22
 
 ### Changed
