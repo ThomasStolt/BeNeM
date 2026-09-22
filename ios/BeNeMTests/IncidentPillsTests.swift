@@ -145,42 +145,76 @@ final class IncidentPillsTests: XCTestCase {
         XCTAssertEqual(vm.count(for: .clsd), 1, "the closed row still exists — in CLSD")
     }
 
-    func testTheTOTALPillIsSevenCThreeAEDAndCollidesWithNothing() {
-        // **#7C3AED, and it replaced a measurement that was the wrong
-        // measurement.** Build 54 filled TOTAL with #1B0F33, the dominant
-        // colour of AppIcon-1024.png (799,841 of 1,048,576 pixels, 76.3%,
-        // quantised to eight colours). The number was right and the reasoning
-        // was wrong: the icon's dominant colour is its dark BACKGROUND, and a
-        // near-black fill on a near-black page does not read as selected.
-        // Reported from the device 2026-09-22. A measured value is not
-        // automatically the right value.
-        XCTAssertEqual(IncidentPill.totalHex, "#7C3AED")
-        XCTAssertNotEqual(IncidentPill.totalHex, "#1B0F33",
-                          "the app-icon purple was dropped, not merely moved")
+    /// The ten hex values, exactly as the mockup states them. The PWA holds the
+    /// identical ten in `IncidentPills.tsx`'s PALETTE and asserts them there.
+    private static let expected: [IncidentPill: (base: String, tint: String)] = [
+        .total: ("#7C3AED", "#A78BFA"),
+        .open:  ("#DC2626", "#F87171"),
+        .ackd:  ("#2563EB", "#60A5FA"),
+        .clrd:  ("#16A34A", "#4ADE80"),
+        .clsd:  ("#F2F2F7", "#FFFFFF"),
+    ]
 
-        // And the colour actually derives from it, rather than the constant
-        // sitting beside a hand-typed Color that has drifted off it.
+    /// `[Int]` and not a tuple: XCTAssertEqual needs Equatable, and a tuple is
+    /// not — and an array prints the mismatch instead of just failing.
+    private func rgb(_ color: Color) -> [Int] {
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        UIColor(IncidentPill.total.color).getRed(&r, green: &g, blue: &b, alpha: &a)
-        XCTAssertEqual(Int((r * 255).rounded()), 0x7C)
-        XCTAssertEqual(Int((g * 255).rounded()), 0x3A)
-        XCTAssertEqual(Int((b * 255).rounded()), 0xED)
+        UIColor(color).getRed(&r, green: &g, blue: &b, alpha: &a)
+        return [Int((r * 255).rounded()), Int((g * 255).rounded()), Int((b * 255).rounded())]
+    }
 
-        // A grey selected pill reads as disabled, and TOTAL is the default.
-        XCTAssertNotEqual(IncidentPill.total.color, IncidentPill.clsd.color)
-        for pill in IncidentPill.allCases where pill != .total {
-            XCTAssertNotEqual(IncidentPill.total.color, pill.color,
-                              "TOTAL must not borrow \(pill.rawValue)'s colour")
-        }
-        // And it must not be mistakable for a SEVERITY either — the alarm chips
-        // sit on the same row as the pills' own labels.
-        for alarm in [AlarmColor.yellow, .orange, .red, .green, .blue] {
-            XCTAssertNotEqual(IncidentPill.total.color, alarm.color,
-                              "TOTAL must not read as the \(alarm) alarm chip")
-        }
-        // White on all five. #7C3AED carries white at 5.6:1.
+    private func rgb(hex: String) -> [Int] {
+        let v = UInt32(hex.dropFirst(), radix: 16)!
+        return [Int((v >> 16) & 0xFF), Int((v >> 8) & 0xFF), Int(v & 0xFF)]
+    }
+
+    func testTheTenHexValues() {
+        // **Asserting the constants alone would not be enough**: the strings
+        // could be right beside a `color` that resolves to something else, which
+        // is the failure the earlier gold-to-purple change could have made
+        // invisibly. Each value is checked as a string AND as the colour the
+        // view actually draws.
         for pill in IncidentPill.allCases {
-            XCTAssertEqual(pill.onColor, .white)
+            let want = Self.expected[pill]!
+            XCTAssertEqual(pill.baseHex, want.base, "\(pill.rawValue) base")
+            XCTAssertEqual(pill.tintHex, want.tint, "\(pill.rawValue) tint")
+            XCTAssertEqual(rgb(pill.color), rgb(hex: want.base),
+                           "\(pill.rawValue).color must resolve to \(want.base)")
+            XCTAssertEqual(rgb(pill.tint), rgb(hex: want.tint),
+                           "\(pill.rawValue).tint must resolve to \(want.tint)")
+            XCTAssertNotEqual(pill.baseHex, pill.tintHex,
+                              "\(pill.rawValue): the tint is the BRIGHTER of two, not a copy")
+        }
+        XCTAssertEqual(IncidentPill.palette.count, 5, "five pills, ten values")
+    }
+
+    func testTheGroundAndTheTwoTextColours() {
+        XCTAssertEqual(IncidentPill.unselectedBackgroundHex, "#1a1a1d",
+                       "not transparent — round one let the page through")
+        XCTAssertEqual(IncidentPill.clsdOnHex, "#111114")
+
+        // White on four; near-black on CLSD, whose fill is nearly white.
+        XCTAssertEqual(rgb(IncidentPill.clsd.onColor), rgb(hex: "#111114"))
+        for pill in IncidentPill.allCases where pill != .clsd {
+            XCTAssertEqual(pill.onColor, .white, "\(pill.rawValue) takes white text when filled")
+        }
+    }
+
+    func testCLSDIsFramelessAndGlowlessWhenUNSELECTED() {
+        // The one tab you opt into, and the only pill not competing for
+        // attention when you have not: a frame in #FFFFFF would be the
+        // brightest thing in a row nobody is looking at.
+        XCTAssertFalse(IncidentPill.clsd.isFramedWhenUnselected)
+        for pill in IncidentPill.allCases where pill != .clsd {
+            XCTAssertTrue(pill.isFramedWhenUnselected,
+                          "\(pill.rawValue) keeps its frame and glow unselected")
+        }
+    }
+
+    func testTheGlowTakesTheBaseWhenSelectedAndTheTintWhenNot() {
+        for pill in IncidentPill.allCases {
+            XCTAssertEqual(rgb(pill.glowColor(selected: true)), rgb(hex: pill.baseHex))
+            XCTAssertEqual(rgb(pill.glowColor(selected: false)), rgb(hex: pill.tintHex))
         }
     }
 
@@ -194,6 +228,23 @@ final class IncidentPillsTests: XCTestCase {
         XCTAssertGreaterThan(IncidentPill.glow(selected: true).radius,
                              IncidentPill.glow(selected: false).radius,
                              "the selected pill is the one that glows harder")
+    }
+
+    func testNoTwoPillsShareAColourAndNoneReadsAsASeverityChip() {
+        for a in IncidentPill.allCases {
+            for b in IncidentPill.allCases where b != a {
+                XCTAssertNotEqual(a.baseHex, b.baseHex,
+                                  "\(a.rawValue) must not borrow \(b.rawValue)'s base")
+                XCTAssertNotEqual(a.tintHex, b.tintHex,
+                                  "\(a.rawValue) must not borrow \(b.rawValue)'s tint")
+            }
+        }
+        // TOTAL is not a severity — the alarm chips sit on the same rows as the
+        // pills' own labels, and the filter must not read as one.
+        for alarm in [AlarmColor.yellow, .orange, .red, .green, .blue] {
+            XCTAssertNotEqual(rgb(IncidentPill.total.color), rgb(alarm.color),
+                              "TOTAL must not read as the \(alarm) alarm chip")
+        }
     }
 
     /// **The fit is proved by rendering, not by arithmetic.** The pill row is

@@ -47,57 +47,85 @@ enum IncidentPill: String, CaseIterable, Identifiable {
     /// on this.
     static let defaultPill: IncidentPill = .total
 
-    /// TOTAL's violet. **One colour, both states**, exactly like the other four.
+    /// **Two colours per pill**: a `base` for the selected fill, and a brighter
+    /// `tint` for the frame, the unselected text and the unselected glow.
     ///
-    /// **This replaced a measurement that was the wrong measurement.** Build 54
-    /// filled TOTAL with `#1B0F33`, the dominant colour of the app icon (76.3%
-    /// of `AppIcon-1024.png`, quantised to eight colours). The number was right
-    /// and the reasoning was wrong: the icon's dominant colour is its dark
-    /// *background*, and a near-black fill on a near-black page is not a
-    /// selected state at all — on the PWA's slate-950 the selected TOTAL pill
-    /// was invisible as selected. Reported from the device on 2026-09-22.
+    /// Round two of Thomas's mockup, 2026-09-22. Round one gave each pill a
+    /// single colour used for everything, which left an unselected pill outlined
+    /// in the same value its selected neighbour was filled with — the two states
+    /// separated only by fill, which is exactly what failed on TOTAL when
+    /// `#1B0F33` went on a near-black page. A brighter frame is the difference
+    /// that survives whatever the fill does.
     ///
-    /// `#7C3AED` was already the border and glow of that arrangement; the fill
-    /// is now the same value, so TOTAL is outlined and glowing violet when
-    /// unselected and filled violet with white text when selected — the same
-    /// rule OPEN, ACKD, CLRD and CLSD follow, rather than an exception with its
-    /// own two-colour scheme. Shared verbatim with the PWA
-    /// (`IncidentPills.tsx`) and asserted in both suites.
+    /// **Every value is a literal hex now**, including OPEN, ACKD and CLRD,
+    /// which used to be `.red`, `.blue` and a hand-typed triple. The system
+    /// colours are not wrong, they are just not *stated* — and the PWA holds the
+    /// same ten strings, so a value nobody can quote is a value the two
+    /// platforms cannot be shown to agree on. Both suites assert all ten.
     ///
-    /// **A measured value is not automatically the right value.** `#1B0F33` was
-    /// genuinely the icon's dominant colour and genuinely unusable; the
-    /// measurement answered a question nobody should have asked.
-    static let totalHex = "#7C3AED"
+    /// The row chip reads this palette too (`NetreoIncident.chip`), so the
+    /// filter row and the rows beneath it move together by construction.
+    static let palette: [IncidentPill: (base: String, tint: String)] = [
+        .total: (base: "#7C3AED", tint: "#A78BFA"),
+        .open:  (base: "#DC2626", tint: "#F87171"),
+        .ackd:  (base: "#2563EB", tint: "#60A5FA"),
+        .clrd:  (base: "#16A34A", tint: "#4ADE80"),
+        .clsd:  (base: "#F2F2F7", tint: "#FFFFFF"),
+    ]
 
-    /// The glow, exactly as the mockup specifies it: **4 pt at 55% unselected,
-    /// 14 pt at 85% selected**, in the pill's own `color`.
+    /// The ground an UNSELECTED pill sits on. **Not transparent** — round one
+    /// let the page show through, so the row read as four outlines floating on
+    /// nothing. A near-black plate gives every pill the same footprint whether
+    /// it is selected or not, which is what stops the row jumping as the
+    /// selection moves.
+    static let unselectedBackgroundHex = "#1a1a1d"
+
+    /// CLSD's selected text. **The one pill whose fill is nearly white**, so
+    /// white-on-white would be the whole label gone. Near-black rather than pure
+    /// black, to match the ground the row sits on.
+    static let clsdOnHex = "#111114"
+
+    /// The glow: **4 pt at 55% unselected, 14 pt at 85% selected**.
     ///
     /// Radius and opacity are returned together because they are one decision —
     /// a wide glow at a low opacity and a tight one at a high opacity are
     /// different mockups, and splitting them into two constants invites an edit
-    /// to one of them. Both numbers are asserted.
+    /// to one of them. Both numbers are asserted, on both platforms.
     static func glow(selected: Bool) -> (radius: CGFloat, opacity: Double) {
         selected ? (14, 0.85) : (4, 0.55)
     }
 
-    /// The selected pill takes its own state colour. Same vocabulary as the row
-    /// chips and as BHNM itself — red open, blue acknowledged, green cleared,
-    /// grey closed — so the filter row and the rows beneath it are not two
-    /// colour languages for one set of facts.
-    var color: Color {
-        switch self {
-        case .total: return Color(hex: IncidentPill.totalHex)
-        case .open: return .red
-        case .ackd: return .blue
-        case .clrd: return Color(red: 0.13, green: 0.55, blue: 0.13)
-        case .clsd: return Color(.systemGray)
-        }
-    }
+    var baseHex: String { IncidentPill.palette[self]!.base }
+    var tintHex: String { IncidentPill.palette[self]!.tint }
 
-    /// Text on top of `color` when the pill is selected. **White on all five**,
-    /// and there is no longer a pill that wants anything else: the gold TOTAL of
-    /// 0.19.x needed black, and `#7C3AED` carries white at 5.6:1.
-    var onColor: Color { .white }
+    /// The selected fill, and the colour the row chip takes.
+    var color: Color { Color(hex: baseHex) }
+
+    /// The frame, the unselected text, and the unselected glow.
+    var tint: Color { Color(hex: tintHex) }
+
+    /// The glow's colour: **`base` when selected, `tint` when not.**
+    ///
+    /// The mockup's summary line says "a brighter tint for the frame, the
+    /// unselected text and both glows", and its per-state lines say "glow 14 pt
+    /// in **base** at 85%" for the selected pill and "glow 4 pt in tint at 55%"
+    /// for the unselected one. Those disagree about exactly one value. The
+    /// per-state lines are followed, being the more specific of the two — a
+    /// selected pill's halo is its own fill colour bleeding outwards, which is
+    /// also what a filled chip does everywhere else in this app.
+    func glowColor(selected: Bool) -> Color { selected ? color : tint }
+
+    /// Does this pill draw a frame and a glow when it is NOT selected?
+    ///
+    /// **False for CLSD alone**, per the mockup: unselected it is white text on
+    /// the bare plate, with no frame and no halo. It is the one tab you opt
+    /// into, and the only one that is not competing for attention when you have
+    /// not — a frame in `#FFFFFF` would be the brightest thing in the row.
+    var isFramedWhenUnselected: Bool { self != .clsd }
+
+    /// Text on top of `color` when the pill is selected. White on four;
+    /// `#111114` on CLSD, whose fill is nearly white.
+    var onColor: Color { self == .clsd ? Color(hex: IncidentPill.clsdOnHex) : .white }
 
     func contains(_ incident: NetreoIncident) -> Bool {
         switch self {
@@ -190,6 +218,7 @@ struct IncidentPillBar: View {
             ForEach(IncidentPill.allCases) { pill in
                 let isSelected = pill == selected
                 let glow = IncidentPill.glow(selected: isSelected)
+                let framed = isSelected || pill.isFramedWhenUnselected
                 Button { onSelect(pill) } label: {
                     VStack(spacing: 0) {
                         // `verbatim:` deliberately. `Text("\(anInt)")` is a
@@ -212,10 +241,11 @@ struct IncidentPillBar: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 5)
                     .padding(.horizontal, 3)
-                    .foregroundColor(isSelected ? pill.onColor : pill.color)
+                    .foregroundColor(isSelected ? pill.onColor : pill.tint)
                     .background(
                         RoundedRectangle(cornerRadius: 9)
-                            .fill(isSelected ? pill.color : Color.clear)
+                            .fill(isSelected ? pill.color
+                                             : Color(hex: IncidentPill.unselectedBackgroundHex))
                     )
                     // **The glow hangs off the BORDER, not the fill, and that is
                     // load-bearing.** A SwiftUI shadow is derived from the alpha
@@ -232,10 +262,20 @@ struct IncidentPillBar: View {
                     //
                     // Shadow modifiers only — no `.blur`, no material, no
                     // `UIVisualEffectView`.
+                    //
+                    // **CLSD unselected has no frame and no glow, and one
+                    // `Color.clear` does both.** A SwiftUI shadow is derived
+                    // from the alpha of what it is attached to, so a clear
+                    // stroke casts nothing — the same property the glow depends
+                    // on, used deliberately here instead of a second branch.
+                    // `isFramedWhenUnselected` still says it in words, because a
+                    // rule that only exists as a consequence is a rule nobody
+                    // can find.
                     .overlay(
                         RoundedRectangle(cornerRadius: 9)
-                            .strokeBorder(pill.color, lineWidth: 1.5)
-                            .shadow(color: pill.color.opacity(glow.opacity),
+                            .strokeBorder(framed ? pill.tint : Color.clear, lineWidth: 1.5)
+                            .shadow(color: pill.glowColor(selected: isSelected)
+                                               .opacity(framed ? glow.opacity : 0),
                                     radius: glow.radius)
                     )
                 }

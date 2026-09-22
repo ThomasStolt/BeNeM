@@ -27,9 +27,18 @@ build number is deliberately unchanged because 54 has never left this machine.
   by rendering, not by arithmetic: `docs/evidence/2026-09-22-ios-pills-375pt.png`, written by
   `testTheFivePillsFitAt375ptWithFiveDigitCounts`.
 
-  **TOTAL is `#7C3AED`, one colour in both states**, exactly like the other four: outlined and
-  violet-glowing when unselected, filled violet with white text when selected. It replaces the
-  gold `#c9a227`. The same string is asserted on both platforms, so they cannot drift on it.
+  **Every pill has TWO colours** (round two of the mockup): a `base` for the selected fill and a
+  brighter `tint` for the frame, the unselected text and the unselected glow — TOTAL
+  `#7C3AED`/`#A78BFA`, OPEN `#DC2626`/`#F87171`, ACKD `#2563EB`/`#60A5FA`, CLRD
+  `#16A34A`/`#4ADE80`, CLSD `#F2F2F7`/`#FFFFFF`. Unselected ground `#1a1a1d` on all five, not
+  transparent. **CLSD is the exception twice**: selected text `#111114` because its fill is
+  nearly white, and unselected it has no frame and no glow at all. All ten values are asserted
+  on both platforms, as is the CLSD rule.
+
+  `.red`, `.blue` and a hand-typed green triple are gone: every value is a literal hex now. The
+  system colours were not wrong, they were just not *stated* — and a value nobody can quote is a
+  value the two platforms cannot be shown to agree on. The gold `#c9a227` and the briefly-used
+  `#1B0F33` are both gone.
 
   **It also replaces `#1B0F33`, which was a measurement and the wrong measurement.** An earlier
   build of 54 filled TOTAL with the app icon's dominant colour — quantise `AppIcon-1024.png` to
