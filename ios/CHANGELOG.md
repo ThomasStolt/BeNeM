@@ -32,6 +32,23 @@ build number is deliberately unchanged because 54 has never left this machine.
   of 1,048,576 pixels (76.3%). It replaces the gold `#c9a227`. The same string is asserted on
   both platforms, so they cannot drift on it.
 
+  **The pills glow** (2026-09-22, from Thomas's mockup). Unselected: transparent fill, a 1.5 pt
+  border in the pill's own colour, text in that colour, a soft 4 pt outer glow at 55%.
+  Selected: filled, white text, a 14 pt glow at 85%. **TOTAL's fill stays `#1B0F33` but its
+  border, text and glow are `#7C3AED`** — a near-black outline and halo is invisible on either
+  platform's ground, so TOTAL is the one pill whose accent differs from its fill.
+
+  Shadow modifiers only, no blur views. **The glow hangs off the border, not the fill, and that
+  is load-bearing**: a SwiftUI shadow is derived from the alpha of what it is attached to, so
+  `.fill(Color.clear).shadow(...)` renders nothing and the unselected pill would have had no
+  glow at all — a bug that would have looked like a styling choice. `strokeBorder` rather than
+  `stroke`, so 1.5 pt of border does not eat 0.75 pt of the ~64 pt each pill has.
+
+  **Reduce Motion needs nothing here, because nothing moves.** No animation, no transition and
+  no implicit one to inherit — respecting the setting meant not adding the animation, not
+  adding a switch to turn one off. The PWA is the opposite case and carries
+  `motion-reduce:transition-none` for its 150 ms colour transition.
+
   **The count is `Text(verbatim:)`.** `Text("\(anInt)")` is a `LocalizedStringKey` and formats
   through the locale, which drew 99999 as `99.999` — wider than the fit allows and out of step
   with the PWA. Found by looking at the 375 pt snapshot; it was in the first build of 54 too,

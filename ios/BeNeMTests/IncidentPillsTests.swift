@@ -182,6 +182,44 @@ final class IncidentPillsTests: XCTestCase {
         }
     }
 
+    func testTheGlowIsSevenCThreeAEDForTOTALAndTheTwoRadiiAreFourAndFourteen() {
+        // **The two hexes and the two radii — the whole of the mockup that can
+        // be asserted rather than looked at.**
+        //
+        // TOTAL is the ONLY pill whose accent differs from its fill, and it has
+        // to be: #1B0F33 is a near-black, and a near-black border and halo is
+        // invisible on either platform's background. The fill stays the measured
+        // icon colour; the border, the text and the glow are #7C3AED.
+        XCTAssertEqual(IncidentPill.totalHex, "#1B0F33", "the FILL")
+        XCTAssertEqual(IncidentPill.totalGlowHex, "#7C3AED", "the BORDER and GLOW")
+        XCTAssertNotEqual(IncidentPill.totalHex, IncidentPill.totalGlowHex)
+
+        XCTAssertEqual(IncidentPill.total.color, Color(hex: "#1B0F33"))
+        XCTAssertEqual(IncidentPill.total.accent, Color(hex: "#7C3AED"))
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(IncidentPill.total.accent).getRed(&r, green: &g, blue: &b, alpha: &a)
+        XCTAssertEqual(Int((r * 255).rounded()), 0x7C)
+        XCTAssertEqual(Int((g * 255).rounded()), 0x3A)
+        XCTAssertEqual(Int((b * 255).rounded()), 0xED)
+
+        // 4 pt at 55% unselected, 14 pt at 85% selected. The PWA holds the same
+        // four numbers in IncidentPills.tsx's GLOW and asserts them there.
+        XCTAssertEqual(IncidentPill.glow(selected: false).radius, 4)
+        XCTAssertEqual(IncidentPill.glow(selected: false).opacity, 0.55, accuracy: 0.001)
+        XCTAssertEqual(IncidentPill.glow(selected: true).radius, 14)
+        XCTAssertEqual(IncidentPill.glow(selected: true).opacity, 0.85, accuracy: 0.001)
+        XCTAssertGreaterThan(IncidentPill.glow(selected: true).radius,
+                             IncidentPill.glow(selected: false).radius,
+                             "the selected pill is the one that glows harder")
+
+        // The other four borrow their own fill — a hollow OPEN is the filled
+        // OPEN's vocabulary with the middle taken out, not a second palette.
+        for pill in IncidentPill.allCases where pill != .total {
+            XCTAssertEqual(pill.accent, pill.color,
+                           "\(pill.rawValue) must not invent an accent of its own")
+        }
+    }
+
     /// **The fit is proved by rendering, not by arithmetic.** The pill row is
     /// laid out at exactly the width it gets on the narrowest supported phone —
     /// 375 pt minus the filter bar's 16 pt horizontal padding either side — with

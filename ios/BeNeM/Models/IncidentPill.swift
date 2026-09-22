@@ -61,6 +61,24 @@ enum IncidentPill: String, CaseIterable, Identifiable {
     /// severity, which the gold was only asserted not to do.
     static let totalHex = "#1B0F33"
 
+    /// **TOTAL's border, text and glow — NOT its fill.** The fill stays
+    /// `totalHex`, which is a near-black: a border and a glow drawn in it would
+    /// be invisible against either platform's background, so TOTAL is the one
+    /// pill whose accent is a different colour from its fill. Shared verbatim
+    /// with the PWA and asserted in both suites, the same rule as `totalHex`.
+    static let totalGlowHex = "#7C3AED"
+
+    /// The glow, exactly as the mockup specifies it: **4 pt at 55% unselected,
+    /// 14 pt at 85% selected**, in the pill's own `accent`.
+    ///
+    /// Radius and opacity are returned together because they are one decision —
+    /// a wide glow at a low opacity and a tight one at a high opacity are
+    /// different mockups, and splitting them into two constants invites an edit
+    /// to one of them. Both numbers are asserted.
+    static func glow(selected: Bool) -> (radius: CGFloat, opacity: Double) {
+        selected ? (14, 0.85) : (4, 0.55)
+    }
+
     /// The selected pill takes its own state colour. Same vocabulary as the row
     /// chips and as BHNM itself — red open, blue acknowledged, green cleared,
     /// grey closed — so the filter row and the rows beneath it are not two
@@ -74,6 +92,15 @@ enum IncidentPill: String, CaseIterable, Identifiable {
         case .clsd: return Color(.systemGray)
         }
     }
+
+    /// The border, the glow, and the text of an UNSELECTED pill.
+    ///
+    /// `color` for four of the five — an unselected OPEN is a red outline with
+    /// red digits and a red halo, which is the same vocabulary the filled state
+    /// uses, just hollow. TOTAL is the exception and has to be: its fill is a
+    /// near-black, and a near-black outline on a near-black page is nothing at
+    /// all.
+    var accent: Color { self == .total ? Color(hex: IncidentPill.totalGlowHex) : color }
 
     /// Text on top of `color` when the pill is selected. **White on all five
     /// now.** The gold TOTAL needed black — white on it failed legibility, the
@@ -153,6 +180,14 @@ extension NetreoIncident {
 /// full size, and the scale factor exists so an unexpected count shrinks
 /// instead of truncating to something that reads as a smaller number.
 ///
+/// **Reduce Motion needs nothing here, because nothing moves.** State changes
+/// are not animated — there is no `.animation`, no transition and no implicit
+/// one to inherit, so the pill row renders identically with the setting on and
+/// off. That is stated rather than left to be rediscovered: the correct way to
+/// respect the setting was to not add the animation, not to add a switch that
+/// turns one off. (The PWA is the opposite case — it had a real 150 ms
+/// `transition-colors`, so it carries `motion-reduce:transition-none`.)
+///
 /// Lives beside `IncidentPill` rather than inside `IncidentListView` so it can
 /// be rendered — and snapshotted — without a view model.
 struct IncidentPillBar: View {
@@ -164,6 +199,7 @@ struct IncidentPillBar: View {
         HStack(spacing: 6) {
             ForEach(IncidentPill.allCases) { pill in
                 let isSelected = pill == selected
+                let glow = IncidentPill.glow(selected: isSelected)
                 Button { onSelect(pill) } label: {
                     VStack(spacing: 0) {
                         // `verbatim:` deliberately. `Text("\(anInt)")` is a
@@ -186,15 +222,31 @@ struct IncidentPillBar: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 5)
                     .padding(.horizontal, 3)
-                    .foregroundColor(isSelected ? pill.onColor : .secondary)
+                    .foregroundColor(isSelected ? pill.onColor : pill.accent)
                     .background(
                         RoundedRectangle(cornerRadius: 9)
                             .fill(isSelected ? pill.color : Color.clear)
                     )
+                    // **The glow hangs off the BORDER, not the fill, and that is
+                    // load-bearing.** A SwiftUI shadow is derived from the alpha
+                    // of what it is attached to, so `.fill(Color.clear).shadow()`
+                    // renders nothing at all — the unselected pill would have had
+                    // no glow and the bug would have looked like a styling choice.
+                    // The stroke traces the outline in both states, so one code
+                    // path gives an outer glow to the hollow pill and a halo to
+                    // the filled one.
+                    //
+                    // `strokeBorder`, not `stroke`: it insets the line instead of
+                    // straddling the edge, so 1.5 pt of border does not eat 0.75 pt
+                    // of the ~64 pt each pill has to work with.
+                    //
+                    // Shadow modifiers only — no `.blur`, no material, no
+                    // `UIVisualEffectView`.
                     .overlay(
                         RoundedRectangle(cornerRadius: 9)
-                            .stroke(isSelected ? Color.clear : Color(.systemGray4),
-                                    lineWidth: 1)
+                            .strokeBorder(pill.accent, lineWidth: 1.5)
+                            .shadow(color: pill.accent.opacity(glow.opacity),
+                                    radius: glow.radius)
                     )
                 }
                 .buttonStyle(.plain)
