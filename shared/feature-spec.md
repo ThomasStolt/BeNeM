@@ -218,7 +218,7 @@ choosing to see only acknowledged incidents is a different thing from the tile.
 
 iOS 2.13.6 (52), PWA 0.18.1.
 
-#### Incident list filter — TOTAL / OPEN / ACKD / CLRD / CLSD (**PWA 0.19.4 live; iOS 2.14.0 (54) built, not submitted**)
+#### Incident list filter — TOTAL / OPEN / ACKD / CLRD / CLSD (**PWA 0.19.5 live; iOS 2.14.0 (54) built, not submitted**)
 
 **Superseded the four-tab sketch recorded here on 2026-09-20.** Design and every ruling:
 `docs/superpowers/specs/2026-09-21-incident-list-filter-design.md` — approved, nothing open.

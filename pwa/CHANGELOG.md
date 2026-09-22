@@ -14,6 +14,45 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [0.19.5] - 2026-09-22
+
+### Fixed
+
+- **An open incident list had no way to learn that anything had changed.** Reported from the
+  field on iOS 54 and true here for the same reason: with the list on screen, an acknowledgement
+  made in the BHNM UI never reached it.
+
+  **The 120 s `refetchInterval` was covering this by accident.** It re-read
+  `GET /api/v1/incidents` whether or not anything had happened, and 0.19.0 removed it as part of
+  removing the countdown. Removing the countdown was right — it was a promise nothing kept under
+  webhook mode. Removing the *request* underneath it was not, because C4 (the push carrying the
+  change itself) has not landed, so the last hop from the middleware's cache to an open screen
+  had nothing to carry it. That left a tap as the only update path.
+
+  Two paths back, **both cache reads, neither calling BHNM**:
+
+  - **A push reloads the list.** The service worker posts `{type:'incidents-updated'}` to every
+    open tab on every push, and again on a notification tap — a tap can arrive long after the
+    notification, on a tab that was open the whole time. The message carries no incident data
+    deliberately: the client re-reads the middleware's cache, which is the one place that decides
+    what the list contains.
+  - **A silent 60 s re-read while the tab is visible.** No countdown, no UI — the poll the
+    countdown used to perform, minus the countdown. It stops on hide, so a backgrounded tab
+    costs nothing.
+
+  **Both use `useReloadIncidents`, a plain GET, never `useRefreshIncidents`** — which POSTs the
+  refresh endpoint and makes the middleware call BHNM's `getincidents`. That belongs to a
+  deliberate user action: a tap, a pull, a resume. These two fire on their own, and a
+  self-firing BHNM call is a cost nobody asked for.
+
+  **The timer's first tick is a full interval away, and that is load-bearing.** A resume fires
+  `useRefreshOnForeground` in the same instant and restarts the timer; firing at zero would put
+  two requests on the wire for one event, and the second would land inside the middleware's 30 s
+  window and be answered from the first. Asserted, along with the timer stopping on hide and not
+  stacking when visibility flaps.
+
+---
+
 ## [0.19.4] - 2026-09-22
 
 ### Fixed

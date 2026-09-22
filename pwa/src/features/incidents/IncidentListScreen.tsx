@@ -1,6 +1,13 @@
 import { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useIncidents, useRefreshIncidents, useRefreshOnForeground } from './useIncidents';
+import {
+  useIncidents,
+  usePollWhileVisible,
+  useRefreshIncidents,
+  useRefreshOnForeground,
+  useReloadIncidents,
+  useReloadOnPush,
+} from './useIncidents';
 import { SwipeableIncidentRow } from './SwipeableIncidentRow';
 import { IncidentPills } from './IncidentPills';
 import { DEFAULT_PILL, isPill, pillCounts, selectIncidents, type Pill } from './pills';
@@ -34,6 +41,13 @@ export function IncidentListScreen() {
   const { data, isLoading, isError, error, dataUpdatedAt } = useIncidents();
   const { refresh, isRefreshing } = useRefreshIncidents();
   useRefreshOnForeground(refresh);
+
+  // Two cache-only update paths beside the deliberate one above. `reload` is a
+  // plain GET of the middleware's cache; `refresh` POSTs and makes the
+  // middleware call BHNM. A user action earns the second; these do not.
+  const reload = useReloadIncidents();
+  useReloadOnPush(reload);
+  usePollWhileVisible(reload);
 
   // The Home tile arrives with ?pill=TOTAL. Anything unrecognised falls back to
   // the default rather than showing an empty list nobody asked for.

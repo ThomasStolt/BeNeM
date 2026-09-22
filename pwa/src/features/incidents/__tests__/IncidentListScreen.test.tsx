@@ -26,6 +26,7 @@ const SERVED = {
 };
 
 const refresh = vi.fn(async () => {});
+const reload = vi.fn(async () => {});
 
 vi.mock('../useIncidents', () => ({
   useIncidents: vi.fn(() => ({
@@ -34,6 +35,12 @@ vi.mock('../useIncidents', () => ({
   })),
   useRefreshIncidents: vi.fn(() => ({ refresh, isRefreshing: false })),
   useRefreshOnForeground: vi.fn(),
+  // The two cache-only update paths added in 0.19.5. Stubbed here because this
+  // file is about what the screen RENDERS; their behaviour is asserted for real
+  // in list-stays-current.test.ts, against the hooks themselves.
+  useReloadIncidents: vi.fn(() => reload),
+  useReloadOnPush: vi.fn(),
+  usePollWhileVisible: vi.fn(),
   incidentsQueryKey: vi.fn(() => ['incidents']),
 }));
 

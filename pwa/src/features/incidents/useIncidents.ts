@@ -73,6 +73,80 @@ export function useRefreshIncidents() {
   return { refresh, isRefreshing };
 }
 
+/** A plain re-read of `GET /api/v1/incidents` — **the middleware's cache, and
+ * no BHNM call.**
+ *
+ * Deliberately NOT `useRefreshIncidents`, which POSTs `/api/v1/incidents/refresh`
+ * and makes the middleware call BHNM's `getincidents`. That belongs to a
+ * deliberate user action — a tap, a pull, a resume. The two callers below fire
+ * on their own, and a self-firing BHNM call is a cost nobody asked for.
+ *
+ * Invalidating is how the re-read happens rather than a second fetch path: the
+ * query's own `queryFn` runs, so `Updated HH:MM` (`dataUpdatedAt`) moves with it
+ * and the screen has exactly one source. */
+export function useReloadIncidents() {
+  const config = useConfig();
+  const mockMode = useMockMode();
+  const queryClient = useQueryClient();
+  return useCallback(
+    () => queryClient.invalidateQueries({ queryKey: incidentsQueryKey(config, mockMode) }),
+    [config, mockMode, queryClient],
+  );
+}
+
+/** A push reloads the list.
+ *
+ * The service worker posts `{type:'incidents-updated'}` to every open tab on
+ * every push and on every notification tap. Before 0.19.5 an already-open list
+ * had no way to learn that the middleware's cache had moved: the 120 s
+ * `refetchInterval` used to cover it by accident and was removed in 0.19.0,
+ * while C4 — the push carrying the change itself — has not landed. Reported
+ * from the field on iOS 54; this is the same hole on this platform. */
+export function useReloadOnPush(reload: () => void) {
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'incidents-updated') reload();
+    };
+    navigator.serviceWorker.addEventListener('message', handler);
+    return () => navigator.serviceWorker.removeEventListener('message', handler);
+  }, [reload]);
+}
+
+/** The silent safety net: re-read the cache every `intervalMs` while the tab is
+ * visible. **No countdown, no UI.**
+ *
+ * This is the poll the 120 s countdown used to perform, minus the countdown.
+ * Removing the countdown in 0.19.0 was right — it was a promise nothing kept
+ * under webhook mode — but removing the *request* underneath it was not, because
+ * an acknowledgement made in the BHNM UI reaches the middleware's cache with
+ * nothing to carry it the last hop to an open screen.
+ *
+ * **The first tick is a full interval away, and that is load-bearing.** A resume
+ * fires `useRefreshOnForeground` in the same instant and restarts this timer;
+ * firing immediately would put two requests on the wire for one event. It stops
+ * on hide, so a backgrounded tab costs nothing. */
+export function usePollWhileVisible(reload: () => void, intervalMs = 60_000) {
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const start = () => {
+      if (timer === undefined) timer = setInterval(reload, intervalMs);
+    };
+    const stop = () => {
+      if (timer !== undefined) clearInterval(timer);
+      timer = undefined;
+    };
+    const sync = () => (document.visibilityState === 'visible' ? start() : stop());
+    sync();
+    document.addEventListener('visibilitychange', sync);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', sync);
+    };
+  }, [reload, intervalMs]);
+}
+
 /** Every resume refreshes. Ruled 2026-09-21 (Q4): no client-side staleness
  * check — the middleware's 30 s window is the ONLY bound, and keeping it in one
  * place is what makes "one user's refresh serves everyone" true rather than
