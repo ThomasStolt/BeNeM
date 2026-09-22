@@ -27,16 +27,23 @@ build number is deliberately unchanged because 54 has never left this machine.
   by rendering, not by arithmetic: `docs/evidence/2026-09-22-ios-pills-375pt.png`, written by
   `testTheFivePillsFitAt375ptWithFiveDigitCounts`.
 
-  **TOTAL is the app icon's own purple, `#1B0F33`, with white text** — measured, not chosen:
-  quantise `AppIcon-1024.png` to eight colours and the largest cluster is `#1B0F33`, 799,841
-  of 1,048,576 pixels (76.3%). It replaces the gold `#c9a227`. The same string is asserted on
-  both platforms, so they cannot drift on it.
+  **TOTAL is `#7C3AED`, one colour in both states**, exactly like the other four: outlined and
+  violet-glowing when unselected, filled violet with white text when selected. It replaces the
+  gold `#c9a227`. The same string is asserted on both platforms, so they cannot drift on it.
+
+  **It also replaces `#1B0F33`, which was a measurement and the wrong measurement.** An earlier
+  build of 54 filled TOTAL with the app icon's dominant colour — quantise `AppIcon-1024.png` to
+  eight colours and the largest cluster is `#1B0F33`, 799,841 of 1,048,576 pixels, 76.3%. The
+  number was correct; it is the icon's dark **background**, because sampling the dominant colour
+  of an image whose subject is a thin bright line returns the field behind the subject. A
+  near-black fill does not read as selected, which is what came back from the device. **A
+  measured value is not automatically the right value.**
 
   **The pills glow** (2026-09-22, from Thomas's mockup). Unselected: transparent fill, a 1.5 pt
   border in the pill's own colour, text in that colour, a soft 4 pt outer glow at 55%.
-  Selected: filled, white text, a 14 pt glow at 85%. **TOTAL's fill stays `#1B0F33` but its
-  border, text and glow are `#7C3AED`** — a near-black outline and halo is invisible on either
-  platform's ground, so TOTAL is the one pill whose accent differs from its fill.
+  Selected: filled, white text, a 14 pt glow at 85%. **All five follow the same rule** — one
+  colour per pill, used for the fill when selected and for the border, text and glow when not.
+  No pill has a second colour, and `IncidentPill.accent` was deleted with `#1B0F33`.
 
   Shadow modifiers only, no blur views. **The glow hangs off the border, not the fill, and that
   is load-bearing**: a SwiftUI shadow is derived from the alpha of what it is attached to, so

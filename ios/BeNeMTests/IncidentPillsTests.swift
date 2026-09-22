@@ -145,23 +145,26 @@ final class IncidentPillsTests: XCTestCase {
         XCTAssertEqual(vm.count(for: .clsd), 1, "the closed row still exists — in CLSD")
     }
 
-    func testTheTOTALPillIsTheAppIconPurpleAndCollidesWithNothing() {
-        // **The hex is a MEASUREMENT, and this asserts the measurement.**
-        // Read 2026-09-22 from Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
-        // by quantising it to eight colours: the largest cluster is #1B0F33,
-        // 799 841 of 1 048 576 pixels (76.3%). Shared verbatim with the PWA's
-        // IncidentPills.tsx, which asserts the same string — so a change on one
-        // platform fails on that platform rather than drifting silently.
-        XCTAssertEqual(IncidentPill.totalHex, "#1B0F33",
-                       "the sampled dominant purple of AppIcon-1024.png")
+    func testTheTOTALPillIsSevenCThreeAEDAndCollidesWithNothing() {
+        // **#7C3AED, and it replaced a measurement that was the wrong
+        // measurement.** Build 54 filled TOTAL with #1B0F33, the dominant
+        // colour of AppIcon-1024.png (799,841 of 1,048,576 pixels, 76.3%,
+        // quantised to eight colours). The number was right and the reasoning
+        // was wrong: the icon's dominant colour is its dark BACKGROUND, and a
+        // near-black fill on a near-black page does not read as selected.
+        // Reported from the device 2026-09-22. A measured value is not
+        // automatically the right value.
+        XCTAssertEqual(IncidentPill.totalHex, "#7C3AED")
+        XCTAssertNotEqual(IncidentPill.totalHex, "#1B0F33",
+                          "the app-icon purple was dropped, not merely moved")
 
         // And the colour actually derives from it, rather than the constant
         // sitting beside a hand-typed Color that has drifted off it.
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         UIColor(IncidentPill.total.color).getRed(&r, green: &g, blue: &b, alpha: &a)
-        XCTAssertEqual(Int((r * 255).rounded()), 0x1B)
-        XCTAssertEqual(Int((g * 255).rounded()), 0x0F)
-        XCTAssertEqual(Int((b * 255).rounded()), 0x33)
+        XCTAssertEqual(Int((r * 255).rounded()), 0x7C)
+        XCTAssertEqual(Int((g * 255).rounded()), 0x3A)
+        XCTAssertEqual(Int((b * 255).rounded()), 0xED)
 
         // A grey selected pill reads as disabled, and TOTAL is the default.
         XCTAssertNotEqual(IncidentPill.total.color, IncidentPill.clsd.color)
@@ -175,33 +178,13 @@ final class IncidentPillsTests: XCTestCase {
             XCTAssertNotEqual(IncidentPill.total.color, alarm.color,
                               "TOTAL must not read as the \(alarm) alarm chip")
         }
-        // White on all five now. #1B0F33 sits at 18.1:1 against white, so the
-        // black-on-gold exception is gone rather than inverted.
+        // White on all five. #7C3AED carries white at 5.6:1.
         for pill in IncidentPill.allCases {
             XCTAssertEqual(pill.onColor, .white)
         }
     }
 
-    func testTheGlowIsSevenCThreeAEDForTOTALAndTheTwoRadiiAreFourAndFourteen() {
-        // **The two hexes and the two radii — the whole of the mockup that can
-        // be asserted rather than looked at.**
-        //
-        // TOTAL is the ONLY pill whose accent differs from its fill, and it has
-        // to be: #1B0F33 is a near-black, and a near-black border and halo is
-        // invisible on either platform's background. The fill stays the measured
-        // icon colour; the border, the text and the glow are #7C3AED.
-        XCTAssertEqual(IncidentPill.totalHex, "#1B0F33", "the FILL")
-        XCTAssertEqual(IncidentPill.totalGlowHex, "#7C3AED", "the BORDER and GLOW")
-        XCTAssertNotEqual(IncidentPill.totalHex, IncidentPill.totalGlowHex)
-
-        XCTAssertEqual(IncidentPill.total.color, Color(hex: "#1B0F33"))
-        XCTAssertEqual(IncidentPill.total.accent, Color(hex: "#7C3AED"))
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        UIColor(IncidentPill.total.accent).getRed(&r, green: &g, blue: &b, alpha: &a)
-        XCTAssertEqual(Int((r * 255).rounded()), 0x7C)
-        XCTAssertEqual(Int((g * 255).rounded()), 0x3A)
-        XCTAssertEqual(Int((b * 255).rounded()), 0xED)
-
+    func testTheTwoGlowRadiiAreFourAndFourteen() {
         // 4 pt at 55% unselected, 14 pt at 85% selected. The PWA holds the same
         // four numbers in IncidentPills.tsx's GLOW and asserts them there.
         XCTAssertEqual(IncidentPill.glow(selected: false).radius, 4)
@@ -211,13 +194,6 @@ final class IncidentPillsTests: XCTestCase {
         XCTAssertGreaterThan(IncidentPill.glow(selected: true).radius,
                              IncidentPill.glow(selected: false).radius,
                              "the selected pill is the one that glows harder")
-
-        // The other four borrow their own fill — a hollow OPEN is the filled
-        // OPEN's vocabulary with the middle taken out, not a second palette.
-        for pill in IncidentPill.allCases where pill != .total {
-            XCTAssertEqual(pill.accent, pill.color,
-                           "\(pill.rawValue) must not invent an accent of its own")
-        }
     }
 
     /// **The fit is proved by rendering, not by arithmetic.** The pill row is

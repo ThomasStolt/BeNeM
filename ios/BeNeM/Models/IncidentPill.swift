@@ -47,29 +47,30 @@ enum IncidentPill: String, CaseIterable, Identifiable {
     /// on this.
     static let defaultPill: IncidentPill = .total
 
-    /// TOTAL's purple, **measured, not chosen**: the dominant colour of
-    /// `Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png`, read on
-    /// 2026-09-22 by quantising the 1024×1024 icon to eight colours — the
-    /// largest cluster is `#1B0F33` at 799 841 of 1 048 576 pixels (76.3%),
-    /// the icon's background field. Shared verbatim with the PWA
-    /// (`IncidentPills.tsx`) and asserted in both suites, so the two platforms
-    /// cannot drift on it.
+    /// TOTAL's violet. **One colour, both states**, exactly like the other four.
     ///
-    /// It replaces the gold `#c9a227` of 0.19.x / build 54. Not grey and not
-    /// gold: a grey selected pill reads as disabled, and TOTAL is the default
-    /// tab. It is the app's own identity colour and collides with no alarm
-    /// severity, which the gold was only asserted not to do.
-    static let totalHex = "#1B0F33"
-
-    /// **TOTAL's border, text and glow — NOT its fill.** The fill stays
-    /// `totalHex`, which is a near-black: a border and a glow drawn in it would
-    /// be invisible against either platform's background, so TOTAL is the one
-    /// pill whose accent is a different colour from its fill. Shared verbatim
-    /// with the PWA and asserted in both suites, the same rule as `totalHex`.
-    static let totalGlowHex = "#7C3AED"
+    /// **This replaced a measurement that was the wrong measurement.** Build 54
+    /// filled TOTAL with `#1B0F33`, the dominant colour of the app icon (76.3%
+    /// of `AppIcon-1024.png`, quantised to eight colours). The number was right
+    /// and the reasoning was wrong: the icon's dominant colour is its dark
+    /// *background*, and a near-black fill on a near-black page is not a
+    /// selected state at all — on the PWA's slate-950 the selected TOTAL pill
+    /// was invisible as selected. Reported from the device on 2026-09-22.
+    ///
+    /// `#7C3AED` was already the border and glow of that arrangement; the fill
+    /// is now the same value, so TOTAL is outlined and glowing violet when
+    /// unselected and filled violet with white text when selected — the same
+    /// rule OPEN, ACKD, CLRD and CLSD follow, rather than an exception with its
+    /// own two-colour scheme. Shared verbatim with the PWA
+    /// (`IncidentPills.tsx`) and asserted in both suites.
+    ///
+    /// **A measured value is not automatically the right value.** `#1B0F33` was
+    /// genuinely the icon's dominant colour and genuinely unusable; the
+    /// measurement answered a question nobody should have asked.
+    static let totalHex = "#7C3AED"
 
     /// The glow, exactly as the mockup specifies it: **4 pt at 55% unselected,
-    /// 14 pt at 85% selected**, in the pill's own `accent`.
+    /// 14 pt at 85% selected**, in the pill's own `color`.
     ///
     /// Radius and opacity are returned together because they are one decision —
     /// a wide glow at a low opacity and a tight one at a high opacity are
@@ -93,20 +94,9 @@ enum IncidentPill: String, CaseIterable, Identifiable {
         }
     }
 
-    /// The border, the glow, and the text of an UNSELECTED pill.
-    ///
-    /// `color` for four of the five — an unselected OPEN is a red outline with
-    /// red digits and a red halo, which is the same vocabulary the filled state
-    /// uses, just hollow. TOTAL is the exception and has to be: its fill is a
-    /// near-black, and a near-black outline on a near-black page is nothing at
-    /// all.
-    var accent: Color { self == .total ? Color(hex: IncidentPill.totalGlowHex) : color }
-
-    /// Text on top of `color` when the pill is selected. **White on all five
-    /// now.** The gold TOTAL needed black — white on it failed legibility, the
-    /// same reason the yellow alarm badge draws its number in black — but
-    /// `#1B0F33` is dark enough that white sits at 18.1:1 against it, so the
-    /// exception is gone rather than inverted.
+    /// Text on top of `color` when the pill is selected. **White on all five**,
+    /// and there is no longer a pill that wants anything else: the gold TOTAL of
+    /// 0.19.x needed black, and `#7C3AED` carries white at 5.6:1.
     var onColor: Color { .white }
 
     func contains(_ incident: NetreoIncident) -> Bool {
@@ -222,7 +212,7 @@ struct IncidentPillBar: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 5)
                     .padding(.horizontal, 3)
-                    .foregroundColor(isSelected ? pill.onColor : pill.accent)
+                    .foregroundColor(isSelected ? pill.onColor : pill.color)
                     .background(
                         RoundedRectangle(cornerRadius: 9)
                             .fill(isSelected ? pill.color : Color.clear)
@@ -244,8 +234,8 @@ struct IncidentPillBar: View {
                     // `UIVisualEffectView`.
                     .overlay(
                         RoundedRectangle(cornerRadius: 9)
-                            .strokeBorder(pill.accent, lineWidth: 1.5)
-                            .shadow(color: pill.accent.opacity(glow.opacity),
+                            .strokeBorder(pill.color, lineWidth: 1.5)
+                            .shadow(color: pill.color.opacity(glow.opacity),
                                     radius: glow.radius)
                     )
                 }
