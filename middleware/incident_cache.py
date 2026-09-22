@@ -167,11 +167,16 @@ async def _fetch_incident_detail(client: httpx.AsyncClient, server: dict, incide
     # executed and blue had never once been displayed.
 
     acknowledged = is_acknowledged(incident)
+    # The UNCOLOURED counts travel beside the coloured ones so the override path
+    # can re-derive in either direction without a BHNM call. See
+    # SEVERITY_COUNTS_KEY for why blue alone is not enough to come back from.
+    severity = dict(counts)
     counts = apply_ack_colour(counts, acknowledged)
     # M1 — the flag was already being computed here and then thrown away. It is
     # now carried out so _enrich_incident can serve it beside the state instead
     # of the two sharing one field.
-    return {"alarm_counts": counts, "alert_type": alert_type, "confirmed": True,
+    return {"alarm_counts": counts, SEVERITY_COUNTS_KEY: severity,
+            "alert_type": alert_type, "confirmed": True,
             "acknowledged": acknowledged,
             "ack_user": (incident.get("ack_user") or None)}
 
@@ -239,27 +244,82 @@ def is_acknowledged(incident: dict) -> bool:
     return str(incident.get("primary_alarm_state") or "").strip().upper() == "ACKNOWLEDGED"
 
 
+#: The key carrying the UNCOLOURED counts — what the alarms actually are,
+#: before acknowledgement is painted over them. Served, because rows are served
+#: verbatim; additive, so no shipped client notices (the GAIN rule).
+#:
+#: **It exists because the ack colour is lossy and the un-ack has to come back.**
+#: Blue says "three alarms, someone has this" and not which three, so nothing
+#: can be recovered from it. Before 2.20.2 that was survivable: only enrichment
+#: applied the colour, and enrichment re-derived severity from BHNM every cycle.
+#: Now the OVERRIDE applies it too, within a second of the webhook and with no
+#: BHNM call available, so the severity has to have been kept.
+SEVERITY_COUNTS_KEY = "alarm_counts_severity"
+
+
 def apply_ack_colour(counts: dict | None, acknowledged: bool) -> dict | None:
-    """An acknowledged incident's alarms render BLUE. Match BHNM.
+    """The ONE derivation: acknowledged alarms render BLUE, cleared ones stay GREEN.
 
     RULED 2026-09-19 (Thomas): BeNeM is a BHNM companion and its users already
     read blue as "someone has this". Do not invent a second visual language for
     a fact BHNM already has a colour for.
 
-    The total is preserved — every alarm moves to blue, none is lost — so a
-    caller summing the counts still gets the alarm count. Un-acknowledging
-    restores severity by simple re-derivation on the next enrichment, which is
-    why this is computed and never stored as a mutation.
+    **Every non-cleared alarm becomes blue; green is left alone.** Green means
+    the alarm has cleared, which is a fact about the alarm and not about whether
+    anybody has picked the incident up — an acknowledged incident whose alarms
+    have cleared is still cleared. Until 2.20.2 this moved green too, and it was
+    measured doing so on 2026-09-22: incident 30032, host back UP, enrichment
+    turned `{green: 1}` into `{blue: 1}` while acknowledged.
+    `test_cleared_alarms_stay_green_either_way` is the guard.
+
+    The non-green total is preserved — every non-cleared alarm moves to blue,
+    none is lost — so a caller summing the counts still gets the alarm count.
+
+    **Called from BOTH paths, which is the point of this release.** Enrichment
+    calls it through `_parse_alarm_counts`; the webhook override calls it through
+    `_apply_override_fields`. Two copies of this rule would be two things to keep
+    in step, and the second copy is exactly what was missing — the override set
+    the flag and left the colour alone, so a row read ACKD with a red chip for as
+    long as it took the next enrichment to come round, which is ~100 s in the lab
+    and longer in a real estate.
+
+    Takes the UNCOLOURED counts and is therefore reversible: pass
+    `acknowledged=False` and the severity comes back untouched. That is why the
+    severity is stored under `SEVERITY_COUNTS_KEY` rather than recomputed.
 
     ponytail: all alarms, not just the primary. If BHNM turns out to colour only
     the primary alarm, this is the one function to change.
     """
     if not acknowledged or not counts:
         return counts
-    total = sum(counts.values())
+    cleared = counts.get("green", 0)
+    total = sum(counts.values()) - cleared
     if not total:
         return counts
-    return {"red": 0, "orange": 0, "yellow": 0, "green": 0, "blue": total}
+    return {"red": 0, "orange": 0, "yellow": 0, "green": cleared, "blue": total}
+
+
+def recolour_for_ack(inc: dict, acknowledged: bool) -> None:
+    """Re-derive one row's `alarm_counts` for a changed ack flag, in place.
+
+    The bridge between the override path and `apply_ack_colour`. It reads the
+    stored severity counts, so it works in BOTH directions — acking paints,
+    un-acking restores — which a function reading the already-blued counts
+    could not do.
+
+    **The fallback is stated rather than hidden.** A row cached before 2.20.2
+    has no `SEVERITY_COUNTS_KEY`, because nothing was writing one. For an ACK
+    the current counts are still the severity counts and the result is exactly
+    right. For an UN-ACK they are blue and the severity is genuinely gone, so
+    the row keeps its blue until the next enrichment re-derives it — the same
+    behaviour as before this release, for the few minutes after a deploy in
+    which it can happen at all.
+    """
+    severity = inc.get(SEVERITY_COUNTS_KEY) or inc.get("alarm_counts")
+    if severity is None:
+        return
+    inc[SEVERITY_COUNTS_KEY] = severity
+    inc["alarm_counts"] = apply_ack_colour(dict(severity), acknowledged)
 
 
 # -- M1: the state and the flag are two facts ------------------------------------
@@ -300,6 +360,7 @@ def _apply_override_fields(inc: dict, state: str, at: float) -> None:
     inc["incident_state"] = state          # unchanged from today, on purpose
     if state == "ACKNOWLEDGED":
         inc["acknowledged"] = True         # state is untouched: ACKD is a SUBSET of OPEN
+        recolour_for_ack(inc, True)
     elif state == "CLOSED":
         inc["state"] = "CLOSED"
         if inc.get("closed_at") is None:
@@ -308,12 +369,22 @@ def _apply_override_fields(inc: dict, state: str, at: float) -> None:
         inc["acknowledged"] = False
         # state deliberately NOT forced to OPEN: un-acking an ALARMS CLEARED
         # incident clears the flag, it does not re-open the alarms.
+        recolour_for_ack(inc, False)
+    # **The colour moves with the flag, in the same function, or it does not
+    # move at all.** Measured 2026-09-22 on the live lab: in the window between
+    # an ACKNOWLEDGEMENT webhook and the next enrichment — `counts_confirmed_at`
+    # byte-identical either side, so provably no enrichment — the served row
+    # flipped to `acknowledged: true` in ~6 s and `alarm_counts` came back
+    # unchanged. The row read ACKD and the chip kept its severity colour until
+    # enrichment came round ~100 s later. The reverse was measured too: after a
+    # DEACKNOWLEDGEMENT the row served `acknowledged: false` with `blue: 1`.
 
 
 def _enrich_incident(incident: dict, detail: dict, list_at: float,
                      remembered: str | None = None) -> dict:
     enriched = dict(incident)
     enriched["alarm_counts"] = detail.get("alarm_counts")
+    enriched[SEVERITY_COUNTS_KEY] = detail.get(SEVERITY_COUNTS_KEY)
     if detail.get("confirmed"):
         enriched["alert_type"] = detail.get("alert_type", "host")
     else:
@@ -656,6 +727,10 @@ def _list_only_row(raw: dict, known: dict | None, server_id: str, list_at: float
     row.update(raw)
     iid = normalise_incident_id(raw.get("incident_id", ""))
     row["alarm_counts"] = (known or {}).get("alarm_counts")
+    # Counts are exactly what a list call does not refresh, so the severity
+    # travels with them — dropping it here would make the NEXT override's
+    # un-ack unable to come back.
+    row[SEVERITY_COUNTS_KEY] = (known or {}).get(SEVERITY_COUNTS_KEY)
     row["alert_type"] = (known or {}).get("alert_type") or known_type(server_id, iid) or "host"
     row["counts_confirmed_at"] = (known or {}).get("counts_confirmed_at")
     row["state_confirmed_at"] = list_at

@@ -47,10 +47,14 @@ def test_no_alarm_is_lost_in_the_move():
 
 
 def test_un_acknowledging_restores_severity_by_re_derivation():
-    """apply_ack_colour never mutates its input, so the severity counts survive
-    and the next enrichment simply produces them again. Colour is COMPUTED from
-    the ack flag, never stored as an overwrite — which is what makes un-acking
-    free rather than needing the original counts kept somewhere."""
+    """apply_ack_colour never mutates its input, so the same severity counts
+    passed back in with acknowledged=False come straight out again. Colour is
+    COMPUTED from the flag, never stored as an overwrite.
+
+    **What this does NOT say**, corrected 2026-09-22: that un-acking is free.
+    The function is reversible; the ROW is not, because the row only keeps the
+    blued counts. That is why 2.20.2 stores the uncoloured counts alongside
+    under SEVERITY_COUNTS_KEY — see test_ack_colour_on_the_override_path."""
     original = dict(SEVERITY)
     blued = apply_ack_colour(original, acknowledged=True)
     assert original == SEVERITY, "input must not be mutated"

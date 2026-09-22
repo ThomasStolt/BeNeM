@@ -5,6 +5,64 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.20.2] - 2026-09-22
+
+### Fixed
+
+- **After an ACKNOWLEDGEMENT webhook the row read ACKD and the alarm chip stayed red.**
+  Reported from the field on iOS 54.
+
+  **Measured on the live lab before anything was changed**, on incident 30032 — the only lab
+  incident with a BHNM Action, so the only one whose ack produces a webhook at all (30031 and
+  25482 were acked in BHNM and produced none; the log was checked, not assumed):
+
+  ```
+  baseline, unacknowledged   alarm_counts={'green': 1}  counts_confirmed_at=1790084632.9871218
+  ACKNOWLEDGEMENT webhook
+  +5.94 s, acknowledged=true alarm_counts={'green': 1}  counts_confirmed_at=1790084632.9871218
+  ```
+
+  `counts_confirmed_at` byte-identical either side is the proof that no enrichment ran, so that
+  **is** the override window — and `alarm_counts` came back unchanged. The reverse was measured
+  too: after a DEACKNOWLEDGEMENT the served row read `acknowledged: false` while still carrying
+  `blue: 1`.
+
+  **`_apply_override_fields` wrote `incident_state`, `acknowledged`, `state` and `closed_at`,
+  and never touched `alarm_counts`.** That was survivable while only enrichment applied the
+  colour, because enrichment re-derives from BHNM every cycle. Under webhook mode that cycle is
+  ~100 s in this lab and longer in a real estate — and it is the entire window the user is
+  looking at the screen in.
+
+  **One derivation, called from both paths.** `apply_ack_colour` was always correct and was
+  simply never called here; the override path now reaches it through `recolour_for_ack`. Two
+  copies of the rule would be two things to keep in step, and the drift would be invisible
+  because each copy looks right on its own. A test asserts both paths call the one function.
+
+- **Cleared alarms stay GREEN when an incident is acknowledged.** Green is a fact about the
+  alarm, not about whether anybody has picked the incident up. `apply_ack_colour` used to move
+  green to blue with everything else, and it was measured doing so on 2026-09-22: incident
+  30032, host back UP, enrichment turned `{'green': 1}` into `{'blue': 1}` while acknowledged.
+  Every **non-cleared** alarm becomes blue now; green is left alone. The non-green total is
+  still preserved, so a caller summing the counts still gets the alarm count.
+
+### Added
+
+- **`alarm_counts_severity` on every served row** — the uncoloured counts, beside the coloured
+  ones. Additive, so no shipped client notices (the GAIN rule).
+
+  **It exists because the ack colour is lossy and the un-ack has to come back.** Blue says
+  "three alarms, someone has this" and not which three, so nothing can be recovered from it.
+  Before this release that did not matter: only enrichment applied the colour and enrichment
+  re-derives from BHNM every cycle. Now the override applies it too, within a second of the
+  webhook and with no BHNM call available, so the severity has to have been kept.
+
+  **The deploy window is stated rather than hidden.** A row already in the cache when 2.20.2
+  starts has no severity key, because nothing was writing one. For an ACK its current counts
+  *are* the severity counts and the answer is exactly right; only an un-ack in that window
+  cannot come back, and the next enrichment fixes it. Asserted.
+
+---
+
 ## [benem-admin 1.6.4] - 2026-09-22
 
 ### Fixed
