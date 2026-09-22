@@ -100,3 +100,8 @@ vapid_private_key*
 
 # Claude Code session output — not project material
 Claude outputs/
+
+# Sampler output. Append-only and unbounded — exp2-failover.jsonl reached 109 MB,
+# past GitHub's 100 MB limit, and a push was rejected on 2026-09-22 because of it.
+# The files stay on disk; the SE experiment record is read from there, not from git.
+docs/evidence/*.jsonl
