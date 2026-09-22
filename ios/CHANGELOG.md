@@ -51,6 +51,29 @@ build number is deliberately unchanged because 54 has never left this machine.
   glow at all — a bug that would have looked like a styling choice. `strokeBorder` rather than
   `stroke`, so 1.5 pt of border does not eat 0.75 pt of the ~64 pt each pill has.
 
+  **An open list now learns that something changed.** Reported from the field on 54: with the
+  list on screen, an acknowledgement made in the BHNM UI never reached it. The 120-second
+  countdown this release removed was doing two jobs, and only one of them was a lie — the
+  countdown was a promise nothing kept under webhook mode, but underneath it was a plain re-read
+  of `GET /api/v1/incidents`, and that was the only thing carrying a cache change the last hop
+  onto an open screen. C4 has not landed. Two paths back, **both cache reads, neither calling
+  BHNM**:
+
+  - **A push reloads the list.** `AppDelegate` posts `.pushNotificationDidArrive` from
+    `willPresent` and from every tap, before the `incident_id` check — a push without one still
+    means the cache moved. The banner is unchanged. The observer lives on
+    `IncidentListViewModel`, not on the view, because that object is one `@StateObject` shared by
+    Home, Incidents and Devices: the rows, the tile and the ticker move together, and they move
+    whether or not the Incidents tab is the one on screen.
+  - **A silent 60-second re-read** while the list is on screen and the app is in the foreground.
+    No countdown, no UI. `startListPoll` / `stopListPoll` on `onAppear` / `onDisappear` and on
+    `scenePhase`, so it stops on backgrounding — a reload nobody is looking at is a request for
+    nothing, and under the middleware's rate limiting it is the slot the next real resume needs.
+
+  **The loop sleeps before its first read, and that is load-bearing.** A resume fires
+  `refreshIncidents()` from the `scenePhase` hook and restarts the loop in the same instant;
+  reading immediately would put two requests on the wire for one event.
+
   **Reduce Motion needs nothing here, because nothing moves.** No animation, no transition and
   no implicit one to inherit — respecting the setting meant not adding the animation, not
   adding a switch to turn one off. The PWA is the opposite case and carries

@@ -112,9 +112,14 @@ struct IncidentListView: View {
                 Task { await viewModel.refreshIncidents() }
             }
             .onAppear {
+                // The silent safety net: reload from the middleware's cache
+                // every 60 s while this list is on screen. No countdown, no UI.
+                // See IncidentListViewModel.startListPoll for why it came back.
+                viewModel.startListPoll()
                 guard viewModel.incidents.isEmpty && viewModel.errorMessage == nil else { return }
                 Task { await viewModel.loadIncidents() }
             }
+            .onDisappear { viewModel.stopListPoll() }
             // A resumed app shows a list as old as the moment it was backgrounded,
             // and `onAppear` above deliberately will not reload a non-empty one.
             // The auto-refresh countdown does not advance in the background either,
@@ -128,13 +133,23 @@ struct IncidentListView: View {
             // `incidents` untouched, so resuming with no network keeps the rows
             // on screen rather than emptying them.
             .onChange(of: scenePhase) { _, phase in
-                guard phase == .active else { return }
+                guard phase == .active else {
+                    // **The poll stops when the app leaves the foreground.** A
+                    // reload nobody is looking at is a request for nothing, and
+                    // under the middleware's rate limiting it is a slot the next
+                    // real resume would have used.
+                    viewModel.stopListPoll()
+                    return
+                }
                 // Re-pointed at the refresh endpoint in 2.14.0. Every resume,
                 // with the middleware's 30 s single-flight window as the ONLY
                 // bound — no client-side staleness check, which is what makes
                 // "one user's refresh serves everyone on that server" true
                 // rather than approximately true (design Q4).
                 Task { await viewModel.refreshIncidents() }
+                // And the net goes back up. It sleeps before its first read, so
+                // it does not double up with the refresh on the line above.
+                viewModel.startListPoll()
             }
             .navigationDestination(for: NetreoIncident.self) { incident in
                 IncidentDetailView(

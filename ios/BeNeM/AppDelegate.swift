@@ -71,6 +71,14 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
+        // **The banner still shows — this adds to it, it does not replace it.**
+        // A push means the middleware's cache has just moved, and since 2.14.0
+        // removed the 120-second countdown an open incident list had no update
+        // path except the user tapping something. Reported from the field on
+        // iOS 54: an acknowledgement made in the BHNM UI never reached the
+        // screen. The view model reloads from `GET /api/v1/incidents` — the
+        // middleware's cache, never BHNM.
+        NotificationCenter.default.post(name: .pushNotificationDidArrive, object: nil)
         completionHandler([.banner, .sound])
     }
 
@@ -81,6 +89,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let userInfo = response.notification.request.content.userInfo
+        // Posted for EVERY tap, before the incident_id check — a push without
+        // one still means the cache moved, and the list should still catch up.
+        // The deep-link post below is a different event with a different job.
+        NotificationCenter.default.post(name: .pushNotificationDidArrive, object: nil)
         if let incidentID = userInfo["incident_id"] as? String, !incidentID.isEmpty {
             print("[DeepLink] didReceive — incident_id: \(incidentID)")
             // Always store as pending — covers cold launch where SwiftUI isn't ready yet.

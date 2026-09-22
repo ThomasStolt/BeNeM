@@ -407,3 +407,185 @@ final class IncidentPillsTests: XCTestCase {
         XCTAssertEqual(incident("1", state: .closed, acknowledged: true).status, .closed)
     }
 }
+
+/// The field defect from iOS 54: **with the list open, an acknowledgement made
+/// in the BHNM UI never reached the screen.**
+///
+/// The 120-second countdown removed in 2.14.0 was doing two jobs and only one
+/// of them was a lie. The countdown itself was a promise nothing kept under
+/// webhook mode — that was right to remove. Underneath it, every 120 seconds,
+/// was a plain re-read of `GET /api/v1/incidents`, and **that** was the only
+/// thing carrying a cache change the last hop onto an open screen. C4, which
+/// would have made the push itself carry the change, has not landed. So the
+/// list was left with no update path except the user tapping something.
+///
+/// Both halves are tested here, and so is the thing that makes them safe
+/// together: they must not double up.
+///
+/// **The reads are counted, not inferred from `isLoading`.** The first draft of
+/// these tests watched that flag and two of them failed for the wrong reason:
+/// against an unresolvable host a load begins and fails faster than a poll loop
+/// can observe, so "no load happened" and "the load already finished" looked
+/// identical. That is this repository's own doctrine — an empty result that was
+/// never capable of being non-empty — so the service is stubbed instead, and
+/// the stub counts.
+@MainActor
+final class IncidentListStaysCurrentTests: XCTestCase {
+
+    /// Counts reads and, on request, holds one open so the in-flight guard can
+    /// be tested deterministically rather than by racing a real network.
+    final class CountingAPIService: NetreoAPIService, @unchecked Sendable {
+        private(set) var fetchCount = 0
+        var holdNextFetch = false
+        private var gate: CheckedContinuation<Void, Never>?
+
+        override func fetchCachedIncidents() async throws
+            -> ([NetreoIncident], [String: [AlarmColor: Int]]) {
+            fetchCount += 1
+            if holdNextFetch {
+                holdNextFetch = false
+                await withCheckedContinuation { gate = $0 }
+            }
+            return ([], [:])
+        }
+
+        func releaseHeldFetch() {
+            gate?.resume()
+            gate = nil
+        }
+    }
+
+    private func makeViewModel() -> (IncidentListViewModel, CountingAPIService) {
+        let api = CountingAPIService(baseURL: "https://example.invalid", apiKey: "test")
+        return (IncidentListViewModel(apiService: api), api)
+    }
+
+    /// Wait for a condition, or fail. The reloads are `Task`s kicked off from a
+    /// notification handler and from a detached loop, so there is nothing to
+    /// `await` on directly.
+    private func waitUntil(_ label: String,
+                           timeout: TimeInterval = 2,
+                           _ condition: @escaping () -> Bool) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+        XCTFail("timed out waiting for: \(label)")
+    }
+
+    // MARK: - 1. A push updates the list
+
+    func testAPushReloadsTheListExactlyOnce() async {
+        let (vm, api) = makeViewModel()
+        XCTAssertEqual(api.fetchCount, 0, "nothing read before the push")
+
+        // What AppDelegate posts from willPresent and from every tap.
+        NotificationCenter.default.post(name: .pushNotificationDidArrive, object: nil)
+        await waitUntil("the push to read the cache") { api.fetchCount == 1 }
+
+        // Once, and not more. Settle and re-check, so a second read arriving
+        // late still fails this.
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(api.fetchCount, 1, "one push, one read of the cache")
+        _ = vm
+    }
+
+    func testASecondPushWhileTheFirstReadIsInFlightDoesNotStartASecondRead() async {
+        // Two pushes arriving together is the normal case, not the exotic one:
+        // a webhook fan-out delivers to every device at once, and iOS can
+        // present two banners in the same instant.
+        let (vm, api) = makeViewModel()
+        api.holdNextFetch = true
+
+        NotificationCenter.default.post(name: .pushNotificationDidArrive, object: nil)
+        await waitUntil("the first read to be in flight") { vm.isLoading }
+        XCTAssertEqual(api.fetchCount, 1)
+
+        NotificationCenter.default.post(name: .pushNotificationDidArrive, object: nil)
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        XCTAssertEqual(api.fetchCount, 1, "loadIncidents returns early while one is in flight")
+
+        api.releaseHeldFetch()
+        await waitUntil("the held read to finish") { !vm.isLoading }
+        XCTAssertEqual(api.fetchCount, 1)
+    }
+
+    func testTheObserverIsOnTheViewModelSoItWorksOffScreen() async {
+        // The observer lives on IncidentListViewModel, not on IncidentListView.
+        // That object is one @StateObject shared by Home, Incidents and Devices
+        // (ContentView:11), so a push moves the rows, the Home tile and the
+        // ticker together — and moves them whether or not the Incidents tab is
+        // the one on screen. This test holds no view at all.
+        let (vm, api) = makeViewModel()
+        NotificationCenter.default.post(name: .pushNotificationDidArrive, object: nil)
+        await waitUntil("a read with no view in existence") { api.fetchCount == 1 }
+        _ = vm
+    }
+
+    // MARK: - 2. The silent safety net
+
+    func testThePollStartsStopsAndNeverDoublesUp() async {
+        let (vm, _) = makeViewModel()
+        XCTAssertFalse(vm.isPolling, "nothing polls until the list appears")
+
+        vm.startListPoll(interval: 60)
+        XCTAssertTrue(vm.isPolling)
+
+        // onAppear can run more than once, and scenePhase can flap. A second
+        // start must be a no-op, not a second loop — two loops would mean two
+        // reads per interval for ever.
+        vm.startListPoll(interval: 60)
+        XCTAssertTrue(vm.isPolling)
+
+        vm.stopListPoll()
+        XCTAssertFalse(vm.isPolling, "backgrounding or leaving the tab stops it")
+
+        // And stopping twice is safe, because onDisappear and the scenePhase
+        // hook both fire when the app is backgrounded from this screen.
+        vm.stopListPoll()
+        XCTAssertFalse(vm.isPolling)
+    }
+
+    func testTwoStartsProduceOneLoopAndNotTwo() async {
+        // The assertion `isPolling` alone cannot make: a second loop would also
+        // leave the flag true. This counts the reads.
+        let (vm, api) = makeViewModel()
+        vm.startListPoll(interval: 0.05)
+        vm.startListPoll(interval: 0.05)
+        try? await Task.sleep(nanoseconds: 260_000_000)    // ~5 intervals
+        vm.stopListPoll()
+        XCTAssertLessThanOrEqual(api.fetchCount, 6,
+                                 "two loops would roughly double this")
+        XCTAssertGreaterThan(api.fetchCount, 1, "and the loop must really be reading")
+    }
+
+    func testThePollSleepsBEFOREItsFirstReadSoItCannotDoubleUpWithTheResume() async {
+        // **The load-bearing ordering.** A resume fires `refreshIncidents()`
+        // from the view's scenePhase hook AND restarts this loop in the same
+        // instant. If the loop read immediately there would be two requests on
+        // the wire for one event.
+        let (vm, api) = makeViewModel()
+        vm.startListPoll(interval: 60)
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(api.fetchCount, 0, "the first read is a full interval away")
+        vm.stopListPoll()
+    }
+
+    func testAStoppedPollDoesNotReadAgain() async {
+        // The half that matters. A poll that survives backgrounding is a
+        // request nobody is looking at the answer to — and under the
+        // middleware's rate limiting it is the slot the next real resume needs.
+        let (vm, api) = makeViewModel()
+        vm.startListPoll(interval: 0.05)
+        await waitUntil("the short-interval poll to read") { api.fetchCount >= 1 }
+
+        vm.stopListPoll()
+        await waitUntil("any in-flight read to finish") { !vm.isLoading }
+        let atStop = api.fetchCount
+
+        try? await Task.sleep(nanoseconds: 300_000_000)   // six more intervals
+        XCTAssertEqual(api.fetchCount, atStop, "a stopped poll must never read again")
+        XCTAssertFalse(vm.isPolling)
+    }
+}

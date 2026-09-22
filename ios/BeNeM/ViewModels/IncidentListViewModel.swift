@@ -6,6 +6,18 @@ extension Notification.Name {
     /// (and everything derived from it — device-list alarm chips) updates
     /// instantly instead of waiting for the next auto-refresh.
     static let incidentStatusDidChange = Notification.Name("incidentStatusDidChange")
+
+    /// Posted by `AppDelegate` for **every** push the app sees — the foreground
+    /// banner (`willPresent`) and every tap (`didReceive`), whether or not it
+    /// carries an `incident_id`.
+    ///
+    /// A push means the middleware's cache has just moved. Before 2.14.0 the
+    /// list did not need to be told: the 120-second countdown re-read
+    /// `GET /api/v1/incidents` whether or not anything had happened. Removing
+    /// the countdown removed that, and C4 — which would have made the push
+    /// itself carry the change — has not landed, so an open list had no update
+    /// path left except the user tapping something.
+    static let pushNotificationDidArrive = Notification.Name("pushNotificationDidArrive")
 }
 
 @MainActor
@@ -22,8 +34,15 @@ class IncidentListViewModel: ObservableObject {
     /// move the clock, or the header dates data the server never returned.
     @Published var lastUpdated: Date?
 
+    /// True while the silent 60-second reload loop is running. Published so the
+    /// tests can assert the loop starts and — the half that matters — stops.
+    /// **Nothing in the UI reads it, deliberately.** It is not a countdown.
+    @Published private(set) var isPolling = false
+
     private var apiService: NetreoAPIService
     private var statusObserver: NSObjectProtocol?
+    private var pushObserver: NSObjectProtocol?
+    private var pollTask: Task<Void, Never>?
 
     init(apiService: NetreoAPIService) {
         self.apiService = apiService
@@ -37,12 +56,76 @@ class IncidentListViewModel: ObservableObject {
                 self?.updateIncidentStatus(incidentID: id, status: status)
             }
         }
+        // **A push updates the list.** Observed on the VIEW MODEL rather than on
+        // IncidentListView, because this object is one `@StateObject` shared by
+        // Home, Incidents and Devices (`ContentView:11`) — so the rows, the
+        // Home tile and the ticker all move together, and they move whether or
+        // not the Incidents tab happens to be the one on screen.
+        //
+        // `loadIncidents()` reads `GET /api/v1/incidents`, the middleware's
+        // cache. **No BHNM call**: the webhook that produced this push already
+        // told the middleware what changed, and asking BHNM again would spend a
+        // round trip re-learning it.
+        pushObserver = NotificationCenter.default.addObserver(
+            forName: .pushNotificationDidArrive, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                await self?.loadIncidents()
+            }
+        }
     }
 
     deinit {
         if let statusObserver {
             NotificationCenter.default.removeObserver(statusObserver)
         }
+        if let pushObserver {
+            NotificationCenter.default.removeObserver(pushObserver)
+        }
+        pollTask?.cancel()
+    }
+
+    // MARK: - The silent safety net
+
+    /// Reload the list from the middleware's cache every `interval` seconds
+    /// while the incident list is on screen and the app is in the foreground.
+    ///
+    /// **No countdown and no UI.** This is exactly the poll the 120-second
+    /// countdown used to perform, minus the countdown — the same
+    /// `GET /api/v1/incidents`, the same cache, no BHNM call. The countdown was
+    /// removed in 2.14.0 for being a promise nothing kept under webhook mode,
+    /// and that was right; removing the *request* underneath it was not, because
+    /// C4 has not landed and an acknowledgement made in the BHNM UI reaches the
+    /// middleware's cache with nothing to carry it the last hop to an open
+    /// screen. Reported from the field on iOS 54.
+    ///
+    /// **It sleeps BEFORE its first read, and that is load-bearing.** A resume
+    /// fires `refreshIncidents()` from the view's `scenePhase` hook and restarts
+    /// this loop in the same instant; firing immediately would put two requests
+    /// on the wire for one event. `loadIncidents()` also returns early while a
+    /// load is in flight, so the two cannot overlap even if they coincide.
+    ///
+    /// Calling this twice is a no-op rather than a second loop.
+    func startListPoll(interval: TimeInterval = 60) {
+        guard pollTask == nil else { return }
+        isPolling = true
+        pollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                await self?.loadIncidents()
+            }
+        }
+    }
+
+    /// Stop the loop — the list is no longer on screen, or the app is no longer
+    /// in the foreground. **A poll that runs in the background is a request
+    /// nobody is looking at the answer to**, and under the middleware's own
+    /// rate limiting it is a slot the next real resume would have used.
+    func stopListPoll() {
+        pollTask?.cancel()
+        pollTask = nil
+        isPolling = false
     }
     
     func updateAPIService(_ newService: NetreoAPIService) {
