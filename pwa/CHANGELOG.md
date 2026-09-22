@@ -14,6 +14,50 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [0.19.6] - 2026-09-22
+
+### Changed
+
+- **Every pill now has two colours**: a `base` for the selected fill, and a brighter `tint` for
+  the frame, the unselected text and the unselected glow. Round two of Thomas's mockup.
+
+  | pill | base | tint |
+  |---|---|---|
+  | TOTAL | `#7C3AED` | `#A78BFA` |
+  | OPEN | `#DC2626` | `#F87171` |
+  | ACKD | `#2563EB` | `#60A5FA` |
+  | CLRD | `#16A34A` | `#4ADE80` |
+  | CLSD | `#F2F2F7` | `#FFFFFF` |
+
+  Round one gave each pill one colour used for everything, which left an unselected pill
+  outlined in the same value its selected neighbour was filled with — the two states separated
+  only by fill, which is exactly what failed on TOTAL when `#1B0F33` went on a near-black page.
+  A brighter frame is the difference that survives whatever the fill does. **iOS holds the same
+  ten strings and both suites assert all ten.**
+
+- **The unselected ground is `#1a1a1d`, not transparent.** Round one let the page through, so
+  the row read as four outlines floating on nothing. A plate gives every pill the same footprint
+  whether it is selected or not, which is what stops the row jumping as the selection moves.
+
+- **CLSD is the exception, twice.** Selected, its text is `#111114` rather than white — its fill
+  is nearly white, and white on white is the whole label gone. Unselected it has **no frame and
+  no glow**: white text on the bare plate. It is the one tab you opt into, and a frame in
+  `#FFFFFF` would make it the brightest thing in a row nobody is looking at. The border *width*
+  stays, or the frameless pill would be 3 px narrower than the four beside it.
+
+  Radii unchanged: 4 px at 55% unselected, 14 px at 85% selected.
+
+  Re-rendered at 375 px with every count at 99999: `docs/evidence/2026-09-22-pwa-pills-375pt.png`.
+
+> **One contradiction in the brief, resolved and stated.** Its summary line says the tint carries
+> "the frame, the unselected text and both glows"; its per-state lines say "glow 14 px in **base**
+> at 85%" selected and "glow 4 px in tint at 55%" unselected. Those disagree about exactly one
+> value. The per-state lines are followed, being the more specific — a selected pill's halo is its
+> own fill bleeding outwards. Both platforms resolve it the same way; say the word and it is one
+> constant on each side.
+
+---
+
 ## [0.19.5] - 2026-09-22
 
 ### Fixed

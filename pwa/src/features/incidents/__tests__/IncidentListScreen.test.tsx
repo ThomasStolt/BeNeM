@@ -127,58 +127,80 @@ describe('IncidentListScreen', () => {
     expect(rowIds().join(' ')).toContain('#27516');
   });
 
-  it('gives the selected pill its own state colour', async () => {
-    // TOTAL is #7C3AED, the same in both states, exactly like the other four.
-    // It replaced #1B0F33 — the app icon's measured dominant colour, and the
-    // wrong value: the icon's dominant colour is its dark BACKGROUND, so the
-    // selected pill was a near-black block on a near-black page and did not
-    // read as selected at all. iOS asserts the identical string.
+  /** The ten hex values, as the mockup states them. iOS holds the identical ten
+   * in `IncidentPill.palette` and asserts them there, so neither platform can
+   * drift on any of them in silence. */
+  const PALETTE = {
+    TOTAL: { base: 'rgb(124, 58, 237)', tint: 'rgb(167, 139, 250)', hex: ['#7C3AED', '#A78BFA'] },
+    OPEN: { base: 'rgb(220, 38, 38)', tint: 'rgb(248, 113, 113)', hex: ['#DC2626', '#F87171'] },
+    ACKD: { base: 'rgb(37, 99, 235)', tint: 'rgb(96, 165, 250)', hex: ['#2563EB', '#60A5FA'] },
+    CLRD: { base: 'rgb(22, 163, 74)', tint: 'rgb(74, 222, 128)', hex: ['#16A34A', '#4ADE80'] },
+    CLSD: { base: 'rgb(242, 242, 247)', tint: 'rgb(255, 255, 255)', hex: ['#F2F2F7', '#FFFFFF'] },
+  } as const;
+  const PILL_NAMES = ['TOTAL', 'OPEN', 'ACKD', 'CLRD', 'CLSD'] as const;
+
+  it('fills the selected pill with its BASE and frames it in its TINT', async () => {
     renderScreen();
-    expect(pill('TOTAL').style.backgroundColor).toBe('rgb(124, 58, 237)');  // #7C3AED
-    expect(pill('TOTAL').style.color).toBe('rgb(255, 255, 255)');           // 5.6:1 on it
-    await userEvent.click(pill('OPEN'));
-    expect(pill('OPEN').style.backgroundColor).toBe('rgb(220, 38, 38)');
-    await userEvent.click(pill('ACKD'));
-    expect(pill('ACKD').style.backgroundColor).toBe('rgb(37, 99, 235)');
-    await userEvent.click(pill('CLRD'));
-    expect(pill('CLRD').style.backgroundColor).toBe('rgb(5, 150, 105)');
-    await userEvent.click(pill('CLSD'));
-    expect(pill('CLSD').style.backgroundColor).toBe('rgb(100, 116, 139)');
-    await userEvent.click(pill('TOTAL'));
-    expect(pill('TOTAL').style.backgroundColor).toBe('rgb(124, 58, 237)');
+    for (const name of PILL_NAMES) {
+      await userEvent.click(pill(name));
+      const el = pill(name);
+      const { base, tint } = PALETTE[name];
+      expect(el.style.backgroundColor).toBe(base);
+      expect(el.style.borderColor).toBe(tint);
+      expect(el.style.borderWidth).toBe('1.5px');
+      // White text on four; CLSD's fill is nearly white, so white on white
+      // would be the whole label gone.
+      expect(el.style.color).toBe(name === 'CLSD' ? 'rgb(17, 17, 20)' : 'rgb(255, 255, 255)');
+      // Selected glow: 14px at 85%, in the BASE.
+      expect(el.style.boxShadow).toBe(`0 0 14px ${PALETTE[name].hex[0]}D9`);
+    }
   });
 
-  it('draws the two glow radii, and TOTAL is #7C3AED in BOTH states', async () => {
-    // **The hex and the two radii — the whole of the mockup that can be
-    // asserted rather than looked at.** No pill has a second colour any more:
-    // fill, border, text and glow are one value each, and #1B0F33 is gone.
+  it('frames, texts and glows an UNSELECTED pill in its TINT, on the #1a1a1d plate', async () => {
+    renderScreen();                       // TOTAL is selected; the other four are not
+    await userEvent.click(pill('TOTAL'));
+    for (const name of PILL_NAMES.filter((p) => p !== 'TOTAL' && p !== 'CLSD')) {
+      const el = pill(name);
+      const { tint, hex } = PALETTE[name];
+      // Not transparent. Round one let the page through and the row read as
+      // outlines floating on nothing.
+      expect(el.style.backgroundColor).toBe('rgb(26, 26, 29)');   // #1a1a1d
+      expect(el.style.borderColor).toBe(tint);
+      expect(el.style.color).toBe(tint);
+      expect(el.style.boxShadow).toBe(`0 0 4px ${hex[1]}8C`);     // 4px at 55%, in the TINT
+    }
+  });
+
+  it('gives an UNSELECTED CLSD no frame and no glow — white text on the plate alone', async () => {
+    // The one tab you opt into, and the only pill not competing for attention
+    // when you have not. A frame in #FFFFFF would be the brightest thing in a
+    // row nobody is looking at.
     renderScreen();
+    const el = pill('CLSD');
+    expect(el).toHaveAttribute('data-selected', 'false');
+    expect(el.style.boxShadow).toBe('none');
+    expect(el.style.borderColor).toBe('transparent');
+    // The border WIDTH stays, or the frameless pill would be 3px narrower than
+    // the four beside it and the row would not line up.
+    expect(el.style.borderWidth).toBe('1.5px');
+    expect(el.style.color).toBe('rgb(255, 255, 255)');
+    expect(el.style.backgroundColor).toBe('rgb(26, 26, 29)');
 
-    const total = pill('TOTAL');                       // selected: 14px at 85%
-    expect(total.style.backgroundColor).toBe('rgb(124, 58, 237)');  // #7C3AED FILLS it
-    expect(total.style.boxShadow).toBe('0 0 14px #7C3AEDD9');       // and glows it
-    expect(total.style.borderColor).toBe('rgb(124, 58, 237)');
-    expect(total.style.borderWidth).toBe('1.5px');
+    // And it does get both back when it IS selected.
+    await userEvent.click(pill('CLSD'));
+    expect(pill('CLSD').style.boxShadow).toBe('0 0 14px #F2F2F7D9');
+    expect(pill('CLSD').style.borderColor).toBe('rgb(255, 255, 255)');
+  });
 
-    const open = pill('OPEN');                         // unselected: 4px at 55%
-    expect(open.style.backgroundColor).toBe('transparent');
-    expect(open.style.boxShadow).toBe('0 0 4px #DC26268C');
-    expect(open.style.color).toBe('rgb(220, 38, 38)');  // text in the pill's own colour
-    expect(open.style.borderColor).toBe('rgb(220, 38, 38)');
-
-    // And the radii swap with the selection, rather than being stuck on one pill.
-    // An UNSELECTED TOTAL is the same violet, hollow: transparent fill, violet
-    // border, violet text, 4px violet glow — the rule the other four follow.
+  it('draws the two glow radii, and never a filter', async () => {
+    renderScreen();
+    expect(pill('TOTAL').style.boxShadow).toBe('0 0 14px #7C3AEDD9');   // selected
+    expect(pill('OPEN').style.boxShadow).toBe('0 0 4px #F871718C');     // unselected
     await userEvent.click(pill('OPEN'));
     expect(pill('OPEN').style.boxShadow).toBe('0 0 14px #DC2626D9');
-    expect(pill('TOTAL').style.boxShadow).toBe('0 0 4px #7C3AED8C');
-    expect(pill('TOTAL').style.backgroundColor).toBe('transparent');
-    expect(pill('TOTAL').style.color).toBe('rgb(124, 58, 237)');
-
+    expect(pill('TOTAL').style.boxShadow).toBe('0 0 4px #A78BFA8C');
     // box-shadow, never filter: drop-shadow — a filter would blur the digits.
-    for (const p of ['TOTAL', 'OPEN', 'ACKD', 'CLRD', 'CLSD']) {
-      expect(pill(p).style.filter).toBe('');
-    }
+    for (const name of PILL_NAMES) expect(pill(name).style.filter).toBe('');
   });
 
   it('turns the colour transition off for a reader who asked for less movement', () => {

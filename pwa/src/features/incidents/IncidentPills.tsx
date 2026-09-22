@@ -1,27 +1,43 @@
 import { PILLS, type Pill, type PillCounts } from './pills';
 
-/** One colour per pill. It is the fill when selected, and the border, the text
- * and the glow when it is not — the same rule for all five, with no exception.
+/** **Two colours per pill**: a `base` for the selected fill, and a brighter
+ * `tint` for the frame, the unselected text and the unselected glow.
  *
- * **TOTAL used to be the exception and it was the wrong call.** 0.19.2/0.19.3
- * filled it with `#1B0F33`, the app icon's dominant colour (76.3% of
- * `AppIcon-1024.png`, quantised to eight colours). The measurement was correct
- * and the reasoning was not: the icon's dominant colour is its dark
- * *background*, and a near-black fill on slate-950 is not a selected state —
- * reported from the device on 2026-09-22 as "not readable as selected".
- * `#7C3AED` was already its border and glow; the fill is now the same value.
+ * Round two of Thomas's mockup, 2026-09-22. Round one gave each pill a single
+ * colour used for everything, which left an unselected pill outlined in the
+ * same value its selected neighbour was filled with — the two states separated
+ * only by fill, which is exactly what failed on TOTAL when `#1B0F33` went on a
+ * near-black page. A brighter frame is the difference that survives whatever
+ * the fill does.
  *
- * The other four are the exact hexes of the Tailwind classes they replaced —
- * red-600, blue-600, emerald-600, slate-500. iOS holds the identical string for
- * TOTAL (`IncidentPill.totalHex`) and both suites assert it.
+ * iOS holds the same ten strings in `IncidentPill.palette`, and both suites
+ * assert all ten, so the platforms cannot drift on any of them.
  */
-const COLOUR: Record<Pill, string> = {
-  TOTAL: '#7C3AED',
-  OPEN: '#DC2626',
-  ACKD: '#2563EB',
-  CLRD: '#059669',
-  CLSD: '#64748B',
+const PALETTE: Record<Pill, { base: string; tint: string }> = {
+  TOTAL: { base: '#7C3AED', tint: '#A78BFA' },
+  OPEN: { base: '#DC2626', tint: '#F87171' },
+  ACKD: { base: '#2563EB', tint: '#60A5FA' },
+  CLRD: { base: '#16A34A', tint: '#4ADE80' },
+  CLSD: { base: '#F2F2F7', tint: '#FFFFFF' },
 };
+
+/** The ground an UNSELECTED pill sits on. **Not transparent** — round one let
+ * the page show through, so the row read as four outlines floating on nothing.
+ * A near-black plate gives every pill the same footprint whether it is selected
+ * or not, which is what stops the row jumping as the selection moves. */
+const UNSELECTED_BG = '#1a1a1d';
+
+/** CLSD's selected text. The one pill whose fill is nearly white, so
+ * white-on-white would be the whole label gone. Near-black rather than pure
+ * black, to match the ground the row sits on. */
+const CLSD_ON = '#111114';
+
+/** CLSD is the only pill with no frame and no glow when unselected: white text
+ * on the bare plate. It is the one tab you opt into, and a frame in `#FFFFFF`
+ * would make it the brightest thing in a row you are not looking at. */
+function isFramedWhenUnselected(pill: Pill): boolean {
+  return pill !== 'CLSD';
+}
 
 /** The glow, exactly as the mockup specifies it: 4 px at 55% unselected, 14 px
  * at 85% selected. Radius and opacity travel together because they are one
@@ -37,6 +53,16 @@ const GLOW = {
   unselected: { radius: 4, opacity: 0.55 },
   selected: { radius: 14, opacity: 0.85 },
 } as const;
+
+/** The glow's colour: **`base` when selected, `tint` when not.**
+ *
+ * The mockup's summary line says "a brighter tint for the frame, the unselected
+ * text and both glows", and its per-state lines say "glow 14px in **base** at
+ * 85%" selected and "glow 4px in tint at 55%" unselected. Those disagree about
+ * exactly one value. The per-state lines are followed, being the more specific
+ * of the two — a selected pill's halo is its own fill bleeding outwards, which
+ * is what a filled chip does everywhere else in this app. iOS resolves it the
+ * same way, in `IncidentPill.glowColor(selected:)`. */
 
 /** `#RRGGBB` + an alpha byte. Eight-digit hex is the shortest way to put an
  * opacity on a colour inside a `box-shadow` without a second colour space. */
@@ -78,8 +104,10 @@ export function IncidentPills({ selected, counts, onSelect }: Props) {
     <div role="tablist" aria-label="Filter incidents" className="flex gap-1.5">
       {PILLS.map((pill) => {
         const isSelected = pill === selected;
-        const colour = COLOUR[pill];
+        const { base, tint } = PALETTE[pill];
         const { radius, opacity } = isSelected ? GLOW.selected : GLOW.unselected;
+        const framed = isSelected || isFramedWhenUnselected(pill);
+        const glow = isSelected ? base : tint;
         return (
           <button
             key={pill}
@@ -92,12 +120,17 @@ export function IncidentPills({ selected, counts, onSelect }: Props) {
             onClick={() => onSelect(pill)}
             className="flex flex-1 min-w-0 flex-col items-center gap-0.5 rounded-lg px-1 py-1 transition-colors motion-reduce:transition-none"
             style={{
-              backgroundColor: isSelected ? colour : 'transparent',
+              backgroundColor: isSelected ? base : UNSELECTED_BG,
               borderWidth: '1.5px',
               borderStyle: 'solid',
-              borderColor: colour,
-              color: isSelected ? '#FFFFFF' : colour,
-              boxShadow: `0 0 ${radius}px ${withAlpha(colour, opacity)}`,
+              // `transparent`, not `none`: the border box has to keep its width
+              // or the frameless CLSD pill would be 3px narrower than the four
+              // beside it and the row would not line up.
+              borderColor: framed ? tint : 'transparent',
+              color: isSelected
+                ? (pill === 'CLSD' ? CLSD_ON : '#FFFFFF')
+                : tint,
+              boxShadow: framed ? `0 0 ${radius}px ${withAlpha(glow, opacity)}` : 'none',
             }}
           >
             <span className="tabular-nums text-base font-bold leading-none">{counts[pill]}</span>

@@ -218,14 +218,14 @@ choosing to see only acknowledged incidents is a different thing from the tile.
 
 iOS 2.13.6 (52), PWA 0.18.1.
 
-#### Incident list filter — TOTAL / OPEN / ACKD / CLRD / CLSD (**PWA 0.19.5 live; iOS 2.14.0 (54) built, not submitted**)
+#### Incident list filter — TOTAL / OPEN / ACKD / CLRD / CLSD (**PWA 0.19.6 live; iOS 2.14.0 (54) built, not submitted**)
 
 **Superseded the four-tab sketch recorded here on 2026-09-20.** Design and every ruling:
 `docs/superpowers/specs/2026-09-21-incident-list-filter-design.md` — approved, nothing open.
 
 | pill | contents | colour |
 |---|---|---|
-| **TOTAL** | OPEN + ACKD + CLRD — everything **except** closed | violet `#7C3AED` |
+| **TOTAL** | OPEN + ACKD + CLRD — everything **except** closed | violet, base `#7C3AED` / tint `#A78BFA` |
 | **OPEN** | state `OPEN` and **not** acknowledged | red |
 | **ACKD** | state `OPEN` and acknowledged | blue |
 | **CLRD** | state `ALARMS CLEARED` | green |
@@ -263,9 +263,24 @@ digits. Rendered proof at 375 pt with every count at 99999, both platforms:
 `docs/evidence/2026-09-22-ios-pills-375pt.png` and `docs/evidence/2026-09-22-pwa-pills-375pt.png`.
 Counts use tabular figures on both so the five columns do not jitter as the numbers change.
 
-**TOTAL is `#7C3AED`, one colour in both states, exactly like the other four.** White text when
-filled (5.6:1). It replaces the gold `#c9a227` of PWA 0.18.x–0.19.1 and, briefly, `#1B0F33`.
-**Both suites assert the literal string**, so one platform cannot drift off the other quietly.
+**Every pill has TWO colours** (round two of the mockup, 2026-09-22): a `base` for the selected
+fill and a brighter `tint` for the frame, the unselected text and the unselected glow.
+
+| pill | base | tint |
+|---|---|---|
+| TOTAL | `#7C3AED` | `#A78BFA` |
+| OPEN | `#DC2626` | `#F87171` |
+| ACKD | `#2563EB` | `#60A5FA` |
+| CLRD | `#16A34A` | `#4ADE80` |
+| CLSD | `#F2F2F7` | `#FFFFFF` |
+
+Unselected ground `#1a1a1d` on all five — **not transparent**, or the row reads as outlines
+floating on nothing and the pills change footprint as the selection moves. **CLSD is the
+exception twice**: its selected text is `#111114` (its fill is nearly white), and unselected it
+has no frame and no glow at all — white text on the bare plate, because a `#FFFFFF` frame would
+make the one tab you opt into the brightest thing in the row. **Both suites assert all ten hex
+values and the CLSD rule**, so one platform cannot drift off the other quietly. The gold
+`#c9a227` of PWA 0.18.x–0.19.1 and the briefly-used `#1B0F33` are both gone.
 
 > **`#1B0F33` was a measurement, and it was the wrong measurement.** PWA 0.19.2–0.19.3 and the
 > intermediate build 54 filled TOTAL with the app icon's dominant colour — quantise
