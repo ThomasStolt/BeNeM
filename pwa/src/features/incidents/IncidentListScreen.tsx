@@ -20,7 +20,7 @@ function ConfigureLink() {
 }
 
 const EMPTY_FOR_PILL: Record<Pill, { title: string; description: string }> = {
-  TOTL: { title: 'No incidents', description: 'Nothing open or cleared. All clear.' },
+  TOTAL: { title: 'No incidents', description: 'Nothing open or cleared. All clear.' },
   OPEN: { title: 'Nothing unacknowledged', description: 'Every open incident has been picked up.' },
   ACKD: { title: 'None acknowledged', description: 'Nobody has picked up an incident.' },
   CLRD: { title: 'None cleared', description: 'No incident is waiting with its alarms cleared.' },
@@ -35,7 +35,7 @@ export function IncidentListScreen() {
   const { refresh, isRefreshing } = useRefreshIncidents();
   useRefreshOnForeground(refresh);
 
-  // The Home tile arrives with ?pill=OPEN. Anything unrecognised falls back to
+  // The Home tile arrives with ?pill=TOTAL. Anything unrecognised falls back to
   // the default rather than showing an empty list nobody asked for.
   const [searchParams, setSearchParams] = useSearchParams();
   const fromUrl = searchParams.get('pill');

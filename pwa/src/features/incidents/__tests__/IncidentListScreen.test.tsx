@@ -72,7 +72,7 @@ const rowIds = () =>
 describe('IncidentListScreen', () => {
   it('renders a row for each incident in the selected pill', () => {
     // Carried over from the pre-0.19.0 suite, which had no filter and so
-    // asserted the whole list. TOTL is the default, and it holds three.
+    // asserted the whole list. TOTAL is the default, and it holds three.
     renderScreen();
     expect(screen.getAllByText(/UAP-AC-Pro-DB/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/C9200CX/).length).toBeGreaterThan(0);
@@ -92,18 +92,18 @@ describe('IncidentListScreen', () => {
     renderScreen();
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((t) => t.getAttribute('data-pill'))).toEqual(
-      ['TOTL', 'OPEN', 'ACKD', 'CLRD', 'CLSD'],
+      ['TOTAL', 'OPEN', 'ACKD', 'CLRD', 'CLSD'],
     );
-    expect(pill('TOTL')).toHaveTextContent('3');
+    expect(pill('TOTAL')).toHaveTextContent('3');
     expect(pill('OPEN')).toHaveTextContent('1');
     expect(pill('ACKD')).toHaveTextContent('1');
     expect(pill('CLRD')).toHaveTextContent('1');
     expect(pill('CLSD')).toHaveTextContent('1');
   });
 
-  it('defaults to TOTL, which is everything except closed', () => {
+  it('defaults to TOTAL, which is everything except closed', () => {
     renderScreen();
-    expect(pill('TOTL')).toHaveAttribute('aria-selected', 'true');
+    expect(pill('TOTAL')).toHaveAttribute('aria-selected', 'true');
     const text = rowIds().join(' ');
     expect(text).toContain('#30005');
     expect(text).toContain('#27516');   // acknowledged, still OPEN
@@ -121,11 +121,18 @@ describe('IncidentListScreen', () => {
   });
 
   it('gives the selected pill its own state colour', async () => {
+    // **#1B0F33 is a MEASUREMENT and this asserts the measurement.** Read
+    // 2026-09-22 from ios/BeNeM/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+    // by quantising it to eight colours: the largest cluster is #1B0F33,
+    // 799,841 of 1,048,576 pixels (76.3%). iOS asserts the identical string in
+    // IncidentPillsTests, so the two platforms cannot drift on it in silence.
     renderScreen();
-    expect(pill('TOTL').className).toContain('bg-[#c9a227]');   // gold, shared with iOS
-    expect(pill('TOTL').className).not.toContain('bg-slate');    // not grey: it is the default
-    expect(pill('TOTL').className).not.toContain('yellow-400');  // not the alarm chip's yellow
-    expect(pill('TOTL').className).not.toContain('orange-500');
+    expect(pill('TOTAL').className).toContain('bg-[#1B0F33]');   // the app icon purple
+    expect(pill('TOTAL').className).toContain('text-white');      // 18.1:1 on that purple
+    expect(pill('TOTAL').className).not.toContain('bg-slate');    // not grey: it is the default
+    expect(pill('TOTAL').className).not.toContain('#c9a227');     // and no longer the 0.19.x gold
+    expect(pill('TOTAL').className).not.toContain('yellow-400');  // not the alarm chip's yellow
+    expect(pill('TOTAL').className).not.toContain('orange-500');
     await userEvent.click(pill('OPEN'));
     expect(pill('OPEN').className).toContain('bg-red-600');
     await userEvent.click(pill('ACKD'));
@@ -134,8 +141,8 @@ describe('IncidentListScreen', () => {
     expect(pill('CLRD').className).toContain('bg-emerald-600');
     await userEvent.click(pill('CLSD'));
     expect(pill('CLSD').className).toContain('bg-slate-500');
-    await userEvent.click(pill('TOTL'));
-    expect(pill('TOTL').className).toContain('bg-[#c9a227]');
+    await userEvent.click(pill('TOTAL'));
+    expect(pill('TOTAL').className).toContain('bg-[#1B0F33]');
   });
 
   it('honours ?pill=OPEN from the Home tile', () => {
@@ -145,7 +152,19 @@ describe('IncidentListScreen', () => {
 
   it('falls back to the default pill for an unrecognised one in the URL', () => {
     renderScreen('/incidents?pill=NONSENSE');
-    expect(pill('TOTL')).toHaveAttribute('aria-selected', 'true');
+    expect(pill('TOTAL')).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('still lands a stale ?pill=TOTL link on TOTAL', () => {
+    // 0.19.1 shipped the Home tile as `/incidents?pill=TOTL`, and that link is
+    // in cached bundles and in anything anyone bookmarked. **No alias code was
+    // added for it**: an unrecognised pill already falls back to DEFAULT_PILL,
+    // and DEFAULT_PILL is TOTAL, so the old link lands exactly where it meant
+    // to. This test is what makes that a decision rather than a coincidence —
+    // it fails if the default ever moves, which the design note forbids for a
+    // different reason anyway.
+    renderScreen('/incidents?pill=TOTL');
+    expect(pill('TOTAL')).toHaveAttribute('aria-selected', 'true');
   });
 
   it('renders a CLOSED row under CLSD with a grey chip', async () => {

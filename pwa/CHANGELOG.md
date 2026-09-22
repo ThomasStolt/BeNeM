@@ -14,6 +14,36 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [0.19.2] - 2026-09-22
+
+### Changed
+
+- **TOTL is TOTAL, and the pill is two lines: the count on top, the label beneath in small
+  caps.** Side by side stopped fitting the moment the label grew a letter — at 390 px the five
+  pills share the width, ~72 px each, and after padding and a ~45 px `TOTAL` a single-line
+  `TOTAL 99999` had room for about one digit. Stacking gives the number the whole pill width.
+  Proved by rendering at 375 px with every count at 99999, not by arithmetic:
+  `docs/evidence/2026-09-22-pwa-pills-375pt.png`. `tabular-nums` on the count so the five
+  columns do not jitter as the numbers change.
+
+- **TOTAL is `#1B0F33` with white text, replacing the gold `#c9a227`.** The hex is a
+  **measurement**: quantise `ios/BeNeM/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png` to
+  eight colours and the largest cluster is `#1B0F33` — 799,841 of 1,048,576 pixels, 76.3%, the
+  icon's background field. White sits at 18.1:1 on it, so the gold's dark-text exception is
+  gone rather than inverted. iOS asserts the identical string, so the platforms cannot drift on
+  it quietly.
+
+- **A stale `/incidents?pill=TOTL` link still lands on TOTAL, with no alias code.** An
+  unrecognised pill already falls back to `DEFAULT_PILL`, and that is TOTAL — so the links
+  0.19.1 left in cached bundles and bookmarks arrive where they meant to. A test asserts it,
+  which is what makes it a decision rather than a coincidence: it fails if the default moves.
+
+> **This file has no 0.18.0 – 0.19.1 entries.** They were never written; the record for those
+> releases is `git log -- pwa/` and the monorepo handoffs. Noted here rather than silently
+> backfilled from commit messages.
+
+---
+
 ## [0.17.3] - 2026-09-19
 
 ### Fixed

@@ -8,20 +8,20 @@ import type { Incident } from '../../lib/api/types';
  *   ACKD  = state OPEN and acknowledged
  *   CLRD  = state ALARMS CLEARED
  *   CLSD  = state CLOSED, inside the middleware's 24-hour retention window
- *   TOTL  = OPEN + ACKD + CLRD                    everything EXCEPT closed
+ *   TOTAL  = OPEN + ACKD + CLRD                    everything EXCEPT closed
  *
- * **The five are DISJOINT, and TOTL excludes CLSD. Ruled 2026-09-21 (Thomas),
+ * **The five are DISJOINT, and TOTAL excludes CLSD. Ruled 2026-09-21 (Thomas),
  * changing the design note twice over.** The note had ACKD as a *subset* of
- * OPEN and `TOTL = OPEN + CLRD + CLSD`; it is neither. Every incident is in
- * exactly one of OPEN / ACKD / CLRD / CLSD, and TOTL is the union of the first
- * three — which makes TOTL exactly "not closed", the predicate this product has
+ * OPEN and `TOTAL = OPEN + CLRD + CLSD`; it is neither. Every incident is in
+ * exactly one of OPEN / ACKD / CLRD / CLSD, and TOTAL is the union of the first
+ * three — which makes TOTAL exactly "not closed", the predicate this product has
  * called "active" since 0.18.1.
  *
  * **Acknowledging therefore MOVES a row from OPEN to ACKD.** That is the
  * 2026-09-19 symptom by design rather than by accident, and the thing that keeps
- * it from being the 2026-09-19 *defect* is that **TOTL is the default tab**: the
+ * it from being the 2026-09-19 *defect* is that **TOTAL is the default tab**: the
  * row the user just acked is still on the screen they were on. Anything that
- * changes the default away from TOTL re-opens that wound.
+ * changes the default away from TOTAL re-opens that wound.
  *
  * Splitting the state from the flag is still the whole reason this module
  * exists. Until middleware 2.20.0 both clients computed acknowledgement by
@@ -29,14 +29,14 @@ import type { Incident } from '../../lib/api/types';
  * state — so "acknowledged" and "alarms cleared" shared one field and could not
  * both be true.
  */
-export type Pill = 'TOTL' | 'OPEN' | 'ACKD' | 'CLRD' | 'CLSD';
+export type Pill = 'TOTAL' | 'OPEN' | 'ACKD' | 'CLRD' | 'CLSD';
 
-export const PILLS: readonly Pill[] = ['TOTL', 'OPEN', 'ACKD', 'CLRD', 'CLSD'];
+export const PILLS: readonly Pill[] = ['TOTAL', 'OPEN', 'ACKD', 'CLRD', 'CLSD'];
 
-/** Ruled 2026-09-21 (Thomas): the list opens on TOTL — everything that is not
+/** Ruled 2026-09-21 (Thomas): the list opens on TOTAL — everything that is not
  * closed. **The Home tile still lands on OPEN and still counts OPEN** (Q5); the
  * tile names its pill in the URL rather than relying on this. */
-export const DEFAULT_PILL: Pill = 'TOTL';
+export const DEFAULT_PILL: Pill = 'TOTAL';
 
 export function isPill(v: string | null | undefined): v is Pill {
   return !!v && (PILLS as readonly string[]).includes(v);
@@ -49,8 +49,8 @@ export function inPill(incident: Incident, pill: Pill): boolean {
     case 'CLRD': return incident.state === 'ALARMS CLEARED';
     case 'CLSD': return incident.state === 'CLOSED';
     // Written as the union of its parts rather than `state !== 'CLOSED'`, so
-    // that TOTL and the sum of the pills beside it cannot drift apart.
-    case 'TOTL': return inPill(incident, 'OPEN')
+    // that TOTAL and the sum of the pills beside it cannot drift apart.
+    case 'TOTAL': return inPill(incident, 'OPEN')
       || inPill(incident, 'ACKD')
       || inPill(incident, 'CLRD');
   }
@@ -62,7 +62,7 @@ export type PillCounts = Record<Pill, number>;
  * endpoint — the list is already in hand, and a second source would be a second
  * thing that can disagree with the rows on screen. */
 export function pillCounts(incidents: readonly Incident[]): PillCounts {
-  const counts: PillCounts = { TOTL: 0, OPEN: 0, ACKD: 0, CLRD: 0, CLSD: 0 };
+  const counts: PillCounts = { TOTAL: 0, OPEN: 0, ACKD: 0, CLRD: 0, CLSD: 0 };
   for (const i of incidents) {
     for (const p of PILLS) if (inPill(i, p)) counts[p]++;
   }

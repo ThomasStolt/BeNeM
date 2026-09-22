@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom';
 
 interface Props {
-  /** The TOTL pill count — everything NOT CLOSED.
+  /** The TOTAL pill count — everything NOT CLOSED.
    *
    * Ruled 2026-09-21 (Thomas), superseding the note's Q5 "the tile is the OPEN
-   * count". **TOTL is BHNM's own Active List View**, so "Active Incidents" is
+   * count". **TOTAL is BHNM's own Active List View**, so "Active Incidents" is
    * the right label for it — and, decisively, the number does not drop the
    * moment somebody acknowledges. With disjoint pills an OPEN count would have
    * done exactly that, which is the 2026-09-19 defect by another route.
@@ -82,7 +82,7 @@ export function SummaryCards({ activeIncidents, totalDevices }: Props) {
         shadowColor={incidentShadow}
         // The tile's set is exactly one pill, so it says which one it lands on
         // rather than relying on the list's default happening to agree.
-        to="/incidents?pill=TOTL"
+        to="/incidents?pill=TOTAL"
       />
       <Card
         icon="🖥"

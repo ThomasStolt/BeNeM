@@ -68,7 +68,7 @@ describe('DashboardScreen', () => {
 
   it('renders summary cards', () => {
     renderDashboard();
-    // The tile is the TOTL count — everything NOT CLOSED, which is BHNM's own
+    // The tile is the TOTAL count — everything NOT CLOSED, which is BHNM's own
     // Active List View. Ruled 2026-09-21, superseding the note's Q5.
     expect(screen.getByText('Active Incidents')).toBeInTheDocument();
     expect(screen.getByText('Total Devices')).toBeInTheDocument();

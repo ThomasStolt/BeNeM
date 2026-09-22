@@ -218,14 +218,14 @@ choosing to see only acknowledged incidents is a different thing from the tile.
 
 iOS 2.13.6 (52), PWA 0.18.1.
 
-#### Incident list filter — TOTL / OPEN / ACKD / CLRD / CLSD (**PWA 0.19.0 built, not deployed; iOS 2.14.0 next**)
+#### Incident list filter — TOTAL / OPEN / ACKD / CLRD / CLSD (**PWA 0.19.2 live; iOS 2.14.0 (54) built, not submitted**)
 
 **Superseded the four-tab sketch recorded here on 2026-09-20.** Design and every ruling:
 `docs/superpowers/specs/2026-09-21-incident-list-filter-design.md` — approved, nothing open.
 
 | pill | contents | colour |
 |---|---|---|
-| **TOTL** | OPEN + ACKD + CLRD — everything **except** closed | gold `#c9a227` |
+| **TOTAL** | OPEN + ACKD + CLRD — everything **except** closed | the app icon's purple, `#1B0F33` |
 | **OPEN** | state `OPEN` and **not** acknowledged | red |
 | **ACKD** | state `OPEN` and acknowledged | blue |
 | **CLRD** | state `ALARMS CLEARED` | green |
@@ -236,25 +236,43 @@ OPEN  = state OPEN and NOT acknowledged
 ACKD  = state OPEN and acknowledged
 CLRD  = state ALARMS CLEARED
 CLSD  = state CLOSED, closed_at within 24h
-TOTL  = OPEN + ACKD + CLRD                    everything EXCEPT closed
+TOTAL  = OPEN + ACKD + CLRD                    everything EXCEPT closed
 ```
 
 **The five pills are DISJOINT** — every incident is in exactly one of OPEN / ACKD / CLRD / CLSD,
-and TOTL is the union of the first three. Amended 2026-09-21 (Thomas) from the design note's
+and TOTAL is the union of the first three. Amended 2026-09-21 (Thomas) from the design note's
 original subset model; the note carries the full amendment and the reason.
 
-**Acknowledging MOVES a row from OPEN to ACKD, and that is safe only because TOTL is the
+**Acknowledging MOVES a row from OPEN to ACKD, and that is safe only because TOTAL is the
 default tab** — the row the user just acked is still on the screen they were looking at.
-Moving the default away from TOTL re-opens the 2026-09-19 defect, and both platforms assert
+Moving the default away from TOTAL re-opens the 2026-09-19 defect, and both platforms assert
 the pairing in a test.
 
-**Default pill TOTL. The Home tile is "Active Incidents", its count IS the TOTL count, and it
-lands on TOTL** (`/incidents?pill=TOTL`). TOTL is BHNM's own Active List View — everything not
+**Default pill TOTAL. The Home tile is "Active Incidents", its count IS the TOTAL count, and it
+lands on TOTAL** (`/incidents?pill=TOTAL`). TOTAL is BHNM's own Active List View — everything not
 closed — so the label is right and **the number does not drop when somebody acknowledges**,
 which an OPEN-counting tile would have done under the disjoint ruling. Counts are computed client-side from the served list — no count
 endpoint. **Search matches title, device, incident id and ack user, WITHIN the selected pill**;
 it never widens the filter the user chose. **Rows unchanged** — the pills are a control above
 the existing list.
+
+**The pill is two lines — count on top, label beneath in small caps — on both platforms**
+(2026-09-22). Side by side stopped fitting when `TOTL` became `TOTAL`: at 375 pt the five pills
+share 343 pt, ~64 pt each, and a single-line `TOTAL 99999` had room for the label and about four
+digits. Rendered proof at 375 pt with every count at 99999, both platforms:
+`docs/evidence/2026-09-22-ios-pills-375pt.png` and `docs/evidence/2026-09-22-pwa-pills-375pt.png`.
+Counts use tabular figures on both so the five columns do not jitter as the numbers change.
+
+**TOTAL's `#1B0F33` is a MEASUREMENT, not a choice.** Quantise
+`ios/BeNeM/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png` to eight colours and the largest
+cluster is `#1B0F33` — 799,841 of 1,048,576 pixels, 76.3%, the icon's background field. White
+text on it (18.1:1). It replaces the gold `#c9a227` of PWA 0.19.x and the first build of iOS 54.
+**Both suites assert the literal string**, so one platform cannot drift off the other quietly.
+
+**`?pill=TOTL` still lands on TOTAL, with no alias code.** An unrecognised pill already falls
+back to `DEFAULT_PILL`, and that is TOTAL — so the links 0.19.1 put in cached bundles and
+bookmarks arrive where they meant to. A PWA test asserts it, which is what makes that a decision
+rather than a coincidence: it fails if the default ever moves.
 
 **The 2026-09-20 sketch had this wrong in two places, and both are corrected above.** It put
 `ALARMS CLEARED` in **Open** and it made **Cleared** mean *closed*; the two states are different

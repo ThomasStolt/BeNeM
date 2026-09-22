@@ -22,9 +22,9 @@ export function DashboardScreen() {
     queryClient.invalidateQueries();
   }, [queryClient]);
 
-  // **The tile IS the TOTL pill** — same function the pill row calls, so the
+  // **The tile IS the TOTAL pill** — same function the pill row calls, so the
   // number on Home and the number on the pill agree by construction rather than
-  // by two authors writing the same condition. TOTL is everything NOT CLOSED,
+  // by two authors writing the same condition. TOTAL is everything NOT CLOSED,
   // which is BHNM's own Active List View, so the label is "Active Incidents"
   // and the count does NOT drop when somebody acknowledges.
   //
@@ -32,7 +32,7 @@ export function DashboardScreen() {
   // 'active' until 0.18.1 (which dropped an incident the moment somebody acked
   // it), NOT CLOSED until 0.19.0, the OPEN pill in 0.19.0 — which with disjoint
   // pills would have re-created the 0.18.1 defect exactly.
-  const activeIncidents = pillCounts(incidents ?? []).TOTL;
+  const activeIncidents = pillCounts(incidents ?? []).TOTAL;
 
   const totalDevices = summary
     ? summary.hosts.ok + summary.hosts.ack + summary.hosts.warn + summary.hosts.un + summary.hosts.crit

@@ -53,14 +53,14 @@ describe('the five pills', () => {
   it('the five pills are DISJOINT', () => {
     const list = parsed();
     for (const i of list) {
-      const member = PILLS.filter((p) => p !== 'TOTL' && inPill(i, p));
+      const member = PILLS.filter((p) => p !== 'TOTAL' && inPill(i, p));
       expect(member, `incident ${i.incidentId}`).toHaveLength(1);
     }
     const c = pillCounts(list);
     expect([c.OPEN, c.ACKD, c.CLRD, c.CLSD]).toEqual([1, 1, 1, 1]);
-    // TOTL is the union of the first three, and EXCLUDES CLSD.
-    expect(c.TOTL).toBe(c.OPEN + c.ACKD + c.CLRD);
-    expect(c.TOTL).toBe(3);
+    // TOTAL is the union of the first three, and EXCLUDES CLSD.
+    expect(c.TOTAL).toBe(c.OPEN + c.ACKD + c.CLRD);
+    expect(c.TOTAL).toBe(3);
   });
 
   it('CLRD is exactly state ALARMS CLEARED', () => {
@@ -71,18 +71,18 @@ describe('the five pills', () => {
     expect(selectIncidents(parsed(), 'CLSD', '').map((i) => i.incidentId)).toEqual(['30007']);
   });
 
-  it('the Home tile count equals the TOTL pill count', () => {
-    // The tile IS the TOTL pill. The same class of defect as 2026-09-19: the
+  it('the Home tile count equals the TOTAL pill count', () => {
+    // The tile IS the TOTAL pill. The same class of defect as 2026-09-19: the
     // tile and the list computed the same idea twice, and one of them dropped
     // acknowledged incidents.
     const list = parsed();
-    expect(pillCounts(list).TOTL).toBe(selectIncidents(list, 'TOTL', '').length);
+    expect(pillCounts(list).TOTAL).toBe(selectIncidents(list, 'TOTAL', '').length);
   });
 
   it('the tile count does NOT drop when somebody acknowledges', () => {
-    // Why the tile is TOTL and not OPEN. With disjoint pills an OPEN count
+    // Why the tile is TOTAL and not OPEN. With disjoint pills an OPEN count
     // would fall the moment a user acted — the 0.18.1 defect by another route.
-    const before = pillCounts(parsed()).TOTL;
+    const before = pillCounts(parsed()).TOTAL;
     const acked = {
       ...SERVED,
       active_incidents: SERVED.active_incidents.map((r) =>
@@ -91,32 +91,32 @@ describe('the five pills', () => {
           : r),
     };
     const after = pillCounts(parseIncidentsResponse(acked));
-    expect(after.TOTL).toBe(before);
+    expect(after.TOTAL).toBe(before);
     expect(after.OPEN).toBe(0);
-    expect(after.OPEN).not.toBe(after.TOTL);
+    expect(after.OPEN).not.toBe(after.TOTAL);
   });
 
-  it('the default pill is TOTL', () => {
-    expect(DEFAULT_PILL).toBe('TOTL');
+  it('the default pill is TOTAL', () => {
+    expect(DEFAULT_PILL).toBe('TOTAL');
   });
 
-  it('TOTL excludes closed incidents', () => {
-    // Ruled 2026-09-21 (Thomas), changing the design note. TOTL is the default
+  it('TOTAL excludes closed incidents', () => {
+    // Ruled 2026-09-21 (Thomas), changing the design note. TOTAL is the default
     // tab, and a closed incident is not something to show somebody before they
     // have asked for it. CLSD is the one tab you opt into.
     const list = parsed();
-    expect(selectIncidents(list, 'TOTL', '').map((i) => i.incidentId).sort())
+    expect(selectIncidents(list, 'TOTAL', '').map((i) => i.incidentId).sort())
       .toEqual(['27516', '30005', '30014']);
-    expect(selectIncidents(list, 'TOTL', '').some((i) => i.state === 'CLOSED')).toBe(false);
-    expect(selectIncidents(list, 'TOTL', '').some((i) => i.acknowledged)).toBe(true);
+    expect(selectIncidents(list, 'TOTAL', '').some((i) => i.state === 'CLOSED')).toBe(false);
+    expect(selectIncidents(list, 'TOTAL', '').some((i) => i.acknowledged)).toBe(true);
     expect(pillCounts(list).CLSD).toBe(1);
     const closed = list.find((i) => i.state === 'CLOSED')!;
     expect(PILLS.filter((p) => inPill(closed, p))).toEqual(['CLSD']);
   });
 
-  it('acking moves a row from OPEN to ACKD and leaves TOTL unmoved', () => {
+  it('acking moves a row from OPEN to ACKD and leaves TOTAL unmoved', () => {
     // With disjoint pills an ack DOES move the row out of OPEN — by design.
-    // **What keeps that from being the 2026-09-19 defect is that TOTL is the
+    // **What keeps that from being the 2026-09-19 defect is that TOTAL is the
     // default tab**, so the row is still on the screen the user was looking at.
     const before = pillCounts(parsed());
     const acked = {
@@ -129,8 +129,8 @@ describe('the five pills', () => {
     const after = pillCounts(parseIncidentsResponse(acked));
     expect(after.OPEN).toBe(0);
     expect(after.ACKD).toBe(2);
-    expect(after.TOTL).toBe(before.TOTL);
-    expect(DEFAULT_PILL).toBe('TOTL');
+    expect(after.TOTAL).toBe(before.TOTAL);
+    expect(DEFAULT_PILL).toBe('TOTAL');
   });
 });
 
@@ -155,7 +155,7 @@ describe('search', () => {
   it('an empty query matches everything in the pill', () => {
     const list = parsed();
     for (const q of ['', '   ']) {
-      expect(selectIncidents(list, 'TOTL', q)).toHaveLength(3);
+      expect(selectIncidents(list, 'TOTAL', q)).toHaveLength(3);
     }
     expect(list.every((i) => matchesSearch(i, ''))).toBe(true);
   });
@@ -173,7 +173,7 @@ describe('the transition fallback', () => {
       closed_incidents: [{ incident_id: '4', title: 'd', incident_state: 'CLOSED' }],
     };
     const c = pillCounts(parseIncidentsResponse(old));
-    expect(c).toEqual({ TOTL: 3, OPEN: 1, ACKD: 1, CLRD: 1, CLSD: 1 });
+    expect(c).toEqual({ TOTAL: 3, OPEN: 1, ACKD: 1, CLRD: 1, CLSD: 1 });
 
     const acked = parseIncidentsResponse(old).find((i) => i.incidentId === '2')!;
     expect(acked.state).toBe('OPEN');
@@ -189,12 +189,12 @@ describe('the transition fallback', () => {
   });
 
   it('an unrecognised state becomes OPEN rather than vanishing', () => {
-    // TOTL is OPEN + CLRD, so a state in neither — and not CLOSED — would drop
+    // TOTAL is OPEN + CLRD, so a state in neither — and not CLOSED — would drop
     // the row out of EVERY pill. Mirrors the middleware's own state_of().
     const odd = { active_incidents: [{ incident_id: '7', title: 'z', state: 'SOMETHING NEW' }] };
     const [row] = parseIncidentsResponse(odd);
     expect(row.state).toBe('OPEN');
-    expect(PILLS.filter((p) => inPill(row, p))).toEqual(['TOTL', 'OPEN']);
+    expect(PILLS.filter((p) => inPill(row, p))).toEqual(['TOTAL', 'OPEN']);
   });
 });
 
@@ -205,7 +205,7 @@ describe('a closed row', () => {
     expect(row.closedAt).toBeInstanceOf(Date);
     expect(row.closedAt!.getTime()).toBe(Math.round(1789928537.339 * 1000));
     expect(inPill(row, 'CLSD')).toBe(true);
-    expect(inPill(row, 'TOTL')).toBe(false);
+    expect(inPill(row, 'TOTAL')).toBe(false);
     expect(inPill(row, 'OPEN')).toBe(false);
   });
 

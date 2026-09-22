@@ -99,7 +99,7 @@ const BHNM_STATES: readonly string[] = ['OPEN', 'ALARMS CLEARED', 'CLOSED'];
 
 /** BHNM's own state, with the ack flag taken back out of it.
  *
- * An unrecognised value becomes OPEN rather than passing through. TOTL is
+ * An unrecognised value becomes OPEN rather than passing through. TOTAL is
  * OPEN + CLRD + CLSD, so a state in none of the three would drop the incident
  * out of every pill and vanish it from the list entirely. Loud beats gone —
  * and this mirrors the middleware's own `state_of()` exactly, so the two ends
