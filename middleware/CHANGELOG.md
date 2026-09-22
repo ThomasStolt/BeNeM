@@ -5,6 +5,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.20.1] - 2026-09-22
+
+### Added
+
+- **The client build number is logged on `/register` and `/api/v1/incidents`** as
+  `[Client] BeNeM/54 on /register`. **The build number only** — never the raw header, whose
+  CFNetwork and Darwin versions say which OS a phone runs, and never a token.
+
+  **This exists because the gate it serves did not work.** `M1-drop` was gated on *"`BeNeM/53`
+  disappearing and only `BeNeM/54`+ remaining is a measurement; a date is not"*, and on
+  2026-09-22 that was measured and withdrawn (handoff (f)22). The only place this service
+  logged a user-agent was `[Proxy] REFUSED target not in servers.json` — **a refusal path.** A
+  fleet of perfectly working clients produces zero lines there. The whole persisted log held
+  nine such lines, the last from build 46 on 2026-09-19, while build 54 had registered
+  successfully the night before and appeared nowhere at all. "No `BeNeM/53` in the log" meant
+  *no build 53 made a refused request*, not *no build 53 is in the field*: **an empty result
+  that was never capable of being non-empty for the question being asked** — this repository's
+  own doctrine, failing on the gate for a breaking change.
+
+  So it is logged on the two paths every client actually takes: `/register` at launch and
+  `/api/v1/incidents` on every list load. `tests/test_client_build_logging.py` asserts both
+  halves — that `BeNeM/54` produces the line, **and that a caller without it produces a
+  different one**, which is what lets a later absence mean something. All four assertions fail
+  against the pre-change code.
+
+  The `/api/v1/incidents` line is emitted after `_verify_proxy_token`, so a stranger cannot
+  write into the log by asking.
+
+  **`M1-drop` is still not gated on this.** The signal starts today and has to run long enough
+  to be meaningful; until then the honest gate is Thomas's word about who is on what.
+
+---
+
 ## [2.20.0] - 2026-09-21
 
 Step 1 of the incident list filter build order

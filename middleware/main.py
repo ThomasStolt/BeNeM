@@ -122,6 +122,45 @@ def secret_fingerprint(secret: str) -> str:
     return hashlib.sha256(secret.encode()).hexdigest()[:8]
 
 
+_CLIENT_BUILD_RE = re.compile(r"\bBeNeM/(\d{1,6})\b")
+
+
+def log_client_build(request: Request | None, path: str) -> None:
+    """Log which BeNeM build made this call — **the build number and nothing else.**
+
+    This exists because the gate it serves did not work. The M1-drop gate was
+    written as *"`BeNeM/53` disappearing and only `BeNeM/54`+ remaining is a
+    measurement"*, and on 2026-09-22 it was measured and withdrawn (handoff (f)22):
+    the only place this service logged a user-agent was
+    `[Proxy] REFUSED target not in servers.json`, **a refusal path**. A fleet of
+    perfectly working clients produces zero lines there, so "no `BeNeM/53` in the
+    log" meant *no build 53 made a refused request* — an empty result that was
+    never capable of being non-empty for the question being asked. The whole
+    persisted log holds nine such lines, the last from build 46 on 2026-09-19,
+    while build 54 had registered successfully the night before and appeared
+    nowhere.
+
+    So it is logged on the two paths **every** client takes: `/register` at launch
+    and `/api/v1/incidents` on every list load. Absence here can mean something,
+    which is the entire point.
+
+    **The build number only, never the raw header and never a token.** The
+    user-agent URLSession sends is `BeNeM/<build> CFNetwork/… Darwin/…`; the
+    CFNetwork and Darwin versions say what OS the phone runs and are nobody's
+    business in a log that gets grepped and pasted. A client with no `BeNeM/<n>`
+    — a browser, a curl, a probe — logs `not-BeNeM` rather than its header.
+
+    ponytail: one line per request, no dedupe state. ~5 phones loading a list
+    every couple of minutes is a few hundred KB a day against a 5 MB x 5 rotation,
+    so ~80 days of history, and the gate needs weeks. If it ever crowds the log
+    out, dedupe per (build, hour) in a dict rather than dropping the line.
+    """
+    ua = request.headers.get("user-agent", "") if request is not None else ""
+    match = _CLIENT_BUILD_RE.search(ua)
+    client = f"BeNeM/{match.group(1)}" if match else "not-BeNeM"
+    print(f"[Client] {client} on {path}")
+
+
 def _servers_for_webhook_secret(secret: str) -> list[dict]:
     """Every server that accepts this webhook secret (S1 change 1a).
 
@@ -420,6 +459,7 @@ def register_token(body: TokenRegistration, request: Request):
     where = webhook_server_label(matches) if matches else "unresolved"
     print(f"[Register] Token saved: ...{body.token[-8:]} for {body.device_name} (APNs: {env}) "
           f"server={where} secret_fp={secret_fingerprint(active_secret)}")
+    log_client_build(request, "/register")
     return {"status": "ok"}
 
 
@@ -852,6 +892,10 @@ def health():
 async def cached_incidents(request: Request):
     """Return enriched incidents from cache; fall through to live BHNM if cache is cold."""
     _verify_proxy_token(request)
+    # AFTER the auth check, so an unauthenticated caller cannot write lines into
+    # the log by asking. Before every return, so the cache-hit path — the one
+    # every healthy client actually takes — is the one that logs.
+    log_client_build(request, "/api/v1/incidents")
 
     # Resolve server: try api_key first, then BHNM URL from X-BHNM-Target header
     api_key = request.headers.get("X-Proxy-Token", "").strip()
