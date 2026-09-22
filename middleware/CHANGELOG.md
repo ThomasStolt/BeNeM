@@ -5,6 +5,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [benem-admin 1.6.4] - 2026-09-22
+
+### Fixed
+
+- **A portal save no longer erases the fields the portal does not show.** `server_edit` built a
+  **fresh** `Server(...)` out of the form fields alone, so everything the form does not carry
+  fell back to its default:
+
+  ```python
+  servers[idx] = Server(id=id, name=name, url=url, api_key=api_key, pin=pin,
+                        cache_enabled=cache_on, cache_refresh_seconds=refresh)
+                        # webhook_secrets -> []      retain_closed -> False
+  ```
+
+  **Renaming a server in the portal wiped that server's accepted webhook secrets** — S1 change
+  1a's whole fan-out. Every device registered against it would have stopped being paged, with
+  nothing on screen to say so, and the fallback to the pre-1a single-secret lookup is the only
+  reason the blast radius was not total. `retain_closed` went off in the same stroke.
+
+  **`servers.py` got this right twice and neither one was reached.** `save_servers` writes both
+  fields back explicitly, with a comment each saying why; `load_servers` already ignores keys
+  the dataclass does not declare so the portal survives the middleware inventing new ones; and
+  `test_retain_closed_survives_a_round_trip` proved the round trip through the pair. **The test
+  was green the entire time, because it tested the layer underneath the one with the bug.** The
+  handler is the layer with the bug, and now has its own tests.
+
+  Fixed with `dataclasses.replace()` on the existing record, so a field added to `Server`
+  tomorrow is preserved without anybody remembering to extend a list. `tests/test_server_edit_
+  preserves_unknown_fields.py` asserts that against the dataclass rather than against today's
+  two fields; three of its four assertions fail against 1.6.3, checked before the fix was
+  written.
+
+  **`server_add` keeps building a fresh record, deliberately** — an add has nothing to inherit,
+  and copying the edit fix down there would hand a brand-new server another server's secrets.
+  That is asserted too.
+
+---
+
 ## [2.20.1] - 2026-09-22
 
 ### Added

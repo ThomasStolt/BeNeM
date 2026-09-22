@@ -1,11 +1,11 @@
-VERSION = "1.6.3"
+VERSION = "1.6.4"
 
 import base64
 import io
 import os
 import re
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from html import escape
 from urllib.parse import urlparse
 
@@ -491,6 +491,10 @@ async def server_add(
             f'<div class="alert alert-red">Server ID "{escape(id)}" already exists.</div>',
             status_code=422,
         )
+    # A fresh `Server(...)` is CORRECT here and must stay that way: an add has no
+    # existing record to preserve, and there is nothing it should inherit. The
+    # edit handler's fix is deliberately NOT copied down here — doing so would
+    # hand a brand-new server another server's webhook secrets. Asserted.
     new_server = Server(id=id, name=name, url=url, api_key=api_key, pin=pin,
                         cache_enabled=cache_on, cache_refresh_seconds=refresh)
     servers.append(new_server)
@@ -547,8 +551,25 @@ async def server_edit(
             '<div class="alert alert-red">Server not found.</div>',
             status_code=404,
         )
-    servers[idx] = Server(id=id, name=name, url=url, api_key=api_key, pin=pin,
-                          cache_enabled=cache_on, cache_refresh_seconds=refresh)
+    # **UPDATE the record, never rebuild it.** Until 1.6.4 this constructed a
+    # fresh `Server(...)` from the form fields alone, so every field the form
+    # does not carry fell back to its default — a rename erased that server's
+    # `webhook_secrets` (S1 1a's whole fan-out: every device on it stops being
+    # paged, with nothing on screen to say so) and turned `retain_closed` off.
+    #
+    # `servers.py` already got this right twice — `save_servers` writes both
+    # fields back with a comment each, `load_servers` ignores keys it does not
+    # declare — and `test_servers.py` proved the round-trip through them. **This
+    # handler never reached either.** The round-trip test was green throughout,
+    # because it tested the layer underneath the one with the bug.
+    #
+    # `replace()` also means a field added to `Server` tomorrow is preserved
+    # without anybody remembering to extend a list here. That is asserted
+    # against the dataclass rather than against today's two fields, in
+    # tests/test_server_edit_preserves_unknown_fields.py.
+    servers[idx] = replace(servers[idx], id=id, name=name, url=url,
+                           api_key=api_key, pin=pin, cache_enabled=cache_on,
+                           cache_refresh_seconds=refresh)
     save_servers(servers)
     await _notify_cache_reload(id)
     return templates.TemplateResponse(request, "_server_card.html", {
