@@ -62,7 +62,7 @@ from fastapi.testclient import TestClient
 import main as main_mod
 import incident_cache
 from database import init_db
-from incident_cache import SEVERITY_COUNTS_KEY, apply_ack_colour
+from incident_cache import SEVERITY_COUNTS_KEY, apply_ack_colour, derive_counts
 
 HEADERS = {"X-Proxy-Token": API_KEY, "X-BHNM-Target": TARGET}
 RED = {"red": 2, "orange": 1, "yellow": 0, "green": 0, "blue": 0}
@@ -271,19 +271,25 @@ def test_a_recovery_webhook_does_not_repaint_anything():
     assert row["alarm_counts"] == RED, "closing an incident is not acknowledging it"
 
 
-def test_ONE_derivation_function_serves_both_paths():
-    """Not two copies. The enrichment path reaches `apply_ack_colour` inside
-    `_fetch_incident_detail`; the override path reaches it through
-    `recolour_for_ack`. If either grows its own copy of the rule, the two will
-    drift — and the drift is invisible, because each looks right on its own.
+def test_ONE_derivation_function_serves_EVERY_path():
+    """Not three copies. The list path, the webhook path and enrichment all
+    reach the colour rule through `recolour`, which reads the row's own state
+    and flag rather than taking them as arguments — so a caller cannot derive a
+    colour from a fact the row does not actually carry.
+
+    Before 2.20.3 the ack rule lived in two places and the cleared rule in none.
     """
     import inspect
-    src = inspect.getsource(incident_cache.recolour_for_ack)
-    assert "apply_ack_colour" in src, "the override path must call the shared rule"
-    parse = inspect.getsource(incident_cache._fetch_incident_detail)
-    assert "apply_ack_colour" in parse, "and so must the enrichment path"
+    for fn in (incident_cache._apply_override_fields,
+               incident_cache._list_only_row,
+               incident_cache._enrich_incident):
+        assert "recolour(" in inspect.getsource(fn), \
+            f"{fn.__name__} must go through the shared rule"
+    assert "derive_counts" in inspect.getsource(incident_cache.recolour)
 
-    # And they agree on an actual value, which the greps above cannot show.
-    row = {"alarm_counts": dict(RED), SEVERITY_COUNTS_KEY: dict(RED)}
-    incident_cache.recolour_for_ack(row, True)
+    # And they agree on actual values, which the greps above cannot show.
+    row = {"state": "OPEN", "acknowledged": True,
+           "alarm_counts": dict(RED), SEVERITY_COUNTS_KEY: dict(RED)}
+    incident_cache.recolour(row)
+    assert row["alarm_counts"] == derive_counts(dict(RED), cleared=False, acknowledged=True)
     assert row["alarm_counts"] == apply_ack_colour(dict(RED), True)

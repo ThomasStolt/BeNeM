@@ -5,6 +5,67 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.20.3] - 2026-09-22
+
+### Added
+
+- **One log line per incident whose state or acknowledged flag moves, naming where the new
+  value came from.**
+
+  ```
+  [State:ThomasLabServer] incident 30035: OPEN/ack=False -> ALARMS CLEARED/ack=False (source: list)
+  [State:ThomasLabServer] incident 30032: override ACKNOWLEDGED expired after 300s (source: override expiry)
+  ```
+
+  Sources: `list`, `enrichment`, `webhook`, `override expiry`, `disappearance`. A line naming two
+  sources — `list+enrichment` — means the state and the flag moved in the same cycle and came
+  from different calls.
+
+  **Written because the log could not answer an ordinary question.** Asked on 2026-09-22 to build
+  a timeline for incident 30035 — green in BHNM, red on the phone — the only per-incident lines
+  in the whole log were the webhook's own. What `getincidents` returned for that incident on each
+  cycle, and what `getincidentdetail` said about its alarms, were **unrecorded**; the timeline had
+  to be inferred from `state_confirmed_at` and the aggregate `Cache updated` counts. The design
+  note had already withdrawn a claim for exactly this reason on 2026-09-21: *"the log does not
+  carry per-incident state."*
+
+  **The source is not decoration.** A row that goes `OPEN -> ALARMS CLEARED` because BHNM said so
+  on a list call, and one that goes there because an override expired and stopped hiding it, are
+  different events with the same before and after. The row's own line says `list` for both,
+  because that is where its new value comes from — so expiry gets its own line, and that is what
+  tells them apart afterwards.
+
+  **Silent when nothing changed**, so a steady estate produces no lines and an absence means
+  something.
+
+### Fixed
+
+- **A list call reporting `ALARMS CLEARED` now recolours the row green immediately, without
+  waiting for an enrichment.**
+
+  **Measured on incident 30035, 2026-09-22.** raspi-050 came back UP at `14:45:11Z`, BHNM
+  reported `ALARMS CLEARED`, and the served row carried the right state with a **red** chip until
+  the detail call came round at `14:48:22Z` — `counts_confirmed_at` says so. **3 min 11 s of red
+  on a green incident**, because the counts only moved on enrichment and enrichment is paced
+  across every open incident (`Enriching 6 incidents (pacing: 17.1s)`). The state was right and
+  the colour was three minutes behind it.
+
+  `alarm_counts_severity` is the way back: green is as lossy as blue, so a state returning to
+  `OPEN` restores from the snapshot rather than guessing. Enrichment still replaces the severity
+  with BHNM's own answer when it lands.
+
+- **One derivation, every path.** `recolour(inc)` reads the row's own `state` and `acknowledged`
+  and derives `alarm_counts` from the stored severity; the list path, the webhook path and
+  enrichment all go through it. Before this release the ack rule lived in two places and the
+  cleared rule in none. It reads the row rather than taking flags as arguments, so a caller
+  cannot derive a colour from a fact the row does not carry.
+
+  **Cleared beats acknowledged**, ruled here and asserted: `ALARMS CLEARED` is a fact about the
+  alarms and acknowledgement is a fact about the people, so a cleared incident somebody has
+  picked up is still cleared.
+
+---
+
 ## [2.20.2] - 2026-09-22
 
 ### Fixed

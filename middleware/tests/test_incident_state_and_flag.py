@@ -303,16 +303,37 @@ def test_refresh_works_with_incident_polling_OFF():
     assert incident_cache.get_cached("nopoll") is not None
 
 
-def test_a_refresh_keeps_the_counts_it_already_had():
+def test_a_refresh_keeps_the_SEVERITY_it_already_had_and_recolours_the_display():
+    """**Amended 2026-09-22 for 2.20.3.** This used to assert the counts came
+    back red — "a refresh keeps the counts it already had" — and that was right
+    while nothing but enrichment could change a colour.
+
+    It is now half right. The refresh still makes NO detail call, so the
+    severity it already had is the severity it keeps: red, stamped when it was
+    confirmed, with `counts_confirmed_at` unmoved. What changed is that the
+    DISPLAY colour follows the state the list just reported — BHNM says ALARMS
+    CLEARED here, so the row serves green. Measured cost of the old behaviour,
+    on incident 30035: 3 min 11 s of red chip on a green incident.
+    """
     incident_cache._cache["lab"] = CachedIncidents(
         active_incidents=[_row("30014", state="OPEN", acknowledged=True,
                                ack_user="Thomas iPhone 13 ProMax")],
         last_updated=time.time())
-    ctx, _ = _bhnm(LIST_CLEARED)
+    ctx, calls = _bhnm(LIST_CLEARED)
     with patch("incident_cache.httpx.AsyncClient", return_value=ctx):
         r = TestClient(main_mod.app).post("/api/v1/incidents/refresh", headers=HEADERS)
     row = r.json()["active_incidents"][0]
-    assert row["alarm_counts"] == {"red": 1, "orange": 0, "yellow": 0, "green": 0, "blue": 0}
+    assert row["state"] == "ALARMS CLEARED"
+    assert row["alarm_counts"] == {"red": 0, "orange": 0, "yellow": 0, "green": 1, "blue": 0}, (
+        "the display follows the state the list reported, without an enrichment"
+    )
+    assert row["alarm_counts_severity"] == {"red": 1, "orange": 0, "yellow": 0,
+                                            "green": 0, "blue": 0}, (
+        "and the severity is kept as the way back if it re-opens"
+    )
+    assert not any("getincidentdetail" in str(c.get("method", "")) for c in calls), (
+        "still list-only: no detail call was made to learn any of this"
+    )
     assert row["counts_confirmed_at"] is not None, "a KNOWN row keeps its own stamp"
     # The list row says nothing about the flag, so the refresh must not answer
     # for it — least of all with the healthy-looking value.

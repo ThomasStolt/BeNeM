@@ -299,27 +299,112 @@ def apply_ack_colour(counts: dict | None, acknowledged: bool) -> dict | None:
     return {"red": 0, "orange": 0, "yellow": 0, "green": cleared, "blue": total}
 
 
-def recolour_for_ack(inc: dict, acknowledged: bool) -> None:
-    """Re-derive one row's `alarm_counts` for a changed ack flag, in place.
+def derive_counts(severity: dict | None, *, cleared: bool, acknowledged: bool) -> dict | None:
+    """The ONE rule turning the severity counts into what a row serves.
 
-    The bridge between the override path and `apply_ack_colour`. It reads the
-    stored severity counts, so it works in BOTH directions — acking paints,
-    un-acking restores — which a function reading the already-blued counts
-    could not do.
+    **Cleared beats acknowledged.** An incident whose alarms have cleared is
+    green whether or not anybody has picked it up — `ALARMS CLEARED` is a fact
+    about the alarms, and acknowledgement is a fact about the people. Asserted
+    as `test_an_ack_on_a_cleared_incident_stays_green`.
 
-    **The fallback is stated rather than hidden.** A row cached before 2.20.2
-    has no `SEVERITY_COUNTS_KEY`, because nothing was writing one. For an ACK
-    the current counts are still the severity counts and the result is exactly
-    right. For an UN-ACK they are blue and the severity is genuinely gone, so
-    the row keeps its blue until the next enrichment re-derives it — the same
-    behaviour as before this release, for the few minutes after a deploy in
-    which it can happen at all.
+    `apply_ack_colour` already leaves green alone, so the two rules compose
+    rather than fight: a fully-cleared row handed to it has nothing left to
+    paint blue and comes back unchanged. The explicit branch here is still
+    written, because "it happens to work out" is not a rule anybody can read.
+
+    The total is preserved in both directions, so a caller summing the counts
+    still gets the alarm count.
+    """
+    if not severity:
+        return severity
+    if cleared:
+        total = sum(severity.values())
+        if not total:
+            return severity
+        return {"red": 0, "orange": 0, "yellow": 0, "green": total, "blue": 0}
+    return apply_ack_colour(severity, acknowledged)
+
+
+def recolour(inc: dict) -> None:
+    """Re-derive one row's `alarm_counts` from its stored severity and its OWN
+    current `state` and `acknowledged`, in place.
+
+    **One function, every path.** The list path calls it when `getincidents`
+    reports a new state, the webhook path calls it from `_apply_override_fields`,
+    and enrichment calls it once it has written BHNM's fresh severity. Before
+    2.20.3 the ack rule lived in two places and the cleared rule in none; two
+    copies of a colour rule are two things to keep in step, and the drift is
+    invisible because each copy looks right on its own.
+
+    It reads the row rather than taking the flags as arguments, so a caller
+    cannot pass a state the row does not actually have — the bug that shape
+    invites is a colour derived from a fact that was never written.
+
+    **The severity is the way back and is never overwritten here.** Blue says
+    "three alarms, someone has this" and green says "they have cleared"; neither
+    says which three, so nothing can be recovered from the derived counts. Only
+    enrichment replaces the severity, with BHNM's own answer.
+
+    The fallback for a row cached before the severity key existed is stated in
+    `SEVERITY_COUNTS_KEY`: its current counts are used as the severity, which is
+    exactly right on the way in and cannot restore on the way back out. The next
+    enrichment fixes it.
     """
     severity = inc.get(SEVERITY_COUNTS_KEY) or inc.get("alarm_counts")
     if severity is None:
         return
     inc[SEVERITY_COUNTS_KEY] = severity
-    inc["alarm_counts"] = apply_ack_colour(dict(severity), acknowledged)
+    inc["alarm_counts"] = derive_counts(
+        dict(severity),
+        cleared=str(inc.get("state") or "") == "ALARMS CLEARED",
+        acknowledged=bool(inc.get("acknowledged")),
+    )
+
+
+# -- One line per state or acknowledged transition ------------------------------
+
+def state_pair(inc: dict | None) -> tuple[str | None, bool | None]:
+    """The two facts a transition is about. `None` for a row that did not exist."""
+    if inc is None:
+        return (None, None)
+    return (inc.get("state"), bool(inc.get("acknowledged")))
+
+
+def log_transition(server_id: str, incident_id: str,
+                   before: tuple, after: tuple,
+                   *, state_source: str, ack_source: str) -> None:
+    """**One line per incident whose state or ack flag moved, naming WHERE the
+    new value came from.**
+
+    Written 2026-09-22 because the log could not answer an ordinary question.
+    Asked to build a timeline for incident 30035 — green in BHNM, red on the
+    phone — the only per-incident lines in the whole log were the webhook's
+    own. What `getincidents` returned for that incident on each cycle, and what
+    `getincidentdetail` said about its alarms, were **unrecorded**, so the
+    timeline had to be inferred from `state_confirmed_at` and the aggregate
+    `Cache updated` counts. The design note had already withdrawn one claim for
+    exactly this reason on 2026-09-21: *"the log does not carry per-incident
+    state."*
+
+    The source is not decoration. A row that goes OPEN -> ALARMS CLEARED because
+    BHNM said so on a list call, and one that goes there because an override
+    expired and stopped hiding it, are different events with the same before and
+    after — and telling them apart afterwards is the whole reason to write a log
+    line rather than a metric.
+
+    Silent when nothing changed, so a steady estate produces no lines at all and
+    an absence means something.
+    """
+    if before == after:
+        return
+    sources = []
+    if before[0] != after[0]:
+        sources.append(state_source)
+    if before[1] != after[1]:
+        sources.append(ack_source)
+    src = "+".join(dict.fromkeys(sources))
+    print(f"[State:{server_id}] incident {incident_id}: "
+          f"{before[0]}/ack={before[1]} -> {after[0]}/ack={after[1]} (source: {src})")
 
 
 # -- M1: the state and the flag are two facts ------------------------------------
@@ -351,7 +436,8 @@ def state_of(incident: dict) -> str:
     return "OPEN"
 
 
-def _apply_override_fields(inc: dict, state: str, at: float) -> None:
+def _apply_override_fields(inc: dict, state: str, at: float,
+                           source: str = "webhook") -> None:
     """Turn one override string into fields — the ONLY place that mapping lives.
 
     Both the legacy write and the M1 split happen here, so a webhook, a proxied
@@ -360,7 +446,7 @@ def _apply_override_fields(inc: dict, state: str, at: float) -> None:
     inc["incident_state"] = state          # unchanged from today, on purpose
     if state == "ACKNOWLEDGED":
         inc["acknowledged"] = True         # state is untouched: ACKD is a SUBSET of OPEN
-        recolour_for_ack(inc, True)
+        recolour(inc)
     elif state == "CLOSED":
         inc["state"] = "CLOSED"
         if inc.get("closed_at") is None:
@@ -369,7 +455,7 @@ def _apply_override_fields(inc: dict, state: str, at: float) -> None:
         inc["acknowledged"] = False
         # state deliberately NOT forced to OPEN: un-acking an ALARMS CLEARED
         # incident clears the flag, it does not re-open the alarms.
-        recolour_for_ack(inc, False)
+        recolour(inc)
     # **The colour moves with the flag, in the same function, or it does not
     # move at all.** Measured 2026-09-22 on the live lab: in the window between
     # an ACKNOWLEDGEMENT webhook and the next enrichment — `counts_confirmed_at`
@@ -416,6 +502,11 @@ def _enrich_incident(incident: dict, detail: dict, list_at: float,
     enriched["closed_at"] = incident.get("closed_at")
     if enriched["state"] == "CLOSED" and enriched["closed_at"] is None:
         enriched["closed_at"] = list_at
+    # BHNM's fresh severity is now in place; the DISPLAY colour is derived from
+    # it by the same function the list and webhook paths use, so enrichment
+    # cannot disagree with them about what acknowledged or cleared looks like.
+    if enriched.get(SEVERITY_COUNTS_KEY) is not None:
+        recolour(enriched)
     return enriched
 
 
@@ -501,9 +592,19 @@ def note_state_override_any_server(incident_id: str, state: str) -> int:
 def _apply_state_overrides(server_id: str, incidents: list[dict]) -> None:
     now = time.time()
     overrides = _state_overrides.get(server_id, {})
+    # **Expiry gets its own line.** A row that goes OPEN -> ALARMS CLEARED because
+    # BHNM said so, and one that goes there because an override stopped hiding it,
+    # have the same before and after — and the row's own transition line will say
+    # "list" for both, because that IS where its new value comes from. This line
+    # is what tells them apart afterwards.
     for iid in [k for k, (_, ts) in overrides.items() if now - ts > STATE_OVERRIDE_TTL]:
+        print(f"[State:{server_id}] incident {iid}: override {overrides[iid][0]} "
+              f"expired after {STATE_OVERRIDE_TTL}s (source: override expiry)")
         del overrides[iid]
     for iid in [k for k, (_, ts) in _pending_overrides.items() if now - ts > STATE_OVERRIDE_TTL]:
+        print(f"[State:{server_id}] incident {iid}: PENDING override "
+              f"{_pending_overrides[iid][0]} expired after {STATE_OVERRIDE_TTL}s "
+              f"having never been applied (source: override expiry)")
         del _pending_overrides[iid]
     if not overrides and not _pending_overrides:
         return
@@ -596,7 +697,10 @@ def _retain_closed(server_id: str, active: list[dict], closed: list[dict],
         if normalise_incident_id(inc.get("incident_id", "")) in seen:
             continue
         row = dict(inc)
-        _apply_override_fields(row, "CLOSED", at)
+        _apply_override_fields(row, "CLOSED", at, source="disappearance")
+        log_transition(server_id, str(inc.get("incident_id")),
+                       state_pair(inc), state_pair(row),
+                       state_source="disappearance", ack_source="disappearance")
         carried.append(row)
     if carried:
         print(f"[Cache:{server_id}] Retained {len(carried)} incident(s) as CLOSED — "
@@ -646,6 +750,13 @@ async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:
     delay = refresh / (n + 1) if n > 0 else refresh
     print(f"[Cache:{server_id}] Enriching {n} incidents (pacing: {delay:.1f}s between calls)")
 
+    # The rows as they were before this cycle, so a transition can name what it
+    # moved FROM. Built once, outside the loop that sleeps between detail calls.
+    prev = _cache.get(server_id)
+    known = {normalise_incident_id(i.get("incident_id", "")): i
+             for i in (*(prev.active_incidents if prev else []),
+                       *(prev.closed_incidents if prev else []))}
+
     active_enriched = []
     closed_enriched = []
 
@@ -662,6 +773,14 @@ async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:
             remember_type(server_id, inc_id, detail["alert_type"])
         enriched = _enrich_incident(incident, detail, list_at,
                                     remembered=known_type(server_id, inc_id))
+        # The state came from the list call at the top of this cycle; the flag
+        # came from THIS incident's detail call when it confirmed, and from the
+        # list row when it did not. Two facts, two sources, named separately.
+        log_transition(server_id, inc_id,
+                       state_pair(known.get(normalise_incident_id(inc_id))),
+                       state_pair(enriched),
+                       state_source="list",
+                       ack_source="enrichment" if detail.get("confirmed") else "list")
         if bucket == "active":
             active_enriched.append(enriched)
         else:
@@ -741,6 +860,15 @@ def _list_only_row(raw: dict, known: dict | None, server_id: str, list_at: float
     row["closed_at"] = (known or {}).get("closed_at")
     if row["state"] == "CLOSED" and row["closed_at"] is None:
         row["closed_at"] = list_at
+    # **The colour follows the state the list just reported, without waiting for
+    # an enrichment.** Measured 2026-09-22 on incident 30035: raspi-050 came back
+    # UP at 14:45:11Z, the list call had the incident as ALARMS CLEARED, and the
+    # chip stayed red until the detail call came round at 14:48:22Z — 3 min 11 s,
+    # because the counts only moved on enrichment and enrichment is paced across
+    # every open incident. The state was right and the colour was three minutes
+    # behind it. The severity snapshot is the way back if the state returns to
+    # OPEN before the next detail call lands.
+    recolour(row)
     return row
 
 
@@ -760,7 +888,12 @@ async def _run_list_only(client: httpx.AsyncClient, server: dict) -> None:
         iid = normalise_incident_id(raw.get("incident_id", ""))
         if not iid:
             continue
-        bucket.append(_list_only_row(raw, known.get(iid), server_id, list_at))
+        row = _list_only_row(raw, known.get(iid), server_id, list_at)
+        # A list call carries the state AND, when the row says anything about it,
+        # the flag — so both changes are attributed to it.
+        log_transition(server_id, iid, state_pair(known.get(iid)), state_pair(row),
+                       state_source="list", ack_source="list")
+        bucket.append(row)
 
     if server_retain_closed(server):
         closed = _retain_closed(server_id, active, closed, list_at)
