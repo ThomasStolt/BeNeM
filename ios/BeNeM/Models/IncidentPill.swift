@@ -66,7 +66,7 @@ enum IncidentPill: String, CaseIterable, Identifiable {
     /// The row chip reads this palette too (`NetreoIncident.chip`), so the
     /// filter row and the rows beneath it move together by construction.
     static let palette: [IncidentPill: (base: String, tint: String)] = [
-        .total: (base: "#7C3AED", tint: "#A78BFA"),
+        .total: (base: "#6D28D9", tint: "#A78BFA"),
         .open:  (base: "#DC2626", tint: "#F87171"),
         .ackd:  (base: "#2563EB", tint: "#60A5FA"),
         .clrd:  (base: "#16A34A", tint: "#4ADE80"),
@@ -115,13 +115,13 @@ enum IncidentPill: String, CaseIterable, Identifiable {
     /// also what a filled chip does everywhere else in this app.
     func glowColor(selected: Bool) -> Color { selected ? color : tint }
 
-    /// Does this pill draw a frame and a glow when it is NOT selected?
+    /// Does this pill glow when it is NOT selected?
     ///
-    /// **False for CLOSED alone**, per the mockup: unselected it is white text on
-    /// the bare plate, with no frame and no halo. It is the one tab you opt
-    /// into, and the only one that is not competing for attention when you have
-    /// not — a frame in `#FFFFFF` would be the brightest thing in the row.
-    var isFramedWhenUnselected: Bool { self != .closed }
+    /// **False for CLOSED alone.** Every pill keeps its frame unselected —
+    /// CLOSED's white frame came back on 2026-09-23 (Thomas, reversing the
+    /// frameless CLOSED of build 54's first cut) — but a white halo would be the
+    /// brightest thing in a row you are not looking at.
+    var glowsWhenUnselected: Bool { self != .closed }
 
     /// Text on top of `color` when the pill is selected. White on four;
     /// `#111114` on CLOSED, whose fill is nearly white.
@@ -218,7 +218,7 @@ struct IncidentPillBar: View {
             ForEach(IncidentPill.allCases) { pill in
                 let isSelected = pill == selected
                 let glow = IncidentPill.glow(selected: isSelected)
-                let framed = isSelected || pill.isFramedWhenUnselected
+                let glows = isSelected || pill.glowsWhenUnselected
                 Button { onSelect(pill) } label: {
                     VStack(spacing: 0) {
                         // `verbatim:` deliberately. `Text("\(anInt)")` is a
@@ -263,19 +263,13 @@ struct IncidentPillBar: View {
                     // Shadow modifiers only — no `.blur`, no material, no
                     // `UIVisualEffectView`.
                     //
-                    // **CLOSED unselected has no frame and no glow, and one
-                    // `Color.clear` does both.** A SwiftUI shadow is derived
-                    // from the alpha of what it is attached to, so a clear
-                    // stroke casts nothing — the same property the glow depends
-                    // on, used deliberately here instead of a second branch.
-                    // `isFramedWhenUnselected` still says it in words, because a
-                    // rule that only exists as a consequence is a rule nobody
-                    // can find.
+                    // **CLOSED unselected keeps its frame and loses its glow**:
+                    // the shadow colour goes to zero opacity, the stroke stays.
                     .overlay(
                         RoundedRectangle(cornerRadius: 9)
-                            .strokeBorder(framed ? pill.tint : Color.clear, lineWidth: 1.5)
+                            .strokeBorder(pill.tint, lineWidth: 1.5)
                             .shadow(color: pill.glowColor(selected: isSelected)
-                                               .opacity(framed ? glow.opacity : 0),
+                                               .opacity(glows ? glow.opacity : 0),
                                     radius: glow.radius)
                     )
                 }

@@ -148,7 +148,7 @@ final class IncidentPillsTests: XCTestCase {
     /// The ten hex values, exactly as the mockup states them. The PWA holds the
     /// identical ten in `IncidentPills.tsx`'s PALETTE and asserts them there.
     private static let expected: [IncidentPill: (base: String, tint: String)] = [
-        .total: ("#7C3AED", "#A78BFA"),
+        .total: ("#6D28D9", "#A78BFA"),
         .open:  ("#DC2626", "#F87171"),
         .ackd:  ("#2563EB", "#60A5FA"),
         .clrd:  ("#16A34A", "#4ADE80"),
@@ -200,14 +200,15 @@ final class IncidentPillsTests: XCTestCase {
         }
     }
 
-    func testCLOSEDIsFramelessAndGlowlessWhenUNSELECTED() {
-        // The one tab you opt into, and the only pill not competing for
-        // attention when you have not: a frame in #FFFFFF would be the
-        // brightest thing in a row nobody is looking at.
-        XCTAssertFalse(IncidentPill.closed.isFramedWhenUnselected)
+    func testCLOSEDIsGlowlessWhenUNSELECTED() {
+        // Thomas 2026-09-23: CLOSED keeps a white frame unselected (the frame
+        // is drawn for every pill in every state) but no glow — a white halo
+        // would be the brightest thing in a row nobody is looking at.
+        XCTAssertFalse(IncidentPill.closed.glowsWhenUnselected)
+        XCTAssertEqual(IncidentPill.closed.tintHex, "#FFFFFF", "the frame is white")
         for pill in IncidentPill.allCases where pill != .closed {
-            XCTAssertTrue(pill.isFramedWhenUnselected,
-                          "\(pill.rawValue) keeps its frame and glow unselected")
+            XCTAssertTrue(pill.glowsWhenUnselected,
+                          "\(pill.rawValue) keeps its glow unselected")
         }
     }
 
