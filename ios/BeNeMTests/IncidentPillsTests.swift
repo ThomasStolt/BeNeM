@@ -148,7 +148,7 @@ final class IncidentPillsTests: XCTestCase {
     /// The ten hex values, exactly as the mockup states them. The PWA holds the
     /// identical ten in `IncidentPills.tsx`'s PALETTE and asserts them there.
     private static let expected: [IncidentPill: (base: String, tint: String)] = [
-        .total: ("#6D28D9", "#A78BFA"),
+        .total: ("#5B21B6", "#A78BFA"),
         .open:  ("#DC2626", "#F87171"),
         .ackd:  ("#2563EB", "#60A5FA"),
         .clrd:  ("#16A34A", "#4ADE80"),

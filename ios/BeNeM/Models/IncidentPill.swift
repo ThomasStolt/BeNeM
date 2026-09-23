@@ -66,7 +66,7 @@ enum IncidentPill: String, CaseIterable, Identifiable {
     /// The row chip reads this palette too (`NetreoIncident.chip`), so the
     /// filter row and the rows beneath it move together by construction.
     static let palette: [IncidentPill: (base: String, tint: String)] = [
-        .total: (base: "#6D28D9", tint: "#A78BFA"),
+        .total: (base: "#5B21B6", tint: "#A78BFA"),
         .open:  (base: "#DC2626", tint: "#F87171"),
         .ackd:  (base: "#2563EB", tint: "#60A5FA"),
         .clrd:  (base: "#16A34A", tint: "#4ADE80"),
