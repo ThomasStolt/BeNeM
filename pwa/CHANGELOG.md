@@ -14,6 +14,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [0.19.10] - 2026-09-23
+
+### Changed
+- TOTAL's selected fill is `#5B21B6` (was `#6D28D9`); its tint stays `#A78BFA`.
+
 ## [0.19.9] - 2026-09-23
 
 ### Changed

@@ -14,7 +14,7 @@ import { PILLS, type Pill, type PillCounts } from './pills';
  * assert all ten, so the platforms cannot drift on any of them.
  */
 const PALETTE: Record<Pill, { base: string; tint: string }> = {
-  TOTAL: { base: '#6D28D9', tint: '#A78BFA' },
+  TOTAL: { base: '#5B21B6', tint: '#A78BFA' },
   OPEN: { base: '#DC2626', tint: '#F87171' },
   ACKD: { base: '#2563EB', tint: '#60A5FA' },
   CLRD: { base: '#16A34A', tint: '#4ADE80' },

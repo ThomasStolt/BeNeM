@@ -131,7 +131,7 @@ describe('IncidentListScreen', () => {
    * in `IncidentPill.palette` and asserts them there, so neither platform can
    * drift on any of them in silence. */
   const PALETTE = {
-    TOTAL: { base: 'rgb(109, 40, 217)', tint: 'rgb(167, 139, 250)', hex: ['#6D28D9', '#A78BFA'] },
+    TOTAL: { base: 'rgb(91, 33, 182)', tint: 'rgb(167, 139, 250)', hex: ['#5B21B6', '#A78BFA'] },
     OPEN: { base: 'rgb(220, 38, 38)', tint: 'rgb(248, 113, 113)', hex: ['#DC2626', '#F87171'] },
     ACKD: { base: 'rgb(37, 99, 235)', tint: 'rgb(96, 165, 250)', hex: ['#2563EB', '#60A5FA'] },
     CLRD: { base: 'rgb(22, 163, 74)', tint: 'rgb(74, 222, 128)', hex: ['#16A34A', '#4ADE80'] },
@@ -192,7 +192,7 @@ describe('IncidentListScreen', () => {
 
   it('draws the two glow radii, and never a filter', async () => {
     renderScreen();
-    expect(pill('TOTAL').style.boxShadow).toBe('0 0 14px #6D28D9D9');   // selected
+    expect(pill('TOTAL').style.boxShadow).toBe('0 0 14px #5B21B6D9');   // selected
     expect(pill('OPEN').style.boxShadow).toBe('0 0 4px #F871718C');     // unselected
     await userEvent.click(pill('OPEN'));
     expect(pill('OPEN').style.boxShadow).toBe('0 0 14px #DC2626D9');
