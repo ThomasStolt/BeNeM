@@ -4,6 +4,119 @@
 verified on a raspi-050 cycle. PWA 0.19.7 is live. iOS 2.14.0 (54) is Debug on one phone and
 NOT submitted.**
 
+---
+
+## UPDATE 2026-09-23T17:06Z — supersedes (a), (b) and (e) below
+
+**Observed 17:06Z, not recalled:**
+
+| component | version | evidence |
+|---|---|---|
+| **middleware** | **2.21.1** | `/health` → `{"status":"running","version":"2.21.1"}`, container up 2 h |
+| **benem-admin** | **1.6.5** | `VERSION = "1.6.5"` in the running container |
+| **PWA** | **0.19.10** | bundle `index-BLytN5Fe.js` reads `"0.19.10"` |
+| **iOS** | **2.14.0 (54) — ARCHIVED AND EXPORTED, AWAITING THOMAS'S UPLOAD** | tag `ios-2.14.0-54` on `95a8aa0` |
+
+**Rollback tags:**
+- `bhnm-apns-bhnm-apns:pre-2.21.1` holds 2.21.0.
+- `bhnm-apns-benem-pwa:pre-0.19.8`, `pre-0.19.9` and `pre-0.19.10` hold 0.19.7, 0.19.8 and 0.19.9.
+- Each one was read back out of the image after tagging.
+
+**On `main` but NOT deployed:** `e4f500a`, one log line per absence check. It rides with the next
+middleware release.
+- **The VPS checkout has already pulled it**, because the PWA deploys were done with
+  `git pull` plus a pwa-only rebuild; `upgrade.sh` would have rebuilt the middleware too.
+- So the next `upgrade.sh` will not see `incident_cache.py` as changed. It still rebuilds
+  `bhnm-apns` provided that release touches a middleware file, which its `VERSION` bump does.
+
+### iOS 2.14.0 (54), the store build
+
+- **Archive:** `~/Library/Developer/Xcode/Archives/2026-09-23/BeNeM 2.14.0 (54).xcarchive`.
+  It shows in Xcode's Organizer.
+- **Exported IPA:** `~/dev/BeNeM-export-2.14.0-54/BeNeM.ipa` (2,799,283 bytes).
+- **Export options:** `app-store-connect`, `destination: export`, `signingStyle: automatic`,
+  teamID `8L27BJGYXP`, `manageAppVersionAndBuildNumber: false`. The same as 53.
+- **Not uploaded.** Upload is Thomas's step. Per root `CLAUDE.md` it re-exports with identical
+  options, differing only in `destination: upload`.
+
+Read out of the unzipped IPA:
+
+| check | value |
+|---|---|
+| `CFBundleShortVersionString` / `CFBundleVersion` | 2.14.0 / 54 |
+| `CFBundleIdentifier` | `com.tstolt.benem` |
+| `aps-environment` | **production** (the archive's own app reads `development`, as with 53) |
+| `get-task-allow` | false |
+| Authority | Apple Distribution: Thomas Stolt (8L27BJGYXP) |
+| `embedded.mobileprovision` | **present** — `iOS Team Store Provisioning Profile: com.tstolt.benem`, no `ProvisionedDevices`, profile `aps-environment: production` |
+| `*.xctest` | 0 |
+
+**What is in 54 over 53:**
+- the five incident pills and search;
+- CLOSED rows;
+- the silent poll at **30 s** (C19);
+- TOTAL `#5B21B6` / `#A78BFA`, and CLOSED with a white frame and no glow when unselected.
+
+**Only Debug has run on a phone** (the 13 Pro Max). No device has run the Release build.
+
+**iOS suite:** 74 green on six completed runs at `95a8aa0`.
+- **One earlier run reported `74 tests, 1 failure` and was not captured.** It never recurred, so
+  the failing test is unidentified. Suspect a timing test (the 0.05 s poll tests).
+- **Every other run failed to launch** with `Application failed preflight checks` (simulator
+  Busy). That is the environment, not a test.
+
+### What (e) became
+
+1. **Row inserted before the push — DONE, 2.21.1, verified on 30056** (cache-publish note §10).
+   **New open item:** the insert checks "known" before awaiting the detail and never checks again,
+   so a list poll landing inside that await gets overwritten. Harmless on 30056, but it breaks "a
+   known incident is unchanged". Fix: re-check before the merge.
+2. **TOTAL darker — DONE**, twice: `#6D28D9` (0.19.8), then **`#5B21B6`** (0.19.10); iOS 54 the same.
+3. **CLOSED white frame unselected, no glow — DONE**, 0.19.8 / iOS 54.
+4. **Client silent poll to 30 s — DONE**, 0.19.9 / iOS 54.
+
+### Parking list, in order
+
+1. **CLSD retention is in memory, so every middleware deploy empties it.** Unchanged, see (f)1.
+2. **`M1-drop`.** Now gated on 54 reaching the store and `BeNeM/53` leaving the `[Client]` lines.
+3. **Per-notification-type switches, per phone.** Delivery step, not the cache.
+4. **iOS prints the full device token in Debug.**
+5. **`build_and_deploy.sh` builds Release.** Worked around all day by building Debug directly
+   with `xcodebuild -configuration Debug` + `devicectl`.
+6. **The detail screen refetches instead of rendering the cached row when offline.**
+7. **Does the app clear its own notifications on launch?**
+8. **The two SE experiments.**
+9. **C13's lab measurement.** Not unasked.
+10. **The 09-19 security tail.**
+11. **New — the webhook-insert race** (above).
+12. **New — a reopen keeps a green chip on an OPEN row until the next enrichment.** Seen on 30058:
+    served OPEN at 16:06:32Z, Thomas saw red at 16:08:35Z. **[INFERENCE]** The list path recolours
+    from the last severity snapshot, and that snapshot read the alarm UP. Per-incident enrichment
+    results are not logged, so this is unconfirmed. Evidence:
+    `docs/evidence/2026-09-23-reopen-30058.md`.
+13. **New — `notification_number` is not logged**, so RENOTIFY cannot be read after the fact.
+14. **New — the unidentified iOS test failure** (above).
+
+### BHNM tickets — EXTERNAL, not ours to fix
+
+Two are **recorded as opened by Thomas** (09-18 handoff §9):
+
+1. **`ha_status_api.php` behind a terminating proxy.** It answers "API require HTTPS connection."
+   over real HTTPS and ignores `X-Forwarded-Proto`. Worked around.
+   `docs/evidence/2026-09-18-bhnm-ha-status-https-bug.md`.
+2. **No api_key-readable version endpoint on-prem.** The topology shows "version unknown" there by
+   design.
+
+Two more BHNM behaviours are **measured, but NOT recorded anywhere as filed tickets.** Thomas to
+confirm:
+
+3. **No webhook for the OPEN→ALARMS CLEARED transition.** 30008–30011 on BHNM-B (2026-09-21), and
+   both clears of 30058 (2026-09-23).
+4. **No webhook when an incident re-opens (ALARMS CLEARED→OPEN).** 30058, 16:06:30Z: same incident
+   id, no notification of any kind. `docs/evidence/2026-09-23-reopen-30058.md`.
+
+---
+
 **Earlier state lives in `docs/superpowers/2026-09-22-incident-list-filter-handoff.md`** and is
 not repeated. Read its (f) WITHDRAWN table before resurrecting anything.
 
