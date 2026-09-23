@@ -974,6 +974,12 @@ async def refresh_incidents(request: Request):
     letting a cached answer pass as a new measurement.
     """
     _verify_proxy_token(request)
+    # C20 — the refresh endpoint logs a [Client] line too. Without it the call
+    # cannot be attributed: on 2026-09-23 the refresh at 07:00:37.783Z was the
+    # reason iOS saw incident 30045 and the PWA did not, and the log could not
+    # say which client made it. /register and GET /api/v1/incidents gained the
+    # line in 2.20.1; this route was missed.
+    log_client_build(request, "/api/v1/incidents/refresh")
 
     server_cfg = _resolve_server_config(request)
     if not server_cfg or not server_cfg.get("id"):

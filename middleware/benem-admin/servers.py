@@ -24,6 +24,15 @@ class Server:
     # next portal save silently turns retention back off. Mirrors
     # config.CLSD_RETENTION_DEFAULT in the middleware (separate app).
     retain_closed: bool = False
+    # C19 (middleware 2.21.0): the LIST cadence, per server. Added beside
+    # cache_refresh_seconds, which keeps its meaning as the ENRICHMENT cadence
+    # and is deliberately NOT renamed — the C6 rename is deferred to a migration
+    # that reads the old key. Not portal-editable, but it MUST round-trip a
+    # portal save, or the next edit silently puts the server back to the 30 s
+    # default. Same trap as webhook_secrets and retain_closed; see
+    # tests/test_server_edit_preserves_unknown_fields.py, which asserts every
+    # non-form field survives rather than today's list of them.
+    list_poll_seconds: int = 30
 
 
 def load_servers() -> list[Server]:
@@ -53,7 +62,8 @@ def save_servers(servers: list[Server]) -> None:
         # device would stop being paged with nothing on screen to say so.
         {"id": s.id, "name": s.name, "url": s.url, "api_key": s.api_key, "pin": s.pin,
          "cache_enabled": s.cache_enabled, "cache_refresh_seconds": s.cache_refresh_seconds,
-         "webhook_secrets": list(s.webhook_secrets), "retain_closed": s.retain_closed}
+         "webhook_secrets": list(s.webhook_secrets), "retain_closed": s.retain_closed,
+         "list_poll_seconds": s.list_poll_seconds}
         for s in servers
     ]
     with open(path, "r+") as f:

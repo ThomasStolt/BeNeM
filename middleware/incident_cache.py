@@ -16,7 +16,8 @@ import database
 import diagnostics
 
 from config import (SERVERS_JSON_PATH, BHNM_TLS_VERIFY, PROXY_TIMEOUT, RETENTION_SECONDS,
-                    server_cache_enabled, server_retain_closed)
+                    server_cache_enabled, server_retain_closed,
+                    server_list_poll_seconds)
 
 # -- Cache storage -------------------------------------------------------------
 
@@ -35,7 +36,7 @@ class CachedIncidents:
     list_updated: float = 0.0
 
 _cache: dict[str, CachedIncidents] = {}
-_tasks: dict[str, asyncio.Task] = {}
+_tasks: dict[str, list[asyncio.Task]] = {}   # C19: one list loop + one enrichment loop per server
 
 
 def get_cached(server_id: str) -> CachedIncidents | None:
@@ -135,7 +136,8 @@ async def _fetch_incident_detail(client: httpx.AsyncClient, server: dict, incide
         # (C11) and is deliberately left in place until the clients that render
         # UNKNOWN are in the field — build order step 6, after the store release.
         # Until then the row lies about its type and tells the truth about its age.
-        return {"alarm_counts": None, "alert_type": "host", "confirmed": False}
+        return {"alarm_counts": None, "alert_type": "host", "confirmed": False,
+                "bhnm_state": None}
 
     incident = data.get("incident", {})
     detail = incident.get("detail", {})
@@ -178,6 +180,10 @@ async def _fetch_incident_detail(client: httpx.AsyncClient, server: dict, incide
     return {"alarm_counts": counts, SEVERITY_COUNTS_KEY: severity,
             "alert_type": alert_type, "confirmed": True,
             "acknowledged": acknowledged,
+            # C17 — BHNM's own word on the state, carried out so the absence
+            # check can read it without a second call. `None` when the body
+            # carried no incident at all, which is "not found".
+            "bhnm_state": (incident.get("incident_state") or None),
             "ack_user": (incident.get("ack_user") or None)}
 
 
@@ -372,7 +378,8 @@ def state_pair(inc: dict | None) -> tuple[str | None, bool | None]:
 
 def log_transition(server_id: str, incident_id: str,
                    before: tuple, after: tuple,
-                   *, state_source: str, ack_source: str) -> None:
+                   *, state_source: str, ack_source: str,
+                   raw: tuple | None = None) -> None:
     """**One line per incident whose state or ack flag moved, naming WHERE the
     new value came from.**
 
@@ -403,8 +410,15 @@ def log_transition(server_id: str, incident_id: str,
     if before[1] != after[1]:
         sources.append(ack_source)
     src = "+".join(dict.fromkeys(sources))
+    # C20 — when an override is holding a different value from the one the list
+    # reported, say BOTH. The served value is the headline, because that is what
+    # anybody reading this line is trying to explain; the list value is what
+    # tells them an override is why it differs.
+    aside = ""
+    if raw is not None and raw != after:
+        aside = f"  [list said: {raw[0]}/ack={raw[1]}]"
     print(f"[State:{server_id}] incident {incident_id}: "
-          f"{before[0]}/ack={before[1]} -> {after[0]}/ack={after[1]} (source: {src})")
+          f"{before[0]}/ack={before[1]} -> {after[0]}/ack={after[1]} (source: {src}){aside}")
 
 
 # -- M1: the state and the flag are two facts ------------------------------------
@@ -728,85 +742,90 @@ def _prune_aged(server_id: str, rows: list[dict], now: float) -> list[dict]:
 
 # -- Cache loop ----------------------------------------------------------------
 
-async def _run_one_cycle(client: httpx.AsyncClient, server: dict) -> None:
+async def _run_list_and_publish(client: httpx.AsyncClient, server: dict) -> None:
+    """C19's list cadence: one `getincidents`, published at once.
+
+    This is the whole of what used to be the top of `_run_one_cycle`, minus the
+    enrichment that used to hold its answer hostage. One request per server per
+    `list_poll_seconds`, whatever the incident count.
+    """
+    data = await _fetch_incidents(client, server)
+    await publish_list(client, server, data, time.time(), origin="Cache")
+
+
+def _apply_detail_to_cached_row(server_id: str, incident_id: str, detail: dict,
+                                remembered: str | None = None) -> None:
+    """C18 — ONE row's counts, published the moment its detail call lands.
+
+    The cache is mutated in place rather than swapped, which is what makes the
+    publish per-row. A failed detail leaves the row's state and its existing
+    counts alone: C11 says a failed enrichment is never cached, and under C18
+    that gains a second meaning — it must not roll back a state the LIST already
+    confirmed.
+    """
+    entry = _cache.get(server_id)
+    if entry is None:
+        return
+    iid = normalise_incident_id(incident_id)
+    for row in (*entry.active_incidents, *entry.closed_incidents):
+        if normalise_incident_id(row.get("incident_id", "")) != iid:
+            continue
+        if not detail.get("confirmed"):
+            # C10 — a type learned earlier from a confirmed call is a FACT.
+            row["alert_type"] = row.get("alert_type") or remembered or "host"
+            return
+        row[SEVERITY_COUNTS_KEY] = detail.get(SEVERITY_COUNTS_KEY)
+        row["alert_type"] = detail.get("alert_type", "host")
+        row["acknowledged"] = bool(detail.get("acknowledged"))
+        row["ack_user"] = detail.get("ack_user") or None
+        # The display colour is derived from the fresh severity by the one
+        # function the list and webhook paths use (2.20.3).
+        recolour(row)
+        row["counts_confirmed_at"] = time.time()
+        _apply_state_overrides(server_id, [row])
+        entry.last_updated = time.time()
+        return
+
+
+async def _run_enrichment_sweep(client: httpx.AsyncClient, server: dict) -> None:
+    """C19's enrichment cadence: one `getincidentdetail` per cached incident,
+    paced over `cache_refresh_seconds`, each published as it lands.
+
+    It no longer takes a list of its own. The list loop owns state; this owns
+    `alarm_counts` and `counts_confirmed_at`. That is C9's two stamps finally
+    having two writers, instead of one write at the end of a cycle re-coupling
+    what C9 separated.
+    """
     server_id = server["id"]
     refresh = max(60, min(900, server.get("cache_refresh_seconds", 120)))
-
-    try:
-        data = await _fetch_incidents(client, server)
-    except Exception as e:
-        print(f"[Cache:{server_id}] Failed to fetch incidents: {e}")
-        raise  # propagate so the loop records a telemetry failure (not a false success)
-
-    # C9 — stamp the LIST result the moment it lands, not at the end of the
-    # cycle. Every incident's state is confirmed as of this instant.
-    list_at = time.time()
-
-    active_raw = data.get("active_incidents", [])
-    closed_raw = data.get("closed_incidents", [])
-    all_incidents = [(inc, "active") for inc in active_raw] + [(inc, "closed") for inc in closed_raw]
-
-    n = len(all_incidents)
-    delay = refresh / (n + 1) if n > 0 else refresh
+    entry = _cache.get(server_id)
+    if entry is None:
+        return
+    ids = [str(i.get("incident_id")) for i in (*entry.active_incidents, *entry.closed_incidents)
+           if i.get("incident_id")]
+    n = len(ids)
+    if not n:
+        return
+    delay = refresh / (n + 1)
     print(f"[Cache:{server_id}] Enriching {n} incidents (pacing: {delay:.1f}s between calls)")
-
-    # The rows as they were before this cycle, so a transition can name what it
-    # moved FROM. Built once, outside the loop that sleeps between detail calls.
-    prev = _cache.get(server_id)
-    known = {normalise_incident_id(i.get("incident_id", "")): i
-             for i in (*(prev.active_incidents if prev else []),
-                       *(prev.closed_incidents if prev else []))}
-
-    active_enriched = []
-    closed_enriched = []
-
-    for i, (incident, bucket) in enumerate(all_incidents):
-        inc_id = str(incident.get("incident_id", ""))
-        if not inc_id:
-            continue
+    for i, inc_id in enumerate(ids):
         try:
             detail = await _fetch_incident_detail(client, server, inc_id)
         except Exception as e:
             print(f"[Cache:{server_id}] Error fetching detail for incident {inc_id}: {e}")
-            detail = {"alarm_counts": None, "alert_type": "host", "confirmed": False}
+            detail = {"alarm_counts": None, "alert_type": "host", "confirmed": False,
+                      "bhnm_state": None}
         if detail.get("confirmed") and detail.get("alert_type"):
             remember_type(server_id, inc_id, detail["alert_type"])
-        enriched = _enrich_incident(incident, detail, list_at,
+        _apply_detail_to_cached_row(server_id, inc_id, detail,
                                     remembered=known_type(server_id, inc_id))
-        # The state came from the list call at the top of this cycle; the flag
-        # came from THIS incident's detail call when it confirmed, and from the
-        # list row when it did not. Two facts, two sources, named separately.
-        log_transition(server_id, inc_id,
-                       state_pair(known.get(normalise_incident_id(inc_id))),
-                       state_pair(enriched),
-                       state_source="list",
-                       ack_source="enrichment" if detail.get("confirmed") else "list")
-        if bucket == "active":
-            active_enriched.append(enriched)
-        else:
-            closed_enriched.append(enriched)
         if (i + 1) % 20 == 0:
             print(f"[Cache:{server_id}] Progress: {i + 1}/{n}")
         if delay > 0.1:
             await asyncio.sleep(delay)
-
-    if server_retain_closed(server):
-        closed_enriched = _retain_closed(server_id, active_enriched, closed_enriched, list_at)
-        closed_enriched = _prune_aged(server_id, closed_enriched, list_at)
-        active_enriched = _prune_aged(server_id, active_enriched, list_at)
-
-    _apply_state_overrides(server_id, active_enriched)
-    _apply_state_overrides(server_id, closed_enriched)
-    _cache[server_id] = CachedIncidents(
-        active_incidents=active_enriched,
-        closed_incidents=closed_enriched,
-        last_updated=time.time(),
-        list_updated=list_at,
-    )
     oldest, unconfirmed = freshness(_cache[server_id])
     age = f"{round(time.time() - oldest)}s" if oldest is not None else "n/a"
-    print(f"[Cache:{server_id}] Cache updated: {len(active_enriched)} active, "
-          f"{len(closed_enriched)} closed, oldest enrichment {age}, "
+    print(f"[Cache:{server_id}] Enrichment sweep done: oldest enrichment {age}, "
           f"{unconfirmed} unconfirmed")
 
 
@@ -872,36 +891,181 @@ def _list_only_row(raw: dict, known: dict | None, server_id: str, list_at: float
     return row
 
 
-async def _run_list_only(client: httpx.AsyncClient, server: dict) -> None:
-    server_id = server["id"]
-    data = await _fetch_incidents(client, server)
-    list_at = time.time()
+async def _confirm_absence(client: httpx.AsyncClient, server: dict,
+                           row: dict) -> tuple[str, str | None]:
+    """C17 — a row absent from the list is CHECKED, not assumed closed.
 
+    Returns `(verdict, state)`:
+
+    * `("closed", state)` — BHNM says CLOSED, or has no such incident. Retain.
+    * `("active", state)` — BHNM says OPEN or ALARMS CLEARED. Keep it active
+      with that state.
+    * `("unknown", None)` — **the check could not be made.** Keep the row
+      exactly as it is, touch nothing, and let the next list poll try again.
+
+    **[MEASURED 2026-09-23] The defect this removes:** incident 30045 was served
+    CLOSED at 07:00:55Z while BHNM's own `incident_log` had it `OPEN` — opened
+    07:00:12, not closed until 07:10:29. Absence from a list was read as a
+    close, and nothing asked.
+
+    Absence is still a real close signal and must stay one. [MEASURED
+    2026-09-21] incident 30014 produced zero webhook lines and simply vanished;
+    without the disappearance rule it would have had no CLSD row at all. What
+    C17 changes is that the middleware now asks before asserting.
+
+    **"Not found" retains.** BHNM has forgotten the incident, which is a close
+    by another name, and the alternative is a row that never ages out.
+
+    **A FAILED check does not retain, and that is the correction this rule got
+    in review.** A transport error is not evidence of a close any more than it
+    is evidence of an open — and the two mistakes are not symmetric in cost.
+    Retaining on failure turns one timeout into a CLOSED row served for the
+    whole 24-hour window (C15), on an incident somebody may be paged for.
+    Keeping it active costs one extra `getincidentdetail` on the next poll.
+
+    **Nothing lives for ever on the strength of this.** The row keeps its old
+    `state_confirmed_at` — the check did not happen, so no confirmation is
+    dated — which means C16 leaves it eligible and the very next list poll picks
+    it up again. It ages out the moment ONE check succeeds, in whichever
+    direction that check answers.
+    """
+    iid = str(row.get("incident_id"))
+    try:
+        detail = await _fetch_incident_detail(client, server, iid)
+    except Exception as e:
+        # Belt and braces: _fetch_incident_detail swallows its own transport
+        # errors today, so this branch should be unreachable. It is kept so a
+        # future raise cannot silently become a close.
+        print(f"[Cache:{server['id']}] Absence check raised for incident {iid}: {e} "
+              f"— keeping it active with its last state, will retry")
+        return ("unknown", None)
+    # **`confirmed` is what separates a failed call from a real "not found".**
+    # `_fetch_incident_detail` returns `confirmed: False` when the call or the
+    # parse failed, and `confirmed: True` with no incident when BHNM answered
+    # and has no such incident. Both leave `bhnm_state` None, so reading the
+    # state alone cannot tell them apart — which is how the first cut of this
+    # function retained on a transport error while believing it did not.
+    if not detail.get("confirmed"):
+        print(f"[Cache:{server['id']}] Absence check failed for incident {iid} "
+              f"— keeping it active with its last state, will retry")
+        return ("unknown", None)
+    state = detail.get("bhnm_state")
+    if state in ("OPEN", "ALARMS CLEARED"):
+        return ("active", state)
+    return ("closed", state)
+
+
+async def publish_list(client: httpx.AsyncClient, server: dict,
+                       data: dict, list_at: float, *, origin: str) -> None:
+    """C16 + C17 + C18 — merge one list result into the cache, IMMEDIATELY.
+
+    The single path by which a `getincidents` answer reaches the cache. The
+    background list loop calls it and so does the Refresh endpoint; before
+    2.21.0 those were two code paths and the slower one won by finishing last.
+
+    **C18 — this publishes state and `acknowledged` the moment the list lands,
+    with no enrichment in between.** [MEASURED 2026-09-23] The old cycle held
+    30046's `ALARMS CLEARED` from 07:07:36.490Z until 07:09:17.555Z: **101
+    seconds in which the middleware had the right answer and served the old
+    one**, because the cache was written once, at the end of the loop.
+
+    **C16 — a publish from a list taken at `list_at` may not overwrite a row
+    whose `state_confirmed_at` is NEWER than `list_at`, and may not treat such a
+    row as disappeared.** `state_confirmed_at` already records every row's
+    vintage and nothing compared them, so the older writer won by arriving
+    later. The comparison is per ROW, not per publish: a cycle carrying one
+    stale row still publishes the other four.
+    """
+    server_id = server["id"]
     prev = _cache.get(server_id)
     known = {normalise_incident_id(i.get("incident_id", "")): i
              for i in (*(prev.active_incidents if prev else []),
                        *(prev.closed_incidents if prev else []))}
 
     active, closed = [], []
-    for raw, bucket in ([(i, active) for i in data.get("active_incidents", [])]
-                        + [(i, closed) for i in data.get("closed_incidents", [])]):
+    raw_pairs: dict[str, tuple] = {}
+    befores: dict[str, tuple] = {}
+    seen: set[str] = set()
+    protected = 0
+
+    def place(row):
+        (closed if row.get("state") == "CLOSED" else active).append(row)
+
+    for raw, from_closed in ([(i, False) for i in data.get("active_incidents", [])]
+                             + [(i, True) for i in data.get("closed_incidents", [])]):
         iid = normalise_incident_id(raw.get("incident_id", ""))
         if not iid:
             continue
-        row = _list_only_row(raw, known.get(iid), server_id, list_at)
-        # A list call carries the state AND, when the row says anything about it,
-        # the flag — so both changes are attributed to it.
-        log_transition(server_id, iid, state_pair(known.get(iid)), state_pair(row),
-                       state_source="list", ack_source="list")
-        bucket.append(row)
+        seen.add(iid)
+        k = known.get(iid)
+        befores[iid] = state_pair(k)
+        # C16 — this row has been confirmed since the list was taken. The list
+        # is not wrong, it is OLD, and old must not win.
+        if k is not None and (k.get("state_confirmed_at") or 0) > list_at:
+            protected += 1
+            place(k)
+            continue
+        row = _list_only_row(raw, k, server_id, list_at)
+        raw_pairs[iid] = state_pair(row)
+        place(row)
+
+    # Rows the list did not mention.
+    for iid, k in known.items():
+        if iid in seen:
+            continue
+        befores[iid] = state_pair(k)
+        # C16 again — a row confirmed AFTER the list was taken could not have
+        # been in it. Absence from a list that predates the row is not absence.
+        if (k.get("state_confirmed_at") or 0) > list_at:
+            protected += 1
+            place(k)
+            continue
+        # Already been through C17 on an earlier poll. Re-asking every interval
+        # would have been six calls a poll on the measured estate.
+        if k.get("state") == "CLOSED" and k.get("closed_at") is not None:
+            place(k)
+            continue
+        if not server_retain_closed(server):
+            # Retention is off, so there is nothing to retain — but an incident
+            # BHNM still has OPEN must not be dropped on an absence either.
+            verdict, state = await _confirm_absence(client, server, k)
+            if verdict == "unknown":
+                # The check could not be made, so nothing is known and nothing
+                # is written — not even the stamp. C16 then leaves the row
+                # eligible and the next poll re-checks it.
+                place(k)
+            elif verdict == "active":
+                row = dict(k)
+                row["state"] = state
+                row["incident_state"] = state
+                row["state_confirmed_at"] = list_at
+                recolour(row)
+                place(row)
+            continue
+        verdict, state = await _confirm_absence(client, server, k)
+        if verdict == "unknown":
+            # Untouched, stamp included. A failed check must not close a row,
+            # and must not date a confirmation that did not happen.
+            place(k)
+            continue
+        row = dict(k)
+        if verdict == "active":
+            row["state"] = state
+            row["incident_state"] = state
+            row["state_confirmed_at"] = list_at
+            recolour(row)
+        else:
+            _apply_override_fields(row, "CLOSED", list_at, source="disappearance")
+            recolour(row)
+        place(row)
 
     if server_retain_closed(server):
-        closed = _retain_closed(server_id, active, closed, list_at)
         closed = _prune_aged(server_id, closed, list_at)
         active = _prune_aged(server_id, active, list_at)
 
     _apply_state_overrides(server_id, active)
     _apply_state_overrides(server_id, closed)
+
     _cache[server_id] = CachedIncidents(
         active_incidents=active,
         closed_incidents=closed,
@@ -912,8 +1076,24 @@ async def _run_list_only(client: httpx.AsyncClient, server: dict) -> None:
         last_updated=list_at,
         list_updated=list_at,
     )
-    print(f"[Refresh:{server_id}] List refreshed: {len(active)} active, {len(closed)} closed, "
-          f"no detail calls")
+
+    # C20 — the transition lines are written HERE, after the overrides, so they
+    # report what is SERVED. Until 2.21.0 they were emitted inside the row loop
+    # and described the list instead: [MEASURED 2026-09-23T07:11:59.949Z] the
+    # line read `30046: CLOSED -> ALARMS CLEARED (source: list)` while the
+    # served row was CLOSED under a live RECOVERY override. A log line that
+    # disagrees with the payload is worse than no line, because it is believed.
+    for row in (*active, *closed):
+        iid = normalise_incident_id(row.get("incident_id", ""))
+        before = befores.get(iid, (None, None))
+        log_transition(server_id, iid, before, state_pair(row),
+                       state_source="list", ack_source="list",
+                       raw=raw_pairs.get(iid))
+
+    retained = sum(1 for r in closed if r.get("closed_at") is not None)
+    extra = f", {protected} newer than this list" if protected else ""
+    print(f"[{origin}:{server_id}] List published: {len(active)} active, "
+          f"{len(closed)} closed, {retained} retained{extra}")
 
 
 async def refresh_server(server: dict) -> dict:
@@ -941,7 +1121,8 @@ async def refresh_server(server: dict) -> dict:
         if prev and time.time() - prev[0] < REFRESH_WINDOW:
             return {**prev[1], "coalesced": True}
         async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=PROXY_TIMEOUT) as client:
-            await _run_list_only(client, server)
+            data = await _fetch_incidents(client, server)
+            await publish_list(client, server, data, time.time(), origin="Refresh")
         entry = _cache[server_id]
         payload = {
             "cache_age_seconds": round(time.time() - entry.last_updated),
@@ -952,21 +1133,46 @@ async def refresh_server(server: dict) -> dict:
         return {**payload, "coalesced": False}
 
 
-async def _cache_loop(server: dict) -> None:
+async def _list_loop(server: dict) -> None:
+    """C19 — the list cadence. One `getincidents` per `list_poll_seconds`."""
     server_id = server["id"]
-    print(f"[Cache:{server_id}] Background loop started (refresh={server.get('cache_refresh_seconds', 120)}s)")
+    every = server_list_poll_seconds(server)
+    print(f"[Cache:{server_id}] List loop started (list_poll={every}s)")
     async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=PROXY_TIMEOUT) as client:
         while True:
             try:
-                await _run_one_cycle(client, server)
-                # incidents cycle is paced over the refresh interval, so its
-                # duration isn't a meaningful upstream latency → record None.
+                await _run_list_and_publish(client, server)
                 diagnostics.record_success(server_id, "incidents", None)
+                await asyncio.sleep(every)
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                print(f"[Cache:{server_id}] Cycle failed: {e}")
+                print(f"[Cache:{server_id}] List poll failed: {e}")
                 diagnostics.record_failure(server_id, "incidents", e)
+                await asyncio.sleep(10)
+
+
+async def _enrichment_loop(server: dict) -> None:
+    """C19 — the enrichment cadence, unchanged in interval and renamed in
+    nothing. `cache_refresh_seconds` still means exactly what it meant."""
+    server_id = server["id"]
+    every = max(60, min(900, server.get("cache_refresh_seconds", 120)))
+    print(f"[Cache:{server_id}] Enrichment loop started (cache_refresh={every}s)")
+    # Let the list loop publish first, so the sweep has rows to work on rather
+    # than finding an empty cache and sleeping a full interval.
+    await asyncio.sleep(2)
+    async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=PROXY_TIMEOUT) as client:
+        while True:
+            try:
+                started = time.time()
+                await _run_enrichment_sweep(client, server)
+                # The sweep paces itself across the interval, so what is left is
+                # whatever the pacing did not consume — usually nothing.
+                await asyncio.sleep(max(1.0, every - (time.time() - started)))
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                print(f"[Cache:{server_id}] Enrichment sweep failed: {e}")
                 await asyncio.sleep(10)
 
 
@@ -991,9 +1197,9 @@ def reload_server(server_id: str) -> None:
 
 
 def stop_server(server_id: str) -> None:
-    task = _tasks.pop(server_id, None)
-    if task and not task.done():
-        task.cancel()
+    for task in _tasks.pop(server_id, []) or []:
+        if not task.done():
+            task.cancel()
     _cache.pop(server_id, None)
     # The coalesced payload is a snapshot of a cache that no longer exists.
     # Serving it after a reload would answer a refresh with the old server's list.
@@ -1001,8 +1207,16 @@ def stop_server(server_id: str) -> None:
 
 
 def _start_server(server: dict) -> None:
+    """C19 — TWO tasks per server now, one per cadence.
+
+    They are started together and cancelled together; a server with a live list
+    loop and a dead enrichment loop would serve states that never gained counts,
+    which is worse than serving neither.
+    """
     server_id = server["id"]
-    if server_id in _tasks and not _tasks[server_id].done():
+    running = _tasks.get(server_id) or []
+    if any(not t.done() for t in running):
         return
-    _tasks[server_id] = asyncio.create_task(_cache_loop(server))
-    print(f"[Cache:{server_id}] Started background loop")
+    _tasks[server_id] = [asyncio.create_task(_list_loop(server)),
+                         asyncio.create_task(_enrichment_loop(server))]
+    print(f"[Cache:{server_id}] Started background loops")

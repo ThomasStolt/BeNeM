@@ -454,7 +454,7 @@ async def test_an_error_body_RAISES_and_the_cache_is_untouched():
     client = MagicMock()
     client.post = post
     with pytest.raises(ValueError):
-        await incident_cache._run_one_cycle(client, RETAIN_SERVER)
+        await incident_cache._run_list_and_publish(client, RETAIN_SERVER)
 
     assert incident_cache._cache["retain"] is before, "the cache entry was replaced"
     assert [i["state"] for i in before.active_incidents] == ["OPEN", "OPEN"]
@@ -467,7 +467,14 @@ async def test_a_completed_body_with_no_active_incidents_key_closes_everything()
     """The legitimate zero, and it must still work. [MEASURED 2026-09-19] BHNM's
     own "none" answer is {"result":"completed","detail":"No active incident."} —
     it completed, it simply has nothing to list, and every cached incident really
-    has gone."""
+    has gone.
+
+    **Unchanged by C17 (2.21.0), and worth saying why.** The absent row is now
+    checked with one getincidentdetail before retention — and this stub answers
+    that call with the same "No active incident." body, which carries no
+    incident and therefore no state. C17 rules that "not found" retains. The
+    outcome is identical; what changed is that it is now confirmed rather than
+    inferred."""
     incident_cache._cache["retain"] = CachedIncidents(
         active_incidents=[_row("30005")], closed_incidents=[], last_updated=time.time())
 
@@ -478,7 +485,7 @@ async def test_a_completed_body_with_no_active_incidents_key_closes_everything()
 
     client = MagicMock()
     client.post = post
-    await incident_cache._run_one_cycle(client, RETAIN_SERVER)
+    await incident_cache._run_list_and_publish(client, RETAIN_SERVER)
 
     entry = incident_cache._cache["retain"]
     assert entry.active_incidents == []

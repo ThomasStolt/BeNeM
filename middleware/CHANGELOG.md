@@ -5,6 +5,128 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [benem-admin 1.6.5] - 2026-09-23
+
+### Changed
+
+- **`list_poll_seconds` round-trips a portal save.** Added to the `Server` dataclass and written
+  back by `save_servers`, exactly as `webhook_secrets` and `retain_closed` are. It is not
+  portal-editable; without this, the next portal edit of any server would silently put it back to
+  the 30 s default. Same trap as 1.6.4, caught before it shipped this time rather than after.
+
+---
+
+## [2.21.0] - 2026-09-23
+
+Design: `docs/superpowers/specs/2026-09-23-cache-publish-and-cadence.md`, C16–C20. **Middleware
+only. The client half — the silent poll to 30 s on both platforms — is a separate wave and has
+not shipped.** Not deployed at the time of this entry.
+
+### Fixed
+
+- **C16 — newest confirmation wins.** A publish from a list taken at `T` may no longer overwrite a
+  row whose `state_confirmed_at` is newer than `T`, nor treat such a row as disappeared.
+
+  **[MEASURED 2026-09-23] Incident 30045 was served CLOSED while BHNM had it OPEN.** A cycle
+  published a list taken at `06:59:24Z` — 48 seconds before the incident existed at `07:00:12Z` —
+  over a refresh at `07:00:37.783Z` that had already found it. `Retained 7 incident(s) as CLOSED`.
+  BHNM did not close it until `07:10:29Z`. The cache had two writers and no ordering rule, so the
+  older one won by finishing last. `state_confirmed_at` already recorded every row's vintage and
+  nothing compared them.
+
+  **The comparison is per ROW, not per publish**: a list carrying one stale row still publishes
+  the other four.
+
+- **C17 — disappearance is confirmed, not inferred.** A row absent from a list newer than its own
+  confirmation gets **one** `getincidentdetail` before retention. `CLOSED` retains it, `OPEN` or
+  `ALARMS CLEARED` keeps it active with that state, and not found retains it.
+
+  **A FAILED check does NOT retain** — corrected in review before this shipped. The first cut
+  retained on a failed call, reasoning that a check which could not be made is not evidence the
+  incident is still open. True, and it is not evidence of a close either, and the two mistakes
+  cost differently: retaining turns one timeout into a CLOSED row served for the whole 24-hour
+  C15 window, on an incident somebody may be paged for. The row keeps its last state **and its
+  old `state_confirmed_at`** — the check did not happen, so no confirmation is dated — which
+  leaves C16 willing to re-check it on the very next list poll. It ages out the moment one check
+  succeeds, in whichever direction it answers.
+
+  **A failed call and a real "not found" are separated by `confirmed`, not by the state.**
+  `_fetch_incident_detail` swallows its own transport errors and returns `confirmed: False`; a
+  successful call with no incident returns `confirmed: True` and no state. Both leave
+  `bhnm_state` as `None`, so reading the state alone cannot tell them apart — which is how the
+  first cut retained on a transport error while believing it did not. Caught by its own test.
+
+  Absence stays a real close signal: [MEASURED 2026-09-21] incident 30014 produced zero webhook
+  lines and simply vanished. What changed is that the middleware asks before asserting.
+
+  **Cost is bounded by disappearances, not by incidents.** Only absent rows are checked, and a row
+  already carrying `CLOSED` with a `closed_at` has been through the check and is not re-asked —
+  without that it would have been six calls per poll on the measured estate.
+
+- **C18 — the list publishes immediately.** State and `acknowledged` for every row are served the
+  moment the list lands; `alarm_counts` and `counts_confirmed_at` are written row by row as each
+  detail call returns, not in one write at the end of the cycle.
+
+  **[MEASURED 2026-09-23] The old behaviour cost 101 s on incident 30046**: the list carrying
+  `ALARMS CLEARED` landed at `07:07:36.490Z` and the cache was not written until `07:09:17.555Z`.
+  For 101 seconds the middleware held the right answer and served the old one. Of the full 3 min
+  11 s from BHNM's own state change to the phone, that was the largest single term.
+
+  **This is C9's two stamps finally having two writers.** `state_confirmed_at` and
+  `counts_confirmed_at` were separated so state and counts could move independently; one write at
+  the end of the cycle re-coupled them.
+
+### Changed
+
+- **C19 — two cadences.** `list_poll_seconds` is **added** beside `cache_refresh_seconds`: default
+  **30**, minimum **15**, max 900. `cache_refresh_seconds` keeps its present meaning as the
+  **enrichment** cadence and is **not renamed** — the C6 rename to `incident_polling_seconds` is
+  deferred to a migration that reads the old key, so a configured value cannot be lost. Ruled
+  2026-09-23 (Thomas).
+
+  **The BHNM cost, stated: one `getincidents` per server per 30 s — 120 calls an hour per server,
+  whatever the incident count.** `_fetch_incidents` is one request returning the whole list.
+
+  Two `asyncio.Task`s per server now, started and cancelled together: a live list loop beside a
+  dead enrichment loop would serve states that never gain counts.
+
+- **C20 — the `[State:]` line reports the SERVED value.** It is written after
+  `_apply_state_overrides`, with the raw list value alongside when the two differ:
+
+  ```
+  [State:lab] incident 30046: OPEN/ack=False -> CLOSED/ack=False (source: list)  [list said: ALARMS CLEARED/ack=False]
+  ```
+
+  **[MEASURED 2026-09-23T07:11:59.949Z]** the 2.20.3 line read
+  `30046: CLOSED -> ALARMS CLEARED (source: list)` while the served row was `CLOSED` under a live
+  `RECOVERY` override — it was emitted inside the row loop, before the overrides ran, so it
+  described the list rather than the cache. A log line that disagrees with the payload is worse
+  than no line, because it is believed.
+
+- **`POST /api/v1/incidents/refresh` logs a `[Client]` line.** On 2026-09-23 the refresh at
+  `07:00:37.783Z` was the reason iOS saw incident 30045 and the Android PWA did not, and the log
+  could not say which client made it. `/register` and `GET /api/v1/incidents` gained the line in
+  2.20.1; this route was missed.
+
+### Tests
+
+**367 (350 + 17.)** The fourteen from the design note's §6, one guarding the re-check cost, and two for the failed-check correction.
+**The first of C16, C17 and C18 was run against 2.20.3 and failed on behaviour**, not on a missing
+import:
+
+```
+test_a_cycle_may_not_overwrite_a_row_a_refresh_confirmed_later
+  AssertionError: a list taken at T must not overwrite a row confirmed at T+10
+  assert 'OPEN' == 'ALARMS CLEARED'
+test_an_absent_row_is_CHECKED_with_one_getincidentdetail_before_retention
+  AssertionError: exactly one check for the absent row before retention, got []
+test_state_is_SERVED_before_any_detail_call_is_made
+  AssertionError: the list's state must be served the moment the list lands
+  assert 'OPEN' == 'ALARMS CLEARED'
+```
+
+---
+
 ## [2.20.3] - 2026-09-22
 
 ### Added

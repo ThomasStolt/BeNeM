@@ -9,7 +9,8 @@ os.environ.setdefault("APNS_TEAM_ID", "test")
 os.environ.setdefault("APNS_BUNDLE_ID", "com.test")
 os.environ.setdefault("APNS_PRIVATE_KEY_B64", "ZHVtbXk=")  # base64("dummy")
 
-from incident_cache import _server_id_for_api_key, _run_one_cycle, _cache, CachedIncidents
+from incident_cache import (_server_id_for_api_key, _run_list_and_publish,
+                            _run_enrichment_sweep, _cache, CachedIncidents)
 
 
 def test_server_id_for_api_key_found(tmp_path):
@@ -71,7 +72,13 @@ async def test_cache_loop_populates_cache():
     mock_client = AsyncMock()
     mock_client.post = mock_post
 
-    await _run_one_cycle(mock_client, server)
+    # C18 (2.21.0) — the cycle is TWO loops now. The list publishes state the
+    # moment it lands; the enrichment sweep fills in alarm_counts row by row as
+    # each detail call returns. This test is about the enriched result, so it
+    # drives both — which is also the smallest demonstration that the two
+    # compose into what the single cycle used to produce.
+    await _run_list_and_publish(mock_client, server)
+    await _run_enrichment_sweep(mock_client, server)
 
     cached = _cache.get("test")
     assert cached is not None
