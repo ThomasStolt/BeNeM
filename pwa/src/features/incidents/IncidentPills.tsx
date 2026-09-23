@@ -14,7 +14,7 @@ import { PILLS, type Pill, type PillCounts } from './pills';
  * assert all ten, so the platforms cannot drift on any of them.
  */
 const PALETTE: Record<Pill, { base: string; tint: string }> = {
-  TOTAL: { base: '#7C3AED', tint: '#A78BFA' },
+  TOTAL: { base: '#6D28D9', tint: '#A78BFA' },
   OPEN: { base: '#DC2626', tint: '#F87171' },
   ACKD: { base: '#2563EB', tint: '#60A5FA' },
   CLRD: { base: '#16A34A', tint: '#4ADE80' },
@@ -32,10 +32,11 @@ const UNSELECTED_BG = '#1a1a1d';
  * black, to match the ground the row sits on. */
 const CLOSED_ON = '#111114';
 
-/** CLOSED is the only pill with no frame and no glow when unselected: white text
- * on the bare plate. It is the one tab you opt into, and a frame in `#FFFFFF`
- * would make it the brightest thing in a row you are not looking at. */
-function isFramedWhenUnselected(pill: Pill): boolean {
+/** CLOSED is the only pill with no glow when unselected. It keeps its white
+ * frame (Thomas, 2026-09-23, reversing 0.19.6's frameless CLOSED) so it reads as
+ * a pill rather than a label, but a white halo would make it the brightest thing
+ * in a row you are not looking at. */
+function glowsWhenUnselected(pill: Pill): boolean {
   return pill !== 'CLOSED';
 }
 
@@ -106,7 +107,7 @@ export function IncidentPills({ selected, counts, onSelect }: Props) {
         const isSelected = pill === selected;
         const { base, tint } = PALETTE[pill];
         const { radius, opacity } = isSelected ? GLOW.selected : GLOW.unselected;
-        const framed = isSelected || isFramedWhenUnselected(pill);
+        const glows = isSelected || glowsWhenUnselected(pill);
         const glow = isSelected ? base : tint;
         return (
           <button
@@ -123,14 +124,11 @@ export function IncidentPills({ selected, counts, onSelect }: Props) {
               backgroundColor: isSelected ? base : UNSELECTED_BG,
               borderWidth: '1.5px',
               borderStyle: 'solid',
-              // `transparent`, not `none`: the border box has to keep its width
-              // or the frameless CLOSED pill would be 3px narrower than the four
-              // beside it and the row would not line up.
-              borderColor: framed ? tint : 'transparent',
+              borderColor: tint,
               color: isSelected
                 ? (pill === 'CLOSED' ? CLOSED_ON : '#FFFFFF')
                 : tint,
-              boxShadow: framed ? `0 0 ${radius}px ${withAlpha(glow, opacity)}` : 'none',
+              boxShadow: glows ? `0 0 ${radius}px ${withAlpha(glow, opacity)}` : 'none',
             }}
           >
             <span className="tabular-nums text-base font-bold leading-none">{counts[pill]}</span>

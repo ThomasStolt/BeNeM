@@ -14,6 +14,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [0.19.8] - 2026-09-23
+
+### Changed
+- TOTAL's selected fill is `#6D28D9` (was `#7C3AED`); its tint stays `#A78BFA`.
+- CLOSED keeps its white frame when unselected, with no glow (reverses 0.19.6's frameless CLOSED).
+
 ## [0.19.7] - 2026-09-22
 
 ### Changed

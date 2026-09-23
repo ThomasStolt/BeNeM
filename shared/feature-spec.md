@@ -225,7 +225,7 @@ iOS 2.13.6 (52), PWA 0.18.1.
 
 | pill | contents | colour |
 |---|---|---|
-| **TOTAL** | OPEN + ACKD + CLRD — everything **except** closed | violet, base `#7C3AED` / tint `#A78BFA` |
+| **TOTAL** | OPEN + ACKD + CLRD — everything **except** closed | violet, base `#6D28D9` / tint `#A78BFA` |
 | **OPEN** | state `OPEN` and **not** acknowledged | red |
 | **ACKD** | state `OPEN` and acknowledged | blue |
 | **CLRD** | state `ALARMS CLEARED` | green |
@@ -268,7 +268,7 @@ fill and a brighter `tint` for the frame, the unselected text and the unselected
 
 | pill | base | tint |
 |---|---|---|
-| TOTAL | `#7C3AED` | `#A78BFA` |
+| TOTAL | `#6D28D9` | `#A78BFA` |
 | OPEN | `#DC2626` | `#F87171` |
 | ACKD | `#2563EB` | `#60A5FA` |
 | CLRD | `#16A34A` | `#4ADE80` |
@@ -277,8 +277,9 @@ fill and a brighter `tint` for the frame, the unselected text and the unselected
 Unselected ground `#1a1a1d` on all five — **not transparent**, or the row reads as outlines
 floating on nothing and the pills change footprint as the selection moves. **CLOSED is the
 exception twice**: its selected text is `#111114` (its fill is nearly white), and unselected it
-has no frame and no glow at all — white text on the bare plate, because a `#FFFFFF` frame would
-make the one tab you opt into the brightest thing in the row. **Both suites assert all ten hex
+keeps its white `#FFFFFF` frame but has no glow — a white halo would make the one tab you opt
+into the brightest thing in the row (ruled 2026-09-23, reversing the frameless CLOSED of 0.19.6;
+TOTAL's base went `#7C3AED` → `#6D28D9` the same day). **Both suites assert all ten hex
 values and the CLOSED rule**, so one platform cannot drift off the other quietly. The gold
 `#c9a227` of PWA 0.18.x–0.19.1 and the briefly-used `#1B0F33` are both gone.
 

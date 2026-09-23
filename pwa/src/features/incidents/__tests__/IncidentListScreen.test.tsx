@@ -131,7 +131,7 @@ describe('IncidentListScreen', () => {
    * in `IncidentPill.palette` and asserts them there, so neither platform can
    * drift on any of them in silence. */
   const PALETTE = {
-    TOTAL: { base: 'rgb(124, 58, 237)', tint: 'rgb(167, 139, 250)', hex: ['#7C3AED', '#A78BFA'] },
+    TOTAL: { base: 'rgb(109, 40, 217)', tint: 'rgb(167, 139, 250)', hex: ['#6D28D9', '#A78BFA'] },
     OPEN: { base: 'rgb(220, 38, 38)', tint: 'rgb(248, 113, 113)', hex: ['#DC2626', '#F87171'] },
     ACKD: { base: 'rgb(37, 99, 235)', tint: 'rgb(96, 165, 250)', hex: ['#2563EB', '#60A5FA'] },
     CLRD: { base: 'rgb(22, 163, 74)', tint: 'rgb(74, 222, 128)', hex: ['#16A34A', '#4ADE80'] },
@@ -171,17 +171,15 @@ describe('IncidentListScreen', () => {
     }
   });
 
-  it('gives an UNSELECTED CLOSED no frame and no glow — white text on the plate alone', async () => {
-    // The one tab you opt into, and the only pill not competing for attention
-    // when you have not. A frame in #FFFFFF would be the brightest thing in a
-    // row nobody is looking at.
+  it('gives an UNSELECTED CLOSED a white frame and no glow', async () => {
+    // Thomas, 2026-09-23: the frame comes back (reversing 0.19.6), the glow
+    // does not — a white halo would be the brightest thing in a row nobody is
+    // looking at.
     renderScreen();
     const el = pill('CLOSED');
     expect(el).toHaveAttribute('data-selected', 'false');
     expect(el.style.boxShadow).toBe('none');
-    expect(el.style.borderColor).toBe('transparent');
-    // The border WIDTH stays, or the frameless pill would be 3px narrower than
-    // the four beside it and the row would not line up.
+    expect(el.style.borderColor).toBe('rgb(255, 255, 255)');
     expect(el.style.borderWidth).toBe('1.5px');
     expect(el.style.color).toBe('rgb(255, 255, 255)');
     expect(el.style.backgroundColor).toBe('rgb(26, 26, 29)');
@@ -194,7 +192,7 @@ describe('IncidentListScreen', () => {
 
   it('draws the two glow radii, and never a filter', async () => {
     renderScreen();
-    expect(pill('TOTAL').style.boxShadow).toBe('0 0 14px #7C3AEDD9');   // selected
+    expect(pill('TOTAL').style.boxShadow).toBe('0 0 14px #6D28D9D9');   // selected
     expect(pill('OPEN').style.boxShadow).toBe('0 0 4px #F871718C');     // unselected
     await userEvent.click(pill('OPEN'));
     expect(pill('OPEN').style.boxShadow).toBe('0 0 14px #DC2626D9');
