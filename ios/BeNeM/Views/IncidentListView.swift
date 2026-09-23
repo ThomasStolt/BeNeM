@@ -113,7 +113,7 @@ struct IncidentListView: View {
             }
             .onAppear {
                 // The silent safety net: reload from the middleware's cache
-                // every 60 s while this list is on screen. No countdown, no UI.
+                // every 30 s while this list is on screen. No countdown, no UI.
                 // See IncidentListViewModel.startListPoll for why it came back.
                 viewModel.startListPoll()
                 guard viewModel.incidents.isEmpty && viewModel.errorMessage == nil else { return }

@@ -106,7 +106,11 @@ class IncidentListViewModel: ObservableObject {
     /// load is in flight, so the two cannot overlap even if they coincide.
     ///
     /// Calling this twice is a no-op rather than a second loop.
-    func startListPoll(interval: TimeInterval = 60) {
+    /// C19 (2026-09-23): 30 s, matching the middleware's list cadence. At 60 s the
+    /// client was the largest term left in the lag — 49 s of 70.9 on incident 30053.
+    static let listPollInterval: TimeInterval = 30
+
+    func startListPoll(interval: TimeInterval = IncidentListViewModel.listPollInterval) {
         guard pollTask == nil else { return }
         isPolling = true
         pollTask = Task { [weak self] in

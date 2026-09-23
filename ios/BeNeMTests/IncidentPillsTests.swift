@@ -599,6 +599,12 @@ final class IncidentListStaysCurrentTests: XCTestCase {
         XCTAssertFalse(vm.isPolling)
     }
 
+    func testTheSilentPollIs30Seconds() {
+        // C19: the client's 60 s poll was 49 s of the 70.9 s on 30053, once the
+        // middleware carried its own share down to its 30 s list cadence.
+        XCTAssertEqual(IncidentListViewModel.listPollInterval, 30)
+    }
+
     func testTwoStartsProduceOneLoopAndNotTwo() async {
         // The assertion `isPolling` alone cannot make: a second loop would also
         // leave the flag true. This counts the reads.
