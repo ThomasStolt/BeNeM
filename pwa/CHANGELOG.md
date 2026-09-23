@@ -14,6 +14,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [0.19.9] - 2026-09-23
+
+### Changed
+- The incident list's silent poll re-reads every 30 s instead of 60 s while visible (C19).
+
 ## [0.19.8] - 2026-09-23
 
 ### Changed

@@ -125,8 +125,11 @@ export function useReloadOnPush(reload: () => void) {
  * **The first tick is a full interval away, and that is load-bearing.** A resume
  * fires `useRefreshOnForeground` in the same instant and restarts this timer;
  * firing immediately would put two requests on the wire for one event. It stops
- * on hide, so a backgrounded tab costs nothing. */
-export function usePollWhileVisible(reload: () => void, intervalMs = 60_000) {
+ * on hide, so a backgrounded tab costs nothing.
+ *
+ * **30 s since 0.19.9 (C19)**, matching the middleware's list cadence; at 60 s
+ * the client was the largest term left in the lag. */
+export function usePollWhileVisible(reload: () => void, intervalMs = 30_000) {
   useEffect(() => {
     if (typeof document === 'undefined') return;
     let timer: ReturnType<typeof setInterval> | undefined;

@@ -86,12 +86,12 @@ describe('a push reloads the open list', () => {
 });
 
 describe('the silent safety net', () => {
-  it('re-reads the cache every 60 s while the tab is visible', () => {
+  it('re-reads the cache every 30 s while the tab is visible', () => {
     renderHook(() => usePollWhileVisible(reload));
     expect(reload).not.toHaveBeenCalled();     // and NOT immediately — see below
-    vi.advanceTimersByTime(60_000);
+    vi.advanceTimersByTime(30_000);
     expect(reload).toHaveBeenCalledTimes(1);
-    vi.advanceTimersByTime(120_000);
+    vi.advanceTimersByTime(60_000);
     expect(reload).toHaveBeenCalledTimes(3);
   });
 
@@ -105,7 +105,7 @@ describe('the silent safety net', () => {
     setVisibility('hidden');
     setVisibility('visible');
     expect(reload).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(59_999);
+    vi.advanceTimersByTime(29_999);
     expect(reload).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(reload).toHaveBeenCalledTimes(1);
@@ -117,7 +117,7 @@ describe('the silent safety net', () => {
     vi.advanceTimersByTime(600_000);           // ten minutes in the background
     expect(reload).not.toHaveBeenCalled();
     setVisibility('visible');
-    vi.advanceTimersByTime(60_000);
+    vi.advanceTimersByTime(30_000);
     expect(reload).toHaveBeenCalledTimes(1);   // and it picks up again
   });
 
@@ -126,7 +126,7 @@ describe('the silent safety net', () => {
     // liberally. Two timers would mean two requests per interval, for ever.
     renderHook(() => usePollWhileVisible(reload));
     for (let i = 0; i < 5; i++) setVisibility('visible');
-    vi.advanceTimersByTime(60_000);
+    vi.advanceTimersByTime(30_000);
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
