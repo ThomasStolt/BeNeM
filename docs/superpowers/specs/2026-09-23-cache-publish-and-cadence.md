@@ -397,3 +397,54 @@ the version observed running (root `CLAUDE.md`).
 3. **`_run_one_cycle` enriches every incident every cycle**, which is why state and counts have so
    far always moved together outside the Refresh path. Whether enrichment should skip rows whose
    counts are already fresh is a cost question, not a correctness one, and is not ruled here.
+
+---
+
+## 10. Verification of 2.21.1 — the webhook-time row insert **[MEASURED]**
+
+**2.21.1 (`26fb06f`) adds a step after C16–C20.** A webhook naming an incident no cache holds
+gets one `getincidentdetail` and a full row, inside the delivery worker and **before** the fan-out.
+**Why it was needed:** on 30053 the push went out at 14:34:15.393Z, the row did not exist until the
+list poll at 14:34:35.937Z, and the phone first fetched it 70.9 s after the push.
+
+**Pass condition:** the row is served within 2 s of the `[Webhook]` line. **Result: HELD.**
+
+Thomas ran the cycle on raspi-050 on 2026-09-23 with the app in the foreground: unplugged at
+17:21:11 CEST, saw the banner and the row together at 17:24:16.
+
+```
+15:24:14.058Z  [Webhook] PROBLEM — raspi-050 — Incident 30056
+15:24:14.066Z  [Webhook] Queued delivery to 6 target(s)
+15:24:14.157Z  [State:] 30056: None -> OPEN (source: list)            +0.099 s  <- a list poll, by coincidence
+15:24:14.292Z  [State:] 30056: None -> OPEN (source: webhook+detail)
+15:24:14.293Z  [Webhook] Row inserted: incident 30056 -> OPEN (1 server(s))   +0.235 s
+15:24:15.880Z  [APNs] Sent to ...10882c55 (13 Pro Max)                 +1.822 s
+15:24:15.982Z  [Client] BeNeM/54 on /api/v1/incidents                  +1.924 s  <- first fetch after the insert
+```
+
+- **One detail call, ThomasLabServer.** The secret is shared by four servers, but SaaS Demo
+  Server, Steve and Luiz have `cache_enabled: False` (read from the live container), so only one
+  matched server holds a cache. The call itself writes no log line. The count comes from the
+  config plus the code, and it matches `(1 server(s))`.
+- **The phone's first fetch after the push got the row.** On 30053 that same fetch, 1.5 s after
+  the webhook, found nothing.
+- **What this cycle does NOT show: the insert winning on its own.** A list poll landed 99 ms after
+  the webhook and published 30056 before the detail returned.
+- **[MEASURED] That coincidence exposed a race.** `insert_from_webhook` checks whether the
+  incident is known *before* awaiting the detail and never checks again. So it replaced the row
+  the list poll had just written, and logged `None -> OPEN` a second time. Harmless this time:
+  both rows said OPEN, and the detail's counts were newer. But it breaks "a known incident is
+  unchanged". **Open:** re-check before the merge.
+
+The rest of the cycle, for the record:
+
+| event | BHNM / Thomas (CEST) | middleware (UTC) |
+|---|---|---|
+| 30055 Interface OPEN | seen 17:22:30 | `[State:]` 15:21:43.165, list only, no webhook |
+| 30055 ALARMS CLEARED | — | `[State:]` 15:25:14.610 |
+| 30056 ALARMS CLEARED | green 17:28:28 | `[State:]` 15:28:15.806, next fetch 15:28:27.777 |
+| 30055 CLOSED | gone 17:30:45, CLOSED +1 | `[State:]` 15:30:16.838, absence path; fetch 15:30:45.041 |
+| 30056 CLOSED | gone 17:33:20, CLOSED +1 | RECOVERY + `Cache patched` 15:33:17.562, fetch 15:33:18.743 |
+
+**The client's 60 s poll is now the largest term:** 29 s between the served close of 30055 and the
+phone's fetch. The client wave in §7 step 3 (30 s) is what addresses it.
