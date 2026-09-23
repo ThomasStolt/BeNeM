@@ -184,7 +184,10 @@ async def _fetch_incident_detail(client: httpx.AsyncClient, server: dict, incide
             # check can read it without a second call. `None` when the body
             # carried no incident at all, which is "not found".
             "bhnm_state": (incident.get("incident_state") or None),
-            "ack_user": (incident.get("ack_user") or None)}
+            "ack_user": (incident.get("ack_user") or None),
+            # The raw incident, for the webhook-time insert, which needs the
+            # fields a list row carries and this call is the only source of.
+            "incident": incident}
 
 
 # -- C10: the incident type map -------------------------------------------------
@@ -684,6 +687,70 @@ def merge_incident(server_id: str, enriched: dict) -> bool:
                 break
     target.append(enriched)
     return True
+
+
+# -- The webhook-time insert -----------------------------------------------------
+
+# ponytail: a hard 5 s cap, because the push waits on this call. Known ceiling: a
+# BHNM slower than that never gets its row inserted early and falls back to the
+# list poll, which is exactly the pre-2.21.1 behaviour.
+WEBHOOK_DETAIL_TIMEOUT = 5.0
+
+
+async def insert_from_webhook(servers: list[dict], incident_id: str,
+                              hostname: str, state: str) -> int | None:
+    """A webhook naming an incident no cache holds: one getincidentdetail and a
+    full row, BEFORE the push goes out.
+
+    [MEASURED 2026-09-23, incident 30053] The PROBLEM push was sent at
+    14:34:15.393Z and the row did not exist until the list poll at
+    14:34:35.937Z; the phone's first fetch with it was 14:35:24.982, 70.9 s
+    after the push. Tapping the notification inside that window landed on an
+    incident the middleware could not serve.
+
+    Returns None when the incident is already known (nothing is touched — a
+    known row belongs to the list poll and C16), else the number of rows
+    inserted. **Zero is logged by the caller**: a failed detail leaves the row to
+    the next list poll, and must never cost the push.
+
+    **The webhook's hostname must match the detail's `name`.** While every
+    server shares one secret (S1 1a) the same id can exist on another BHNM; a
+    detail about some other incident is not this one. With 1b's unique secrets
+    this is one call to one server.
+    """
+    iid = normalise_incident_id(incident_id)
+    held = [s for s in servers if s.get("id") in _cache]
+    if not iid or not held:
+        return 0
+    for s in held:
+        entry = _cache[s["id"]]
+        if any(normalise_incident_id(r.get("incident_id", "")) == iid
+               for r in (*entry.active_incidents, *entry.closed_incidents)):
+            return None
+    if state == "CLOSED":
+        held = [s for s in held if server_retain_closed(s)]
+    async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY,
+                                 timeout=WEBHOOK_DETAIL_TIMEOUT) as client:
+        details = await asyncio.gather(*(_fetch_incident_detail(client, s, iid)
+                                         for s in held))
+    inserted = 0
+    for server, detail in zip(held, details):
+        inc = detail.get("incident") or {}
+        if not detail.get("confirmed") or str(inc.get("name", "")).strip() != hostname:
+            continue
+        row = {k: inc.get(k) for k in ("name", "title", "device_category",
+                                       "device_site", "device_note")}
+        row.update(incident_id=iid, incident_state=state,
+                   open_time=inc.get("incident_open_time"))
+        if detail.get("alert_type"):
+            remember_type(server["id"], iid, detail["alert_type"])
+        row = _enrich_incident(row, detail, time.time())
+        _apply_state_overrides(server["id"], [row])
+        merge_incident(server["id"], row)
+        log_transition(server["id"], iid, (None, None), state_pair(row),
+                       state_source="webhook", ack_source="detail")
+        inserted += 1
+    return inserted
 
 
 # -- M3: CLSD retention, and C15's 24-hour ceiling -------------------------------

@@ -670,14 +670,15 @@ _delivery_queue: asyncio.Queue | None = None
 _delivery_worker: asyncio.Task | None = None
 
 
-def _enqueue_delivery(tokens, web_push_subs, title: str, body: str, incident_id: str) -> bool:
+def _enqueue_delivery(tokens, web_push_subs, title: str, body: str, incident_id: str,
+                      insert: tuple | None = None) -> bool:
     """Hand a fan-out to the worker. False means it was dropped — never silently."""
     if _delivery_queue is None:
         print("[Deliver] DROPPED — delivery worker is not running; "
               f"incident {incident_id or '?'} notified nobody")
         return False
     try:
-        _delivery_queue.put_nowait((tokens, web_push_subs, title, body, incident_id))
+        _delivery_queue.put_nowait((tokens, web_push_subs, title, body, incident_id, insert))
     except asyncio.QueueFull:
         print(f"[Deliver] QUEUE FULL ({DELIVERY_QUEUE_MAX}) — DROPPED incident "
               f"{incident_id or '?'}, {len(tokens)} token(s), "
@@ -694,8 +695,10 @@ async def _delivery_worker_loop() -> None:
     """Drain the queue forever, one fan-out at a time."""
     print("[Deliver] Worker started")
     while True:
-        tokens, web_push_subs, title, body, incident_id = await _delivery_queue.get()
+        tokens, web_push_subs, title, body, incident_id, insert = await _delivery_queue.get()
         try:
+            if insert:
+                await _insert_before_push(incident_id, *insert)
             await asyncio.wait_for(
                 _fan_out(tokens, web_push_subs, title, body, incident_id),
                 timeout=FANOUT_TIMEOUT)
@@ -712,6 +715,22 @@ async def _delivery_worker_loop() -> None:
             print(f"[Deliver] Fan-out failed: {type(e).__name__}: {e}")
         finally:
             _delivery_queue.task_done()
+
+
+async def _insert_before_push(incident_id: str, servers: list[dict],
+                             hostname: str, state: str) -> None:
+    """The row goes into the cache BEFORE the push, so a tap lands on something.
+    Any failure here is logged and the push goes out regardless."""
+    try:
+        n = await incident_cache.insert_from_webhook(servers, incident_id, hostname, state)
+    except Exception as e:
+        n = 0
+        print(f"[Webhook] Row insert raised for incident {incident_id}: {type(e).__name__}: {e}")
+    if n:
+        print(f"[Webhook] Row inserted: incident {incident_id} -> {state} ({n} server(s))")
+    elif n == 0:
+        print(f"[Webhook] Row not inserted: incident {incident_id} — no confirmed detail; "
+              f"the next list poll carries it")
 
 
 async def _fan_out(tokens, web_push_subs, title: str, body: str, incident_id: str) -> None:
@@ -851,7 +870,9 @@ async def receive_webhook(request: Request):
 
     # Answer BHNM now; deliver afterwards. BHNM times out at ~30s and retries
     # three times, and a retry is a duplicate alert on every engineer's phone.
-    queued = _enqueue_delivery(tokens, web_push_subs, title, body, incident_id)
+    insert = ((matches, hostname, "CLOSED" if notification_type == "RECOVERY" else "OPEN")
+              if incident_id and matches else None)
+    queued = _enqueue_delivery(tokens, web_push_subs, title, body, incident_id, insert)
 
     notified = len(tokens) + len(web_push_subs)
     if not queued:
