@@ -1017,9 +1017,14 @@ async def _confirm_absence(client: httpx.AsyncClient, server: dict,
               f"— keeping it active with its last state, will retry")
         return ("unknown", None)
     state = detail.get("bhnm_state")
-    if state in ("OPEN", "ALARMS CLEARED"):
-        return ("active", state)
-    return ("closed", state)
+    verdict = "active" if state in ("OPEN", "ALARMS CLEARED") else "closed"
+    # One line per check, whichever way it answers. [MEASURED 2026-09-23] 30051
+    # and 30052 were retained after checks that wrote nothing; the only trace
+    # was `retained` stepping in the publish line.
+    print(f"[Cache:{server['id']}] Absence check incident {iid}: BHNM says "
+          f"{state or 'not found'} -> "
+          f"{'kept active' if verdict == 'active' else 'retained'}")
+    return (verdict, state)
 
 
 async def publish_list(client: httpx.AsyncClient, server: dict,

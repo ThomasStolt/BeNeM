@@ -405,6 +405,26 @@ def test_the_row_AGES_OUT_as_soon_as_one_absence_check_SUCCEEDS():
     assert len(working.detail_calls) == 1, "and it was re-checked, exactly once"
 
 
+@pytest.mark.parametrize("answer,verdict", [
+    (detail("CLOSED", alarm="OK"), "CLOSED -> retained"),
+    (detail("OPEN"), "OPEN -> kept active"),
+    (detail("ALARMS CLEARED", alarm="OK"), "ALARMS CLEARED -> kept active"),
+    (detail(found=False), "not found -> retained"),
+])
+def test_every_absence_check_logs_ONE_line_with_the_id_and_the_verdict(capsys, answer, verdict):
+    """[MEASURED 2026-09-23] 30051 and 30052 were retained after checks that left
+    no line at all; the only evidence was `retained` stepping in the publish line,
+    and the [State:] line said `source: list`. A check the log cannot show is a
+    check nobody can prove ran."""
+    now = time.time()
+    seed(cached("30045", confirmed_at=now - 300))
+    bhnm = FakeBHNM(listing(), {"30045": answer})
+    with patch("incident_cache.time.time", side_effect=lambda: now):
+        run_cycle(bhnm)
+    lines = [l for l in capsys.readouterr().out.splitlines() if "Absence check" in l]
+    assert lines == [f"[Cache:lab] Absence check incident 30045: BHNM says {verdict}"], lines
+
+
 def test_the_check_is_one_call_per_ABSENT_row_not_per_row():
     """**The cost claim.** Five rows, one absent — one extra call, not five.
     Absence is rare; the bound has to be how often incidents leave the list,
