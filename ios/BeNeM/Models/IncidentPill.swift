@@ -174,14 +174,18 @@ extension NetreoIncident {
     /// through to `status.displayLabel`. That made CLOSED read "CLOSED" in one
     /// vocabulary while the filter used another, and it was two places to keep
     /// in step. Same labels and colours as `IncidentPill`, by construction.
-    var chip: (label: String, color: Color) {
+    ///
+    /// `text` is the pill's own `onColor`, so the CLOSED chip — nearly white —
+    /// takes `#111114` exactly as the selected CLOSED pill does. White on it was
+    /// the label gone (Thomas, 2026-09-24).
+    var chip: (label: String, color: Color, text: Color) {
+        let pill: IncidentPill
         switch state {
-        case .closed:        return (IncidentPill.closed.rawValue, IncidentPill.closed.color)
-        case .alarmsCleared: return (IncidentPill.clrd.rawValue, IncidentPill.clrd.color)
-        case .open:          return acknowledged
-            ? (IncidentPill.ackd.rawValue, IncidentPill.ackd.color)
-            : (IncidentPill.open.rawValue, IncidentPill.open.color)
+        case .closed:        pill = .closed
+        case .alarmsCleared: pill = .clrd
+        case .open:          pill = acknowledged ? .ackd : .open
         }
+        return (pill.rawValue, pill.color, pill.onColor)
     }
 }
 

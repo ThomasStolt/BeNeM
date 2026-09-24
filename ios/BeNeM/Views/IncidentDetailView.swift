@@ -74,7 +74,7 @@ struct IncidentDetailView: View {
     private var isAcked: Bool { currentStatus == .acknowledged }
     private var isClosed: Bool { incident.state == .closed }
     private var isFinished: Bool { incident.state != .open }
-    private var chip: (label: String, color: Color) { current.chip }
+    private var chip: (label: String, color: Color, text: Color) { current.chip }
 
     @ViewBuilder
     private func detailContent(_ d: IncidentDetail) -> some View {
@@ -124,7 +124,7 @@ struct IncidentDetailView: View {
                         Text("Status:")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        AlarmBadge(label: chip.label, color: chip.color)
+                        AlarmBadge(label: chip.label, color: chip.color, textColor: chip.text)
                     }
                     Spacer()
 

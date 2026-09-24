@@ -460,7 +460,8 @@ struct IncidentRowView: View {
 
             // Bottom: status label  +  scrolling device name  +  time  +  alarms
             HStack(alignment: .center, spacing: 5) {
-                AlarmBadge(label: incident.chip.label, color: incident.chip.color)
+                AlarmBadge(label: incident.chip.label, color: incident.chip.color,
+                           textColor: incident.chip.text)
                     .frame(minWidth: 44)
 
                 ScrollingText(text: incident.deviceName ?? "",
@@ -579,6 +580,8 @@ struct AlarmBadge: View {
     let label: String
     let color: Color
     var darkText: Bool = false
+    /// Overrides `darkText` when set — the state chip passes its pill's `onColor`.
+    var textColor: Color? = nil
 
     /// True when the label is a numeric zero — show grey, no background
     private var isZero: Bool { label == "0" }
@@ -587,7 +590,7 @@ struct AlarmBadge: View {
         Text(label)
             .font(.caption2)
             .fontWeight(isZero ? .regular : .bold)
-            .foregroundColor(isZero ? Color(.systemGray3) : (darkText ? .black : .white))
+            .foregroundColor(isZero ? Color(.systemGray3) : (textColor ?? (darkText ? .black : .white)))
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background(isZero ? Color.clear : color)

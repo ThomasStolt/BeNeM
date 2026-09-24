@@ -582,7 +582,7 @@ struct IncidentTickerBanner: View {
         // One home for this: NetreoIncident.chip. The ticker and the incident
         // row each used to compute it, which is how CLOSED ended up with a
         // different label here than in the list.
-        let (badgeLabel, badgeColor) = incident.chip
+        let (badgeLabel, badgeColor, badgeText) = incident.chip
 
         return NavigationLink(destination: IncidentDetailView(
             incident: incident,
@@ -602,7 +602,7 @@ struct IncidentTickerBanner: View {
                 HStack(spacing: 5) {
                     Text(badgeLabel)
                         .font(.system(size: 8, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(badgeText)
                         .padding(.horizontal, 4).padding(.vertical, 2)
                         .background(badgeColor)
                         .cornerRadius(3)

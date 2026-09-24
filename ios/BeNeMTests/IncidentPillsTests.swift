@@ -437,6 +437,10 @@ final class IncidentPillsTests: XCTestCase {
         let row = try! XCTUnwrap(vm.filteredIncidents.first)
         XCTAssertEqual(row.chip.label, "CLOSED")
         XCTAssertEqual(row.chip.color, IncidentPill.closed.color)
+        XCTAssertEqual(row.chip.text, IncidentPill.closed.onColor,
+                       "dark text on the nearly white chip, as on the selected CLOSED pill")
+        XCTAssertNotEqual(row.chip.text, .white)
+        XCTAssertEqual(incident("1").chip.text, .white, "the other four keep white")
         XCTAssertNotEqual(row.chip.color, IncidentPill.clrd.color,
                           "closed and cleared are different facts and must look different")
         XCTAssertNotNil(row.closedAt, "a closed row states WHEN it closed")
