@@ -6,6 +6,31 @@ NOT submitted.**
 
 ---
 
+## UPDATE 2026-09-24 — read this first
+
+- **iOS 2.14.0 (54) is UPLOADED.** The upload ran from the Organizer archive at
+  `2026-09-23 19:12:46` local (**17:12:46Z**) and printed `Upload succeeded.` /
+  `** EXPORT SUCCEEDED **`.
+  - The options were the same as 53's, differing only in `destination: upload`.
+  - Processing, review and submission are Thomas's. Nothing here has read App Store Connect.
+- **Build 54 still draws white text on the CLOSED chip.** The chip is `#F2F2F7`, so the label is
+  unreadable in the incident list, the detail screen and the Home ticker.
+- **iOS 2.14.0 (55), `e445e32`, fixes it.**
+  - `NetreoIncident.chip` now carries the pill's `onColor`, so CLOSED gets `#111114` and the
+    other four keep white.
+  - 55 is a Debug build on the 13 Pro Max only. **It is not archived and not uploaded.**
+  - **Thomas decides:** submit 54 and ship the fix later, or have 55 archived, exported, verified
+    and uploaded.
+- **The PWA is unaffected.** Its CLOSED chip is `bg-slate-500` with white text.
+- **Nothing else changed since 17:06Z:** middleware 2.21.1, benem-admin 1.6.5, PWA 0.19.10.
+
+**Where to pick up:**
+1. Thomas's decision on 54 vs 55.
+2. The webhook-insert race (parking item 11).
+3. The next middleware release, which carries `e4f500a`.
+
+---
+
 ## UPDATE 2026-09-23T17:06Z — supersedes (a), (b) and (e) below
 
 **Observed 17:06Z, not recalled:**
@@ -96,6 +121,10 @@ Read out of the unzipped IPA:
     `docs/evidence/2026-09-23-reopen-30058.md`.
 13. **New — `notification_number` is not logged**, so RENOTIFY cannot be read after the fact.
 14. **New — the unidentified iOS test failure** (above).
+15. **From memory, NOT re-checked 2026-09-23:**
+    - **LAN DNS:** the Synology at `192.168.2.11` answers NXDOMAIN for `benem.hurrikap.org`.
+    - **`upgrade.sh` rebuilds the middleware** for `*.md` changes under `middleware/`.
+    - **The WebART HTTP step never runs** when the check is run from a remote Service Engine.
 
 ### BHNM tickets — EXTERNAL, not ours to fix
 
