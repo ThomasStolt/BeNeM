@@ -6,6 +6,27 @@ NOT submitted.**
 
 ---
 
+## UPDATE 2026-09-27 — read this first
+
+- **Thomas chose 55. iOS 2.14.0 (55) is UPLOADED** at **2026-09-26T23:02:15Z**, printing
+  `Upload succeeded.` / `** EXPORT SUCCEEDED **`. Tag `ios-2.14.0-55` on `c09c64b`.
+  - Archived Release from a clean tree at `c09c64b`, which carries the CLOSED chip fix `e445e32`.
+  - **Exported locally and verified before upload**, read out of the unzipped IPA:
+    `aps-environment` production, `get-task-allow` false,
+    `Authority=Apple Distribution: Thomas Stolt (8L27BJGYXP)`, `CFBundleVersion` 55,
+    `CFBundleShortVersionString` 2.14.0, no `*.xctest`.
+  - The upload options were the same as the verified export's, differing only in
+    `destination: upload`. They were also identical to 54's.
+  - Archive: `~/Library/Developer/Xcode/Archives/2026-09-27/BeNeM 2.14.0 (55).xcarchive`.
+- **Processing, review and submission are Thomas's.** Nothing here has read App Store Connect.
+  54 is also uploaded, and **55 is the one to submit.**
+- **Not changed:** middleware 2.21.1, benem-admin 1.6.5, PWA 0.19.10. `e4f500a` is still not deployed.
+
+**Where to pick up:** the webhook-insert race (parking item 11), then the next middleware release
+that carries `e4f500a`.
+
+---
+
 ## UPDATE 2026-09-24 — read this first
 
 - **iOS 2.14.0 (54) is UPLOADED.** The upload ran from the Organizer archive at
