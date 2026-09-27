@@ -197,3 +197,55 @@ def test_a_detail_for_ANOTHER_host_is_not_inserted():
 
     assert "30053" not in served
     assert len(at_send) == 1
+
+
+def test_a_list_poll_landing_INSIDE_the_detail_await_keeps_its_row_and_logs_once(capsys):
+    """[MEASURED 2026-09-23, raspi-050, incident 30056] The webhook arrived at
+    15:24:14.058Z, a list poll published 30056 at 14.157Z (+99 ms), and the detail
+    returned at 14.292Z and REPLACED the poll's row, logging `None -> OPEN` a
+    second time. The known-check ran before the await and never again.
+
+    Ruled 2026-09-27: re-check before the merge. The poll's row wins; the detail
+    only fills the counts the poll could not have."""
+    gate = asyncio.Event()
+
+    class SlowDetail(FakeBHNM):
+        async def post(self, url, data=None, **kw):
+            if dict(data or {}).get("method") == "getincidentdetail":
+                await gate.wait()
+            return await super().post(url, data, **kw)
+
+    bhnm = SlowDetail({"30053": DETAIL_30053})
+    # BHNM moved during the await: the list already says acknowledged.
+    listed = {"active_incidents": [
+        {"incident_id": "30051", "incident_state": "OPEN", "title": "Other", "name": "UAP"},
+        {"incident_id": "30053", "incident_state": "OPEN", "title": "Host raspi-050",
+         "name": "raspi-050", "acknowledged": 1, "ack_user": "Thomas iPhone 13 ProMax"}]}
+
+    async def interleave():
+        with patch("incident_cache.httpx.AsyncClient", return_value=bhnm.client()):
+            webhook = asyncio.create_task(
+                incident_cache.insert_from_webhook([SERVER], "30053", "raspi-050", "OPEN"))
+            await asyncio.sleep(0.01)                     # the webhook is awaiting its detail
+            list_at = time.time()
+            async with bhnm.client() as c:                # +99 ms: the list poll lands
+                await incident_cache.publish_list(c, SERVER, listed, list_at, origin="Cache")
+            gate.set()                                    # the detail returns after
+            return await webhook, list_at
+
+    n, list_at = asyncio.run(interleave())
+
+    lines = [l for l in capsys.readouterr().out.splitlines()
+             if l.startswith("[State:lab] incident 30053")]
+    assert len(lines) == 1, f"one [State:] line for the new incident, got {lines}"
+    assert "(source: list)" in lines[0]
+
+    row = _held("30053")
+    assert row["acknowledged"] is True and row["ack_user"] == "Thomas iPhone 13 ProMax", \
+        "the poll's row must win"
+    assert row["state_confirmed_at"] == list_at, "the poll's stamp, not the webhook's"
+    assert row["counts_confirmed_at"] is not None, "counts filled from the detail"
+    assert row[incident_cache.SEVERITY_COUNTS_KEY] is not None
+    assert row["alarm_counts"]["blue"] == 1 and row["alarm_counts"]["red"] == 0, \
+        "coloured by the poll's own state: one alarm, acknowledged"
+    assert n is None, "nothing was inserted: the poll got there first"

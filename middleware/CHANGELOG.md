@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.21.2] - 2026-09-27
+
+### Fixed
+
+- **A list poll landing inside the webhook insert's detail await keeps its row.**
+  [MEASURED 2026-09-23, 30056] the webhook arrived at 15:24:14.058Z, a list poll published the
+  row 99 ms later, and the detail returned at 14.292Z and replaced it, logging `None -> OPEN` a
+  second time. `insert_from_webhook` checked "known" before the await and never again.
+  It now re-checks before the merge. When the poll got there first, the poll's row wins with its
+  state, flag and stamp, and the detail only fills the counts the poll had none of. One `[State:]`
+  line per new incident, and a `[Webhook] List poll published incident … first` line instead.
+  Test: `test_a_list_poll_landing_INSIDE_the_detail_await_keeps_its_row_and_logs_once`, shown
+  failing on 2.21.1 with the measured double line.
+
+### Added
+
+- **One log line per absence check** (`e4f500a`): `[Cache:<id>] Absence check incident <id>:
+  BHNM says …`, with the id and the verdict.
+
+---
+
 ## [benem-admin 1.6.5] - 2026-09-23
 
 ### Changed

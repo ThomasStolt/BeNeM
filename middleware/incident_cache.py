@@ -734,9 +734,30 @@ async def insert_from_webhook(servers: list[dict], incident_id: str,
         details = await asyncio.gather(*(_fetch_incident_detail(client, s, iid)
                                          for s in held))
     inserted = 0
+    beaten = False
     for server, detail in zip(held, details):
         inc = detail.get("incident") or {}
         if not detail.get("confirmed") or str(inc.get("name", "")).strip() != hostname:
+            continue
+        # **Re-check after the await.** [MEASURED 2026-09-23, 30056] a list poll
+        # published the row 99 ms after the webhook, inside this await, and the
+        # merge below replaced it and logged `None -> OPEN` a second time. The
+        # poll's row is newer than the webhook: it keeps its state, flag and stamp,
+        # and the detail only fills the counts a list call cannot carry.
+        entry = _cache.get(server["id"])
+        polled = next((r for r in (*entry.active_incidents, *entry.closed_incidents)
+                       if normalise_incident_id(r.get("incident_id", "")) == iid),
+                      None) if entry else None
+        if polled is not None:
+            beaten = True
+            fill = polled.get("alarm_counts") is None
+            if fill:
+                filled = _enrich_incident({}, detail, time.time())
+                polled[SEVERITY_COUNTS_KEY] = filled[SEVERITY_COUNTS_KEY]
+                polled["counts_confirmed_at"] = filled["counts_confirmed_at"]
+                recolour(polled)
+            print(f"[Webhook] List poll published incident {iid} first on {server['id']}: "
+                  f"kept its row, counts {'filled from the detail' if fill else 'unchanged'}")
             continue
         row = {k: inc.get(k) for k in ("name", "title", "device_category",
                                        "device_site", "device_note")}
@@ -750,7 +771,9 @@ async def insert_from_webhook(servers: list[dict], incident_id: str,
         log_transition(server["id"], iid, (None, None), state_pair(row),
                        state_source="webhook", ack_source="detail")
         inserted += 1
-    return inserted
+    # None, not 0: the row exists, so "not inserted, the next poll carries it"
+    # would be a false line.
+    return None if beaten and not inserted else inserted
 
 
 # -- M3: CLSD retention, and C15's 24-hour ceiling -------------------------------
