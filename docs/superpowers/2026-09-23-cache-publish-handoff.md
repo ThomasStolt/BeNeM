@@ -161,13 +161,15 @@ Two are **recorded as opened by Thomas** (09-18 handoff §9):
 2. **No api_key-readable version endpoint on-prem.** The topology shows "version unknown" there by
    design.
 
-Two more BHNM behaviours are **measured, but NOT recorded anywhere as filed tickets.** Thomas to
-confirm:
+**Ruled by Thomas 2026-09-27: three filed, one drafted.**
 
-3. **No webhook for the OPEN→ALARMS CLEARED transition.** 30008–30011 on BHNM-B (2026-09-21), and
-   both clears of 30058 (2026-09-23).
-4. **No webhook when an incident re-opens (ALARMS CLEARED→OPEN).** 30058, 16:06:30Z: same incident
-   id, no notification of any kind. `docs/evidence/2026-09-23-reopen-30058.md`.
+3. **FILED by Thomas 2026-09-23 — ONE ticket for both transition gaps**, with
+   `docs/evidence/2026-09-23-reopen-30058.md` as evidence:
+   - **No webhook for OPEN→ALARMS CLEARED.** 30008–30011 on BHNM-B (2026-09-21), and both clears
+     of 30058 (2026-09-23).
+   - **No webhook when an incident re-opens (ALARMS CLEARED→OPEN).** 30058, 16:06:30Z: same
+     incident id, no notification of any kind.
+4. **DRAFTED, NOT filed — the getincidents closed-incidents parameter.**
 
 ---
 
