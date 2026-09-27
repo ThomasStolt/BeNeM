@@ -10,6 +10,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Security
+
+- **The Debug console prints only the last 8 characters of the APNs device token**, as
+  `...<last 8>`, matching the middleware's `token[-8:]`. It printed the full token before.
+
 ## [2.14.0] - 2026-09-21
 
 Step 3 of the incident list filter build order. **Not submitted.** Build 54 was rebuilt on

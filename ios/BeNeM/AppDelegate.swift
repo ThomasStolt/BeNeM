@@ -45,7 +45,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     ) {
         let token = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
         #if DEBUG
-        print("[APNs] Device token: \(token)")
+        print("[APNs] Device token: ...\(token.suffix(8))")
         #endif
         cachedDeviceToken = token
         let ud = UserDefaults.standard
