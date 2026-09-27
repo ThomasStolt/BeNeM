@@ -1,5 +1,8 @@
+import hashlib
 import os
+import secrets
 import sqlite3
+import time
 from contextlib import contextmanager
 
 # /data is a Docker volume — falls back to local dir for bare-metal installs
@@ -52,6 +55,27 @@ def init_db():
         except Exception:
             pass  # Column already exists — safe to ignore
 
+        # App tokens (2026-09-27 design, app-token onboarding). The phone holds a
+        # token and no BHNM credential; the token names a server here. Stored as a
+        # sha256 so a copy of this file yields no usable token. One token per
+        # PERSON, several devices: never bound to a device, because a reinstall
+        # gets a new APNs token. Revocation only, no expiry (ruled 2026-09-27).
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS app_tokens (
+                token_hash   TEXT PRIMARY KEY,
+                server_id    TEXT NOT NULL,
+                label        TEXT NOT NULL,
+                issued_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_seen_at TIMESTAMP,
+                revoked_at   TIMESTAMP
+            )
+        """)
+        for table in ("device_tokens", "web_push_subscriptions"):
+            try:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN app_token_hash TEXT NOT NULL DEFAULT ''")
+            except Exception:
+                pass  # Column already exists — safe to ignore
+
         # C10 — an incident's alert_type never changes (Thomas, 2026-09-19: a host
         # incident is always a host incident; service and threshold are different
         # things that do not convert). It cannot be derived from the title either
@@ -92,12 +116,14 @@ def get_conn():
         conn.close()
 
 def save_token(token: str, device_name: str = "unknown", active_secret: str = "",
-               apns_environment: str = "production", server_id: str = ""):
+               apns_environment: str = "production", server_id: str = "",
+               app_token_hash: str = ""):
     with get_conn() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO device_tokens (token, device_name, active_secret, apns_environment, server_id) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (token, device_name, active_secret, apns_environment, server_id)
+            "INSERT OR REPLACE INTO device_tokens "
+            "(token, device_name, active_secret, apns_environment, server_id, app_token_hash) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (token, device_name, active_secret, apns_environment, server_id, app_token_hash)
         )
 
 def get_tokens_for_secrets(secrets: list[str]) -> list[tuple[str, str]]:
@@ -141,14 +167,16 @@ def delete_token(token: str):
 
 
 def save_web_push_subscription(endpoint: str, p256dh: str, auth: str, webhook_secret: str = "",
-                               server_id: str = ""):
+                               server_id: str = "", app_token_hash: str = ""):
     with get_conn() as conn:
         conn.execute(
-            """INSERT INTO web_push_subscriptions (endpoint, p256dh, auth, webhook_secret, server_id)
-               VALUES (?, ?, ?, ?, ?)
-               ON CONFLICT(endpoint) DO UPDATE SET p256dh=?, auth=?, webhook_secret=?, server_id=?""",
-            (endpoint, p256dh, auth, webhook_secret, server_id,
-             p256dh, auth, webhook_secret, server_id),
+            """INSERT INTO web_push_subscriptions
+                   (endpoint, p256dh, auth, webhook_secret, server_id, app_token_hash)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(endpoint) DO UPDATE SET p256dh=?, auth=?, webhook_secret=?,
+                   server_id=?, app_token_hash=?""",
+            (endpoint, p256dh, auth, webhook_secret, server_id, app_token_hash,
+             p256dh, auth, webhook_secret, server_id, app_token_hash),
         )
 
 
@@ -170,6 +198,78 @@ def get_web_push_subscriptions_for_secrets(secrets: list[str]) -> list[dict]:
 def get_web_push_subscriptions_for_secret(secret: str) -> list[dict]:
     """Return all Web Push subscriptions registered for the given webhook secret."""
     return get_web_push_subscriptions_for_secrets([secret])
+
+
+def hash_app_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def issue_app_token(server_id: str, label: str) -> str:
+    """A new token for one person on one server. The plaintext is returned ONCE
+    and never stored: the caller puts it in the QR and forgets it."""
+    token = "bnm_" + secrets.token_urlsafe(32)
+    with get_conn() as conn:
+        conn.execute("INSERT INTO app_tokens (token_hash, server_id, label) VALUES (?, ?, ?)",
+                     (hash_app_token(token), server_id, label))
+    return token
+
+
+def lookup_app_token(token: str) -> dict | None:
+    """The token's row, or None if it was never issued. A REVOKED token is returned
+    with revoked=True, so the caller can tell "revoked" from "unknown" — the app
+    shows a different message for each (addition B)."""
+    h = hash_app_token(token)
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT server_id, label, revoked_at, "
+            "CAST(strftime('%s', COALESCE(last_seen_at, '1970-01-01')) AS INTEGER) "
+            "FROM app_tokens WHERE token_hash = ?", (h,)).fetchone()
+        if row is None:
+            return None
+        # ponytail: last_seen at most once a minute per token, so a list poll every
+        # 30 s is not a write every 30 s.
+        if row[2] is None and time.time() - row[3] > 60:
+            conn.execute("UPDATE app_tokens SET last_seen_at = CURRENT_TIMESTAMP "
+                         "WHERE token_hash = ?", (h,))
+    return {"hash": h, "server_id": row[0], "label": row[1], "revoked": row[2] is not None}
+
+
+def revoke_app_token(token_hash: str) -> bool:
+    """Revoke one token. Its devices drop out of the next fan-out, because the
+    fan-out joins on live tokens — nothing has to re-register."""
+    with get_conn() as conn:
+        cur = conn.execute("UPDATE app_tokens SET revoked_at = CURRENT_TIMESTAMP "
+                           "WHERE token_hash = ? AND revoked_at IS NULL", (token_hash,))
+    return cur.rowcount == 1
+
+
+def get_tokens_for_servers(server_ids: list[str]) -> list[tuple[str, str]]:
+    """(token, apns_environment) for every device registered with a LIVE app token
+    of any of these servers — the by-server fan-out."""
+    if not server_ids:
+        return []
+    placeholders = ",".join("?" for _ in server_ids)
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"SELECT d.token, d.apns_environment FROM device_tokens d "
+            f"JOIN app_tokens a ON a.token_hash = d.app_token_hash "
+            f"WHERE a.revoked_at IS NULL AND a.server_id IN ({placeholders}) ORDER BY d.id",
+            tuple(server_ids)).fetchall()
+    return [(r[0], r[1]) for r in rows]
+
+
+def get_web_push_subscriptions_for_servers(server_ids: list[str]) -> list[dict]:
+    """Web Push twin of get_tokens_for_servers."""
+    if not server_ids:
+        return []
+    placeholders = ",".join("?" for _ in server_ids)
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"SELECT w.endpoint, w.p256dh, w.auth FROM web_push_subscriptions w "
+            f"JOIN app_tokens a ON a.token_hash = w.app_token_hash "
+            f"WHERE a.revoked_at IS NULL AND a.server_id IN ({placeholders}) ORDER BY w.id",
+            tuple(server_ids)).fetchall()
+    return [{"endpoint": r[0], "p256dh": r[1], "auth": r[2]} for r in rows]
 
 
 def delete_web_push_subscription(endpoint: str):

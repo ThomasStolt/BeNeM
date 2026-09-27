@@ -13,7 +13,7 @@ import base64
 import hashlib
 import json
 import zlib
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse
 import httpx
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from fastapi import FastAPI, Request, HTTPException
@@ -23,7 +23,8 @@ from pydantic import BaseModel, field_validator
 from config import MIDDLEWARE_PORT, VAPID_PUBLIC_KEY, BHNM_TLS_VERIFY, SERVERS_JSON_PATH, PROXY_TIMEOUT, PROXY_TOKEN, BENEM_SECRET_KEY, server_cache_enabled, server_accepted_secrets
 from database import init_db, save_token, get_tokens_for_secret, get_tokens_for_secrets, get_all_tokens, delete_token, \
     save_web_push_subscription, get_web_push_subscriptions_for_secret, \
-    get_web_push_subscriptions_for_secrets, delete_web_push_subscription
+    get_web_push_subscriptions_for_secrets, delete_web_push_subscription, \
+    issue_app_token, lookup_app_token, get_tokens_for_servers, get_web_push_subscriptions_for_servers
 from apns import send_to_all
 from webpush import send_web_push_to_all
 import asyncio
@@ -39,7 +40,7 @@ import maintenance_cache
 import diagnostics
 
 HOP_BY_HOP_REQUEST = {
-    "host", "x-proxy-token", "x-bhnm-target", "connection", "keep-alive",
+    "host", "x-proxy-token", "x-bhnm-target", "x-app-token", "connection", "keep-alive",
     "proxy-authenticate", "proxy-authorization", "te", "trailers", "upgrade",
     # Never forward the client's Accept-Encoding: httpx negotiates its own
     # (gzip/deflate) and transparently decompresses the upstream body. If a
@@ -402,6 +403,135 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+# ── App tokens (2026-09-27 design, app-token onboarding) ──────────────────────
+# The phone holds an app token and NO BHNM credential. This is the ONE place a
+# token is checked: it is swapped for its server's own X-Proxy-Token and
+# X-BHNM-Target before any route runs, so every existing resolution, the
+# key-target binding and every route work unchanged — no second auth path to
+# drift from the first. What the headers cannot carry (the credential and the
+# ack user inside a forwarded BHNM body) is _with_server_credentials' job.
+
+TOKEN_INVALID = "invalid token"
+TOKEN_REVOKED = "token revoked"   # the app shows "Access for this phone was revoked" on this one
+
+_legacy_logged: dict[tuple, int] = {}
+
+
+def _app_token(request: Request) -> dict | None:
+    """The validated app token behind this request, or None for a legacy request."""
+    return request.scope.get("state", {}).get("app_token")
+
+
+def _log_legacy(scope) -> None:
+    """[Auth] legacy … — one line per (kind, build, server) per hour.
+
+    The legacy gate (no BeNeM/53 or /55 in [Client] lines, Thomas's word) also
+    needs the legacy path's own traffic to be readable, so that an ABSENCE of
+    these lines is a measurement rather than a silence. Only a request that
+    actually authenticated the old way counts: an api_key a server holds, or a
+    secret on /register*. The operator PROXY_TOKEN is not a legacy client.
+    """
+    h = dict(scope["headers"])
+    proxy = h.get(b"x-proxy-token", b"").decode(errors="replace").strip()
+    secret = h.get(b"x-webhook-token", b"").decode(errors="replace").strip()
+    if proxy and not (PROXY_TOKEN and proxy == PROXY_TOKEN):
+        cfg = _server_config_for_api_key(proxy)
+        if cfg is None:
+            return
+        kind, server = "api_key", str(cfg.get("id", ""))
+    elif secret and scope.get("path") in ("/register", "/register-webpush"):
+        matches = _servers_for_webhook_secret(secret)
+        kind = "secret"
+        server = str(matches[0].get("id", "")) if len(matches) == 1 else "unresolved"
+    else:
+        return
+    match = _CLIENT_BUILD_RE.search(h.get(b"user-agent", b"").decode(errors="replace"))
+    client = f"BeNeM/{match.group(1)}" if match else "not-BeNeM"
+    key, hour = (kind, client, server), int(time.time() // 3600)
+    if _legacy_logged.get(key) == hour:
+        return
+    _legacy_logged[key] = hour
+    print(f"[Auth] legacy {kind} from {client} server={server}")
+
+
+class _AppTokenAuth:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        raw = dict(scope["headers"]).get(b"x-app-token")
+        if raw is None:
+            _log_legacy(scope)
+            return await self.app(scope, receive, send)
+        token = raw.decode(errors="replace").strip()
+        row = lookup_app_token(token) if token else None
+        server = next((s for s in _load_all_servers()
+                       if row and str(s.get("id", "")) == row["server_id"]), None)
+        if row is not None and row["revoked"]:
+            detail = TOKEN_REVOKED
+        elif row is None or server is None:
+            detail = TOKEN_INVALID
+        else:
+            detail = None
+        if detail:
+            print(f"[Auth] REFUSED app token ...{token[-4:]}: {detail}")
+            return await JSONResponse({"detail": detail}, status_code=401)(scope, receive, send)
+        drop = {b"x-app-token", b"x-proxy-token", b"x-bhnm-target"}
+        headers = [(k, v) for k, v in scope["headers"] if k not in drop]
+        headers += [(b"x-proxy-token", str(server.get("api_key", "")).encode()),
+                    (b"x-bhnm-target", str(server.get("url", "")).encode())]
+        state = {**scope.get("state", {}),
+                 "app_token": {"hash": row["hash"], "server_id": row["server_id"],
+                               "label": row["label"], "last4": token[-4:]}}
+        return await self.app({**scope, "headers": headers, "state": state}, receive, send)
+
+
+app.add_middleware(_AppTokenAuth)
+
+
+_CREDENTIAL_PARAMS = {"password", "pwd", "pin"}
+_ACK_ROUTES = ("restful/incident/acknowledge", "restful/incident/unacknowledge")
+
+
+def _with_server_credentials(request: Request, bhnm_path: str, body: bytes,
+                             query: str) -> tuple[bytes, str]:
+    """On an app-token request, the forwarded BHNM call carries the SERVER's
+    credential and nothing the client sent in its place.
+
+    Strips password, pwd and pin wherever the client put them and writes the
+    server record's own — so a client that still sends a key cannot pick another
+    target with it. On an acknowledge or unacknowledge, `user` becomes the
+    token's label and the client's value is ignored (addition A): the label is
+    the QR Username, so attribution means what it always meant and can no longer
+    be edited on the phone. Legacy requests pass through untouched.
+
+    fw/index.php takes `password`, the /api/*.php endpoints take `pwd`.
+    """
+    tok = _app_token(request)
+    if tok is None:
+        return body, query
+    cfg = _resolve_server_config(request) or {}
+    name = "password" if "fw/index.php" in bhnm_path else "pwd"
+    add = [(name, str(cfg.get("api_key", "")))]
+    if cfg.get("pin"):
+        add.append(("pin", str(cfg["pin"])))
+    is_ack = any(r in f"{bhnm_path}?{query}" for r in _ACK_ROUTES)
+    if is_ack:
+        add.append(("user", tok["label"]))
+    drop = _CREDENTIAL_PARAMS | ({"user"} if is_ack else set())
+
+    q = parse_qsl(query, keep_blank_values=True)
+    if any(k in drop for k, _ in q):
+        query = urlencode([(k, v) for k, v in q if k not in drop], safe="/")
+    if request.method == "GET":
+        return body, urlencode(parse_qsl(query, keep_blank_values=True) + add, safe="/")
+    pairs = [(k, v) for k, v in parse_qsl(body.decode("utf-8", errors="replace"),
+                                          keep_blank_values=True) if k not in drop]
+    return urlencode(pairs + add).encode(), query
+
+
 # ── Device Token Registration ─────────────────────────────────────────────────
 
 # The only two values APNs has, and the only two /register accepts. The iOS
@@ -429,8 +559,9 @@ class TokenRegistration(BaseModel):
 
 @app.post("/register")
 def register_token(body: TokenRegistration, request: Request):
+    tok = _app_token(request)
     active_secret = request.headers.get("X-Webhook-Token", "").strip()
-    if not active_secret:
+    if tok is None and not active_secret:
         raise HTTPException(status_code=400, detail="X-Webhook-Token header is required")
     # An environment we do not recognise is a DEFECT at the client, and
     # defaulting it to "production" is the worst possible response: a
@@ -446,6 +577,14 @@ def register_token(body: TokenRegistration, request: Request):
               f"{body.environment!r} — must be one of {sorted(APNS_ENVIRONMENTS)}")
         raise HTTPException(status_code=400, detail=INVALID_APNS_ENVIRONMENT)
     env = body.environment
+    if tok is not None:
+        # The token names the server; no secret is stored. Re-registering a device
+        # that held a legacy secret overwrites it — that write IS the migration.
+        save_token(body.token, body.device_name, "", env, tok["server_id"], tok["hash"])
+        print(f"[Register] Token saved: ...{body.token[-8:]} for {body.device_name} (APNs: {env}) "
+              f"app token ...{tok['last4']} label={tok['label']} server={tok['server_id']}")
+        log_client_build(request, "/register")
+        return {"status": "ok"}
     matches = _servers_for_webhook_secret(active_secret)
     server_id = str(matches[0].get("id", "")) if len(matches) == 1 else ""
     save_token(body.token, body.device_name, active_secret, env, server_id)
@@ -466,7 +605,7 @@ def register_token(body: TokenRegistration, request: Request):
 @app.delete("/register")
 def unregister_token(body: TokenRegistration, request: Request):
     active_secret = request.headers.get("X-Webhook-Token", "").strip()
-    if not active_secret:
+    if _app_token(request) is None and not active_secret:
         raise HTTPException(status_code=400, detail="X-Webhook-Token header is required")
     delete_token(body.token)
     print(f"[Unregister] Token removed: ...{body.token[-8:]}")
@@ -490,7 +629,15 @@ class WebPushRegistration(BaseModel):
 
 @app.post("/register-webpush", status_code=201)
 def register_webpush(body: WebPushRegistration, request: Request, response: Response):
+    tok = _app_token(request)
     webhook_secret = request.headers.get("X-Webhook-Token", "").strip()
+    if tok is not None:
+        # A token per browser, like a phone (ruled 2026-09-27).
+        save_web_push_subscription(body.endpoint, body.p256dh, body.auth, "",
+                                   tok["server_id"], tok["hash"])
+        print(f"[WebPush] Subscription saved: {body.endpoint[:50]}... "
+              f"app token ...{tok['last4']} label={tok['label']} server={tok['server_id']}")
+        return {"status": "ok"}
     if not webhook_secret:
         raise HTTPException(status_code=400, detail="X-Webhook-Token header is required")
     existing = get_web_push_subscriptions_for_secret(webhook_secret)
@@ -844,6 +991,13 @@ async def receive_webhook(request: Request):
         accepted = sorted({x for m in matches for x in server_accepted_secrets(m)})
         tokens = get_tokens_for_secrets(accepted)
         web_push_subs = get_web_push_subscriptions_for_secrets(accepted)
+        # App-token devices, by SERVER (2026-09-27 design). In union with the
+        # by-secret selection until the legacy gate; a device reachable both ways
+        # is paged once. The union goes when the legacy path does.
+        server_ids = [str(m.get("id", "")) for m in matches]
+        tokens = list(dict.fromkeys(tokens + get_tokens_for_servers(server_ids)))
+        web_push_subs = list({w["endpoint"]: w for w in
+                              web_push_subs + get_web_push_subscriptions_for_servers(server_ids)}.values())
         # secret_fp=, not secret=: the 2.13.2 redaction filter rewrites anything
         # matching `secret=…`, which silently blanked this fingerprint in the
         # mirrored host log — the one log that survives a container recreate and
@@ -1133,6 +1287,72 @@ async def cache_reload(request: Request):
     maintenance_cache.reload_server(server_id)
     diagnostics.reload_monitor(server_id, _load_all_servers(), BHNM_TLS_VERIFY)
     return {"status": "ok", "server_id": server_id}
+
+
+@app.post("/internal/app-tokens")
+async def issue_app_token_route(request: Request):
+    """Issue one app token. Called by the admin portal only.
+
+    The OPERATOR token and nothing else: _verify_proxy_token also accepts any
+    server api_key, and those are on phones — a legacy phone must not be able to
+    mint tokens. The plaintext is returned once and is never logged.
+    """
+    if not PROXY_TOKEN:
+        raise HTTPException(status_code=503, detail="PROXY_TOKEN is not configured")
+    if request.headers.get("X-Proxy-Token", "").strip() != PROXY_TOKEN:
+        raise HTTPException(status_code=401, detail="Invalid proxy token")
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    server_id = str(body.get("server_id", "")).strip()
+    label = str(body.get("label", "")).strip()
+    if not label:
+        raise HTTPException(status_code=400, detail="label is required")
+    if not any(str(s.get("id", "")) == server_id for s in _load_all_servers()):
+        raise HTTPException(status_code=404, detail="server not found")
+    token = issue_app_token(server_id, label)
+    print(f"[AppToken] Issued ...{token[-4:]} label={label} server={server_id}")
+    return {"token": token, "server_id": server_id, "label": label}
+
+
+PROBE_TIMEOUT = 15.0
+
+
+@app.post("/api/v1/probe")
+async def probe(request: Request):
+    """Test & Save, answered by the middleware: is the token good, and does THIS
+    server's BHNM accept the server's own key right now.
+
+    The BHNM half is the check the app used to make itself: an unsupported
+    method, because BHNM checks the credential first and answers in constant
+    size — `Method not supported.` for a good key, `Password failed.` for a bad
+    one (measured 2026-09-18). Three failures, kept distinct: a bad token never
+    gets here (401 from _AppTokenAuth), BHNM unreachable, and BHNM rejecting the
+    server's key — the last is an admin problem, not the phone's.
+    """
+    tok = _app_token(request)
+    if tok is None:
+        raise HTTPException(status_code=401, detail="X-App-Token header is required")
+    cfg = _resolve_server_config(request) or {}
+    form = {"pwd": cfg.get("api_key", ""), "method": "benem_connection_check"}
+    if cfg.get("pin"):
+        form["pin"] = cfg["pin"]
+    checked_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    try:
+        async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=PROBE_TIMEOUT) as client:
+            resp = await client.post(f"{str(cfg.get('url', '')).rstrip('/')}/api/incident_api.php",
+                                     data=form)
+        detail = str(resp.json().get("detail", ""))
+    except (httpx.HTTPError, ValueError) as e:
+        bhnm = {"reachable": False, "checked_at": checked_at, "detail": type(e).__name__}
+    else:
+        verdict = {"Method not supported.": "credential accepted",
+                   "Password failed.": "credential rejected"}.get(detail, "unexpected answer")
+        bhnm = {"reachable": True, "checked_at": checked_at, "detail": verdict}
+    print(f"[Probe] app token ...{tok['last4']} server={tok['server_id']}: "
+          f"reachable={bhnm['reachable']} {bhnm['detail']}")
+    return {"token": "valid", "server": cfg.get("name") or tok["server_id"], "bhnm": bhnm}
 
 
 @app.post("/api/v1/qr-redeem")
@@ -1430,6 +1650,18 @@ async def diagnostics_endpoint(request: Request):
 # These explicit routes exist so the middleware can later add caching /
 # cache-invalidation logic per endpoint.  For now they are thin pass-throughs.
 
+def _forward_headers(request: Request) -> dict:
+    """The client's headers minus hop-by-hop. On an app-token request the body was
+    rebuilt, so its length and type are the rebuilt body's, not the client's."""
+    headers = {k: v for k, v in request.headers.items() if k.lower() not in HOP_BY_HOP_REQUEST}
+    if _app_token(request) is not None:
+        headers = {k: v for k, v in headers.items()
+                   if k.lower() not in ("content-length", "content-type")}
+        if request.method != "GET":
+            headers["content-type"] = "application/x-www-form-urlencoded"
+    return headers
+
+
 async def _proxy_to_bhnm(request: Request, bhnm_path: str) -> Response:
     """Forward a form-encoded POST to the given BHNM path and return the response."""
     _verify_proxy_token(request)
@@ -1452,12 +1684,11 @@ async def _proxy_to_bhnm(request: Request, bhnm_path: str) -> Response:
         raise HTTPException(status_code=400, detail="X-BHNM-Target must be an http/https URL")
     _validate_proxy_target(target_base, request)
 
-    target = f"{target_base}/{bhnm_path.lstrip('/')}"
+    path_part, _, query = bhnm_path.partition("?")
+    body, query = _with_server_credentials(request, path_part, body, query)
+    target = f"{target_base}/{path_part.lstrip('/')}" + (f"?{query}" if query else "")
 
-    forward_headers = {
-        k: v for k, v in request.headers.items()
-        if k.lower() not in HOP_BY_HOP_REQUEST
-    }
+    forward_headers = _forward_headers(request)
 
     try:
         async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=PROXY_TIMEOUT) as client:
@@ -1795,14 +2026,12 @@ async def proxy(path: str, request: Request):
         raise HTTPException(status_code=400, detail="X-BHNM-Target must be an http/https URL")
     _validate_proxy_target(target_base, request)
 
+    body, query = _with_server_credentials(request, path, body, request.url.query)
     target = f"{target_base}/{path}"
-    if request.url.query:
-        target += f"?{request.url.query}"
+    if query:
+        target += f"?{query}"
 
-    forward_headers = {
-        k: v for k, v in request.headers.items()
-        if k.lower() not in HOP_BY_HOP_REQUEST
-    }
+    forward_headers = _forward_headers(request)
 
     try:
         async with httpx.AsyncClient(verify=BHNM_TLS_VERIFY, timeout=PROXY_TIMEOUT) as client:

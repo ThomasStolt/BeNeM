@@ -5,6 +5,38 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.22.0] - 2026-09-27
+
+Step 1 of `docs/superpowers/specs/2026-09-27-app-token-onboarding.md`: **the phone holds no BHNM
+credential.** Middleware only. **Not deployed.** Every legacy path is unchanged: build 55, the PWA
+and any v1 QR keep working exactly as today.
+
+### Added
+
+- **`app_tokens`** in SQLite: sha256 of the token, `server_id`, `label` (the QR Username),
+  `issued_at`, `last_seen_at`, `revoked_at`. Revocation only, no expiry. One token per person,
+  several devices. `device_tokens` and `web_push_subscriptions` gain `app_token_hash`.
+- **`POST /internal/app-tokens`** issues a `bnm_…` token. It takes the **operator** `PROXY_TOKEN`
+  only, never a server api_key, because those are on phones. The plaintext is returned once and
+  logged as `...<last 4>`.
+- **`X-App-Token`**, checked in ONE place (`_AppTokenAuth`) and swapped for the server's own
+  `X-Proxy-Token` and `X-BHNM-Target`, so every route, resolution and the key-target binding run
+  unchanged. Unknown → 401 `invalid token`; revoked → 401 `token revoked` (the app's own message).
+- **Credential injection:** on a token request the forwarded BHNM call carries the server's
+  `password`/`pwd` and `pin`, and whatever the client sent in their place is dropped.
+- **Ack-user stamping:** a token acknowledge or unacknowledge carries the token's label as `user`;
+  the client's value is ignored. Legacy acks keep the client's `user`.
+- **`/register`, `DELETE /register` and `/register-webpush` accept a token.** Registering with one
+  clears a legacy `active_secret` on that device: that write is the migration.
+- **Fan-out by server:** a resolved webhook pages the server's live-token devices in union with
+  today's by-secret devices, each once. A revoked token's devices drop out at the next webhook.
+- **`POST /api/v1/probe`**: token valid, and the server's BHNM checked with the server's own key —
+  `credential accepted`, `credential rejected` or unreachable, with `checked_at`.
+- **`[Auth] legacy api_key|secret from BeNeM/<build> server=<id>`**, once per build per server per
+  hour, so the legacy gate can read the old path's traffic rather than its silence.
+
+---
+
 ## [2.21.2] - 2026-09-27
 
 ### Fixed

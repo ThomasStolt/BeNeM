@@ -231,6 +231,8 @@ Configuration shares `cache_enabled` and `cache_refresh_seconds` with the incide
 | `GET/POST /api/v1/incidents` | Cached enriched incidents with alarm counts; falls through to live BHNM proxy if cache is cold | iOS app, PWA |
 | `POST /api/v1/incidents/refresh` | C7/M2 — ONE `getincidents` for the caller's server, single-flight, at most one per server per 30 s, no `getincidentdetail` call. Independent of the polling switch: BHNM sends no webhook for `ALARMS CLEARED`, so a list call is the only way that state arrives | iOS app, PWA |
 | `GET /api/v1/tactical-overview` | Cached tactical overview data by grouping type (`category`, `site`, `app`); falls through to live BHNM if cache is cold | iOS app, PWA |
+| `POST /internal/app-tokens` | Issue an app token `{server_id, label}` (operator `PROXY_TOKEN` only; plaintext returned once) | Admin portal |
+| `POST /api/v1/probe` | Test & Save: the app token is valid, and the server's BHNM accepts the server's own key (`X-App-Token`) | iOS app, PWA |
 | `POST /internal/cache/reload` | Trigger cache restart for a server (called by admin portal on server add/edit/delete) | Admin portal |
 | `POST /register` | Register an APNs device token (with `active_secret` from `X-Webhook-Token` header) | iOS app |
 | `DELETE /register` | Unregister an APNs device token | iOS app |
