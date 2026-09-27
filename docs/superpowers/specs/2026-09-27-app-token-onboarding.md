@@ -1,6 +1,7 @@
 # App-token onboarding: the phone holds no BHNM credential
 
-**Date:** 2026-09-27. **Status:** design note, not approved, no code.
+**Date:** 2026-09-27. **Status:** design note. Open questions ruled by Thomas 2026-09-27 (end of
+note). Step 1 (middleware) in progress.
 
 ## The ruling (Thomas, 2026-09-27)
 
@@ -67,8 +68,17 @@ CREATE TABLE IF NOT EXISTS app_tokens (
 - **The middleware is the only issuer.** The portal calls a new
   `POST /internal/app-tokens {server_id, label}`, authenticated with `PROXY_TOKEN` as
   `/internal/cache/reload` already is. It receives the plaintext once. One store, one writer.
-- **Revocation** is `revoked_at`. A revoked token gets 401 on every route, and its devices stop
-  receiving push at the next fan-out. It does not wait for a re-registration.
+- **Revocation only, no expiry** (ruled). Revocation is `revoked_at`. A revoked token gets 401 on
+  every route, and its devices stop receiving push at the next fan-out. It does not wait for a
+  re-registration.
+- **One token per person, several devices** (ruled). A token is **never** bound to its first
+  device: a reinstall gets a new APNs token, and binding would lock the person out. Every device
+  registered with a token is listed under it, and revoking the token drops all of them.
+- **The PWA gets a token per browser, exactly like a phone** (ruled). There is no read-only kind.
+- **The label is the ack user** (addition A). On an app-token request the middleware stamps the
+  token's label as `user` on every acknowledge and unacknowledge and **ignores the client's
+  value**. The label is the QR Username, so attribution is unchanged in meaning (root
+  `CLAUDE.md`, "The ack user is the QR Username") and can no longer be edited on the phone.
 
 ## Middleware changes
 
@@ -104,7 +114,10 @@ CREATE TABLE IF NOT EXISTS app_tokens (
      false` with the error), and BHNM rejecting the server's own key
      (`detail: "credential rejected"`). The last one is an admin problem, not a phone problem,
      and the app says so.
-6. **Every legacy-auth request logs one line:**
+6. **Ack-user stamping** (addition A): the acknowledge and unacknowledge routes replace any
+   client `user` with the token's label on an app-token request. Legacy requests keep today's
+   behaviour, the client's `user`.
+7. **Every legacy-auth request logs one line:**
    `[Auth] legacy api_key from BeNeM/<build> server=<id>`, rate-limited per build per hour. The
    M1-drop gate reads `[Client]` lines, and this line makes the legacy path's own traffic readable
    the same way. **An absence of legacy lines is then a measurement, not a silence.** Before the
@@ -122,10 +135,13 @@ loses a field, so the GAIN rule is not engaged.
   ```
   - `user` stays required, as today (`generate.html:329`). It becomes the token's `label`.
   - **No `bhnm_url`, `api_key`, `pin` or `push_secret`.**
-- **A token list per server:** label, issued, last seen, and a **Revoke** button. Tokens are
-  shown masked. The plaintext is never shown again after the QR page.
-- **The v1 QR stays available during the transition**, behind an explicit "legacy app (build 55
-  or older)" option.
+  - **Still AES-wrapped as today** (ruled). It stops a photographed QR being read by eye and is
+    never described as security.
+- **A token list per server:** label, issued, last seen, **the devices registered under each
+  token**, and a **Revoke** button that drops all of them. Tokens are shown masked. The plaintext
+  is never shown again after the QR page.
+- **The v1 QR stays available during the transition** (ruled), behind the label **"legacy app,
+  build 55 or older"**, and is deleted at the gate.
   - **The QR is a client-decoded payload.** Build 55's `DeepLinkHandler` expects `api_key`, so a
     v2 QR on a 55 phone is a removed field on a shipped decoder.
   - **Check the shipped decoder before relying on this** (`git show c09c64b:ios/...`), both for
@@ -135,7 +151,8 @@ loses a field, so the GAIN rule is not engaged.
 
 ## What the app stores and shows
 
-**Stored per connection:** middleware URL, server name, symbol, colour, ack user, app token.
+**Stored per connection:** middleware URL, server name, symbol, colour, ack user, app token. The
+ack user is kept **for display only**; the middleware stamps the token's label (addition A).
 - **iOS:** the token in the Keychain, the rest where it lives today.
 - **PWA:** in its existing storage.
 - **Nothing else.** `bhnmURL` goes too: the server is resolved from the token, so the client has
@@ -149,8 +166,11 @@ and `netreo_bhnm_url`. They are deleted only **after** a successful probe and a 
 **Shown** (doctrine: nothing green that has not been verified and dated):
 - **Connection:** server name, middleware host and ack user.
   - The status reads `Connected · confirmed 14:03`, from the probe's `checked_at`.
-  - Or `Can't reach BHNM · last confirmed 13:40`, or `Access revoked — ask your admin for a
-    new QR`.
+  - Or `Can't reach BHNM · last confirmed 13:40`.
+  - **On a 401 for a revoked token** (addition B), the app shows **"Access for this phone was
+    revoked, scan a new QR"**, never a generic error. The middleware answers a revoked token
+    with `{"detail": "token revoked"}`, distinct from an unknown token, so the client can tell
+    them apart.
   - **Never a bare "Connected".**
 - **Push:** `Registered · confirmed <time>` from the `/register` response, as Part 11 of the
   webhook-secret design already requires.
@@ -199,6 +219,11 @@ and `netreo_bhnm_url`. They are deleted only **after** a successful probe and a 
 - **Fan-out union:** a token-registered device and a secret-registered device on the same server
   both get the push, and a device registered both ways gets it **once**.
 - A revoked token's device is excluded at the next fan-out, with no re-registration.
+- **One token, several devices:** two devices registered with one token both get the push, and
+  revoking the token drops both.
+- **Ack-user stamping:** an app-token acknowledge reaches BHNM with the token's label as `user`
+  whatever the client sent. A legacy acknowledge still carries the client's `user`.
+- A revoked token gets `token revoked`, an unknown one `invalid token`.
 - **The probe's three failure cases, each distinct.** The BHNM half is asserted against the
   measured 46 B and 51 B answers.
 - The legacy line appears for a legacy request and not for a token request. Its absence case is
@@ -216,6 +241,7 @@ and `netreo_bhnm_url`. They are deleted only **after** a successful probe and a 
 - v2 import stores exactly the six fields.
 - Legacy fields are deleted **only** after probe and register both succeed.
 - A failed probe leaves the v1 connection intact and working.
+- A 401 `token revoked` renders "Access for this phone was revoked, scan a new QR".
 - The support view never renders more than the last 4 characters.
 - **`AckAttributionTests` and `ack-user.test.ts` still pass:** the Username still reaches BHNM
   as `user`.
@@ -241,15 +267,22 @@ and `netreo_bhnm_url`. They are deleted only **after** a successful probe and a 
    plus a `servers.json` change. No device carries the secret any more, so rotating it touches no
    phone.
 
-## Open questions
+## Rulings (Thomas, 2026-09-27)
 
-1. **Token lifetime:** no expiry with revocation only, or an expiry with re-issue? An expiry is a
-   paging outage waiting for a calendar date. The recommendation is revocation only.
-2. **One QR on two devices:** should a token bind to its first device registration and refuse a
-   second, or is one token per person across their devices acceptable?
-3. **Should the v1 QR option exist at all during the transition,** or should legacy phones simply
-   keep the connection they have until they update?
-4. **Keep the AES wrapper on the v2 QR?** It protects nothing against someone holding the app
-   binary, but it does keep a photographed QR from being read by eye. It costs nothing to keep.
-5. **The PWA as a desktop dashboard:** one token per browser, like a phone, or a separate
-   read-only token kind?
+These were the five open questions.
+
+1. **Token lifetime:** revocation only, no expiry.
+2. **Devices per token:** one token per person, several devices allowed. **Never bind to the first
+   device**, because a reinstall gets a new APNs token. The portal lists the devices under each
+   token, and revoke drops all of them.
+3. **The v1 QR:** kept during the transition behind the label "legacy app, build 55 or older",
+   and deleted at the gate.
+4. **The AES wrapper:** kept, and **never described as security.** It stops a photographed QR
+   being read by eye, nothing more.
+5. **The PWA:** a token per browser, like a phone. No read-only kind.
+
+**Additions:**
+- **A.** The ack user comes from the token. On an app-token request the middleware stamps the
+  token's label on every acknowledge and ignores the client's value.
+- **B.** On a 401 from a revoked token the app shows "Access for this phone was revoked, scan a
+  new QR", not a generic error.
