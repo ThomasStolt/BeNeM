@@ -22,6 +22,10 @@ NOT submitted.**
   54 is also uploaded, and **55 is the one to submit.**
 - **Not changed:** middleware 2.21.1, benem-admin 1.6.5, PWA 0.19.10. `e4f500a` is still not deployed.
 
+- **2026-09-27, from Thomas:** build 55 is attached to version 2.14.0 in App Store Connect
+  (screenshot) and the app was sent to the App Store (Thomas's words:
+  "pushed to the App Store"). **Review or release state is not recorded here** — ask Thomas.
+
 **Where to pick up:** the webhook-insert race (parking item 11), then the next middleware release
 that carries `e4f500a`.
 
