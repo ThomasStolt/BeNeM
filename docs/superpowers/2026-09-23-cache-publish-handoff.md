@@ -161,6 +161,16 @@ Read out of the unzipped IPA:
     `docs/evidence/2026-09-23-reopen-30058.md`.
 13. **New — `notification_number` is not logged**, so RENOTIFY cannot be read after the fact.
 14. **New — the unidentified iOS test failure** (above).
+16. **New 2026-09-30 — five APNs tokens for three iPhones.** Every webhook fans out to 5 APNs
+    targets (`...0c56a19b`, `...86587674`, `...018ab51d`, `...a53f7cc1`, `...10882c55`) while only
+    three iPhones are in use. Probably stale sandbox tokens from earlier Xcode installs; APNs has
+    not rejected them. Not investigated.
+17. **New 2026-09-30 — the Android PWA cannot reach the middleware; LAN DNS SUSPECTED, not
+    re-checked.** Since the 2.22.0 deploy the middleware logged no `not-BeNeM` client and no
+    OPTIONS request, and the PWA container no Android request (its last: 2026-09-28 21:06:34Z,
+    with 87 earlier ones, so the search can find them). Web Push to it was delivered at 18:58:16Z
+    and 19:07:39Z. The timing with the deploy is coincidental on this evidence: the token layer
+    passes any request without `X-App-Token` untouched. Thomas has not re-checked the Synology.
 15. **From memory, NOT re-checked 2026-09-23:**
     - **LAN DNS:** the Synology at `192.168.2.11` answers NXDOMAIN for `benem.hurrikap.org`.
     - **`upgrade.sh` rebuilds the middleware** for `*.md` changes under `middleware/`.
