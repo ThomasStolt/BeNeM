@@ -6,6 +6,21 @@ NOT submitted.**
 
 ---
 
+## UPDATE 2026-09-30 — read this first
+
+- **iOS 2.14.0 (55) is LIVE on the App Store as of 2026-09-30**, per Thomas. Nothing here read App
+  Store Connect.
+- **Middleware 2.22.0 deployed 2026-09-30** (`f07f6ea`, app tokens step 1). Rollback
+  `bhnm-apns-bhnm-apns:pre-2.22.0` holds 2.21.2, read back after tagging. The restart at
+  18:44:30Z emptied CLOSED retention (parking item 1).
+- **M1-drop is still gated, on Thomas's word.** `[Client]` lines by build, last seen, across all
+  three rotated logs (2026-09-14 → 2026-09-30): BeNeM/45 09-23 16:53, **BeNeM/53 09-23 16:57**,
+  BeNeM/54 09-23 18:21, BeNeM/55 09-28 21:01, not-BeNeM 09-25 13:07. **None in the 24 h before the
+  deploy.** The gate text (`incident_cache.py:432-436`) also names PWA 0.18.1 as depending on
+  `ACKNOWLEDGED`, and the PWA logs as `not-BeNeM` with no version.
+
+---
+
 ## UPDATE 2026-09-27 — read this first
 
 - **Thomas chose 55. iOS 2.14.0 (55) is UPLOADED** at **2026-09-26T23:02:15Z**, printing
