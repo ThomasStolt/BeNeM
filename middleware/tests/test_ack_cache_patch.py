@@ -58,9 +58,9 @@ def _seed_cache():
 def test_note_override_patches_live_cache():
     _seed_cache()
     incident_cache.note_state_override("prod", "100", "ACKNOWLEDGED")
-    states = {i["incident_id"]: i["incident_state"]
+    states = {i["incident_id"]: (i["incident_state"], i.get("acknowledged"))
               for i in incident_cache._cache["prod"].active_incidents}
-    assert states["100"] == "ACKNOWLEDGED"
+    assert states["100"] == ("OPEN", True)  # M1-drop: the flag, not the value
 
 
 def test_store_applies_fresh_overrides_to_stale_snapshot():
@@ -68,7 +68,7 @@ def test_store_applies_fresh_overrides_to_stale_snapshot():
     incident_cache.note_state_override("prod", "100", "ACKNOWLEDGED")
     stale = [{"incident_id": "100", "incident_state": "OPEN"}]
     incident_cache._apply_state_overrides("prod", stale)
-    assert stale[0]["incident_state"] == "ACKNOWLEDGED"
+    assert (stale[0]["incident_state"], stale[0]["acknowledged"]) == ("OPEN", True)
 
 
 def test_expired_override_not_applied():
@@ -107,9 +107,9 @@ def test_dedicated_ack_route_patches_cache(client):
                            data={"password": "secret-key-123", "incident_id": "100", "user": "tom"},
                            headers=HDRS)
     assert resp.status_code == 200
-    states = {i["incident_id"]: i["incident_state"]
+    states = {i["incident_id"]: (i["incident_state"], i.get("acknowledged"))
               for i in incident_cache._cache["prod"].active_incidents}
-    assert states["100"] == "ACKNOWLEDGED"
+    assert states["100"] == ("OPEN", True)  # M1-drop: the flag, not the value
 
 
 def test_dedicated_unack_route_patches_cache(client):
@@ -118,9 +118,9 @@ def test_dedicated_unack_route_patches_cache(client):
         client.post("/api/proxy/incident/unacknowledge",
                     data={"password": "secret-key-123", "incident_id": "200", "user": "tom"},
                     headers=HDRS)
-    states = {i["incident_id"]: i["incident_state"]
+    states = {i["incident_id"]: (i["incident_state"], i.get("acknowledged"))
               for i in incident_cache._cache["prod"].active_incidents}
-    assert states["200"] == "OPEN"
+    assert states["200"][0] == "OPEN"
 
 
 def test_catchall_restful_ack_patches_cache(client):
@@ -131,9 +131,9 @@ def test_catchall_restful_ack_patches_cache(client):
                            data={"password": "secret-key-123", "incident_id": "100", "user": "tom"},
                            headers={"X-Proxy-Token": "secret-key-123"})
     assert resp.status_code == 200
-    states = {i["incident_id"]: i["incident_state"]
+    states = {i["incident_id"]: (i["incident_state"], i.get("acknowledged"))
               for i in incident_cache._cache["prod"].active_incidents}
-    assert states["100"] == "ACKNOWLEDGED"
+    assert states["100"] == ("OPEN", True)  # M1-drop: the flag, not the value
 
 
 def test_no_patch_on_bhnm_error(client):
@@ -142,6 +142,6 @@ def test_no_patch_on_bhnm_error(client):
         client.post("/api/proxy/incident/acknowledge",
                     data={"password": "secret-key-123", "incident_id": "100", "user": "tom"},
                     headers=HDRS)
-    states = {i["incident_id"]: i["incident_state"]
+    states = {i["incident_id"]: (i["incident_state"], i.get("acknowledged"))
               for i in incident_cache._cache["prod"].active_incidents}
-    assert states["100"] == "OPEN"
+    assert states["100"][0] == "OPEN" and not states["100"][1], "an error must not set the flag"

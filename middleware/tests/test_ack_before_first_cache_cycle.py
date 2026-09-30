@@ -58,7 +58,8 @@ def test_ack_before_the_first_cache_cycle_is_applied_on_first_sighting():
     incidents = [_incident("29586"), _incident("29546")]
     incident_cache._apply_state_overrides("ThomasLabServer", incidents)
 
-    assert incidents[0]["incident_state"] == "ACKNOWLEDGED"
+    # M1-drop: the ack is the flag; incident_state keeps BHNM's own state.
+    assert (incidents[0]["incident_state"], incidents[0]["acknowledged"]) == ("OPEN", True)
     assert incidents[1]["incident_state"] == "OPEN", "only the acked incident is touched"
 
 
@@ -67,12 +68,12 @@ def test_the_override_survives_later_cycles_within_the_ttl():
     incident_cache.note_state_override_any_server("29586", "ACKNOWLEDGED")
     first = [_incident("29586")]
     incident_cache._apply_state_overrides("ThomasLabServer", first)
-    assert first[0]["incident_state"] == "ACKNOWLEDGED"
+    assert (first[0]["incident_state"], first[0]["acknowledged"]) == ("OPEN", True)
 
     # A later cycle brings a fresh snapshot from BHNM, still saying OPEN.
     second = [_incident("29586")]
     incident_cache._apply_state_overrides("ThomasLabServer", second)
-    assert second[0]["incident_state"] == "ACKNOWLEDGED"
+    assert (second[0]["incident_state"], second[0]["acknowledged"]) == ("OPEN", True)
 
 
 def test_a_pending_override_expires_with_the_same_ttl():

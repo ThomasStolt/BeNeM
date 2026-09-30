@@ -152,21 +152,19 @@ def test_acking_an_alarms_cleared_incident_does_not_reopen_its_alarms():
     assert inc["state"] == "ALARMS CLEARED", "both facts must survive together"
 
 
-def test_an_acknowledgement_webhook_still_writes_ACKNOWLEDGED_into_incident_state():
-    """The transition guarantee build 53 depends on.
+def test_M1_drop_an_acknowledgement_no_longer_writes_ACKNOWLEDGED_into_incident_state():
+    """M1-drop, 2026-09-30, on Thomas's word after the last BeNeM/53 line.
 
-    iOS 2.13.6 (NetreoAPIService.swift:1300-1308) and PWA 0.18.1
-    (incidents.ts:101-104) derive their ENTIRE notion of acknowledgement from
-    incident_state == "ACKNOWLEDGED". Dropping the value is a breaking change
-    with no field removed at all.
-
-    DELETED AT M1-drop, NOT BEFORE — once no BeNeM/53 remains in the proxy log,
-    which is Thomas's word and never an inference from elapsed time.
+    Until then this test asserted the opposite: build 53 and PWA 0.18.1 derived
+    acknowledgement from incident_state == "ACKNOWLEDGED". iOS 55 and PWA 0.19.10
+    read `state` and `acknowledged` (checked at c09c64b and 27e7ba0). The field
+    stays and carries BHNM's own state; the ack is the flag alone.
     """
     incident_cache._cache["lab"] = CachedIncidents(
         active_incidents=[_row("30005")], last_updated=time.time())
     _webhook("ACKNOWLEDGEMENT", 30005)
-    assert _cached(30005)["incident_state"] == "ACKNOWLEDGED"
+    inc = _cached(30005)
+    assert (inc["incident_state"], inc["state"], inc["acknowledged"]) == ("OPEN", "OPEN", True)
 
 
 def test_an_unacknowledgement_clears_the_flag_without_touching_the_state():
@@ -415,7 +413,7 @@ def test_override_fields_are_applied_in_exactly_one_place():
     row = _row("1", state="ALARMS CLEARED")
     _apply_override_fields(row, "ACKNOWLEDGED", 1000.0)
     assert (row["incident_state"], row["state"], row["acknowledged"]) == \
-        ("ACKNOWLEDGED", "ALARMS CLEARED", True)
+        ("ALARMS CLEARED", "ALARMS CLEARED", True)
     _apply_override_fields(row, "CLOSED", 2000.0)
     assert (row["incident_state"], row["state"], row["closed_at"]) == ("CLOSED", "CLOSED", 2000.0)
 

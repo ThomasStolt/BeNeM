@@ -426,15 +426,18 @@ def log_transition(server_id: str, incident_id: str,
 
 # -- M1: the state and the flag are two facts ------------------------------------
 # BHNM has THREE incident states — OPEN, ALARMS CLEARED, CLOSED — and
-# acknowledgement is a FLAG on an OPEN incident, not a fourth state. Today the
-# webhook writes "ACKNOWLEDGED" into incident_state, so "acknowledged" and
-# "alarms cleared" occupy the same field and cannot both be true.
+# acknowledgement is a FLAG on an OPEN incident, not a fourth state. Until
+# M1-drop the webhook wrote "ACKNOWLEDGED" into incident_state, so "acknowledged"
+# and "alarms cleared" occupied the same field and could not both be true.
 #
-# incident_state KEEPS TODAY'S BEHAVIOUR EXACTLY, ACKNOWLEDGED and all: both
-# released clients (iOS build 53, PWA 0.18.1) derive their entire notion of
-# acknowledgement from it, so removing the value is a breaking change with no
-# field removed. It goes at M1-drop, once no BeNeM/53 remains in the proxy log —
-# Thomas's word, never an inference from elapsed time.
+# **M1-drop, 2026-09-30 (middleware 2.23.0), on Thomas's word:** incident_state
+# now carries BHNM's own state only — OPEN, ALARMS CLEARED or CLOSED — and the
+# ack lives in `acknowledged` alone. The FIELD stays; only the value went. Gate:
+# the last BeNeM/53 [Client] line was 2026-09-30 19:10:52Z, and both iPhones
+# registered as BeNeM/55 after it. Checked against the shipped decoders, not
+# HEAD: iOS 55 (c09c64b) and PWA 0.19.10 (27e7ba0) read `state`/`acknowledged`
+# and fall back to incident_state only when `state` is absent, and every value
+# it now carries is one both already render.
 
 BHNM_STATES = ("OPEN", "ALARMS CLEARED", "CLOSED")
 
@@ -460,7 +463,9 @@ def _apply_override_fields(inc: dict, state: str, at: float,
     Both the legacy write and the M1 split happen here, so a webhook, a proxied
     ACK and a re-applied override can never disagree about what an override means.
     """
-    inc["incident_state"] = state          # unchanged from today, on purpose
+    # M1-drop: an ack or unack never lands in incident_state. It mirrors the
+    # row's own BHNM state; only CLOSED is a state and is written as one.
+    inc["incident_state"] = state if state == "CLOSED" else state_of(inc)
     if state == "ACKNOWLEDGED":
         inc["acknowledged"] = True         # state is untouched: ACKD is a SUBSET of OPEN
         recolour(inc)

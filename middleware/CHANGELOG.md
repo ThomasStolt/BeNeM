@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.23.0] - 2026-09-30
+
+### Changed
+
+- **M1-drop: `incident_state` no longer carries `ACKNOWLEDGED`.** An ack or unack sets the
+  `acknowledged` flag only; `incident_state` keeps BHNM's own state — OPEN, ALARMS CLEARED or
+  CLOSED. **The field stays; only the value went.**
+  - **Gate, on Thomas's word 2026-09-30:** the last `BeNeM/53` `[Client]` line was 19:10:52Z, and
+    both iPhones registered as `BeNeM/55` after it.
+  - **Checked against the shipped decoders, not HEAD:** iOS 55 (`c09c64b`) and PWA 0.19.10
+    (`27e7ba0`) read `state` and `acknowledged`, falling back to `incident_state` only when
+    `state` is absent. Every value the field now carries is one both already render.
+  - Nine tests asserted the old value and now assert the flag.
+
+---
+
 ## [2.22.0] - 2026-09-27
 
 Step 1 of `docs/superpowers/specs/2026-09-27-app-token-onboarding.md`: **the phone holds no BHNM

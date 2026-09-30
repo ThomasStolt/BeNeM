@@ -179,17 +179,23 @@ def _seed_cache(state="OPEN"):
     return entry
 
 
-@pytest.mark.parametrize("ntype,expected", [
-    ("ACKNOWLEDGEMENT", "ACKNOWLEDGED"),
-    ("DEACKNOWLEDGEMENT", "OPEN"),
-    ("UNACKNOWLEDGEMENT", "OPEN"),
-    ("RECOVERY", "CLOSED"),
+# M1-drop (2.23.0): an ack or unack moves the FLAG; incident_state keeps BHNM's state.
+@pytest.mark.parametrize("ntype,expected,acked", [
+    ("ACKNOWLEDGEMENT", "OPEN", True),
+    ("DEACKNOWLEDGEMENT", "OPEN", False),
+    ("UNACKNOWLEDGEMENT", "OPEN", False),
+    ("RECOVERY", "CLOSED", None),
 ])
-def test_webhook_patches_the_cached_incident(client, ntype, expected):
-    entry = _seed_cache("ACKNOWLEDGED" if expected == "OPEN" else "OPEN")
+def test_webhook_patches_the_cached_incident(client, ntype, expected, acked):
+    entry = _seed_cache("OPEN")
+    if acked is False:
+        entry.active_incidents[0]["acknowledged"] = True
     post(client, {"notification_type": ntype, "hostname": "raspi-050",
                   "host_state": "DOWN", "incident_id": "29483"})
-    assert entry.active_incidents[0]["incident_state"] == expected
+    row = (entry.active_incidents or entry.closed_incidents)[0]
+    assert row["incident_state"] == expected
+    if acked is not None:
+        assert row["acknowledged"] is acked
 
 
 def test_problem_does_not_patch_the_cache(client):
