@@ -165,12 +165,15 @@ Read out of the unzipped IPA:
     targets (`...0c56a19b`, `...86587674`, `...018ab51d`, `...a53f7cc1`, `...10882c55`) while only
     three iPhones are in use. Probably stale sandbox tokens from earlier Xcode installs; APNs has
     not rejected them. Not investigated.
-17. **New 2026-09-30 — the Android PWA cannot reach the middleware; LAN DNS SUSPECTED, not
-    re-checked.** Since the 2.22.0 deploy the middleware logged no `not-BeNeM` client and no
-    OPTIONS request, and the PWA container no Android request (its last: 2026-09-28 21:06:34Z,
-    with 87 earlier ones, so the search can find them). Web Push to it was delivered at 18:58:16Z
-    and 19:07:39Z. The timing with the deploy is coincidental on this evidence: the token layer
-    passes any request without `X-App-Token` untouched. Thomas has not re-checked the Synology.
+17. **CONFIRMED 2026-10-01 — the Android PWA cannot reach the middleware because the Synology
+    answers NXDOMAIN for `benem.hurrikap.org`.** Thomas's dig from the LAN:
+    `@192.168.2.11 benem.hurrikap.org` → `status: NXDOMAIN`; `@1.1.1.1` → `172.104.142.164`;
+    `bhnm-apns.hurrikap.org` resolves on both. The PWA's CSP is `connect-src 'self'`, so its API
+    calls go to `benem.hurrikap.org/bhnm/*` (Caddy → middleware), the name that fails; the iPhones
+    use `bhnm-apns.hurrikap.org` (the portal's `MIDDLEWARE_URL`) and are unaffected. No Android
+    request since 2026-09-28 21:06Z, before the 2.22.0 deploy, so the timing was coincidence.
+    Superseded by the move to `tstolt.com` (Thomas, 2026-10-01: `hurrikap.org` is for internal
+    names only).
 15. **From memory, NOT re-checked 2026-09-23:**
     - **LAN DNS:** the Synology at `192.168.2.11` answers NXDOMAIN for `benem.hurrikap.org`.
     - **`upgrade.sh` rebuilds the middleware** for `*.md` changes under `middleware/`.
