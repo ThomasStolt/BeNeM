@@ -81,8 +81,8 @@ BeNeM is the go-to **lightweight mobile client** for BHNM users who want to chec
 | Platform | Status | Distribution |
 |---|---|---|
 | iOS (Swift/SwiftUI) | Production | App Store / TestFlight |
-| PWA (React/TypeScript) | Production | `https://benem.hurrikap.org` |
-| Middleware (Python/FastAPI) | Production | `https://bhnm-apns.hurrikap.org` (Docker + Caddy) |
+| PWA (React/TypeScript) | Production | `https://benem.tstolt.com` |
+| Middleware (Python/FastAPI) | Production | `https://bhnm-apns.tstolt.com` (Docker + Caddy) |
 
 ### 4.2 iOS app architecture
 

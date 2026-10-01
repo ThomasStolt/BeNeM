@@ -177,7 +177,7 @@ auth, APNs routing) and `../CLAUDE.md` for the cross-cutting architecture.
 python3 generate_benem_link.py \
   --bhnm-server https://bhnm.example.com \
   --api_key YOUR_API_KEY \
-  --push_url https://bhnm-apns.hurrikap.org \   # plain text
+  --push_url https://bhnm-apns.tstolt.com \   # plain text
   --push_secret YOUR_WEBHOOK_SECRET              # encrypted
 ```
 - `push_url` is included plain text in the link

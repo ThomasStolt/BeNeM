@@ -29,7 +29,7 @@ Part of the BeNeM monorepo. See `../CLAUDE.md` for cross-cutting rules and `../s
 
 | Platform | How to Use |
 |---|---|
-| **Android** | Open `https://benem.hurrikap.org` in Chrome, tap "Add to Home Screen" to install as PWA. Push notifications via Web Push. |
+| **Android** | Open `https://benem.tstolt.com` in Chrome, tap "Add to Home Screen" to install as PWA. Push notifications via Web Push. |
 | **Desktop** | Open the same URL in any modern browser for a web dashboard. |
 | **iOS** | The PWA works in Safari but push is unreliable. An in-app banner directs iOS users to install the native app from the App Store instead. |
 
@@ -65,12 +65,12 @@ Without a real API key, the list shows mock fixture data so you can still work o
 ## Architecture
 
 - **Stack:** Vite 5 + React 19 + TypeScript strict + Tailwind v3 + vite-plugin-pwa + TanStack Query v5 + React Router v6
-- **Dev proxy:** `/bhnm/*` is forwarded to `VITE_MIDDLEWARE_BASE` (default `https://bhnm-apns.hurrikap.org`) with `changeOrigin: true`. This avoids CORS during development.
+- **Dev proxy:** `/bhnm/*` is forwarded to `VITE_MIDDLEWARE_BASE` (default `https://bhnm-apns.tstolt.com`) with `changeOrigin: true`. This avoids CORS during development.
 - **Production:** The PWA is deployed as a Docker container (nginx serving static files) behind Caddy, which same-origin-proxies `/bhnm/*` to the middleware container.
 - **QR Encryption:** none in the client. QR redemption is server-side — `parseQRUrl` POSTs the encrypted blob to `/bhnm/api/v1/qr-redeem` and the middleware decrypts it with `BENEM_SECRET_KEY`. No key is built into the bundle.
 
 ## Production Hosting
 
-The PWA is deployed at `https://benem.hurrikap.org` as a dedicated `benem-pwa` container managed by `middleware/docker-compose.yml`. The same Caddy instance that fronts the middleware terminates TLS for both hostnames and same-origin-proxies `/bhnm/*` on the PWA host to the middleware container.
+The PWA is deployed at `https://benem.tstolt.com` as a dedicated `benem-pwa` container managed by `middleware/docker-compose.yml`. The same Caddy instance that fronts the middleware terminates TLS for both hostnames and same-origin-proxies `/bhnm/*` on the PWA host to the middleware container.
 
 Deploy with `./upgrade.sh` from the middleware directory. The smart rebuild only rebuilds containers with changed files.

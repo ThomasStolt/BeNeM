@@ -5,7 +5,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const middlewareBase = env.VITE_MIDDLEWARE_BASE ?? 'https://bhnm-apns.hurrikap.org';
+  const middlewareBase = env.VITE_MIDDLEWARE_BASE ?? 'https://bhnm-apns.tstolt.com';
   const bhnmProxy = {
     '/bhnm': {
       target: middlewareBase,

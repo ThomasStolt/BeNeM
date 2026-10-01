@@ -157,7 +157,7 @@ known hazard.
 ## Deployment facts
 
 - **Runtime:** Python / FastAPI
-- **Deployed at:** `https://bhnm-apns.hurrikap.org` (Linode Nanode, Caddy terminates TLS)
+- **Deployed at:** `https://bhnm-apns.tstolt.com` (Linode Nanode, Caddy terminates TLS)
 - **APNs:** `.p8` Auth Key, base64-encoded in `APNS_PRIVATE_KEY_B64` env var
 - **Web Push:** VAPID key pair, configured via `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_CONTACT_EMAIL` env vars
 
