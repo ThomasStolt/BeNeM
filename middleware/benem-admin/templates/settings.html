@@ -85,6 +85,10 @@
         <dt>Version</dt>
         <dd>{{ version }}</dd>
       </div>
+      <div>
+        <dt>Middleware URL</dt>
+        <dd><code>{{ middleware_url or '(not configured)' }}</code><br><small>from {{ middleware_url_source }} — read-only; change the domain in .env and restart</small></dd>
+      </div>
     </dl>
   </div>
 

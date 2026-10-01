@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [benem-admin 1.6.6] - 2026-10-01
+
+### Changed
+
+- **The QR's middleware URL is derived from `DOMAIN`** (`https://$DOMAIN`), the name Caddy serves
+  and holds a certificate for, so a generated QR cannot point at a host the server does not
+  answer on. `MIDDLEWARE_URL` is now an optional override only. Settings → App Info shows the
+  URL read-only with its source. The 2026-10-01 move to `tstolt.com` needed two `.env` edits to
+  stay consistent; this makes it one.
+
+---
+
 ## [2.23.0] - 2026-09-30
 
 ### Changed

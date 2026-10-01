@@ -1,4 +1,4 @@
-VERSION = "1.6.5"
+VERSION = "1.6.6"
 
 import base64
 import io
@@ -34,7 +34,24 @@ from sf_symbols import SF_SYMBOLS
 
 load_dotenv()
 
-MIDDLEWARE_URL = os.environ.get("MIDDLEWARE_URL", "")
+def _middleware_url() -> tuple[str, str]:
+    """The public middleware URL every QR carries, and where it came from.
+
+    Derived from DOMAIN — the name Caddy actually serves and holds a certificate
+    for — so a QR can never point at a host this server does not answer on.
+    MIDDLEWARE_URL survives only as an explicit override. A separate editable
+    value was how the 2026-10-01 domain move needed two edits to stay consistent.
+    """
+    override = os.environ.get("MIDDLEWARE_URL", "").strip().rstrip("/")
+    if override:
+        return override, "MIDDLEWARE_URL override in .env"
+    domain = os.environ.get("DOMAIN", "").strip().rstrip("/")
+    if domain:
+        return f"https://{domain}", "DOMAIN in .env"
+    return "", "not configured"
+
+
+MIDDLEWARE_URL, MIDDLEWARE_URL_SOURCE = _middleware_url()
 MIDDLEWARE_INTERNAL_URL = os.environ.get("MIDDLEWARE_INTERNAL_URL", "http://benem-middleware:8889")
 # S1 change 1a: the QR's push secret comes from the server's accepted list, not
 # from one global env var. PUSH_SECRET remains only as the seed/fallback for a
@@ -375,6 +392,8 @@ def settings_page(request: Request):
         "active": "settings",
         "totp_qr_b64": _totp_qr_b64(),
         "version": VERSION,
+        "middleware_url": MIDDLEWARE_URL,
+        "middleware_url_source": MIDDLEWARE_URL_SOURCE,
         "can_restart": _can_restart(),
         "restart_initiated": False,
         "servers": servers,
@@ -397,6 +416,8 @@ def restart_container(request: Request):
         "active": "settings",
         "totp_qr_b64": _totp_qr_b64(),
         "version": VERSION,
+        "middleware_url": MIDDLEWARE_URL,
+        "middleware_url_source": MIDDLEWARE_URL_SOURCE,
         "can_restart": True,
         "restart_initiated": True,
         "servers": servers,
